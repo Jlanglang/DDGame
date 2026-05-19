@@ -36,17 +36,23 @@
     });
   }
 
-  function play(name) {
+  function play(name, opts) {
     if (!enabled || !pool[name]) return;
     try {
       const base = pool[name];
       const node = base.cloneNode();
       node.volume = VOLUME[name] ?? 0.65;
+      if (opts?.playbackRate) node.playbackRate = opts.playbackRate;
       const p = node.play();
       if (p && typeof p.catch === 'function') p.catch(() => {});
     } catch {
       /* 忽略自动播放限制等 */
     }
+  }
+
+  function playMatchCombo(combo) {
+    const rate = Math.min(1.45, 1 + (combo - 1) * 0.04);
+    play('match', { playbackRate: rate });
   }
 
   function setEnabled(on) {
@@ -65,5 +71,5 @@
 
   preload();
 
-  root.GameAudio = { play, toggle, setEnabled, isEnabled };
+  root.GameAudio = { play, playMatchCombo, toggle, setEnabled, isEnabled };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

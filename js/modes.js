@@ -35,14 +35,34 @@
       hasIdlePenalty: true,
       idleSeconds: 10,
       minPairs: 10,
+      hintCount: 0,
+    },
+    endless: {
+      id: 'endless',
+      label: '无尽',
+      desc: '从 4 对起，每过一关加 1 对，看你能撑到几对',
+      hasTimeLimit: true,
+      hasMoveLimit: true,
+      hasIdlePenalty: false,
+      isEndless: true,
+      hintCount: 2,
     },
   };
 
-  const LIST = [MODES.normal, MODES.hard, MODES.challenge];
+  MODES.normal.hintCount = 3;
+  MODES.hard.hintCount = 1;
+
+  const LIST = [MODES.normal, MODES.hard, MODES.challenge, MODES.endless];
+
+  function hintCountFor(mode) {
+    if (!mode) return 0;
+    if (typeof mode.hintCount === 'number') return mode.hintCount;
+    return 2;
+  }
 
   function get(id) {
     return MODES[id] || MODES.normal;
   }
 
-  return { MODES, LIST, get };
+  return { MODES, LIST, get, hintCountFor };
 });

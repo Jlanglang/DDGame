@@ -1,0 +1,24 @@
+{
+  "name": "豆豆大挑战",
+  "short_name": "豆豆挑战",
+  "description": "表情包记忆配对小游戏",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#16213e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/tiles/1.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/tiles/2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

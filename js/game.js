@@ -22,6 +22,7 @@
   const levelLabel = document.getElementById('level-label');
   const movesLabel = document.getElementById('moves-label');
   const timerLabel = document.getElementById('timer-label');
+  const dropRateHud = document.getElementById('drop-rate-hud');
   const errorMsg = document.getElementById('error-msg');
   const homePage = document.getElementById('home-page');
   const gamePage = document.getElementById('game-page');
@@ -32,6 +33,20 @@
   const btnPickLevel = document.getElementById('btn-pick-level');
   const btnQuickStart = document.getElementById('btn-quick-start');
   const btnLevelPickerClose = document.getElementById('btn-level-picker-close');
+  const synthPicker = document.getElementById('synth-picker');
+  const synthPickerList = document.getElementById('synth-picker-list');
+  const synthPickerHint = document.getElementById('synth-picker-hint');
+  const btnSynthPickerClose = document.getElementById('btn-synth-picker-close');
+  const lotteryPicker = document.getElementById('lottery-picker');
+  const lotteryPickerList = document.getElementById('lottery-picker-list');
+  const lotteryPickerHint = document.getElementById('lottery-picker-hint');
+  const btnLotteryPickerClose = document.getElementById('btn-lottery-picker-close');
+  const lotteryResult = document.getElementById('lottery-result');
+  const lotteryResultEmoji = document.getElementById('lottery-result-emoji');
+  const lotteryResultTitle = document.getElementById('lottery-result-title');
+  const lotteryResultDesc = document.getElementById('lottery-result-desc');
+  const lotteryResultTag = document.getElementById('lottery-result-tag');
+  const btnLotteryResultClose = document.getElementById('btn-lottery-result-close');
   const homeHint = document.getElementById('home-hint');
   const modeList = document.getElementById('mode-list');
   const btnSound = document.getElementById('btn-sound');
@@ -49,7 +64,6 @@
   const hintCountEl = document.getElementById('hint-count');
   const comboHud = document.getElementById('combo-hud');
   const comboToast = document.getElementById('combo-toast');
-  const overlayStars = document.getElementById('overlay-stars');
   const achievementPop = document.getElementById('achievement-pop');
   const btnShare = document.getElementById('btn-share');
   const dailyCard = document.getElementById('daily-card');
@@ -58,7 +72,9 @@
   const subPanelBody = document.getElementById('sub-panel-body');
   const btnSubBack = document.getElementById('btn-sub-back');
   const btnAchievements = document.getElementById('btn-achievements');
-  const btnGallery = document.getElementById('btn-gallery');
+  const btnBackpack = document.getElementById('btn-backpack');
+  const btnLotteryLog = document.getElementById('btn-lottery-log');
+  const overlayDrops = document.getElementById('overlay-drops');
 
   let baseLevels = [];
   let modeLevelSets = {};
@@ -79,17 +95,15 @@
   let secondCard = null;
   let matchedCount = 0;
   let totalPairs = 0;
+  let lastUniqueImageCount = 0;
   let lastBoardCardCount = 0;
   let combo = 0;
   let comboMax = 0;
   let hintsLeft = 0;
   let hintsUsed = 0;
   let isDailyRun = false;
-  let isEndlessRun = false;
-  let endlessPairs = 4;
   let dailyConfig = null;
   let challengeCoverCount = 0;
-  let lastWinStars = 0;
   let idleWarnSfxPlayed = false;
 
   function currentMode() {
@@ -117,11 +131,11 @@
     comboHud.style.animation = '';
   }
 
-  function showComboToast(text) {
+  function showComboToast(text, ms = 900) {
     if (!comboToast) return;
     comboToast.textContent = text;
     comboToast.classList.remove('hidden');
-    setTimeout(() => comboToast.classList.add('hidden'), 900);
+    setTimeout(() => comboToast.classList.add('hidden'), ms);
   }
 
   function onComboMatch() {
@@ -170,17 +184,18 @@
     );
     if (unmatched.length < 2) return;
 
-    const byPair = {};
+    const bySrc = {};
     unmatched.forEach((c) => {
-      const id = c.dataset.pairId;
-      if (!byPair[id]) byPair[id] = [];
-      byPair[id].push(c);
+      const src = c.dataset.src;
+      if (!src) return;
+      if (!bySrc[src]) bySrc[src] = [];
+      bySrc[src].push(c);
     });
-    const pairIds = Object.keys(byPair).filter((id) => byPair[id].length >= 2);
-    if (!pairIds.length) return;
+    const srcKeys = Object.keys(bySrc).filter((k) => bySrc[k].length >= 2);
+    if (!srcKeys.length) return;
 
-    const pickId = pairIds[Math.floor(Math.random() * pairIds.length)];
-    const pairCards = byPair[pickId].slice(0, 2);
+    const pickSrc = srcKeys[Math.floor(Math.random() * srcKeys.length)];
+    const pairCards = bySrc[pickSrc].slice(0, 2);
     hintsLeft -= 1;
     hintsUsed += 1;
     sfx('click');
@@ -339,18 +354,34 @@
   }
 
   function pairCount(level) {
-    const n = level.pairs ?? level.images.length;
-    return Math.min(n, MAX_PAIRS);
+    const n = level?.pairs ?? 2;
+    return Math.min(Math.max(2, n), MAX_PAIRS);
   }
 
-  /** 每次开局从图池随机抽取 N 张不同的表情包 */
-  function pickRandomImages(pairs) {
+  /**
+   * 本关使用的不同表情包种类数。种类越少重复越多，关卡越简单。
+   * 同模式：第 1 关重复最多，最后一关几乎不重复。
+   */
+  function uniqueImageCountForLevel(pairs, level) {
+    const stage = level?.stage ?? 1;
+    const modeId = currentModeId || 'normal';
+    const maxStage =
+      typeof Difficulty !== 'undefined' ? Difficulty.levelsForMode(modeId) : 3;
+    const progress = maxStage <= 1 ? 1 : (stage - 1) / (maxStage - 1);
+    const minRatio = 0.35;
+    const maxRatio = 1;
+    const ratio = minRatio + progress * (maxRatio - minRatio);
+    const unique = Math.ceil(pairs * ratio);
+    return Math.max(2, Math.min(pairs, unique, tilePool.length || pairs));
+  }
+
+  /** 加权抽牌，允许同图多对；配对按图片 src 判定 */
+  function pickRandomImages(pairs, level) {
     const pool = tilePool.length ? tilePool : [];
-    if (pool.length < pairs) {
-      const level = levels[currentLevelIndex];
-      return level?.images?.slice(0, pairs) || pool.slice();
-    }
-    return shuffle(pool).slice(0, pairs);
+    if (!pool.length || typeof TileRarity === 'undefined') return [];
+
+    const uniqueN = uniqueImageCountForLevel(pairs, level);
+    return TileRarity.pickWeightedWithDupes(pool, pairs, uniqueN);
   }
 
   function getLevelConfig(level) {
@@ -362,29 +393,24 @@
       difficultyLabel: level.difficultyLabel ?? base.difficultyLabel,
       timeLimit: level.timeLimit ?? base.timeLimit,
       moveLimit: level.moveLimit ?? base.moveLimit,
+      idleSeconds: level.idleSeconds ?? base.idleSeconds,
     };
   }
 
+  function idleLimitFor(level) {
+    const lv = level || levels[currentLevelIndex];
+    const cfg = lv ? getLevelConfig(lv) : null;
+    if (cfg?.idleSeconds != null) return cfg.idleSeconds;
+    return currentMode().idleSeconds || 10;
+  }
+
   function applyLevelsForCurrentMode() {
-    const mode = currentMode();
     isDailyRun = false;
-    isEndlessRun = false;
-    if (mode.isEndless) {
-      isEndlessRun = true;
-      endlessPairs = Math.max(4, Progress.getEndlessBest() > 0 ? 4 : 4);
-      levels = [
-        {
-          id: 'endless',
-          name: '无尽挑战',
-          pairs: endlessPairs,
-        },
-      ];
-    } else if (mode.minPairs && modeLevelSets[mode.id]?.length) {
-      levels = modeLevelSets[mode.id];
-    } else if (mode.minPairs) {
-      levels = baseLevels.filter((lv) => pairCount(lv) >= mode.minPairs);
-    } else {
+    const mode = currentMode();
+    if (mode.id === 'normal') {
       levels = baseLevels;
+    } else {
+      levels = modeLevelSets[mode.id] || [];
     }
     if (currentLevelIndex >= levels.length) {
       currentLevelIndex = Math.max(0, levels.length - 1);
@@ -425,7 +451,7 @@
     }
 
     idleSeconds += 1;
-    const limit = mode.idleSeconds || 10;
+    const limit = idleLimitFor();
     const left = Math.max(0, limit - idleSeconds);
     if (left <= 3 && !idleWarnSfxPlayed) {
       idleWarnSfxPlayed = true;
@@ -471,7 +497,7 @@
   function updateMatchedIdleVisuals() {
     const mode = currentMode();
     const show = mode.hasIdlePenalty && matchedCount > 0 && !gameOver && idleTargetPairId !== null;
-    const limit = mode.idleSeconds || 10;
+    const limit = idleLimitFor();
     const left = Math.max(0, limit - idleSeconds);
     const progress = Math.min(100, (idleSeconds / limit) * 100);
 
@@ -561,33 +587,17 @@
     }
   }
 
-  function getModeLevelTotal(modeId) {
-    const mode = GameModes.get(modeId);
-    if (mode.isEndless) return 1;
-    if (modeId === currentModeId) return levels.length;
-    if (mode.minPairs && modeLevelSets[modeId]) {
-      return modeLevelSets[modeId].length;
-    }
-    if (mode.minPairs) {
-      return baseLevels.filter((lv) => pairCount(lv) >= mode.minPairs).length;
-    }
-    return baseLevels.length;
-  }
-
   function renderModeList() {
     if (!modeList) return;
     modeList.innerHTML = '';
     GameModes.LIST.forEach((mode) => {
-      const done = Progress.getCompletedCount(mode.id);
-      const total = getModeLevelTotal(mode.id);
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'mode-btn' + (mode.id === currentModeId ? ' active' : '');
       btn.dataset.mode = mode.id;
       btn.innerHTML =
         `<span class="mode-btn-label">${mode.label}</span>` +
-        `<span class="mode-btn-desc">${mode.desc}</span>` +
-        `<span class="mode-btn-progress">已通关 ${done}/${total}</span>`;
+        `<span class="mode-btn-desc">${mode.desc}</span>`;
       btn.addEventListener('click', () => {
         sfx('click');
         currentModeId = mode.id;
@@ -615,7 +625,8 @@
       return `${cfg.pairs} 对 · ${cfg.timeLimit}s · ${cfg.moveLimit} 步`;
     }
     if (mode.hasIdlePenalty) {
-      return `${cfg.pairs} 对 · 不限时 · 随机一对${mode.idleSeconds}s惩罚`;
+      const idle = cfg.idleSeconds ?? mode.idleSeconds ?? 10;
+      return `${cfg.pairs} 对 · 不限时 · 随机一对${idle}s惩罚`;
     }
     return `${cfg.pairs} 对 · ${cfg.timeLimit}s`;
   }
@@ -656,6 +667,7 @@
     if (btnHint) btnHint.classList.add('hidden');
     if (homeMenu) homeMenu.classList.remove('hidden');
     if (errorMsg) errorMsg.classList.add('hidden');
+    if (dropRateHud) dropRateHud.classList.add('hidden');
     renderModeList();
     renderDailyCard();
     updateHomeHint();
@@ -668,11 +680,9 @@
   function updateHomeHint() {
     const mode = currentMode();
     const level = levels[currentLevelIndex];
-    let hint = '选择模式后，选关或快速开始 · 每局随机表情包';
+    let hint = '选择模式后，选关或快速开始 · 每局随机（同图可重复）';
 
-    if (mode.isEndless) {
-      hint = `无尽模式 · 最高 ${Progress.getEndlessBest() || 0} 对 · 快速开始或选关`;
-    } else if (level) {
+    if (level) {
       hint = `${mode.label} · 当前 ${level.name}（${pairCount(level)} 对）· 可换关或快速开始`;
     }
 
@@ -680,13 +690,6 @@
   }
 
   function quickStart() {
-    const mode = currentMode();
-    if (mode.isEndless) {
-      endlessPairs = 4;
-      if (levels[0]) levels[0].pairs = 4;
-      startLevel(0);
-      return;
-    }
     if (levels.length === 0) {
       openLevelPicker();
       return;
@@ -722,24 +725,218 @@
     showSubPanel(`成就 ${Achievements.countUnlocked()}/${list.length}`, html);
   }
 
-  function renderGalleryPanel() {
-    const discovered = new Set(Progress.getGallery());
-    const pool = tilePool.length ? tilePool : [];
+  function checkSynthAchievements() {
+    const unlocked = [];
+    if (typeof Achievements === 'undefined' || typeof Backpack === 'undefined') {
+      return unlocked;
+    }
+    const total = Backpack.totalSynthesized();
+    const tryUnlock = (id) => {
+      const u = Achievements.unlock(id);
+      if (u) unlocked.push(u);
+    };
+    if (total === 1) tryUnlock('first_synth');
+    if (total >= 10) tryUnlock('synth_10');
+    return unlocked;
+  }
+
+  function performSynth(src) {
+    if (!src || typeof Backpack === 'undefined' || !Backpack.synthOnce(src)) {
+      return false;
+    }
+    sfx('win', { playbackRate: 1.05 });
+    const unlocked = checkSynthAchievements();
+    if (subPanel && !subPanel.classList.contains('hidden')) {
+      renderBackpackPanel();
+    }
+    refreshSynthPicker();
+    if (unlocked.length) {
+      setTimeout(() => showAchievementPop(unlocked), 300);
+    }
+    return true;
+  }
+
+  function refreshSynthPicker() {
+    if (!synthPickerList || typeof Backpack === 'undefined') return;
+    const items = Backpack.listSynthEligible(backpackFragmentPool());
+    if (synthPickerHint) {
+      synthPickerHint.textContent = `消耗 ${Backpack.synthCostText()}，仅显示材料足够的卡片`;
+    }
+    if (!items.length) {
+      synthPickerList.innerHTML =
+        '<p class="synth-picker-empty">暂无符合条件的卡片，继续通关收集碎片吧</p>';
+      return;
+    }
+    synthPickerList.innerHTML = items
+      .map((item) => Backpack.renderSynthPickerItemHtml(item))
+      .join('');
+  }
+
+  function openSynthPicker() {
+    if (!synthPicker || typeof Backpack === 'undefined') return;
+    refreshSynthPicker();
+    synthPicker.classList.remove('hidden');
+    synthPicker.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeSynthPicker() {
+    if (!synthPicker) return;
+    synthPicker.classList.add('hidden');
+    synthPicker.setAttribute('aria-hidden', 'true');
+  }
+
+  function onSynthPickerClick(e) {
+    const item = e.target.closest('.synth-pick-item');
+    if (!item) return;
+    const src = decodeURIComponent(item.dataset.src || '');
+    performSynth(src);
+  }
+
+  function showLotteryResult(record) {
+    if (!lotteryResult || !record) return;
+    const isReward = record.type === 'reward';
+    const isThanks = record.type === 'thanks';
+    if (lotteryResultEmoji) lotteryResultEmoji.textContent = record.emoji || '🎀';
+    if (lotteryResultTitle) lotteryResultTitle.textContent = record.title;
+    if (lotteryResultDesc) lotteryResultDesc.textContent = record.desc;
+    if (lotteryResultTag) {
+      const tagText =
+        typeof LotteryRewards !== 'undefined'
+          ? LotteryRewards.tagLabel(record.type)
+          : isThanks
+            ? '谢谢惠顾'
+            : isReward
+              ? '正向奖励'
+              : '家庭约定';
+      lotteryResultTag.textContent = tagText;
+      lotteryResultTag.className =
+        'lottery-result-tag ' +
+        (isThanks
+          ? 'lottery-result-tag--thanks'
+          : isReward
+            ? 'lottery-result-tag--reward'
+            : 'lottery-result-tag--deal');
+    }
+    lotteryResult.classList.remove('hidden');
+    lotteryResult.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeLotteryResult() {
+    if (!lotteryResult) return;
+    lotteryResult.classList.add('hidden');
+    lotteryResult.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderLotteryLogPanel() {
+    if (typeof LotteryRewards === 'undefined') {
+      showSubPanel('我的抽奖记录', '<p class="level-select-hint">抽奖模块未加载</p>');
+      return;
+    }
     const html =
-      `<p class="level-select-hint">已收集 ${discovered.size}/${pool.length || '?'}</p>` +
-      `<div class="gallery-grid">` +
+      `<p class="level-select-hint">${LotteryRewards.probabilityText()} · 由家长兑现</p>` +
+      LotteryRewards.renderPoolLegendHtml() +
+      LotteryRewards.renderLogListHtml();
+    showSubPanel('我的抽奖记录', html);
+    if (subPanelBody) {
+      subPanelBody.removeEventListener('click', onLotteryLogClick);
+      subPanelBody.addEventListener('click', onLotteryLogClick);
+    }
+  }
+
+  function onLotteryLogClick(e) {
+    const btn = e.target.closest('.lottery-log-toggle');
+    if (!btn || typeof LotteryRewards === 'undefined') return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    sfx('click');
+    LotteryRewards.toggleRedeemed(id);
+    renderLotteryLogPanel();
+  }
+
+  function performLottery() {
+    if (typeof Backpack === 'undefined') return false;
+    if (!Backpack.canLottery()) {
+      sfx('click', { playbackRate: 0.85 });
+      showComboToast(`需要 ${Backpack.lotteryCostText()} 才能抽奖`, 2000);
+      return false;
+    }
+    const result = Backpack.lotteryOnce();
+    if (!result.ok) return false;
+    if (result.item && result.record) {
+      if (result.item.type === 'reward') {
+        sfx('win', { playbackRate: 1.08 });
+      } else if (result.item.type === 'thanks') {
+        sfx('click', { playbackRate: 1 });
+      } else {
+        sfx('click', { playbackRate: 0.95 });
+      }
+      showLotteryResult(result.record);
+    }
+    if (subPanel && !subPanel.classList.contains('hidden')) {
+      renderBackpackPanel();
+    }
+    return true;
+  }
+
+  function onBackpackPanelClick(e) {
+    if (e.target.closest('.btn-sss-synth')) {
+      sfx('click');
+      openSynthPicker();
+      return;
+    }
+    if (e.target.closest('.btn-sss-lottery')) {
+      if (e.target.closest('.btn-sss-lottery').disabled) return;
+      sfx('click');
+      performLottery();
+      return;
+    }
+    if (e.target.closest('.btn-sss-lottery-log')) {
+      sfx('click');
+      renderLotteryLogPanel();
+    }
+  }
+
+  function backpackFragmentPool() {
+    if (typeof Backpack === 'undefined' || !tilePool.length) return [];
+    return Backpack.filterFragmentPool(tilePool);
+  }
+
+  function renderBackpackPanel() {
+    const pool = backpackFragmentPool();
+    const totalFrags =
+      typeof Backpack !== 'undefined' ? Backpack.totalFragments() : 0;
+    const synthTotal =
+      typeof Backpack !== 'undefined' ? Backpack.getSssCount() : 0;
+    const dropHint =
+      typeof Backpack !== 'undefined'
+        ? `通关掉落：普通 ${Backpack.DROP_COUNT.normal} · 困难 ${Backpack.DROP_COUNT.hard} · 挑战 ${Backpack.DROP_COUNT.challenge} 枚`
+        : '';
+    const sssHero =
+      typeof Backpack !== 'undefined' ? Backpack.renderSssHeroHtml() : '';
+    const html =
+      sssHero +
+      `<p class="level-select-hint">碎片合计 ${totalFrags} · SSS卡 ${synthTotal}</p>` +
+      `<p class="backpack-legend">${dropHint}</p>` +
+      `<p class="backpack-legend backpack-legend--grades">` +
+      `<span class="frag-slot frag-slot--A frag-slot--empty" aria-hidden="true"><span class="frag-slot-tag">A</span></span>` +
+      `<span class="frag-slot frag-slot--S frag-slot--empty" aria-hidden="true"><span class="frag-slot-tag">S</span></span>` +
+      `<span class="frag-slot frag-slot--SS frag-slot--empty" aria-hidden="true"><span class="frag-slot-tag">SS</span></span>` +
+      `</p>` +
+      `<div class="backpack-grid">` +
       pool
-        .map((src) => {
-          const ok = discovered.has(src);
-          return (
-            `<div class="gallery-item${ok ? '' : ' gallery-item--locked'}">` +
-            `<img src="${src}" alt="" loading="lazy" />` +
-            `</div>`
-          );
+        .map((tile) => {
+          const src = typeof TileRarity !== 'undefined' ? TileRarity.getSrc(tile) : tile;
+          return typeof Backpack !== 'undefined'
+            ? Backpack.renderBackpackCardHtml(src)
+            : '';
         })
         .join('') +
       `</div>`;
-    showSubPanel('豆豆图鉴', html);
+    showSubPanel('豆豆背包', html);
+    if (subPanelBody) {
+      subPanelBody.removeEventListener('click', onBackpackPanelClick);
+      subPanelBody.addEventListener('click', onBackpackPanelClick);
+    }
   }
 
   function renderDailyCard() {
@@ -753,7 +950,7 @@
     dailyCard.innerHTML =
       `<p class="daily-card-title">📅 今日挑战</p>` +
       `<p class="daily-card-meta">${cfg.pairs} 对 · 全员同题 · 连续 ${streak} 天` +
-      (rec ? ` · 已完成 ${Progress.starsText(rec.bestStars)}` : ' · 点击开始') +
+      (rec ? ` · 已完成 ${rec.bestMoves} 步` : ' · 点击开始') +
       `</p>`;
     dailyCard.onclick = () => {
       sfx('click');
@@ -764,7 +961,6 @@
   function startDaily() {
     if (typeof GameDaily === 'undefined') return;
     isDailyRun = true;
-    isEndlessRun = false;
     dailyConfig = GameDaily.getConfig(tilePool);
     currentModeId = 'normal';
     gameOver = false;
@@ -791,14 +987,14 @@
 
     const pairs = cfg.pairs;
     totalPairs = pairs;
-    Progress.discoverTiles(cfg.images);
 
     const deck = GameDaily.buildDeck(cfg.images, cfg.deckSeed);
     const diff = Difficulty.forPairs(pairs);
     moveLimit = diff.moveLimit;
     timeLeft = diff.timeLimit;
 
-    levelLabel.textContent = `今日挑战 · ${pairs}对`;
+    lastUniqueImageCount = new Set(cfg.images).size;
+    levelLabel.textContent = `今日挑战 · ${pairs}对 · ${lastUniqueImageCount}种图`;
 
     board.innerHTML = '';
     deck.forEach((data, i) => {
@@ -835,33 +1031,7 @@
     levelList.innerHTML = '';
     const mode = currentMode();
 
-    if (mode.isEndless) {
-      const best = Progress.getEndlessBest();
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'level-item';
-      btn.innerHTML =
-        `<span class="level-item-name">开始无尽</span>` +
-        `<span class="level-item-meta">从 4 对起，每关 +1 对 · 最高记录 ${best || 0} 对</span>` +
-        `<span class="level-item-tag tag-mode-endless">无尽</span>`;
-      btn.addEventListener('click', () => {
-        sfx('click');
-        closeLevelPicker();
-        endlessPairs = 4;
-        levels[0].pairs = 4;
-        startLevel(0);
-      });
-      levelList.appendChild(btn);
-      return;
-    }
-
-    const done = Progress.getCompletedCount(mode.id);
-    if (mode.minPairs) {
-      levelSelectHint.textContent =
-        `${mode.label}：${levels.length} 关（${mode.minPairs} 对起）· 已通关 ${done}/${levels.length}`;
-    } else {
-      levelSelectHint.textContent = `选关开始 · 已通关 ${done}/${levels.length}`;
-    }
+    levelSelectHint.textContent = `${mode.label}：${levels.length} 关（难度递增）`;
 
     if (levels.length === 0) {
       const empty = document.createElement('p');
@@ -873,24 +1043,19 @@
 
     levels.forEach((level, index) => {
       const cfg = getLevelConfig(level);
-      const completed = Progress.isCompleted(mode.id, level.id);
-      const record = completed ? Progress.getRecord(mode.id, level.id) : null;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'level-item' + (completed ? ' level-item--done' : '');
+      btn.className = 'level-item';
       let meta = levelMetaText(cfg);
-      if (record) {
-        meta += ` · 最佳 ${record.bestMoves} 步`;
+      if (level.stage && level.stage > 1) {
+        meta += ` · ${level.difficultyLabel} ${level.stage}`;
+      } else if (level.difficultyLabel) {
+        meta += ` · ${level.difficultyLabel}`;
       }
-      const stars = record?.bestStars ? Progress.starsText(record.bestStars) : '';
-      const starsHtml = stars
-        ? `<span class="level-item-stars">${stars}</span>`
-        : '';
       btn.innerHTML =
-        `<span class="level-item-name">${level.name}${completed ? ' ✓' : ''}</span>` +
+        `<span class="level-item-name">${level.name}</span>` +
         `<span class="level-item-meta">${meta}</span>` +
-        starsHtml +
-        `<span class="level-item-tag tag-mode-${mode.id}">${completed ? '已通关' : mode.label}</span>`;
+        `<span class="level-item-tag tag-mode-${mode.id}">${mode.label}</span>`;
       btn.addEventListener('click', () => {
         sfx('click');
         closeLevelPicker();
@@ -909,6 +1074,32 @@
     renderLevel();
   }
 
+  function dropModeId() {
+    return isDailyRun ? 'daily' : currentModeId;
+  }
+
+  function dropStageIndex() {
+    const level = levels[currentLevelIndex];
+    if (!level) return 0;
+    if (level.stage != null) return Math.max(0, level.stage - 1);
+    return currentLevelIndex;
+  }
+
+  function updateDropRateHud() {
+    if (!dropRateHud) return;
+    if (typeof Backpack === 'undefined') {
+      dropRateHud.classList.add('hidden');
+      return;
+    }
+    const modeId = dropModeId();
+    const stageIdx = dropStageIndex();
+    const w = Backpack.weightsFor(modeId, stageIdx);
+    const n = Backpack.dropCountForMode(modeId);
+    dropRateHud.textContent =
+      `本关碎片掉落 ${n} 枚 · A ${w.A}% · S ${w.S}% · SS ${w.SS}%`;
+    dropRateHud.classList.remove('hidden');
+  }
+
   function updateHud() {
     const level = levels[currentLevelIndex];
     if (!level) return;
@@ -916,7 +1107,10 @@
     const cfg = getLevelConfig(level);
     const mode = currentMode();
 
-    levelLabel.textContent = `${level.name} · ${cfg.pairs}对 · ${mode.label}`;
+    const uniqueHint =
+      lastUniqueImageCount > 0 ? ` · ${lastUniqueImageCount}种图` : '';
+    levelLabel.textContent = `${level.name} · ${cfg.pairs}对${uniqueHint} · ${mode.label}`;
+    updateDropRateHud();
 
     if (mode.hasMoveLimit) {
       const movesLeft = moveLimit - moves;
@@ -924,7 +1118,7 @@
       movesLabel.classList.remove('hidden');
       movesLabel.classList.toggle('warn', movesLeft <= 3 && movesLeft >= 0 && !gameOver);
     } else if (mode.hasIdlePenalty) {
-      const limit = mode.idleSeconds || 10;
+      const limit = idleLimitFor(level);
       const left = Math.max(0, limit - idleSeconds);
       if (matchedCount > 0 && idleTargetPairId !== null) {
         movesLabel.textContent = `压力倒计时: ${left}s`;
@@ -969,12 +1163,20 @@
     return shuffle(deck);
   }
 
+  /** 相同表情包即可配对（允许一图多对） */
+  function cardsMatch(a, b) {
+    if (!a || !b) return false;
+    const src = a.dataset.src;
+    return Boolean(src && src === b.dataset.src);
+  }
+
   function createCard(data, index) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'card';
     btn.dataset.index = String(index);
     btn.dataset.pairId = String(data.pairId);
+    btn.dataset.src = data.src;
     btn.setAttribute('aria-label', '记忆牌');
 
     const inner = document.createElement('div');
@@ -1036,7 +1238,7 @@
     updateHud();
     lock = true;
 
-    const match = firstCard.dataset.pairId === secondCard.dataset.pairId;
+    const match = cardsMatch(firstCard, secondCard);
 
     if (match) {
       onComboMatch();
@@ -1103,10 +1305,10 @@
     hintsUsed = 0;
     hintsLeft = GameModes.hintCountFor(currentMode());
 
-    const pairs = isEndlessRun ? endlessPairs : pairCount(level);
-    const images = pickRandomImages(pairs);
+    const pairs = pairCount(level);
+    const images = pickRandomImages(pairs, level);
+    lastUniqueImageCount = new Set(images).size;
     totalPairs = pairs;
-    Progress.discoverTiles(images);
 
     const cfg = getLevelConfig({ ...level, pairs });
     moveLimit = cfg.moveLimit;
@@ -1131,8 +1333,7 @@
     const runTutorial =
       typeof Tutorial !== 'undefined' &&
       Tutorial.shouldRun() &&
-      pairs <= 2 &&
-      !isEndlessRun &&
+      pairs <= 4 &&
       !isDailyRun;
     if (runTutorial) {
       Tutorial.startAfterDelay(null);
@@ -1156,23 +1357,13 @@
     const base = hasTimeLimit()
       ? `${name} 完成，用了 ${moves} 步，剩余 ${timeLeft} 秒`
       : `${name} 完成，用了 ${moves} 步`;
-    let extra = '';
-    if (lastWinStars >= 3) extra = '\n完美！三星达成！';
-    else if (lastWinStars === 2) {
-      const pairs = totalPairs;
-      const need = Math.ceil(pairs * 1.5);
-      extra = `\n差 ${moves - pairs} 步可达三星（完美 ${pairs} 步）`;
-    } else {
-      extra = '\n继续挑战更高星级吧';
-    }
-    return `${base}（${mode.label}）${extra}`;
+    return `${base}（${mode.label}）`;
   }
 
   function buildShareText() {
     const level = levels[currentLevelIndex];
     const name = isDailyRun ? '今日挑战' : level?.name || '豆豆大挑战';
-    const stars = Progress.starsText(lastWinStars);
-    return `豆豆大挑战 ${name} ${stars} ${moves}步`;
+    return `豆豆大挑战 ${name} ${moves}步`;
   }
 
   function showAchievementPop(items) {
@@ -1182,25 +1373,30 @@
     sfx('win', { playbackRate: 1.1 });
   }
 
-  function showOverlay(mode, title, text) {
+  function showOverlay(mode, title, text, options = {}) {
     if (!overlay) return;
     const isWin = mode === 'win';
-    if (modal) modal.classList.toggle('fail', !isWin);
+    const revealDrops = isWin && options.revealDrops?.length;
+    if (modal) {
+      modal.classList.toggle('fail', !isWin);
+      modal.classList.toggle('modal--revealing', Boolean(revealDrops));
+    }
     if (overlayTitle) overlayTitle.textContent = title;
     if (overlayText) overlayText.textContent = text;
-    if (overlayStars) {
-      if (isWin && lastWinStars > 0) {
-        overlayStars.textContent = Progress.starsText(lastWinStars);
-        overlayStars.classList.remove('hidden');
+    if (overlayDrops) {
+      if (revealDrops && typeof Backpack !== 'undefined') {
+        overlayDrops.innerHTML = Backpack.getDropRevealContainerHtml();
+        overlayDrops.classList.remove('hidden');
+        overlayDrops.setAttribute('aria-hidden', 'false');
       } else {
-        overlayStars.classList.add('hidden');
+        overlayDrops.innerHTML = '';
+        overlayDrops.classList.add('hidden');
+        overlayDrops.setAttribute('aria-hidden', 'true');
       }
     }
     if (btnShare) btnShare.classList.toggle('hidden', !isWin);
     let showNext = isWin;
-    if (isWin && isEndlessRun && endlessPairs < MAX_PAIRS) {
-      btnNext.textContent = `下一关（${endlessPairs + 1} 对）`;
-    } else if (isWin) {
+    if (isWin) {
       btnNext.textContent =
         isDailyRun || isLastAvailableLevel(currentLevelIndex)
           ? '返回选关'
@@ -1213,57 +1409,53 @@
 
   function showWin() {
     const level = levels[currentLevelIndex];
-    const mode = currentMode();
-    const pairs = totalPairs;
-    const initialTime = getLevelConfig({ pairs }).timeLimit;
-
-    lastWinStars = Progress.calcStars(
-      pairs,
-      moves,
-      timeLeft,
-      initialTime,
-      hasTimeLimit()
-    );
 
     if (isDailyRun && dailyConfig) {
-      Progress.recordDaily(dailyConfig.dateKey, {
-        moves,
-        stars: lastWinStars,
-      });
-    } else if (!isEndlessRun) {
-      const firstClear = !Progress.isCompleted(currentModeId, level.id);
-      Progress.recordWin(currentModeId, level.id, {
-        moves,
-        timeLeft,
-        stars: lastWinStars,
-      });
-      void firstClear;
+      Progress.recordDaily(dailyConfig.dateKey, { moves });
     }
 
-    if (isEndlessRun) {
-      Progress.setEndlessBest(endlessPairs);
+    let drops = [];
+    if (typeof Backpack !== 'undefined') {
+      const modeId = isDailyRun ? 'daily' : currentModeId;
+      const stageIdx = level?.stage ? level.stage - 1 : 0;
+      drops = Backpack.rollDrops(modeId, stageIdx, tilePool);
+      Backpack.applyDrops(drops);
     }
 
-    const gallery = Progress.getGallery();
+    const backpackOwned =
+      typeof Backpack !== 'undefined' ? Backpack.ownedCardCount(tilePool) : 0;
     const unlocked = Achievements.checkAfterWin({
-      stars: lastWinStars,
       comboMax,
       isDaily: isDailyRun,
+      pairs: totalPairs,
       modeId: isDailyRun ? 'daily' : currentModeId,
-      galleryCount: gallery.length,
-      galleryTotal: tilePool.length,
-      endlessPairs: isEndlessRun ? endlessPairs : 0,
+      backpackOwned,
+      backpackTotal: tilePool.length,
       wasCovered: challengeCoverCount > 0,
       hintsUsed,
     });
 
     endGame();
     sfx('win');
-    const title =
-      lastWinStars >= 3 ? '三星通关！' : isDailyRun ? '今日挑战完成！' : '过关！';
-    showOverlay('win', title, winMessage());
-    if (unlocked.length) {
-      setTimeout(() => showAchievementPop(unlocked), 400);
+    const title = isDailyRun ? '今日挑战完成！' : '过关！';
+    const winText = winMessage();
+    showOverlay('win', title, winText, { revealDrops: drops });
+
+    const afterReveal = () => {
+      if (modal) modal.classList.remove('modal--revealing');
+      if (unlocked.length) {
+        setTimeout(() => showAchievementPop(unlocked), 300);
+      }
+    };
+
+    if (drops.length && typeof Backpack.playDropReveal === 'function') {
+      const root = overlayDrops?.querySelector('.drop-reveal');
+      Backpack.playDropReveal(root, drops, {
+        sfx: (name, opts) => sfx(name, opts),
+        onComplete: afterReveal,
+      });
+    } else {
+      afterReveal();
     }
   }
 
@@ -1280,14 +1472,23 @@
     overlay.setAttribute('aria-hidden', 'true');
     if (modal) modal.classList.remove('fail');
     if (achievementPop) achievementPop.classList.add('hidden');
-    if (overlayStars) overlayStars.classList.add('hidden');
+    if (modal) modal.classList.remove('modal--revealing');
+    if (overlayDrops) {
+      overlayDrops.innerHTML = '';
+      overlayDrops.classList.add('hidden');
+      overlayDrops.setAttribute('aria-hidden', 'true');
+    }
   }
 
   function applyLevelData(data) {
     if (!data.levels || data.levels.length === 0) throw new Error('无关卡数据');
     baseLevels = data.levels;
     modeLevelSets = data.modeLevels || {};
-    tilePool = data.tiles || [];
+    tilePool =
+      typeof TileRarity !== 'undefined'
+        ? TileRarity.normalizeTiles(data.tiles || [])
+        : data.tiles || [];
+    if (typeof Backpack !== 'undefined') Backpack.getBackpack();
     applyLevelsForCurrentMode();
     showHome();
   }
@@ -1358,10 +1559,17 @@
     });
   }
 
-  if (btnGallery) {
-    btnGallery.addEventListener('click', () => {
+  if (btnBackpack) {
+    btnBackpack.addEventListener('click', () => {
       sfx('click');
-      renderGalleryPanel();
+      renderBackpackPanel();
+    });
+  }
+
+  if (btnLotteryLog) {
+    btnLotteryLog.addEventListener('click', () => {
+      sfx('click');
+      renderLotteryLogPanel();
     });
   }
 
@@ -1385,6 +1593,33 @@
     });
   }
 
+  if (btnSynthPickerClose) {
+    btnSynthPickerClose.addEventListener('click', () => {
+      sfx('click');
+      closeSynthPicker();
+    });
+  }
+
+  if (synthPicker) {
+    synthPicker.addEventListener('click', (e) => {
+      if (e.target === synthPicker) closeSynthPicker();
+    });
+    synthPickerList?.addEventListener('click', onSynthPickerClick);
+  }
+
+  if (btnLotteryResultClose) {
+    btnLotteryResultClose.addEventListener('click', () => {
+      sfx('click');
+      closeLotteryResult();
+    });
+  }
+
+  if (lotteryResult) {
+    lotteryResult.addEventListener('click', (e) => {
+      if (e.target === lotteryResult) closeLotteryResult();
+    });
+  }
+
   if (btnReplay) {
     btnReplay.addEventListener('click', () => {
       sfx('click');
@@ -1401,12 +1636,6 @@
     if (isDailyRun) {
       isDailyRun = false;
       showHome();
-      return;
-    }
-    if (isEndlessRun && endlessPairs < MAX_PAIRS) {
-      endlessPairs += 1;
-      levels[0].pairs = endlessPairs;
-      renderLevel();
       return;
     }
     const next = getNextLevelIndex(currentLevelIndex);
@@ -1466,4 +1695,27 @@
   }
 
   loadLevels();
+
+  /** F12 调试：setSssCount(5) 设置 SSS 卡数量，getSssCount() 查询 */
+  window.setSssCount = function (count) {
+    if (typeof Backpack === 'undefined') {
+      console.warn('[豆豆] Backpack 未加载');
+      return 0;
+    }
+    const n = Backpack.setSssCount(count);
+    console.log(`[豆豆] SSS 卡数量 = ${n}`);
+    if (
+      subPanel &&
+      !subPanel.classList.contains('hidden') &&
+      subPanelTitle &&
+      subPanelTitle.textContent === '豆豆背包'
+    ) {
+      renderBackpackPanel();
+    }
+    return n;
+  };
+
+  window.getSssCount = function () {
+    return typeof Backpack !== 'undefined' ? Backpack.getSssCount() : 0;
+  };
 })();

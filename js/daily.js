@@ -49,17 +49,36 @@
     const seed = hashSeed('doudou-daily-' + dk);
     const rnd = mulberry32(seed);
     const pool = tilePool.length ? tilePool : [];
-    const minP = 8;
-    const maxP = Math.min(14, pool.length || 14);
-    const pairs = minP + Math.floor(rnd() * (maxP - minP + 1));
+    const pairOptions =
+      typeof Difficulty !== 'undefined' && Difficulty.allPairCounts
+        ? Difficulty.allPairCounts()
+        : [4, 6, 8, 10, 12, 14, 16];
+    const pairs = pairOptions[Math.floor(rnd() * pairOptions.length)];
 
-    const order = shuffleSeeded(
-      pool.map((_, i) => i),
-      seed + 1
-    );
-    const images = [];
-    for (let i = 0; i < pairs; i++) {
-      images.push(pool[order[i % pool.length]]);
+    const normalized =
+      typeof TileRarity !== 'undefined' ? TileRarity.normalizeTiles(pool) : pool;
+    const pickRnd = mulberry32(seed + 1);
+    let images = [];
+    if (typeof TileRarity !== 'undefined') {
+      const uniqueN = Math.max(2, Math.ceil(pairs * 0.5));
+      images = TileRarity.pickWeightedWithDupes(
+        normalized,
+        pairs,
+        uniqueN,
+        () => pickRnd()
+      );
+    } else if (normalized.length) {
+      const remaining = normalized.slice();
+      const n = Math.min(pairs, remaining.length);
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(pickRnd() * remaining.length);
+        const item = remaining.splice(idx, 1)[0];
+        images.push(typeof item === 'string' ? item : item.src);
+      }
+      while (images.length < pairs) {
+        const item = normalized[Math.floor(pickRnd() * normalized.length)];
+        images.push(typeof item === 'string' ? item : item.src);
+      }
     }
 
     const deckSeed = seed + 2;

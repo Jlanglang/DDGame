@@ -1,0 +1,34 @@
+---
+description: UTF-8 与 HTML 完整性约束，防止中文乱码与标签损坏
+globs: index.html,**/*.html,**/*.js,**/*.md,scripts/**
+alwaysApply: true
+---
+
+# 编码与 HTML 安全约束
+
+## 禁止的操作
+
+- **禁止**用 PowerShell `Set-Content -NoNewline`、`Out-File` 默认编码、或 `git show > file` 重定向覆盖含中文的 `index.html` / `*.js` / `*.md`。
+- **禁止**在 HTML 中使用无效标签名（如误写的 `motion` 代替 `div`）。
+- **禁止**写出未闭合或残缺标签（例如 `挑战/title>`、`再玩一次/button>`，缺少开头的 `<`）。
+
+## 修改含中文文件时
+
+1. 保持文件 **UTF-8（无 BOM）**；`index.html` 必须保留 `<meta charset="UTF-8">`。
+2. 优先用编辑器的 **StrReplace / Write** 做小范围修改；大范围重建 `index.html` 时参考 `scripts/fix-index-html.js`（Unicode 转义 + 最后统一 `div` 标签）。
+3. 在 Node 脚本中写中文：使用 `\uXXXX` 转义，或 `fs.readFileSync`/`writeFileSync(..., 'utf8')`，勿依赖控制台默认代码页。
+4. 修改 `index.html` 或 `scripts/` 后运行：`node scripts/validate-encoding.js`。
+
+## index.html 必备内容（校验脚本会检查）
+
+- 标题：`豆豆大挑战`
+- 关键按钮文案：`快速开始`、`选关`、`再玩一次`
+- 合法结构：`</title>`、`</button>`、`</div>` 等闭合标签完整
+
+## 生成/修补流程
+
+```bash
+node scripts/generate-manifest.js   # 生成关卡后自动校验
+node scripts/validate-encoding.js   # 仅校验
+node scripts/fix-index-html.js      # index.html 严重损坏时的恢复模板
+```

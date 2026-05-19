@@ -22,7 +22,6 @@
 </head>
 <body>
   <div id="combo-toast" class="combo-toast hidden" aria-live="polite"></div>
-
   <div id="app" class="app-shell">
     <section id="home-page" class="page page--home" aria-label="首页">
       <header class="home-header">
@@ -42,7 +41,8 @@
         </div>
         <div class="home-toolbar">
           <button type="button" id="btn-achievements" class="toolbar-btn">成就</button>
-          <button type="button" id="btn-gallery" class="toolbar-btn">图鉴</button>
+          <button type="button" id="btn-backpack" class="toolbar-btn">背包</button>
+          <button type="button" id="btn-lottery-log" class="toolbar-btn">抽奖记录</button>
         </div>
       </div>
       <section id="sub-panel" class="sub-panel hidden" aria-hidden="true">
@@ -54,7 +54,6 @@
       </section>
       <p id="error-msg" class="error-msg hidden"></p>
     </section>
-
     <section id="game-page" class="page page--game hidden" aria-label="游戏" aria-hidden="true">
       <header class="header game-header">
         <div id="combo-hud" class="combo-hud hidden">连击 x0</div>
@@ -70,6 +69,7 @@
           <button id="btn-home" type="button" class="btn-home">首页</button>
         </div>
       </header>
+      <p id="drop-rate-hud" class="drop-rate-hud hidden" aria-live="polite"></p>
       <div id="board-viewport" class="board-viewport">
         <div id="board-scaler" class="board-scaler">
           <main id="board" class="board" aria-label="游戏棋盘"></main>
@@ -87,13 +87,44 @@
       <div id="level-list" class="level-list"></div>
     </div>
   </div>
-
+  <div id="synth-picker" class="level-picker synth-picker hidden" aria-hidden="true">
+    <div class="level-picker-sheet synth-picker-sheet" role="dialog" aria-labelledby="synth-picker-title">
+      <div class="level-picker-head">
+        <h2 id="synth-picker-title">选择合成卡片</h2>
+        <button type="button" id="btn-synth-picker-close" class="level-picker-close" aria-label="关闭">×</button>
+      </div>
+      <p id="synth-picker-hint" class="level-select-hint synth-picker-hint"></p>
+      <div id="synth-picker-list" class="synth-picker-list"></div>
+    </div>
+  </div>
+  <div id="lottery-picker" class="level-picker lottery-picker hidden" aria-hidden="true">
+    <div class="level-picker-sheet lottery-picker-sheet" role="dialog" aria-labelledby="lottery-picker-title">
+      <div class="level-picker-head">
+        <h2 id="lottery-picker-title">选择抽奖卡片</h2>
+        <button type="button" id="btn-lottery-picker-close" class="level-picker-close" aria-label="关闭">×</button>
+      </div>
+      <p id="lottery-picker-hint" class="level-select-hint lottery-picker-hint"></p>
+      <div id="lottery-picker-list" class="lottery-picker-list"></div>
+    </div>
+  </div>
+  <div id="lottery-result" class="level-picker lottery-result hidden" aria-hidden="true">
+    <div class="level-picker-sheet lottery-result-sheet" role="dialog" aria-labelledby="lottery-result-title">
+      <div class="lottery-result-body">
+        <span id="lottery-result-emoji" class="lottery-result-emoji" aria-hidden="true">🎀</span>
+        <span id="lottery-result-tag" class="lottery-result-tag lottery-result-tag--reward">正向奖励</span>
+        <h2 id="lottery-result-title" class="lottery-result-title"></h2>
+        <p id="lottery-result-desc" class="lottery-result-desc"></p>
+        <p class="lottery-result-hint">记得给家长看，按约定兑现哦～</p>
+        <button type="button" id="btn-lottery-result-close" class="home-btn home-btn--primary">收下</button>
+      </div>
+    </div>
+  </div>
   <div id="overlay" class="overlay hidden" aria-hidden="true">
     <div id="achievement-pop" class="achievement-pop hidden"></div>
     <div class="modal">
-      <div id="overlay-stars" class="overlay-stars hidden" aria-hidden="true"></div>
       <h2 id="overlay-title">过关!</h2>
       <p id="overlay-text"></p>
+      <div id="overlay-drops" class="overlay-drops hidden" aria-hidden="true"></div>
       <div class="modal-actions">
         <button id="btn-share" type="button" class="hidden">分享成绩</button>
         <button id="btn-replay" type="button">再玩一次</button>
@@ -102,10 +133,12 @@
       </div>
     </div>
   </div>
-
   <script src="js/difficulty.js"></script>
+  <script src="js/rarity.js"></script>
   <script src="js/modes.js"></script>
   <script src="js/progress.js"></script>
+  <script src="js/lottery-rewards.js"></script>
+  <script src="js/backpack.js"></script>
   <script src="js/daily.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/tutorial.js"></script>

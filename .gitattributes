@@ -1,0 +1,16 @@
+# 文本文件强制 UTF-8 + LF，减少跨平台乱码
+* text=auto eol=lf
+
+*.html text eol=lf working-tree-encoding=UTF-8
+*.js text eol=lf working-tree-encoding=UTF-8
+*.css text eol=lf working-tree-encoding=UTF-8
+*.json text eol=lf working-tree-encoding=UTF-8
+*.md text eol=lf working-tree-encoding=UTF-8
+*.py text eol=lf working-tree-encoding=UTF-8
+
+*.png binary
+*.wav binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary

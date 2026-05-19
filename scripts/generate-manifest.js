@@ -1,33 +1,19 @@
 /**
- * 扫描 assets/tiles/ 图池，生成关卡（含各模式独立关卡表，名称从第 1 关起）
+ * 扫描 assets/tiles/ 图池，生成关卡（普通 3 / 困难 4 / 挑战 5 关）
  *
  * 用法: node scripts/generate-manifest.js
- * 图过大时: python scripts/optimize-tiles.py
  */
 
 const fs = require('fs');
 const path = require('path');
-const { forPairs } = require('../js/difficulty.js');
-const { MODES } = require('../js/modes.js');
+const { MODE_PLANS, LEVELS_PER_MODE, buildModeLevels } = require('../js/difficulty.js');
+const { assignRarityByIndex } = require('../js/rarity.js');
 
 const ROOT = path.join(__dirname, '..');
 const TILES_DIR = path.join(ROOT, 'assets', 'tiles');
 const OUTPUT = path.join(ROOT, 'levels.json');
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
-
-/** 单关最多几对（全模式上限） */
-const MIN_PAIRS = 2;
-const MAX_PAIRS_CAP = 20;
-
-/** 不生成对数为 7 的倍数的关卡（7、14、21…） */
-function shouldSkipPairs(pairs) {
-  return pairs % 7 === 0;
-}
-
-function maxPairsForTiles(tileCount) {
-  return Math.min(tileCount, MAX_PAIRS_CAP);
-}
 
 function naturalCompare(a, b) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
@@ -41,79 +27,29 @@ function scanTiles() {
   if (!fs.existsSync(TILES_DIR)) {
     return [];
   }
-  return fs
+  const files = fs
     .readdirSync(TILES_DIR)
     .filter(isImageFile)
-    .sort(naturalCompare)
-    .map((f) => `assets/tiles/${f}`.replace(/\\/g, '/'));
-}
-
-/** 与全局关卡相同对数时使用相同图组 */
-function pickImages(tiles, pairs) {
-  const n = tiles.length;
-  const start = (pairs - 1) % n;
-  const picked = [];
-  for (let i = 0; i < pairs; i++) {
-    picked.push(tiles[(start + i) % n]);
-  }
-  return picked;
-}
-
-function buildLevelEntry(id, pairs, tiles) {
-  const cfg = forPairs(pairs);
-  return {
-    id,
-    name: `第 ${id} 关`,
-    pairs,
-    difficulty: cfg.difficulty,
-    difficultyLabel: cfg.difficultyLabel,
-    timeLimit: cfg.timeLimit,
-    moveLimit: cfg.moveLimit,
-    images: pickImages(tiles, pairs),
-  };
-}
-
-/** 普通模式：2 对起，第 1~N 关 */
-function buildNormalLevels(tiles) {
-  const maxPairs = maxPairsForTiles(tiles.length);
-  const levels = [];
-  let id = 1;
-  for (let pairs = MIN_PAIRS; pairs <= maxPairs; pairs++) {
-    if (shouldSkipPairs(pairs)) continue;
-    levels.push(buildLevelEntry(id, pairs, tiles));
-    id += 1;
-  }
-  return levels;
-}
-
-/** 困难/挑战：从 minPairs 起，关卡名从第 1 关重新编号 */
-function buildModeLevels(tiles, minPairs) {
-  const maxPairs = maxPairsForTiles(tiles.length);
-  const levels = [];
-  let id = 1;
-  for (let pairs = minPairs; pairs <= maxPairs; pairs++) {
-    if (shouldSkipPairs(pairs)) continue;
-    levels.push(buildLevelEntry(id, pairs, tiles));
-    id += 1;
-  }
-  return levels;
+    .sort(naturalCompare);
+  return files.map((f, i) => ({
+    src: `assets/tiles/${f}`.replace(/\\/g, '/'),
+    rarity: assignRarityByIndex(i, files.length),
+  }));
 }
 
 function main() {
   console.log('扫描图池 assets/tiles/ ...');
   const tiles = scanTiles();
 
-  if (tiles.length < MIN_PAIRS) {
-    console.error(
-      `错误: 图池至少需要 ${MIN_PAIRS} 张图。请运行 python scripts/slice-spritesheet.py 或往 assets/tiles/ 放图。`
-    );
+  if (tiles.length < 1) {
+    console.error('错误: 图池至少需要 1 张图。');
     process.exit(1);
   }
 
-  const levels = buildNormalLevels(tiles);
+  const levels = buildModeLevels('normal');
   const modeLevels = {
-    hard: buildModeLevels(tiles, MODES.hard.minPairs),
-    challenge: buildModeLevels(tiles, MODES.challenge.minPairs),
+    hard: buildModeLevels('hard'),
+    challenge: buildModeLevels('challenge'),
   };
 
   const manifest = { tiles, levels, modeLevels };
@@ -128,19 +64,22 @@ function main() {
     ';\n';
   fs.writeFileSync(dataJsPath, dataJs, 'utf8');
 
-  console.log(`  图池: ${tiles.length} 张，单关最多 ${MAX_PAIRS_CAP} 对`);
-  const maxPairs = maxPairsForTiles(tiles.length);
-  console.log(
-    `  普通: ${levels.length} 关（${MIN_PAIRS}~${maxPairs} 对，跳过 7 的倍数）`
-  );
-  console.log(
-    `  困难: ${modeLevels.hard.length} 关（${MODES.hard.minPairs} 对起，第 1 关起）`
-  );
-  console.log(
-    `  挑战: ${modeLevels.challenge.length} 关（${MODES.challenge.minPairs} 对起，第 1 关起）`
-  );
+  const counts = { A: 0, R: 0, SR: 0, SSR: 0 };
+  tiles.forEach((t) => counts[t.rarity]++);
+  console.log(`  图池: ${tiles.length} 张（A${counts.A} R${counts.R} SR${counts.SR} SSR${counts.SSR}）`);
+  Object.entries(MODE_PLANS).forEach(([id, plan]) => {
+    const n = LEVELS_PER_MODE[id] ?? plan.pairsByStage.length;
+    console.log(`  ${id}: ${plan.pairsByStage.join(' → ')} 对（${n} 关）`);
+  });
   console.log(`\n已生成 ${path.relative(ROOT, OUTPUT)}`);
-  console.log(`已生成 ${path.relative(ROOT, dataJsPath)}（双击 HTML 可玩）`);
+  console.log(`已生成 ${path.relative(ROOT, dataJsPath)}`);
+
+  const { execSync } = require('child_process');
+  try {
+    execSync('node scripts/validate-encoding.js', { cwd: ROOT, stdio: 'inherit' });
+  } catch {
+    process.exit(1);
+  }
 }
 
 main();

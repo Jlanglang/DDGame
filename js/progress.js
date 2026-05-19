@@ -1,5 +1,5 @@
 /**
- * 通关记录、星级、每日、图鉴、无尽（localStorage）
+ * 通关记录、每日、背包（localStorage）
  */
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) {
@@ -40,39 +40,18 @@
     return loadAll()[modeId]?.[levelKey(levelId)] || null;
   }
 
-  /** 1~3 星：完美步数或剩余时间≥50%为 3 星；≤1.5倍对数为 2 星 */
-  function calcStars(pairs, moves, timeLeft, timeLimit, hasTimeLimit) {
-    const perfect = pairs;
-    const good = Math.ceil(pairs * 1.5);
-    let stars = 1;
-    if (moves <= good) stars = 2;
-    if (moves <= perfect) stars = 3;
-    if (hasTimeLimit && timeLimit > 0 && timeLeft >= timeLimit * 0.5) {
-      stars = Math.max(stars, 3);
-    }
-    return stars;
-  }
-
-  function starsText(n) {
-    const s = Math.max(0, Math.min(3, n || 0));
-    return '★'.repeat(s) + '☆'.repeat(3 - s);
-  }
-
   function recordWin(modeId, levelId, stats) {
     const data = loadAll();
     if (!data[modeId]) data[modeId] = {};
 
     const key = levelKey(levelId);
     const prev = data[modeId][key];
-    const stars = stats.stars ?? 1;
     const entry = {
       completedAt: Date.now(),
       moves: stats.moves,
       timeLeft: stats.timeLeft,
-      stars,
       bestMoves: prev ? Math.min(prev.bestMoves, stats.moves) : stats.moves,
       bestTimeLeft: prev ? Math.max(prev.bestTimeLeft, stats.timeLeft) : stats.timeLeft,
-      bestStars: prev ? Math.max(prev.bestStars || 0, stars) : stars,
     };
 
     data[modeId][key] = entry;
@@ -109,13 +88,10 @@
     const data = loadAll();
     if (!data.daily) data.daily = {};
     const prev = data.daily[dateKey];
-    const stars = stats.stars ?? 1;
     data.daily[dateKey] = {
       completedAt: Date.now(),
       moves: stats.moves,
-      stars,
       bestMoves: prev ? Math.min(prev.bestMoves, stats.moves) : stats.moves,
-      bestStars: prev ? Math.max(prev.bestStars || 0, stars) : stars,
     };
     updateDailyStreak(dateKey);
     saveAll(data);
@@ -143,28 +119,6 @@
     return getMeta().dailyStreak || 0;
   }
 
-  function discoverTiles(paths) {
-    if (!paths?.length) return;
-    const meta = getMeta();
-    const set = new Set(meta.gallery || []);
-    paths.forEach((p) => set.add(p));
-    setMeta({ gallery: [...set] });
-  }
-
-  function getGallery() {
-    return getMeta().gallery || [];
-  }
-
-  function getEndlessBest() {
-    return getMeta().endlessBest || 0;
-  }
-
-  function setEndlessBest(pairs) {
-    const best = getEndlessBest();
-    if (pairs > best) setMeta({ endlessBest: pairs });
-    return Math.max(best, pairs);
-  }
-
   function isTutorialDone() {
     return Boolean(getMeta().tutorialDone);
   }
@@ -179,15 +133,9 @@
     recordWin,
     getCompletedCount,
     clearMode,
-    calcStars,
-    starsText,
     getDailyRecord,
     recordDaily,
     getDailyStreak,
-    discoverTiles,
-    getGallery,
-    getEndlessBest,
-    setEndlessBest,
     isTutorialDone,
     setTutorialDone,
     getMeta,

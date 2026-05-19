@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.Python
+.DS_Store
+Thumbs.db
+_sfx_tmp/
+_sfx.zip
+*.log
+.env
+.idea/
+.vscode/

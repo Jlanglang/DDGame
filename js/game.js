@@ -39,7 +39,7 @@
   const btnMenu = document.getElementById('btn-menu');
   const btnHome = document.getElementById('btn-home');
   const overlay = document.getElementById('overlay');
-  const modal = overlay.querySelector('.modal');
+  const modal = overlay ? overlay.querySelector('.modal') : null;
   const overlayTitle = document.getElementById('overlay-title');
   const overlayText = document.getElementById('overlay-text');
   const btnReplay = document.getElementById('btn-replay');
@@ -542,8 +542,10 @@
     closeLevelPicker();
     hideOverlay();
     document.body.classList.remove('game-active');
-    appEl.classList.remove('game-active');
-    appEl.classList.add('home-view');
+    if (appEl) {
+      appEl.classList.remove('game-active');
+      appEl.classList.add('home-view');
+    }
     if (homePage) {
       homePage.classList.remove('hidden');
       homePage.setAttribute('aria-hidden', 'false');
@@ -553,8 +555,10 @@
       gamePage.setAttribute('aria-hidden', 'true');
     }
     if (homeMenu) homeMenu.classList.add('hidden');
-    errorMsg.textContent = text;
-    errorMsg.classList.remove('hidden');
+    if (errorMsg) {
+      errorMsg.textContent = text;
+      errorMsg.classList.remove('hidden');
+    }
   }
 
   function getModeLevelTotal(modeId) {
@@ -571,6 +575,7 @@
   }
 
   function renderModeList() {
+    if (!modeList) return;
     modeList.innerHTML = '';
     GameModes.LIST.forEach((mode) => {
       const done = Progress.getCompletedCount(mode.id);
@@ -636,8 +641,10 @@
     hideSubPanel();
     closeLevelPicker();
     document.body.classList.remove('game-active');
-    appEl.classList.remove('game-active');
-    appEl.classList.add('home-view');
+    if (appEl) {
+      appEl.classList.remove('game-active');
+      appEl.classList.add('home-view');
+    }
     if (homePage) {
       homePage.classList.remove('hidden');
       homePage.setAttribute('aria-hidden', 'false');
@@ -648,7 +655,7 @@
     }
     if (btnHint) btnHint.classList.add('hidden');
     if (homeMenu) homeMenu.classList.remove('hidden');
-    errorMsg.classList.add('hidden');
+    if (errorMsg) errorMsg.classList.add('hidden');
     renderModeList();
     renderDailyCard();
     updateHomeHint();
@@ -817,9 +824,11 @@
       gamePage.setAttribute('aria-hidden', 'false');
     }
     document.body.classList.add('game-active');
-    appEl.classList.add('game-active');
-    appEl.classList.remove('home-view');
-    errorMsg.classList.add('hidden');
+    if (appEl) {
+      appEl.classList.add('game-active');
+      appEl.classList.remove('home-view');
+    }
+    if (errorMsg) errorMsg.classList.add('hidden');
   }
 
   function renderLevelList() {
@@ -1174,10 +1183,11 @@
   }
 
   function showOverlay(mode, title, text) {
+    if (!overlay) return;
     const isWin = mode === 'win';
-    modal.classList.toggle('fail', !isWin);
-    overlayTitle.textContent = title;
-    overlayText.textContent = text;
+    if (modal) modal.classList.toggle('fail', !isWin);
+    if (overlayTitle) overlayTitle.textContent = title;
+    if (overlayText) overlayText.textContent = text;
     if (overlayStars) {
       if (isWin && lastWinStars > 0) {
         overlayStars.textContent = Progress.starsText(lastWinStars);
@@ -1196,7 +1206,7 @@
           ? '返回选关'
           : '下一关';
     }
-    btnNext.classList.toggle('hidden', !showNext);
+    if (btnNext) btnNext.classList.toggle('hidden', !showNext);
     overlay.classList.remove('hidden');
     overlay.setAttribute('aria-hidden', 'false');
   }
@@ -1265,9 +1275,10 @@
   }
 
   function hideOverlay() {
+    if (!overlay) return;
     overlay.classList.add('hidden');
     overlay.setAttribute('aria-hidden', 'true');
-    modal.classList.remove('fail');
+    if (modal) modal.classList.remove('fail');
     if (achievementPop) achievementPop.classList.add('hidden');
     if (overlayStars) overlayStars.classList.add('hidden');
   }
@@ -1310,10 +1321,12 @@
     }
   }
 
-  btnMenu.addEventListener('click', () => {
-    sfx('click');
-    openLevelPicker();
-  });
+  if (btnMenu) {
+    btnMenu.addEventListener('click', () => {
+      sfx('click');
+      openLevelPicker();
+    });
+  }
 
   if (btnHome) {
     btnHome.addEventListener('click', () => {
@@ -1323,11 +1336,13 @@
     });
   }
 
-  btnSelect.addEventListener('click', () => {
-    sfx('click');
-    hideOverlay();
-    openLevelPicker();
-  });
+  if (btnSelect) {
+    btnSelect.addEventListener('click', () => {
+      sfx('click');
+      hideOverlay();
+      openLevelPicker();
+    });
+  }
 
   if (btnPickLevel) {
     btnPickLevel.addEventListener('click', () => {
@@ -1370,14 +1385,17 @@
     });
   }
 
-  btnReplay.addEventListener('click', () => {
-    sfx('click');
-    hideOverlay();
-    if (isDailyRun) renderDailyLevel();
-    else renderLevel();
-  });
+  if (btnReplay) {
+    btnReplay.addEventListener('click', () => {
+      sfx('click');
+      hideOverlay();
+      if (isDailyRun) renderDailyLevel();
+      else renderLevel();
+    });
+  }
 
-  btnNext.addEventListener('click', () => {
+  if (btnNext) {
+    btnNext.addEventListener('click', () => {
     sfx('click');
     hideOverlay();
     if (isDailyRun) {
@@ -1397,7 +1415,8 @@
     } else {
       startLevel(next);
     }
-  });
+    });
+  }
 
   if (btnHint) {
     btnHint.addEventListener('click', () => useHint());

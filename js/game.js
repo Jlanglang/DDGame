@@ -105,6 +105,8 @@
   let dailyConfig = null;
   let challengeCoverCount = 0;
   let idleWarnSfxPlayed = false;
+  let victoryPending = false;
+  let victoryShown = false;
 
   function currentMode() {
     return GameModes.get(currentModeId);
@@ -237,6 +239,29 @@
       card.classList.contains(MATCHED_CLASS) ||
       card.classList.contains(CRUSHED_CLASS)
     );
+  }
+
+  function countPlayableCards() {
+    return [...board.querySelectorAll('.card')].filter((c) => !isCardRemoved(c))
+      .length;
+  }
+
+  function isBoardCleared() {
+    const cards = board.querySelectorAll('.card');
+    if (!cards.length) return false;
+    return countPlayableCards() === 0;
+  }
+
+  function scheduleVictory() {
+    if (gameOver || victoryPending || victoryShown) return false;
+    if (matchedCount < totalPairs && !isBoardCleared()) return false;
+    victoryPending = true;
+    const delay = useCrushEffect() ? 350 : 400;
+    setTimeout(() => {
+      victoryPending = false;
+      showWin();
+    }, delay);
+    return true;
   }
 
   function playCrushMatch(cardA, cardB, onComplete) {
@@ -488,7 +513,11 @@
       if (hasTimeLimit()) {
         timeLeft -= 1;
         if (timeLeft <= 0) {
-          showFail('时间用完了');
+          if (isBoardCleared() || matchedCount >= totalPairs) {
+            scheduleVictory();
+          } else {
+            showFail('时间用完了');
+          }
           return;
         }
       }
@@ -1058,14 +1087,16 @@
 
     const level = cfg.level;
     const mode = GameModes.get(cfg.modeId || 'hard');
-    totalPairs = cfg.pairs;
     moveLimit = level.moveLimit;
     timeLeft = level.timeLimit;
     hintsLeft = GameModes.hintCountFor(mode);
     hintsUsed = 0;
 
     const deck = GameDaily.buildDeck(cfg.images, cfg.deckSeed);
+    totalPairs = Math.max(1, Math.floor(deck.length / 2));
     lastUniqueImageCount = new Set(cfg.images).size;
+    victoryPending = false;
+    victoryShown = false;
 
     board.innerHTML = '';
     deck.forEach((data, i) => {
@@ -1295,7 +1326,7 @@
   function checkMoveLimit() {
     const mode = currentMode();
     if (!mode.hasMoveLimit) return false;
-    if (moves >= moveLimit && matchedCount < totalPairs) {
+    if (moves >= moveLimit && !isBoardCleared() && matchedCount < totalPairs) {
       showFail('步数用完了');
       return true;
     }
@@ -1333,10 +1364,8 @@
         resetIdleOnMatch();
         resetTurn();
         updateHintButton();
-        if (checkMoveLimit()) return;
-        if (matchedCount >= totalPairs) {
-          setTimeout(showWin, useCrushEffect() ? 350 : 400);
-        }
+        if (scheduleVictory()) return;
+        checkMoveLimit();
       };
 
       if (useCrushEffect()) {
@@ -1391,13 +1420,15 @@
     const pairs = pairCount(level);
     const images = pickRandomImages(pairs, level);
     lastUniqueImageCount = new Set(images).size;
-    totalPairs = pairs;
 
     const cfg = getLevelConfig({ ...level, pairs });
     moveLimit = cfg.moveLimit;
     timeLeft = hasTimeLimit() ? cfg.timeLimit : 0;
 
     const deck = buildDeck(images);
+    totalPairs = Math.max(1, Math.floor(deck.length / 2));
+    victoryPending = false;
+    victoryShown = false;
 
     board.innerHTML = '';
     deck.forEach((data, i) => {
@@ -1460,18 +1491,38 @@
     sfx('win', { playbackRate: 1.1 });
   }
 
+  function dailySssRevealHtml() {
+    const src =
+      typeof Backpack !== 'undefined'
+        ? Backpack.SSS_CARD_SRC
+        : 'assets/tiles/25.png';
+    return (
+      '<div class="drop-reveal daily-sss-reveal">' +
+      '<p class="drop-reveal-title">获得奖励</p>' +
+      '<div class="daily-sss-reveal-card">' +
+      `<img src="${src}" alt="" loading="eager" />` +
+      '<p class="daily-sss-reveal-label">SSS 专属卡 ×1</p>' +
+      '</div></div>'
+    );
+  }
+
   function showOverlay(mode, title, text, options = {}) {
     if (!overlay) return;
     const isWin = mode === 'win';
     const revealDrops = isWin && options.revealDrops?.length;
+    const dailySss = isWin && options.dailySssReveal;
     if (modal) {
       modal.classList.toggle('fail', !isWin);
-      modal.classList.toggle('modal--revealing', Boolean(revealDrops));
+      modal.classList.toggle('modal--revealing', Boolean(revealDrops || dailySss));
     }
     if (overlayTitle) overlayTitle.textContent = title;
     if (overlayText) overlayText.textContent = text;
     if (overlayDrops) {
-      if (revealDrops && typeof Backpack !== 'undefined') {
+      if (dailySss) {
+        overlayDrops.innerHTML = dailySssRevealHtml();
+        overlayDrops.classList.remove('hidden');
+        overlayDrops.setAttribute('aria-hidden', 'false');
+      } else if (revealDrops && typeof Backpack !== 'undefined') {
         overlayDrops.innerHTML = Backpack.getDropRevealContainerHtml();
         overlayDrops.classList.remove('hidden');
         overlayDrops.setAttribute('aria-hidden', 'false');
@@ -1499,14 +1550,18 @@
   }
 
   function showWin() {
+    if (victoryShown) return;
+    victoryShown = true;
     const level = levels[currentLevelIndex];
 
     let drops = [];
+    let dailySssReveal = false;
     if (isDailyRun && dailyConfig) {
       Progress.recordDaily(dailyConfig.dateKey, { moves });
       if (typeof Backpack !== 'undefined') {
         Backpack.addSssCount(dailyConfig.rewardSss || 1);
       }
+      dailySssReveal = true;
     } else if (typeof Backpack !== 'undefined') {
       const stageIdx = level?.stage ? level.stage - 1 : 0;
       drops = Backpack.rollDrops(currentModeId, stageIdx, tilePool);
@@ -1530,7 +1585,7 @@
     sfx('win');
     const title = isDailyRun ? '今日挑战完成！' : '过关！';
     const winText = winMessage();
-    showOverlay('win', title, winText, { revealDrops: drops });
+    showOverlay('win', title, winText, { revealDrops: drops, dailySssReveal });
 
     const afterReveal = () => {
       if (modal) modal.classList.remove('modal--revealing');
@@ -1539,7 +1594,9 @@
       }
     };
 
-    if (drops.length && typeof Backpack.playDropReveal === 'function') {
+    if (dailySssReveal) {
+      afterReveal();
+    } else if (drops.length && typeof Backpack.playDropReveal === 'function') {
       const root = overlayDrops?.querySelector('.drop-reveal');
       Backpack.playDropReveal(root, drops, {
         sfx: (name, opts) => sfx(name, opts),

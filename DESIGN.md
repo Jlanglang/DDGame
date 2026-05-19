@@ -85,7 +85,7 @@ flowchart LR
 | 稀有度 | `js/rarity.js` | A/R/SR/SSR 分配与加权抽牌 |
 | 进度 | `js/progress.js` | 每日挑战、背包元数据（不记关卡通关） |
 | 背包 | `js/backpack.js` | A/S/SS 碎片掉落、收集与合成 |
-| 每日挑战 | `js/daily.js` | 日期种子、全员同题、固定随机 |
+| 每日挑战 | `js/daily.js` | 困难第3关、全员同题、完成得 SSS、每日一次 |
 | 成就 | `js/achievements.js` | 本地成就解锁与过关检测 |
 | 教程 | `js/tutorial.js` | 首局（≤4 对）分步引导 |
 | 音效 | `js/audio.js` | Kenney CC0 音效池与开关 |
@@ -261,10 +261,10 @@ game-page
 
 ## 6. 每日挑战
 
-- **种子**：`dateKey`（`YYYY-MM-DD`）→ `hashSeed('doudou-daily-' + dateKey)`  
-- **对数**：种子随机，从各模式对数集合中择一（4~16）  
-- **组牌**：与主线相同，使用 `TileRarity.pickOne` 加权有放回  
-- **牌序**：`deckSeed` 固定，全员同日相同布局  
+- **难度固定**：困难模式 **第 3 关**（10 对 · 限时 77s · 限步 30）  
+- **种子**：`dateKey` → 全员同日相同牌面与顺序  
+- **奖励**：完成获得 **SSS 专属卡 ×1**（不发碎片掉落）  
+- **次数**：每日仅可 **完成一次**，完成后当日不可再开  
 - **记录**：`Progress.recordDaily` + 连续打卡 `dailyStreak`  
 
 ---

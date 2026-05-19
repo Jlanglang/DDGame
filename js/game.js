@@ -316,6 +316,15 @@
     return best;
   }
 
+  /** 布局稳定后再算网格（避免每日挑战与选关列数不一致） */
+  function scheduleFitBoard(cardCount) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fitBoardGrid(cardCount);
+      });
+    });
+  }
+
   /** 按 board-viewport 整体宽高计算牌面，尽量铺满可用区域 */
   function fitBoardGrid(cardCount) {
     if (!cardCount) return;
@@ -632,10 +641,23 @@
   }
 
   function openLevelPicker() {
+    if (isDailyRun) {
+      showComboToast('每日挑战固定困难第3关，不能选关', 2000);
+      return;
+    }
     if (!levelPicker) return;
     renderLevelList();
     levelPicker.classList.remove('hidden');
     levelPicker.setAttribute('aria-hidden', 'false');
+  }
+
+  function updateGameChrome() {
+    if (btnMenu) {
+      btnMenu.classList.toggle('hidden', isDailyRun);
+    }
+    if (btnSelect) {
+      btnSelect.classList.toggle('hidden', isDailyRun);
+    }
   }
 
   function closeLevelPicker() {
@@ -668,6 +690,7 @@
     if (homeMenu) homeMenu.classList.remove('hidden');
     if (errorMsg) errorMsg.classList.add('hidden');
     if (dropRateHud) dropRateHud.classList.add('hidden');
+    updateGameChrome();
     renderModeList();
     renderDailyCard();
     updateHomeHint();
@@ -945,27 +968,77 @@
     const cfg = GameDaily.getConfig(tilePool, dk);
     const rec = Progress.getDailyRecord(dk);
     const streak = Progress.getDailyStreak();
+    const lvl = cfg.level;
     dailyCard.classList.remove('hidden');
     dailyCard.classList.toggle('daily-card--done', Boolean(rec));
     dailyCard.innerHTML =
       `<p class="daily-card-title">📅 今日挑战</p>` +
-      `<p class="daily-card-meta">${cfg.pairs} 对 · 全员同题 · 连续 ${streak} 天` +
-      (rec ? ` · 已完成 ${rec.bestMoves} 步` : ' · 点击开始') +
+      `<p class="daily-card-meta">${cfg.pairs}对 · 限时${lvl.timeLimit}s · 限步${lvl.moveLimit}` +
+      ` · 固定掉落 SSS×1 · 每日一次` +
+      (rec
+        ? ` · 今日已完成（${rec.bestMoves} 步）`
+        : ` · 连续打卡 ${streak} 天 · 点击开始`) +
       `</p>`;
     dailyCard.onclick = () => {
       sfx('click');
+      if (rec) {
+        showComboToast('今日挑战已完成，明天再来吧～', 2200);
+        return;
+      }
       startDaily();
     };
   }
 
   function startDaily() {
     if (typeof GameDaily === 'undefined') return;
+    const dk = GameDaily.dateKey();
+    if (Progress.getDailyRecord(dk)) {
+      showComboToast('今日挑战已完成，明天再来吧～', 2200);
+      renderDailyCard();
+      return;
+    }
     isDailyRun = true;
-    dailyConfig = GameDaily.getConfig(tilePool);
-    currentModeId = 'normal';
+    dailyConfig = GameDaily.getConfig(tilePool, dk);
+    currentModeId = dailyConfig.modeId || 'hard';
     gameOver = false;
     showGame();
     renderDailyLevel();
+  }
+
+  function updateDailyHud() {
+    const cfg = dailyConfig;
+    if (!cfg) return;
+    const mode = GameModes.get(cfg.modeId || 'hard');
+    const uniqueHint =
+      lastUniqueImageCount > 0 ? ` · ${lastUniqueImageCount}种图` : '';
+    levelLabel.textContent =
+      `今日挑战 · ${cfg.pairs}对${uniqueHint} · ${mode.label}`;
+    if (dropRateHud) {
+      dropRateHud.textContent = '固定掉落 SSS×1';
+      dropRateHud.classList.remove('hidden');
+    }
+
+    movesLabel.textContent = `步数: ${moves}/${moveLimit}`;
+    movesLabel.classList.remove('hidden');
+    const movesLeft = moveLimit - moves;
+    movesLabel.classList.toggle('warn', movesLeft <= 3 && movesLeft >= 0 && !gameOver);
+
+    if (hasTimeLimit()) {
+      timerLabel.textContent = `时间: ${timeLeft}s`;
+      timerLabel.classList.remove('hidden');
+      timerLabel.classList.toggle('warn', timeLeft <= 10 && !gameOver);
+    } else {
+      timerLabel.classList.add('hidden');
+    }
+
+    if (comboHud) {
+      if (combo >= 2) {
+        comboHud.textContent = `连击 x${combo}`;
+        comboHud.classList.remove('hidden');
+      } else {
+        comboHud.classList.add('hidden');
+      }
+    }
   }
 
   function renderDailyLevel() {
@@ -978,38 +1051,39 @@
     matchedCount = 0;
     combo = 0;
     comboMax = 0;
-    hintsLeft = 2;
-    hintsUsed = 0;
     challengeCoverCount = 0;
     firstCard = null;
     secondCard = null;
     lock = false;
 
-    const pairs = cfg.pairs;
-    totalPairs = pairs;
+    const level = cfg.level;
+    const mode = GameModes.get(cfg.modeId || 'hard');
+    totalPairs = cfg.pairs;
+    moveLimit = level.moveLimit;
+    timeLeft = level.timeLimit;
+    hintsLeft = GameModes.hintCountFor(mode);
+    hintsUsed = 0;
 
     const deck = GameDaily.buildDeck(cfg.images, cfg.deckSeed);
-    const diff = Difficulty.forPairs(pairs);
-    moveLimit = diff.moveLimit;
-    timeLeft = diff.timeLimit;
-
     lastUniqueImageCount = new Set(cfg.images).size;
-    levelLabel.textContent = `今日挑战 · ${pairs}对 · ${lastUniqueImageCount}种图`;
 
     board.innerHTML = '';
     deck.forEach((data, i) => {
       board.appendChild(createCard(data, i));
     });
-    requestAnimationFrame(() => fitBoardGrid(deck.length));
 
-    updateHud();
+    updateDailyHud();
+    updateComboHud();
     updateHintButton();
+    updateGameChrome();
     hideOverlay();
+    scheduleFitBoard(deck.length);
     startTimer();
   }
 
   function showGame() {
     closeLevelPicker();
+    updateGameChrome();
     hideSubPanel();
     if (homePage) {
       homePage.classList.add('hidden');
@@ -1087,6 +1161,11 @@
 
   function updateDropRateHud() {
     if (!dropRateHud) return;
+    if (isDailyRun) {
+      dropRateHud.textContent = '固定掉落 SSS×1';
+      dropRateHud.classList.remove('hidden');
+      return;
+    }
     if (typeof Backpack === 'undefined') {
       dropRateHud.classList.add('hidden');
       return;
@@ -1101,6 +1180,10 @@
   }
 
   function updateHud() {
+    if (isDailyRun && dailyConfig) {
+      updateDailyHud();
+      return;
+    }
     const level = levels[currentLevelIndex];
     if (!level) return;
 
@@ -1320,14 +1403,12 @@
     deck.forEach((data, i) => {
       board.appendChild(createCard(data, i));
     });
-    requestAnimationFrame(() => {
-      fitBoardGrid(deck.length);
-    });
-
     updateHud();
     updateComboHud();
     updateHintButton();
+    updateGameChrome();
     hideOverlay();
+    scheduleFitBoard(deck.length);
     startTimer();
 
     const runTutorial =
@@ -1350,10 +1431,16 @@
   }
 
   function winMessage() {
+    if (isDailyRun) {
+      return (
+        `今日挑战完成，用了 ${moves} 步` +
+        (timeLeft > 0 ? `，剩余 ${timeLeft} 秒` : '') +
+        ` · 获得 SSS 专属卡 ×1`
+      );
+    }
     const level = levels[currentLevelIndex];
     const mode = currentMode();
-    let name = level?.name || '关卡';
-    if (isDailyRun) name = '今日挑战';
+    const name = level?.name || '关卡';
     const base = hasTimeLimit()
       ? `${name} 完成，用了 ${moves} 步，剩余 ${timeLeft} 秒`
       : `${name} 完成，用了 ${moves} 步`;
@@ -1397,12 +1484,16 @@
     if (btnShare) btnShare.classList.toggle('hidden', !isWin);
     let showNext = isWin;
     if (isWin) {
-      btnNext.textContent =
-        isDailyRun || isLastAvailableLevel(currentLevelIndex)
+      if (isDailyRun) {
+        btnNext.textContent = '返回首页';
+      } else {
+        btnNext.textContent = isLastAvailableLevel(currentLevelIndex)
           ? '返回选关'
           : '下一关';
+      }
     }
     if (btnNext) btnNext.classList.toggle('hidden', !showNext);
+    if (btnSelect) btnSelect.classList.toggle('hidden', isDailyRun);
     overlay.classList.remove('hidden');
     overlay.setAttribute('aria-hidden', 'false');
   }
@@ -1410,15 +1501,15 @@
   function showWin() {
     const level = levels[currentLevelIndex];
 
+    let drops = [];
     if (isDailyRun && dailyConfig) {
       Progress.recordDaily(dailyConfig.dateKey, { moves });
-    }
-
-    let drops = [];
-    if (typeof Backpack !== 'undefined') {
-      const modeId = isDailyRun ? 'daily' : currentModeId;
+      if (typeof Backpack !== 'undefined') {
+        Backpack.addSssCount(dailyConfig.rewardSss || 1);
+      }
+    } else if (typeof Backpack !== 'undefined') {
       const stageIdx = level?.stage ? level.stage - 1 : 0;
-      drops = Backpack.rollDrops(modeId, stageIdx, tilePool);
+      drops = Backpack.rollDrops(currentModeId, stageIdx, tilePool);
       Backpack.applyDrops(drops);
     }
 
@@ -1541,6 +1632,10 @@
     btnSelect.addEventListener('click', () => {
       sfx('click');
       hideOverlay();
+      if (isDailyRun) {
+        showHome();
+        return;
+      }
       openLevelPicker();
     });
   }
@@ -1624,8 +1719,17 @@
     btnReplay.addEventListener('click', () => {
       sfx('click');
       hideOverlay();
-      if (isDailyRun) renderDailyLevel();
-      else renderLevel();
+      if (isDailyRun) {
+        if (dailyConfig && Progress.getDailyRecord(dailyConfig.dateKey)) {
+          hideOverlay();
+          showHome();
+          renderDailyCard();
+          return;
+        }
+        renderDailyLevel();
+      } else {
+        renderLevel();
+      }
     });
   }
 
@@ -1635,7 +1739,9 @@
     hideOverlay();
     if (isDailyRun) {
       isDailyRun = false;
+      dailyConfig = null;
       showHome();
+      renderDailyCard();
       return;
     }
     const next = getNextLevelIndex(currentLevelIndex);

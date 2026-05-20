@@ -225,12 +225,10 @@
 
   function toggleSound() {
     if (typeof GameAudio === 'undefined') return;
+    GameAudio.unlockFromUserGesture?.();
     const on = GameAudio.toggle();
     updateSoundButton();
-    if (on) {
-      ensureGlobalBgm();
-      GameAudio.play('click');
-    }
+    if (on) GameAudio.play('click');
   }
 
   /** 普通 / 困难：配对后渐隐消失；挑战：保持已匹配展示 */

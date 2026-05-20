@@ -117,6 +117,10 @@
     if (typeof GameAudio !== 'undefined') GameAudio.play(name, opts);
   }
 
+  function ensureGlobalBgm() {
+    if (typeof GameAudio !== 'undefined') GameAudio.ensureBgm?.();
+  }
+
   function vibrate(ms) {
     if (navigator.vibrate) navigator.vibrate(ms);
   }
@@ -224,7 +228,7 @@
     const on = GameAudio.toggle();
     updateSoundButton();
     if (on) {
-      GameAudio.syncBgm?.();
+      ensureGlobalBgm();
       GameAudio.play('click');
     }
   }
@@ -721,6 +725,7 @@
     renderModeList();
     renderDailyCard();
     updateHomeHint();
+    ensureGlobalBgm();
   }
 
   function showLevelSelect() {
@@ -1156,6 +1161,7 @@
       appEl.classList.remove('home-view');
     }
     if (errorMsg) errorMsg.classList.add('hidden');
+    ensureGlobalBgm();
   }
 
   function renderLevelList() {

@@ -1,8 +1,8 @@
 /**
  * 音效（Kenney Interface Sounds, CC0）
  * https://kenney.nl/assets/interface-sounds
- * 配对失败为内置柔和合成音（不沿用原 mismatch.wav）
- * 背景音乐：assets/sounds/bgm.mp3
+ * 配对失败为内置柔和合成音
+ * 背景音乐 assets/sounds/bgm.mp3：全应用循环，首页/游戏页/弹层切换不中断
  */
 (function (root) {
   'use strict';
@@ -32,6 +32,7 @@
   const pool = {};
   let audioCtx = null;
   let bgm = null;
+  let bgmUnlockBound = false;
 
   function getAudioContext() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -52,7 +53,8 @@
     return bgm;
   }
 
-  function syncBgm() {
+  /** 全局 BGM：开启时尽量保持播放，不因切换页面而停止 */
+  function ensureBgm() {
     initBgm();
     if (!enabled) {
       if (!bgm.paused) bgm.pause();
@@ -69,11 +71,19 @@
   }
 
   function bindBgmUnlock() {
-    const unlock = () => {
-      if (enabled) syncBgm();
+    if (bgmUnlockBound) return;
+    bgmUnlockBound = true;
+
+    const tryStart = () => {
+      if (enabled) ensureBgm();
     };
-    document.addEventListener('pointerdown', unlock, { once: true, passive: true });
-    document.addEventListener('keydown', unlock, { once: true });
+
+    document.addEventListener('pointerdown', tryStart, { passive: true });
+    document.addEventListener('keydown', tryStart);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') tryStart();
+    });
+    window.addEventListener('pageshow', tryStart);
   }
 
   /** 轻柔双音下滑，提示配对失败但不刺耳 */
@@ -124,7 +134,7 @@
 
   function play(name, opts) {
     if (!enabled) return;
-    syncBgm();
+    ensureBgm();
     if (name === 'mismatch') {
       playMismatchTone();
       return;
@@ -150,7 +160,7 @@
   function setEnabled(on) {
     enabled = !!on;
     localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false');
-    if (enabled) syncBgm();
+    if (enabled) ensureBgm();
     else pauseBgm();
     return enabled;
   }
@@ -165,7 +175,7 @@
 
   preload();
   bindBgmUnlock();
-  if (enabled) syncBgm();
+  ensureBgm();
 
   root.GameAudio = {
     play,
@@ -173,7 +183,8 @@
     toggle,
     setEnabled,
     isEnabled,
-    syncBgm,
+    ensureBgm,
+    syncBgm: ensureBgm,
     pauseBgm,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

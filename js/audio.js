@@ -18,7 +18,7 @@
 
   const STORAGE_KEY = 'doudou-sfx-enabled';
 
-  const BGM_SRC = 'assets/sounds/bgm.mp3';
+  const BGM_SRC = 'assets/sounds/bgm_3m.mp3';
 
   const BGM_VOLUME = 0.35;
 

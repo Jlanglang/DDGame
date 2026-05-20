@@ -2,9 +2,9 @@
   'use strict';
 
   const FLIP_BACK_MS = 600;
-  const FADE_AFTER_FLIP_MS = 380;
-  const MATCH_FADE_MS = 1000;
-  const MATCH_FADE_STAGGER_MS = 150;
+  const FADE_AFTER_FLIP_MS = 160;
+  const MATCH_FADE_MS = 420;
+  const MATCH_FADE_STAGGER_MS = 50;
   const CRUSH_MS = FADE_AFTER_FLIP_MS + MATCH_FADE_MS + MATCH_FADE_STAGGER_MS;
   const MATCHED_CLASS = 'matched';
   const FLIPPED_CLASS = 'flipped';
@@ -58,6 +58,7 @@
   const overlayTitle = document.getElementById('overlay-title');
   const overlayText = document.getElementById('overlay-text');
   const btnReplay = document.getElementById('btn-replay');
+  const btnOverlayClose = document.getElementById('btn-overlay-close');
   const btnNext = document.getElementById('btn-next');
   const btnSelect = document.getElementById('btn-select');
   const btnHint = document.getElementById('btn-hint');
@@ -214,7 +215,7 @@
     document.querySelectorAll('.btn-sound').forEach((btn) => {
       btn.textContent = on ? '🔊' : '🔇';
       btn.classList.toggle('off', !on);
-      btn.setAttribute('aria-label', on ? '关闭音效' : '开启音效');
+      btn.setAttribute('aria-label', on ? '关闭音效与背景音乐' : '开启音效与背景音乐');
     });
   }
 
@@ -222,7 +223,10 @@
     if (typeof GameAudio === 'undefined') return;
     const on = GameAudio.toggle();
     updateSoundButton();
-    if (on) GameAudio.play('click');
+    if (on) {
+      GameAudio.syncBgm?.();
+      GameAudio.play('click');
+    }
   }
 
   /** 普通 / 困难：配对后渐隐消失；挑战：保持已匹配展示 */
@@ -252,15 +256,11 @@
     return countPlayableCards() === 0;
   }
 
-  function scheduleVictory() {
-    if (gameOver || victoryPending || victoryShown) return false;
+  /** 满足胜利条件则弹出结算（afterMatch 已在渐隐动画结束后调用） */
+  function tryVictory() {
+    if (victoryShown) return false;
     if (matchedCount < totalPairs && !isBoardCleared()) return false;
-    victoryPending = true;
-    const delay = useCrushEffect() ? 350 : 400;
-    setTimeout(() => {
-      victoryPending = false;
-      showWin();
-    }, delay);
+    showWin();
     return true;
   }
 
@@ -513,11 +513,9 @@
       if (hasTimeLimit()) {
         timeLeft -= 1;
         if (timeLeft <= 0) {
-          if (isBoardCleared() || matchedCount >= totalPairs) {
-            scheduleVictory();
-          } else {
-            showFail('时间用完了');
-          }
+          if (lock) return;
+          if (tryVictory()) return;
+          showFail('时间用完了');
           return;
         }
       }
@@ -671,7 +669,7 @@
 
   function openLevelPicker() {
     if (isDailyRun) {
-      showComboToast('每日挑战固定困难第3关，不能选关', 2000);
+      showComboToast('每日挑战不能选关', 2000);
       return;
     }
     if (!levelPicker) return;
@@ -991,26 +989,47 @@
     }
   }
 
+  function dailyUnlimited() {
+    return typeof GameDaily !== 'undefined' && GameDaily.isUnlimitedPlays();
+  }
+
+  function dailyCardMetaText(cfg) {
+    const lvl = cfg.level;
+    const mode = GameModes.get(cfg.modeId || 'normal');
+    let meta = `${cfg.pairs}对 · 限时${lvl.timeLimit}s`;
+    if (mode.hasMoveLimit && lvl.moveLimit != null) {
+      meta += ` · 限步${lvl.moveLimit}`;
+    }
+    meta += ` · 固定掉落 SSS×1`;
+    if (dailyUnlimited()) {
+      meta += ' · 测试模式（不限次数·普通第1关）';
+    } else {
+      meta += ' · 每日一次';
+    }
+    return meta;
+  }
+
   function renderDailyCard() {
     if (!dailyCard || typeof GameDaily === 'undefined') return;
     const dk = GameDaily.dateKey();
     const cfg = GameDaily.getConfig(tilePool, dk);
-    const rec = Progress.getDailyRecord(dk);
+    const unlimited = dailyUnlimited();
+    const rec = unlimited ? null : Progress.getDailyRecord(dk);
     const streak = Progress.getDailyStreak();
-    const lvl = cfg.level;
     dailyCard.classList.remove('hidden');
     dailyCard.classList.toggle('daily-card--done', Boolean(rec));
     dailyCard.innerHTML =
       `<p class="daily-card-title">📅 今日挑战</p>` +
-      `<p class="daily-card-meta">${cfg.pairs}对 · 限时${lvl.timeLimit}s · 限步${lvl.moveLimit}` +
-      ` · 固定掉落 SSS×1 · 每日一次` +
+      `<p class="daily-card-meta">${dailyCardMetaText(cfg)}` +
       (rec
         ? ` · 今日已完成（${rec.bestMoves} 步）`
-        : ` · 连续打卡 ${streak} 天 · 点击开始`) +
+        : unlimited
+          ? ' · 点击开始'
+          : ` · 连续打卡 ${streak} 天 · 点击开始`) +
       `</p>`;
     dailyCard.onclick = () => {
       sfx('click');
-      if (rec) {
+      if (!unlimited && rec) {
         showComboToast('今日挑战已完成，明天再来吧～', 2200);
         return;
       }
@@ -1021,14 +1040,14 @@
   function startDaily() {
     if (typeof GameDaily === 'undefined') return;
     const dk = GameDaily.dateKey();
-    if (Progress.getDailyRecord(dk)) {
+    if (!dailyUnlimited() && Progress.getDailyRecord(dk)) {
       showComboToast('今日挑战已完成，明天再来吧～', 2200);
       renderDailyCard();
       return;
     }
     isDailyRun = true;
     dailyConfig = GameDaily.getConfig(tilePool, dk);
-    currentModeId = dailyConfig.modeId || 'hard';
+    currentModeId = dailyConfig.modeId || 'normal';
     gameOver = false;
     showGame();
     renderDailyLevel();
@@ -1037,20 +1056,27 @@
   function updateDailyHud() {
     const cfg = dailyConfig;
     if (!cfg) return;
-    const mode = GameModes.get(cfg.modeId || 'hard');
+    const mode = GameModes.get(cfg.modeId || 'normal');
     const uniqueHint =
       lastUniqueImageCount > 0 ? ` · ${lastUniqueImageCount}种图` : '';
+    const testTag = dailyUnlimited() ? ' · 测试' : '';
     levelLabel.textContent =
-      `今日挑战 · ${cfg.pairs}对${uniqueHint} · ${mode.label}`;
+      `今日挑战 · ${cfg.pairs}对${uniqueHint} · ${mode.label}${testTag}`;
     if (dropRateHud) {
       dropRateHud.textContent = '固定掉落 SSS×1';
       dropRateHud.classList.remove('hidden');
     }
 
-    movesLabel.textContent = `步数: ${moves}/${moveLimit}`;
-    movesLabel.classList.remove('hidden');
-    const movesLeft = moveLimit - moves;
-    movesLabel.classList.toggle('warn', movesLeft <= 3 && movesLeft >= 0 && !gameOver);
+    if (mode.hasMoveLimit) {
+      const movesLeft = moveLimit - moves;
+      movesLabel.textContent = `步数: ${moves}/${moveLimit}`;
+      movesLabel.classList.remove('hidden');
+      movesLabel.classList.toggle('warn', movesLeft <= 3 && movesLeft >= 0 && !gameOver);
+    } else {
+      movesLabel.textContent = `步数: ${moves}`;
+      movesLabel.classList.remove('hidden');
+      movesLabel.classList.remove('warn');
+    }
 
     if (hasTimeLimit()) {
       timerLabel.textContent = `时间: ${timeLeft}s`;
@@ -1086,8 +1112,8 @@
     lock = false;
 
     const level = cfg.level;
-    const mode = GameModes.get(cfg.modeId || 'hard');
-    moveLimit = level.moveLimit;
+    const mode = GameModes.get(cfg.modeId || 'normal');
+    moveLimit = mode.hasMoveLimit ? level.moveLimit : 0;
     timeLeft = level.timeLimit;
     hintsLeft = GameModes.hintCountFor(mode);
     hintsUsed = 0;
@@ -1350,7 +1376,6 @@
     secondCard = card;
     moves += 1;
     updateHud();
-    lock = true;
 
     const match = cardsMatch(firstCard, secondCard);
 
@@ -1362,22 +1387,25 @@
       const afterMatch = () => {
         matchedCount += 1;
         resetIdleOnMatch();
-        resetTurn();
         updateHintButton();
-        if (scheduleVictory()) return;
+        if (tryVictory()) return;
         checkMoveLimit();
       };
 
       if (useCrushEffect()) {
+        resetTurn();
         playCrushMatch(cardA, cardB, afterMatch);
       } else {
+        lock = true;
         cardA.classList.add(MATCHED_CLASS);
         cardB.classList.add(MATCHED_CLASS);
         cardA.disabled = true;
         cardB.disabled = true;
         afterMatch();
+        resetTurn();
       }
     } else {
+      lock = true;
       resetCombo();
       sfx('mismatch');
       setTimeout(() => {
@@ -1454,11 +1482,13 @@
 
   function failMessage(reason) {
     const mode = currentMode();
-    const level = levels[currentLevelIndex];
+    const name = isDailyRun
+      ? '今日挑战'
+      : levels[currentLevelIndex]?.name || '关卡';
     if (mode.hasMoveLimit) {
-      return `${level.name}：${reason}（已用 ${moves}/${moveLimit} 步）`;
+      return `${name}：${reason}（已用 ${moves}/${moveLimit} 步）`;
     }
-    return `${level.name}：${reason}`;
+    return `${name}：${reason}`;
   }
 
   function winMessage() {
@@ -1506,6 +1536,14 @@
     );
   }
 
+  function finishDailyOverlay() {
+    hideOverlay();
+    isDailyRun = false;
+    dailyConfig = null;
+    showHome();
+    renderDailyCard();
+  }
+
   function showOverlay(mode, title, text, options = {}) {
     if (!overlay) return;
     const isWin = mode === 'win';
@@ -1513,7 +1551,7 @@
     const dailySss = isWin && options.dailySssReveal;
     if (modal) {
       modal.classList.toggle('fail', !isWin);
-      modal.classList.toggle('modal--revealing', Boolean(revealDrops || dailySss));
+      modal.classList.toggle('modal--revealing', Boolean(revealDrops));
     }
     if (overlayTitle) overlayTitle.textContent = title;
     if (overlayText) overlayText.textContent = text;
@@ -1532,19 +1570,20 @@
         overlayDrops.setAttribute('aria-hidden', 'true');
       }
     }
-    if (btnShare) btnShare.classList.toggle('hidden', !isWin);
-    let showNext = isWin;
-    if (isWin) {
-      if (isDailyRun) {
-        btnNext.textContent = '返回首页';
-      } else {
-        btnNext.textContent = isLastAvailableLevel(currentLevelIndex)
-          ? '返回选关'
-          : '下一关';
-      }
+    if (btnShare) btnShare.classList.toggle('hidden', !isWin || isDailyRun);
+    if (btnReplay) btnReplay.classList.toggle('hidden', isDailyRun);
+    if (btnOverlayClose) {
+      btnOverlayClose.classList.toggle('hidden', !isDailyRun);
+      btnOverlayClose.classList.toggle('primary', isDailyRun);
+    }
+    if (btnSelect) btnSelect.classList.toggle('hidden', isDailyRun);
+    const showNext = isWin && !isDailyRun;
+    if (showNext && btnNext) {
+      btnNext.textContent = isLastAvailableLevel(currentLevelIndex)
+        ? '返回选关'
+        : '下一关';
     }
     if (btnNext) btnNext.classList.toggle('hidden', !showNext);
-    if (btnSelect) btnSelect.classList.toggle('hidden', isDailyRun);
     overlay.classList.remove('hidden');
     overlay.setAttribute('aria-hidden', 'false');
   }
@@ -1552,6 +1591,9 @@
   function showWin() {
     if (victoryShown) return;
     victoryShown = true;
+    stopTimer();
+    gameOver = false;
+    lock = false;
     const level = levels[currentLevelIndex];
 
     let drops = [];
@@ -1608,6 +1650,8 @@
   }
 
   function showFail(reason) {
+    if (victoryShown) return;
+    if (tryVictory()) return;
     if (gameOver) return;
     endGame();
     sfx('fail');
@@ -1777,7 +1821,11 @@
       sfx('click');
       hideOverlay();
       if (isDailyRun) {
-        if (dailyConfig && Progress.getDailyRecord(dailyConfig.dateKey)) {
+        if (
+          !dailyUnlimited() &&
+          dailyConfig &&
+          Progress.getDailyRecord(dailyConfig.dateKey)
+        ) {
           hideOverlay();
           showHome();
           renderDailyCard();
@@ -1790,17 +1838,17 @@
     });
   }
 
+  if (btnOverlayClose) {
+    btnOverlayClose.addEventListener('click', () => {
+      sfx('click');
+      finishDailyOverlay();
+    });
+  }
+
   if (btnNext) {
     btnNext.addEventListener('click', () => {
     sfx('click');
     hideOverlay();
-    if (isDailyRun) {
-      isDailyRun = false;
-      dailyConfig = null;
-      showHome();
-      renderDailyCard();
-      return;
-    }
     const next = getNextLevelIndex(currentLevelIndex);
     if (next === null) {
       showHome();

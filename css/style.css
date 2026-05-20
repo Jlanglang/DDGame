@@ -208,11 +208,11 @@ body.game-active {
 .card.crushing {
   z-index: 20;
   will-change: opacity;
-  animation: match-fade-out 1s ease-out forwards;
+  animation: match-fade-out 0.42s ease-out forwards;
 }
 
 .card.crushing--stagger {
-  animation-delay: 0.15s;
+  animation-delay: 0.05s;
 }
 
 .card.crushing .card-inner {
@@ -241,7 +241,7 @@ body.game-active {
 
 @media (prefers-reduced-motion: reduce) {
   .card.crushing {
-    animation-duration: 0.45s;
+    animation-duration: 0.22s;
   }
   .card-inner {
     transition-duration: 0.2s;
@@ -342,7 +342,7 @@ body.game-active {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  z-index: 100;
+  z-index: 1000;
 }
 
 .modal {

@@ -1,5 +1,6 @@
 /**
- * 每日挑战：固定困难第 3 关，全员同题，完成得 SSS×1
+ * 每日挑战：固定关卡，全员同题，完成得 SSS×1
+ * TEST_UNLIMITED_PLAYS=true 时：不限次数，难度为普通第 1 关（便于测试）
  */
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) {
@@ -8,9 +9,12 @@
     root.GameDaily = factory();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const MODE_ID = 'hard';
-  /** 困难模式第 3 关（stage 索引 2） */
-  const HARD_STAGE_INDEX = 2;
+  /** 测试用：关闭「每日一次」限制 */
+  const TEST_UNLIMITED_PLAYS = false;
+
+  const MODE_ID = TEST_UNLIMITED_PLAYS ? 'normal' : 'hard';
+  /** 普通第 1 关 / 困难第 3 关（stage 索引） */
+  const DAILY_STAGE_INDEX = TEST_UNLIMITED_PLAYS ? 0 : 2;
 
   function dateKey(d) {
     const x = d || new Date();
@@ -48,25 +52,45 @@
     return a;
   }
 
-  function getHardLevel3() {
-    const embedded =
-      typeof window !== 'undefined' && window.LEVELS_DATA?.modeLevels?.hard;
-    if (embedded && embedded[HARD_STAGE_INDEX]) {
-      const lv = embedded[HARD_STAGE_INDEX];
+  function getDailyLevel() {
+    const data =
+      typeof window !== 'undefined' ? window.LEVELS_DATA : null;
+    const normalLv = data?.levels?.[DAILY_STAGE_INDEX];
+    const modeLv = data?.modeLevels?.[MODE_ID]?.[DAILY_STAGE_INDEX];
+    const embedded = MODE_ID === 'normal' ? normalLv || modeLv : modeLv;
+
+    if (embedded) {
       return {
-        id: lv.id ?? 3,
-        name: lv.name || '第 3 关',
-        pairs: lv.pairs,
-        timeLimit: lv.timeLimit,
-        moveLimit: lv.moveLimit,
-        stage: lv.stage ?? 3,
+        id: embedded.id ?? (DAILY_STAGE_INDEX + 1),
+        name: embedded.name || `第 ${DAILY_STAGE_INDEX + 1} 关`,
+        pairs: embedded.pairs,
+        timeLimit: embedded.timeLimit,
+        moveLimit: embedded.moveLimit,
+        stage: embedded.stage ?? DAILY_STAGE_INDEX + 1,
         difficulty: MODE_ID,
-        difficultyLabel: lv.difficultyLabel || '熟练',
+        difficultyLabel: embedded.difficultyLabel || '入门',
       };
     }
     if (typeof Difficulty !== 'undefined' && Difficulty.forStage) {
-      const cfg = Difficulty.forStage(MODE_ID, HARD_STAGE_INDEX);
-      return { ...cfg, id: 3, name: '第 3 关', difficulty: MODE_ID };
+      const cfg = Difficulty.forStage(MODE_ID, DAILY_STAGE_INDEX);
+      return {
+        ...cfg,
+        id: DAILY_STAGE_INDEX + 1,
+        name: `第 ${DAILY_STAGE_INDEX + 1} 关`,
+        difficulty: MODE_ID,
+      };
+    }
+    if (MODE_ID === 'normal') {
+      return {
+        id: 1,
+        name: '第 1 关',
+        pairs: 4,
+        timeLimit: 80,
+        moveLimit: 17,
+        stage: 1,
+        difficulty: MODE_ID,
+        difficultyLabel: '入门',
+      };
     }
     return {
       id: 3,
@@ -82,7 +106,7 @@
 
   function uniqueImageCount(pairs, stage) {
     const maxStage =
-      typeof Difficulty !== 'undefined' ? Difficulty.levelsForMode(MODE_ID) : 4;
+      typeof Difficulty !== 'undefined' ? Difficulty.levelsForMode(MODE_ID) : 3;
     const progress = maxStage <= 1 ? 1 : (stage - 1) / (maxStage - 1);
     const minRatio = 0.35;
     const maxRatio = 1;
@@ -94,14 +118,14 @@
   function getConfig(tilePool, key) {
     const dk = key || dateKey();
     const seed = hashSeed('doudou-daily-' + dk);
-    const level = getHardLevel3();
+    const level = getDailyLevel();
     const pairs = level.pairs;
     const pool = tilePool.length ? tilePool : [];
 
     const normalized =
       typeof TileRarity !== 'undefined' ? TileRarity.normalizeTiles(pool) : pool;
     const pickRnd = mulberry32(seed + 1);
-    const uniqueN = uniqueImageCount(pairs, level.stage || 3);
+    const uniqueN = uniqueImageCount(pairs, level.stage || 1);
     let images = [];
     if (typeof TileRarity !== 'undefined') {
       images = TileRarity.pickWeightedWithDupes(
@@ -145,7 +169,12 @@
     return shuffleSeeded(deck, deckSeed);
   }
 
+  function isUnlimitedPlays() {
+    return TEST_UNLIMITED_PLAYS;
+  }
+
   function isDoneToday() {
+    if (TEST_UNLIMITED_PLAYS) return false;
     if (typeof Progress === 'undefined') return false;
     return Boolean(Progress.getDailyRecord(dateKey()));
   }
@@ -155,9 +184,14 @@
     getConfig,
     buildDeck,
     hashSeed,
-    getHardLevel3,
+    getDailyLevel,
+    getHardLevel3: getDailyLevel,
     isDoneToday,
+    isUnlimitedPlays,
     MODE_ID,
-    HARD_STAGE_INDEX,
+    DAILY_STAGE_INDEX,
+    HARD_STAGE_INDEX: DAILY_STAGE_INDEX,
+    TEST_UNLIMITED_PLAYS,
   };
 });
+

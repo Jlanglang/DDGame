@@ -663,6 +663,7 @@
     getCounts,
     getSynthCount,
     getSssCount,
+    addSssCount,
     setSssCount,
     getSynthesized,
     maxSynthPossible,

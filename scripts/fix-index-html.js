@@ -175,6 +175,7 @@ const html = `<!DOCTYPE html>
       ${e(D, 'class="modal-actions"', `
         <button id="btn-share" type="button" class="hidden">${t.share}</button>
         <button id="btn-replay" type="button">${t.replay}</button>
+        <button id="btn-overlay-close" type="button" class="hidden">${t.close}</button>
         <button id="btn-next" type="button" class="primary">${t.next}</button>
         <button id="btn-select" type="button">${t.pick}</button>
       `)}

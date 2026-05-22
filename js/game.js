@@ -1,6 +1,7 @@
 (function () {
   'use strict';
 
+  const BOARD_PREVIEW_MS = 3000;
   const FLIP_BACK_MS = 600;
   const FADE_AFTER_FLIP_MS = 160;
   const MATCH_FADE_MS = 420;
@@ -19,6 +20,8 @@
   const boardViewport = document.getElementById('board-viewport');
   const boardScaler = document.getElementById('board-scaler');
   const board = document.getElementById('board');
+  const previewOverlay = document.getElementById('preview-overlay');
+  const previewOverlayCount = document.getElementById('preview-overlay-count');
   const levelLabel = document.getElementById('level-label');
   const movesLabel = document.getElementById('moves-label');
   const timerLabel = document.getElementById('timer-label');
@@ -87,6 +90,8 @@
   let moveLimit = 0;
   let timeLeft = 0;
   let timerId = null;
+  let previewIntervalId = null;
+  let boardPreviewing = false;
   let idleSeconds = 0;
   /** 挑战模式：当前被倒计时盯上的那一对 */
   let idleTargetPairId = null;
@@ -458,6 +463,97 @@
       clearInterval(timerId);
       timerId = null;
     }
+  }
+
+  function hidePreviewOverlay() {
+    if (previewOverlay) {
+      previewOverlay.classList.add('hidden');
+      previewOverlay.setAttribute('aria-hidden', 'true');
+    }
+    if (previewOverlayCount) {
+      previewOverlayCount.classList.remove('tick');
+    }
+  }
+
+  function showPreviewOverlay(secondsLeft) {
+    if (!previewOverlay) return;
+    previewOverlay.classList.remove('hidden');
+    previewOverlay.setAttribute('aria-hidden', 'false');
+    updatePreviewCountdown(secondsLeft);
+  }
+
+  function stopBoardPreview() {
+    if (previewIntervalId !== null) {
+      clearInterval(previewIntervalId);
+      previewIntervalId = null;
+    }
+    boardPreviewing = false;
+    hidePreviewOverlay();
+  }
+
+  function updatePreviewCountdown(secondsLeft) {
+    if (previewOverlayCount) {
+      previewOverlayCount.textContent = String(secondsLeft);
+      previewOverlayCount.classList.remove('tick');
+      void previewOverlayCount.offsetWidth;
+      previewOverlayCount.classList.add('tick');
+    }
+  }
+
+  function endBoardPreview(cards, onReady) {
+    if (gameOver) return;
+    hidePreviewOverlay();
+    cards.forEach((c) => {
+      if (isCardRemoved(c)) return;
+      c.classList.remove(FLIPPED_CLASS);
+      c.disabled = false;
+    });
+    lock = false;
+    boardPreviewing = false;
+    updateHintButton();
+    updateHud();
+    if (onReady) onReady();
+  }
+
+  /** 开局短暂展示全部牌面，HUD 倒数，结束后才允许翻牌并回调 onReady（如启动计时） */
+  function startBoardPreview(onReady) {
+    stopBoardPreview();
+    const cards = board.querySelectorAll('.card');
+    if (!cards.length) {
+      if (onReady) onReady();
+      return;
+    }
+
+    lock = true;
+    boardPreviewing = true;
+    firstCard = null;
+    secondCard = null;
+    cards.forEach((c) => {
+      if (isCardRemoved(c)) return;
+      c.classList.add(FLIPPED_CLASS);
+      c.disabled = true;
+    });
+    updateHintButton();
+
+    let left = Math.ceil(BOARD_PREVIEW_MS / 1000);
+    showPreviewOverlay(left);
+
+    previewIntervalId = setInterval(() => {
+      if (gameOver) {
+        stopBoardPreview();
+        return;
+      }
+      left -= 1;
+      if (left > 0) {
+        updatePreviewCountdown(left);
+        return;
+      }
+      if (previewIntervalId !== null) {
+        clearInterval(previewIntervalId);
+        previewIntervalId = null;
+      }
+      endBoardPreview(cards, onReady);
+    }, 1000);
   }
 
   function getMatchedPairIds() {
@@ -1057,6 +1153,7 @@
   }
 
   function updateDailyHud() {
+    if (boardPreviewing) return;
     const cfg = dailyConfig;
     if (!cfg) return;
     const mode = GameModes.get(cfg.modeId || 'normal');
@@ -1104,6 +1201,7 @@
     if (!cfg) return;
 
     stopTimer();
+    stopBoardPreview();
     gameOver = false;
     moves = 0;
     matchedCount = 0;
@@ -1138,7 +1236,9 @@
     updateGameChrome();
     hideOverlay();
     scheduleFitBoard(deck.length);
-    startTimer();
+    startBoardPreview(() => {
+      startTimer();
+    });
   }
 
   function showGame() {
@@ -1241,6 +1341,7 @@
   }
 
   function updateHud() {
+    if (boardPreviewing) return;
     if (isDailyRun && dailyConfig) {
       updateDailyHud();
       return;
@@ -1292,6 +1393,7 @@
   function endGame() {
     gameOver = true;
     stopTimer();
+    stopBoardPreview();
     lock = true;
     board.querySelectorAll('.card').forEach((c) => {
       c.disabled = true;
@@ -1434,6 +1536,7 @@
     if (!level) return;
 
     stopTimer();
+    stopBoardPreview();
     gameOver = false;
     moves = 0;
     matchedCount = 0;
@@ -1472,16 +1575,19 @@
     updateGameChrome();
     hideOverlay();
     scheduleFitBoard(deck.length);
-    startTimer();
 
     const runTutorial =
       typeof Tutorial !== 'undefined' &&
       Tutorial.shouldRun() &&
       pairs <= 4 &&
       !isDailyRun;
-    if (runTutorial) {
-      Tutorial.startAfterDelay(null);
-    }
+
+    startBoardPreview(() => {
+      startTimer();
+      if (runTutorial) {
+        Tutorial.startAfterDelay(null);
+      }
+    });
   }
 
   function failMessage(reason) {
@@ -1609,7 +1715,7 @@
       }
       dailySssReveal = true;
     } else if (typeof Backpack !== 'undefined') {
-      const stageIdx = level?.stage ? level.stage - 1 : 0;
+      const stageIdx = dropStageIndex();
       drops = Backpack.rollDrops(currentModeId, stageIdx, tilePool);
       Backpack.applyDrops(drops);
     }

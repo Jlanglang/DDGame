@@ -49,7 +49,7 @@
     normal: { A: 90, S: 10, SS: 0 },
     daily: { A: 90, S: 10, SS: 0 },
     hard: { A: 90, S: 9, SS: 1, ssPerStage: 1 },
-    challenge: { A: 80, S: 15, SS: 5, ssPerStage: 1 },
+    challenge: { A: 80, S: 16, SS: 4, ssPerStage: 1 },
   };
 
   function emptyCounts() {
@@ -264,29 +264,44 @@
     return Math.max(0, n - 1);
   }
 
+  function normalizeWeights(raw) {
+    let a = Math.max(0, Math.floor(Number(raw.A) || 0));
+    let s = Math.max(0, Math.floor(Number(raw.S) || 0));
+    let ss = Math.max(0, Math.floor(Number(raw.SS) || 0));
+    let sum = a + s + ss;
+    if (sum <= 0) return { A: 100, S: 0, SS: 0 };
+    if (sum !== 100) {
+      a = Math.round((a * 100) / sum);
+      s = Math.round((s * 100) / sum);
+      ss = Math.round((ss * 100) / sum);
+      sum = a + s + ss;
+      if (sum !== 100) a += 100 - sum;
+    }
+    return { A: a, S: s, SS: ss };
+  }
+
   function weightsFor(modeId, stageIndex = 0) {
     const stage = Math.max(0, Math.min(maxStageIndex(modeId), Math.floor(stageIndex)));
     const plan = DROP_RATES[modeId] || DROP_RATES.normal;
 
     if (plan.ssPerStage == null) {
-      return { A: plan.A, S: plan.S, SS: plan.SS };
+      return normalizeWeights({ A: plan.A, S: plan.S, SS: plan.SS });
     }
 
     const ss = plan.SS + stage * plan.ssPerStage;
     const s = plan.S;
     const a = 100 - s - ss;
-    return { A: a, S: s, SS: ss };
+    return normalizeWeights({ A: a, S: s, SS: ss });
   }
 
+  /** 按 A → S → SS 区间抽取碎片等级（百分比权重，S 为中间档） */
   function pickGrade(weights, rng) {
     const random = typeof rng === 'function' ? rng : Math.random;
-    const total = weights.A + weights.S + weights.SS;
-    let r = random() * total;
-    for (const g of GRADES) {
-      r -= weights[g];
-      if (r <= 0) return g;
-    }
-    return 'A';
+    const w = normalizeWeights(weights);
+    const roll = random() * 100;
+    if (roll < w.A) return 'A';
+    if (roll < w.A + w.S) return 'S';
+    return 'SS';
   }
 
   function filterFragmentPool(tilePool) {
@@ -519,8 +534,9 @@
     );
   }
 
-  const DROP_REVEAL_GRADE_MS = 720;
-  const DROP_REVEAL_CARD_MS = 780;
+  const DROP_REVEAL_FRAME_MS = 520;
+  const DROP_REVEAL_GRADE_MS = 560;
+  const DROP_REVEAL_CARD_MS = 680;
   const DROP_REVEAL_GAP_MS = 180;
 
   function expandDropsForReveal(drops) {
@@ -538,15 +554,12 @@
     const tag = GRADE_SLOT_TAG[grade] || grade;
     return (
       '<div class="drop-reveal-active">' +
-      `<div class="drop-reveal-grade frag-slot frag-slot--${grade} drop-reveal-grade-only">` +
+      `<div class="drop-reveal-shell frag-slot frag-slot--${grade}">` +
       `<span class="frag-slot-tag">${tag}</span>` +
-      '<div class="frag-slot-body drop-reveal-grade-body">' +
-      `<span class="drop-reveal-grade-letter" aria-hidden="true">${tag}</span>` +
-      '</div></div>' +
-      `<div class="drop-reveal-card frag-slot frag-slot--${grade} drop-reveal-card--hidden">` +
-      `<span class="frag-slot-tag">${tag}</span>` +
-      `<div class="frag-slot-body"><img src="${src}" alt="" /></div>` +
-      '</div></div>'
+      '<div class="frag-slot-body drop-reveal-body">' +
+      `<span class="drop-reveal-grade-letter drop-reveal-pending" aria-hidden="true">${tag}</span>` +
+      `<img class="drop-reveal-reward-img drop-reveal-pending" src="${src}" alt="" />` +
+      '</div></div></div>'
     );
   }
 
@@ -588,18 +601,23 @@
     for (let i = 0; i < items.length; i++) {
       const { src, grade } = items[i];
       stage.innerHTML = dropRevealActiveHtml(src, grade);
-      const gradeEl = stage.querySelector('.drop-reveal-grade');
-      const cardEl = stage.querySelector('.drop-reveal-card');
-      if (!gradeEl || !cardEl) continue;
+      const shell = stage.querySelector('.drop-reveal-shell');
+      const letterEl = stage.querySelector('.drop-reveal-grade-letter');
+      const imgEl = stage.querySelector('.drop-reveal-reward-img');
+      if (!shell || !letterEl || !imgEl) continue;
 
-      gradeEl.classList.add('drop-reveal-pop-in');
-      playSfx('click', { playbackRate: 1.15 });
+      shell.classList.add('drop-reveal-shell-zoom');
+      playSfx('click', { playbackRate: 1.12 });
       opts.onItem?.(items[i], i, items.length);
+      await delay(DROP_REVEAL_FRAME_MS);
+
+      letterEl.classList.remove('drop-reveal-pending');
+      letterEl.classList.add('drop-reveal-fade-in');
       await delay(DROP_REVEAL_GRADE_MS);
 
-      gradeEl.classList.add('drop-reveal-grade-out');
-      cardEl.classList.remove('drop-reveal-card--hidden');
-      cardEl.classList.add('drop-reveal-pop-in');
+      letterEl.classList.add('drop-reveal-fade-out');
+      imgEl.classList.remove('drop-reveal-pending');
+      imgEl.classList.add('drop-reveal-fade-in');
       playSfx('flip', { playbackRate: 1.05 });
       await delay(DROP_REVEAL_CARD_MS);
 

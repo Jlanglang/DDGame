@@ -97,6 +97,7 @@ body.game-active {
 }
 
 .board-viewport {
+  position: relative;
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -104,6 +105,100 @@ body.game-active {
   align-items: stretch;
   justify-content: stretch;
   overflow: hidden;
+}
+
+/* 开局记忆预览：边缘轻遮 + 顶部倒计时，中心不挡牌 */
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px 12px 0;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.preview-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(15, 15, 35, 0.55) 0%, transparent 22%),
+    linear-gradient(0deg, rgba(15, 15, 35, 0.4) 0%, transparent 16%);
+  pointer-events: none;
+}
+
+.preview-overlay.hidden {
+  display: none;
+}
+
+.preview-overlay-banner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 22px 12px 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(233, 69, 96, 0.96) 0%, rgba(83, 52, 131, 0.96) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 6px 28px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  animation: preview-banner-glow 1s ease-in-out infinite;
+}
+
+.preview-overlay-label {
+  margin: 0;
+  font-size: clamp(0.95rem, 3.2vw, 1.1rem);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.preview-overlay-count {
+  margin: 0;
+  min-width: 1.1em;
+  font-size: clamp(2.2rem, 9vw, 3rem);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.preview-overlay-count.tick {
+  animation: preview-count-pop 0.4s ease;
+}
+
+@keyframes preview-banner-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 6px 28px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow:
+      0 8px 32px rgba(233, 69, 96, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  }
+}
+
+@keyframes preview-count-pop {
+  0% {
+    transform: scale(1.35);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .board-scaler {
@@ -1933,6 +2028,14 @@ body.game-active {
   opacity: 0.5;
 }
 
+.modal.modal--revealing {
+  max-width: min(360px, 94vw);
+  max-height: min(90vh, 720px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .modal.modal--revealing .modal-actions {
   visibility: hidden;
   pointer-events: none;
@@ -1940,8 +2043,9 @@ body.game-active {
 }
 
 .overlay-drops {
-  margin: 10px 0 4px;
-  min-height: 120px;
+  margin: 8px 0 4px;
+  min-height: 0;
+  overflow: visible;
 }
 
 .daily-sss-reveal-card {
@@ -1967,89 +2071,130 @@ body.game-active {
   color: #ffd166;
 }
 
+.drop-reveal {
+  overflow: visible;
+}
+
 .drop-reveal-title {
   font-size: 0.9rem;
   font-weight: 700;
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   opacity: 0.92;
 }
 
+/* 仅开奖动画进行时占位；结束后 :empty 收起，避免与下方缩略图间距过大 */
 .drop-reveal-stage {
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: center;
-  min-height: 132px;
-  margin-bottom: 10px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.drop-reveal-stage:not(:empty) {
+  display: flex;
+  min-height: clamp(148px, 40vw, 188px);
+  margin-bottom: 8px;
+  padding: 4px 2px 6px;
 }
 
 .drop-reveal-active {
   position: relative;
-  width: 100%;
-  max-width: 200px;
-  min-height: 120px;
+  width: min(220px, 78vw);
+  max-width: 100%;
+  min-height: clamp(148px, 40vw, 188px);
+  margin: 0 auto;
+  overflow: visible;
 }
 
-.drop-reveal-grade-only {
+.drop-reveal-shell,
+.drop-reveal-active .drop-reveal-shell {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  height: 120px;
-  min-height: 120px;
+  height: clamp(148px, 40vw, 188px);
+  min-height: clamp(148px, 40vw, 188px);
+  aspect-ratio: unset;
+  flex: none;
+  overflow: hidden;
+  border-width: 3px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  transform-origin: center center;
 }
 
-.drop-reveal-grade-body {
+.drop-reveal-shell.drop-reveal-shell-zoom {
+  animation: drop-reveal-shell-zoom 0.52s cubic-bezier(0.34, 1.06, 0.64, 1) forwards;
+}
+
+.drop-reveal .frag-slot-tag {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  padding: 4px 0;
+}
+
+.drop-reveal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0 4px 4px;
+}
+
+.drop-reveal-grade-letter,
+.drop-reveal-reward-img {
+  position: absolute;
+  inset: 0;
+  max-width: calc(100% - 8px);
+  max-height: 100%;
 }
 
 .drop-reveal-grade-letter {
-  font-size: 2.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  font-size: clamp(2.4rem, 14vw, 3.4rem);
   font-weight: 900;
   letter-spacing: 0.08em;
   line-height: 1;
   text-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
-.drop-reveal-card {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 120px;
-  min-height: 120px;
+.drop-reveal-reward-img {
+  width: auto;
+  height: auto;
+  margin: auto;
+  object-fit: contain;
+  display: block;
 }
 
-.drop-reveal-card--hidden {
+.drop-reveal-pending {
   opacity: 0;
-  transform: scale(0.6) rotateY(90deg);
-  pointer-events: none;
+  visibility: hidden;
 }
 
-.drop-reveal-grade-out {
-  animation: drop-grade-out 0.35s ease forwards;
+.drop-reveal-fade-in {
+  visibility: visible;
+  animation: drop-reveal-fade-in 0.48s ease forwards;
 }
 
-.drop-reveal-pop-in {
-  animation: drop-pop-in 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+.drop-reveal-fade-out {
+  visibility: visible;
+  animation: drop-reveal-fade-out 0.32s ease forwards;
 }
 
-.drop-reveal-history {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  padding-top: 4px;
-}
-
-.drop-reveal-won .frag-slot {
-  width: 64px;
-  height: 64px;
-  min-height: 64px;
-  flex: none;
-}
-
-@keyframes drop-pop-in {
+@keyframes drop-reveal-shell-zoom {
   from {
-    opacity: 0;
-    transform: scale(0.55);
+    opacity: 0.7;
+    transform: scale(0.42);
   }
   to {
     opacity: 1;
@@ -2057,22 +2202,111 @@ body.game-active {
   }
 }
 
-@keyframes drop-grade-out {
-  to {
+@keyframes drop-reveal-fade-in {
+  from {
     opacity: 0;
-    transform: scale(0.85) translateY(-12px);
+  }
+  to {
+    opacity: 1;
   }
 }
 
+@keyframes drop-reveal-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.drop-reveal-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2px 2px 6px;
+  margin-top: 0;
+  max-height: min(220px, 42vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.drop-reveal-history:not(:empty) {
+  margin-top: 2px;
+}
+
+.drop-reveal-won {
+  flex: none;
+  overflow: visible;
+}
+
+.drop-reveal-won .frag-slot {
+  display: flex;
+  flex-direction: column;
+  width: 72px;
+  height: auto;
+  min-height: 90px;
+  flex: none;
+  aspect-ratio: unset;
+  overflow: hidden;
+  border-width: 3px;
+  border-radius: 10px;
+}
+
+.drop-reveal-won .frag-slot-tag {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  padding: 3px 0;
+}
+
+.drop-reveal-won .frag-slot-body {
+  flex: 1;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 3px 4px;
+  overflow: hidden;
+}
+
+.drop-reveal-won .frag-slot img {
+  width: 100%;
+  height: auto;
+  max-height: 54px;
+  object-fit: contain;
+  display: block;
+  padding: 2px 2px 0;
+  box-sizing: border-box;
+}
+
+.drop-reveal-won .frag-slot-count {
+  right: 3px;
+  bottom: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .drop-reveal-pop-in,
-  .drop-reveal-grade-out {
+  .drop-reveal-shell.drop-reveal-shell-zoom,
+  .drop-reveal-fade-in,
+  .drop-reveal-fade-out {
     animation: none;
   }
 
-  .drop-reveal-card--hidden {
+  .drop-reveal-shell.drop-reveal-shell-zoom,
+  .drop-reveal-fade-in {
     opacity: 1;
     transform: none;
+  }
+
+  .drop-reveal-pending {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .drop-reveal-fade-out {
+    opacity: 0;
   }
 }
 

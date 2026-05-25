@@ -20,7 +20,7 @@
     hard: {
       id: 'hard',
       label: '困难',
-      desc: '限时 + 限步，4 关难度递增，图可重复',
+      desc: '限时 + 限步，8 关难度递增，图可重复',
       hasTimeLimit: true,
       hasMoveLimit: true,
       hasIdlePenalty: false,
@@ -28,7 +28,7 @@
     challenge: {
       id: 'challenge',
       label: '挑战',
-      desc: '不限时，配对后倒计时惩罚，5 关难度递增，图可重复',
+      desc: '不限时，配对后倒计时惩罚，10 关难度递增，图可重复',
       hasTimeLimit: false,
       hasMoveLimit: false,
       hasIdlePenalty: true,

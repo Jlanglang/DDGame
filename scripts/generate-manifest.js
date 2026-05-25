@@ -1,5 +1,5 @@
 /**
- * 扫描 assets/tiles/ 图池，生成关卡（普通 3 / 困难 4 / 挑战 5 关）
+ * 扫描 assets/tiles/ 图池，生成关卡（普通 3 / 困难 8 / 挑战 10 关）
  *
  * 用法: node scripts/generate-manifest.js
  */

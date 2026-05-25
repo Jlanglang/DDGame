@@ -1,6 +1,6 @@
 /**
  * 各模式关卡数不同，难度随关卡递增（对数 + 限时/限步/惩罚时间）
- * 普通 3 关 · 困难 4 关 · 挑战 5 关
+ * 普通 3 关 · 困难 8 关 · 挑战 10 关
  * generate-manifest 与 game 共用
  */
 (function (root, factory) {
@@ -12,19 +12,30 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const LEVELS_PER_MODE = {
     normal: 3,
-    hard: 4,
-    challenge: 5,
+    hard: 8,
+    challenge: 10,
   };
 
-  const STAGE_LABELS = ['入门', '进阶', '熟练', '困难', '专家'];
+  const STAGE_LABELS = [
+    '入门',
+    '进阶',
+    '熟练',
+    '困难',
+    '专家',
+    '精英',
+    '大师',
+    '巅峰',
+    '传奇',
+    '终极',
+  ];
 
   /** 每模式对数（逐关递增，长度与 LEVELS_PER_MODE 一致） */
   const MODE_PLANS = {
     normal: { pairsByStage: [4, 6, 8] },
-    hard: { pairsByStage: [6, 8, 10, 12] },
+    hard: { pairsByStage: [6, 7, 8, 9, 10, 11, 12, 14] },
     challenge: {
-      pairsByStage: [8, 10, 12, 14, 16],
-      idleByStage: [12, 11, 10, 9, 8],
+      pairsByStage: [8, 9, 10, 11, 12, 13, 14, 15, 16, 18],
+      idleByStage: [12, 11, 11, 10, 10, 9, 9, 8, 8, 7],
     },
   };
 

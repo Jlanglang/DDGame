@@ -1,0 +1,37 @@
+{
+  "character": {
+    "name": "蓝发蝴蝶结 Doro",
+    "hair": "浅粉蓝/淡青色，齐肩内扣，厚刘海微分",
+    "headwear": "黑色发箍 + 大号黑色蝴蝶结（竖立兔耳式双环）",
+    "base": "Doro 白色团子身、紫罗兰大眼、粉色腮红、猫嘴 :3"
+  },
+  "spritesheet": {
+    "cols": 5,
+    "rows": 4,
+    "source": "assets/doro/doro-spritesheet.png",
+    "reference": "assets/doro/reference.png",
+    "tilesOut": "assets/doro/tiles"
+  },
+  "expressions": [
+    { "id": 1, "file": "01.png", "name": "默认呆滞", "emoji": "😐", "desc": "经典 Doro 放空脸，猫嘴 :3" },
+    { "id": 2, "file": "02.png", "name": "开心傻笑", "emoji": "😄", "desc": "眼睛闪亮，咧嘴笑" },
+    { "id": 3, "file": "03.png", "name": "瀑布大哭", "emoji": "😭", "desc": "紫色大眼飙泪如瀑布" },
+    { "id": 4, "file": "04.png", "name": "气到冒烟", "emoji": "😠", "desc": "皱眉怒符号，头顶怒气" },
+    { "id": 5, "file": "05.png", "name": "震惊石化", "emoji": "😱", "desc": "瞳孔缩点，O 型嘴" },
+    { "id": 6, "file": "06.png", "name": "得意坏笑", "emoji": "😏", "desc": "半眯眼，一侧挑眉坏笑" },
+    { "id": 7, "file": "07.png", "name": "满头问号", "emoji": "😕", "desc": "汗滴 + 歪嘴疑惑" },
+    { "id": 8, "file": "08.png", "name": "呼呼大睡", "emoji": "😴", "desc": "闭眼，头顶 Zzz" },
+    { "id": 9, "file": "09.png", "name": "狂吃鼓鼓", "emoji": "🤤", "desc": "鼓腮咀嚼，嘴边碎屑" },
+    { "id": 10, "file": "10.png", "name": "见钱眼开", "emoji": "🤑", "desc": "眼睛变金币/星星" },
+    { "id": 11, "file": "11.png", "name": "害羞脸红", "emoji": "😳", "desc": "腮红加深，视线躲开" },
+    { "id": 12, "file": "12.png", "name": "邪恶计划", "emoji": "😈", "desc": "暗影气场，奸笑" },
+    { "id": 13, "file": "13.png", "name": "无语死鱼", "emoji": "😑", "desc": "平嘴死鱼眼，毫无波澜" },
+    { "id": 14, "file": "14.png", "name": "恋爱心动", "emoji": "😍", "desc": "心形眼，飘爱心" },
+    { "id": 15, "file": "15.png", "name": "鄙视侧眼", "emoji": "🙄", "desc": "侧目翻白眼" },
+    { "id": 16, "file": "16.png", "name": "举白投降", "emoji": "🏳️", "desc": "举小白旗认输" },
+    { "id": 17, "file": "17.png", "name": "晕头转向", "emoji": "😵", "desc": "螺旋眼，嘴歪眩晕" },
+    { "id": 18, "file": "18.png", "name": "扮鬼脸", "emoji": "😜", "desc": "吐舌斗鸡眼搞怪" },
+    { "id": 19, "file": "19.png", "name": "打工怨念", "emoji": "☕", "desc": "黑眼圈捧咖啡，社畜脸" },
+    { "id": 20, "file": "20.png", "name": "暴富庆祝", "emoji": "💸", "desc": "钞票雨，胜利大笑" }
+  ]
+}

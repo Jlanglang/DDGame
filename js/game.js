@@ -574,6 +574,29 @@
     idleTargetPairId = candidates[Math.floor(Math.random() * candidates.length)];
   }
 
+  function clearIdleVisual(card) {
+    card.classList.remove('idle-warn', 'has-idle-timer');
+    const overlay = card.querySelector('.idle-risk');
+    if (overlay) overlay.classList.add('hidden');
+  }
+
+  function applyIdleVisual(card, left, progress) {
+    let overlay = card.querySelector('.idle-risk');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'idle-risk hidden';
+      overlay.innerHTML =
+        '<span class="idle-risk-num"></span>' +
+        '<div class="idle-risk-track"><div class="idle-risk-fill"></div></div>';
+      card.appendChild(overlay);
+    }
+    overlay.classList.remove('hidden');
+    card.classList.add('has-idle-timer');
+    card.classList.toggle('idle-warn', left <= 3);
+    overlay.querySelector('.idle-risk-num').textContent = left;
+    overlay.querySelector('.idle-risk-fill').style.width = `${progress}%`;
+  }
+
   function tickChallengeIdle() {
     const mode = currentMode();
     if (!mode.hasIdlePenalty || gameOver || matchedCount === 0) return;
@@ -599,8 +622,9 @@
       idleSeconds = 0;
       idleWarnSfxPlayed = false;
       pickIdleTargetPair();
-      updateMatchedIdleVisuals();
     }
+    updateMatchedIdleVisuals();
+    updateChallengePressureLabel();
   }
 
   function startTimer() {
@@ -626,42 +650,52 @@
     idleSeconds = 0;
     pickIdleTargetPair();
     updateMatchedIdleVisuals();
+    updateChallengePressureLabel();
+  }
+
+  function updateChallengePressureLabel() {
+    const mode = currentMode();
+    if (!mode.hasIdlePenalty || !movesLabel) return;
+    const level = levels[currentLevelIndex];
+    const limit = idleLimitFor(level);
+    const left = Math.max(0, limit - idleSeconds);
+    if (matchedCount > 0 && idleTargetPairId !== null && !gameOver) {
+      movesLabel.textContent = `压力倒计时: ${left}s`;
+      movesLabel.classList.toggle('warn', left <= 3);
+    } else {
+      movesLabel.textContent = `步数: ${moves}`;
+      movesLabel.classList.remove('warn');
+    }
   }
 
   function updateMatchedIdleVisuals() {
     const mode = currentMode();
-    const show = mode.hasIdlePenalty && matchedCount > 0 && !gameOver && idleTargetPairId !== null;
+    const show =
+      mode.hasIdlePenalty && matchedCount > 0 && !gameOver && idleTargetPairId !== null;
     const limit = idleLimitFor();
     const left = Math.max(0, limit - idleSeconds);
     const progress = Math.min(100, (idleSeconds / limit) * 100);
 
-    board.querySelectorAll('.card').forEach((card) => {
-      const isMatched = card.classList.contains(MATCHED_CLASS);
-      const isTarget = isMatched && card.dataset.pairId === idleTargetPairId;
-      let overlay = card.querySelector('.idle-risk');
+    board.querySelectorAll('.card.has-idle-timer').forEach(clearIdleVisual);
 
-      if (!isTarget || !show) {
-        card.classList.remove('idle-warn', 'has-idle-timer');
-        if (overlay) overlay.classList.add('hidden');
-        return;
-      }
+    if (!show) return;
 
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'idle-risk hidden';
-        overlay.innerHTML =
-          '<span class="idle-risk-num"></span>' +
-          '<div class="idle-risk-track"><div class="idle-risk-fill"></div></div>';
-        card.appendChild(overlay);
-      }
-
-      overlay.classList.remove('hidden');
-      card.classList.add('has-idle-timer');
-      card.classList.toggle('idle-warn', left <= 3);
-
-      overlay.querySelector('.idle-risk-num').textContent = left;
-      overlay.querySelector('.idle-risk-fill').style.width = `${progress}%`;
+    board.querySelectorAll(`.card.${MATCHED_CLASS}`).forEach((card) => {
+      if (card.dataset.pairId !== idleTargetPairId) return;
+      applyIdleVisual(card, left, progress);
     });
+  }
+
+  function releaseTurnRefsForPair(pickId) {
+    const cards = [firstCard, secondCard];
+    cards.forEach((card) => {
+      if (!card || card.dataset.pairId !== pickId) return;
+      if (!card.classList.contains(MATCHED_CLASS)) {
+        card.classList.remove(FLIPPED_CLASS);
+      }
+    });
+    if (firstCard?.dataset.pairId === pickId) firstCard = null;
+    if (secondCard?.dataset.pairId === pickId) secondCard = null;
   }
 
   function coverPairById(pickId) {
@@ -670,10 +704,9 @@
     board.querySelectorAll(`.card.${MATCHED_CLASS}`).forEach((card) => {
       if (card.dataset.pairId !== pickId) return;
       covered = true;
-      card.classList.remove(MATCHED_CLASS, FLIPPED_CLASS, 'has-idle-timer', 'idle-warn');
+      clearIdleVisual(card);
+      card.classList.remove(MATCHED_CLASS, FLIPPED_CLASS);
       card.disabled = false;
-      const overlay = card.querySelector('.idle-risk');
-      if (overlay) overlay.classList.add('hidden');
       card.classList.add('penalty-flash');
       setTimeout(() => card.classList.remove('penalty-flash'), 600);
     });
@@ -681,20 +714,16 @@
     if (!covered) return;
 
     challengeCoverCount += 1;
-    matchedCount -= 1;
+    matchedCount = Math.max(0, matchedCount - 1);
 
-    if (firstCard && firstCard.dataset.pairId === pickId) {
-      firstCard = null;
-    }
-    if (secondCard && secondCard.dataset.pairId === pickId) {
-      secondCard = null;
-    }
+    releaseTurnRefsForPair(pickId);
 
     if (idleTargetPairId === pickId) {
       idleTargetPairId = null;
     }
 
-    updateHud();
+    updateChallengePressureLabel();
+    updateMatchedIdleVisuals();
   }
 
   function showError(text) {
@@ -1363,16 +1392,8 @@
       movesLabel.classList.remove('hidden');
       movesLabel.classList.toggle('warn', movesLeft <= 3 && movesLeft >= 0 && !gameOver);
     } else if (mode.hasIdlePenalty) {
-      const limit = idleLimitFor(level);
-      const left = Math.max(0, limit - idleSeconds);
-      if (matchedCount > 0 && idleTargetPairId !== null) {
-        movesLabel.textContent = `压力倒计时: ${left}s`;
-        movesLabel.classList.toggle('warn', left <= 3 && !gameOver);
-      } else {
-        movesLabel.textContent = `步数: ${moves}`;
-        movesLabel.classList.remove('warn');
-      }
       movesLabel.classList.remove('hidden');
+      updateChallengePressureLabel();
     } else {
       movesLabel.textContent = `步数: ${moves}`;
       movesLabel.classList.remove('hidden');
@@ -1386,8 +1407,6 @@
       timerLabel.textContent = '时间: 不限';
       timerLabel.classList.remove('warn');
     }
-
-    updateMatchedIdleVisuals();
   }
 
   function endGame() {
@@ -1502,22 +1521,27 @@
         resetTurn();
         playCrushMatch(cardA, cardB, afterMatch);
       } else {
-        lock = true;
-        cardA.classList.add(MATCHED_CLASS);
-        cardB.classList.add(MATCHED_CLASS);
+        cardA.classList.add(MATCHED_CLASS, FLIPPED_CLASS);
+        cardB.classList.add(MATCHED_CLASS, FLIPPED_CLASS);
         cardA.disabled = true;
         cardB.disabled = true;
-        afterMatch();
         resetTurn();
+        afterMatch();
       }
     } else {
       lock = true;
       resetCombo();
       sfx('mismatch');
+      const cardA = firstCard;
+      const cardB = secondCard;
       setTimeout(() => {
         if (gameOver) return;
-        firstCard.classList.remove(FLIPPED_CLASS);
-        secondCard.classList.remove(FLIPPED_CLASS);
+        if (cardA?.isConnected && !isCardRemoved(cardA)) {
+          cardA.classList.remove(FLIPPED_CLASS);
+        }
+        if (cardB?.isConnected && !isCardRemoved(cardB)) {
+          cardB.classList.remove(FLIPPED_CLASS);
+        }
         resetTurn();
         updateHintButton();
         checkMoveLimit();

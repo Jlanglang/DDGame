@@ -208,32 +208,72 @@
       {
         "id": 2,
         "name": "第 2 关",
-        "pairs": 8,
+        "pairs": 7,
         "difficulty": "hard",
         "difficultyLabel": "进阶",
-        "timeLimit": 66,
-        "moveLimit": 26,
+        "timeLimit": 59,
+        "moveLimit": 24,
         "stage": 2
       },
       {
         "id": 3,
         "name": "第 3 关",
-        "pairs": 10,
+        "pairs": 8,
         "difficulty": "hard",
         "difficultyLabel": "熟练",
-        "timeLimit": 77,
-        "moveLimit": 30,
+        "timeLimit": 64,
+        "moveLimit": 25,
         "stage": 3
       },
       {
         "id": 4,
         "name": "第 4 关",
-        "pairs": 12,
+        "pairs": 9,
         "difficulty": "hard",
         "difficultyLabel": "困难",
-        "timeLimit": 88,
-        "moveLimit": 35,
+        "timeLimit": 68,
+        "moveLimit": 27,
         "stage": 4
+      },
+      {
+        "id": 5,
+        "name": "第 5 关",
+        "pairs": 10,
+        "difficulty": "hard",
+        "difficultyLabel": "专家",
+        "timeLimit": 73,
+        "moveLimit": 28,
+        "stage": 5
+      },
+      {
+        "id": 6,
+        "name": "第 6 关",
+        "pairs": 11,
+        "difficulty": "hard",
+        "difficultyLabel": "精英",
+        "timeLimit": 76,
+        "moveLimit": 30,
+        "stage": 6
+      },
+      {
+        "id": 7,
+        "name": "第 7 关",
+        "pairs": 12,
+        "difficulty": "hard",
+        "difficultyLabel": "大师",
+        "timeLimit": 80,
+        "moveLimit": 32,
+        "stage": 7
+      },
+      {
+        "id": 8,
+        "name": "第 8 关",
+        "pairs": 14,
+        "difficulty": "hard",
+        "difficultyLabel": "巅峰",
+        "timeLimit": 89,
+        "moveLimit": 36,
+        "stage": 8
       }
     ],
     "challenge": [
@@ -251,46 +291,101 @@
       {
         "id": 2,
         "name": "第 2 关",
-        "pairs": 10,
+        "pairs": 9,
         "difficulty": "challenge",
         "difficultyLabel": "进阶",
-        "timeLimit": 159,
-        "moveLimit": 31,
+        "timeLimit": 146,
+        "moveLimit": 29,
         "stage": 2,
         "idleSeconds": 11
       },
       {
         "id": 3,
         "name": "第 3 关",
-        "pairs": 12,
+        "pairs": 10,
         "difficulty": "challenge",
         "difficultyLabel": "熟练",
-        "timeLimit": 181,
-        "moveLimit": 36,
+        "timeLimit": 154,
+        "moveLimit": 30,
         "stage": 3,
-        "idleSeconds": 10
+        "idleSeconds": 11
       },
       {
         "id": 4,
         "name": "第 4 关",
-        "pairs": 14,
+        "pairs": 11,
         "difficulty": "challenge",
         "difficultyLabel": "困难",
-        "timeLimit": 201,
-        "moveLimit": 40,
+        "timeLimit": 162,
+        "moveLimit": 32,
         "stage": 4,
-        "idleSeconds": 9
+        "idleSeconds": 10
       },
       {
         "id": 5,
         "name": "第 5 关",
-        "pairs": 16,
+        "pairs": 12,
         "difficulty": "challenge",
         "difficultyLabel": "专家",
-        "timeLimit": 220,
-        "moveLimit": 44,
+        "timeLimit": 170,
+        "moveLimit": 34,
         "stage": 5,
+        "idleSeconds": 10
+      },
+      {
+        "id": 6,
+        "name": "第 6 关",
+        "pairs": 13,
+        "difficulty": "challenge",
+        "difficultyLabel": "精英",
+        "timeLimit": 177,
+        "moveLimit": 35,
+        "stage": 6,
+        "idleSeconds": 9
+      },
+      {
+        "id": 7,
+        "name": "第 7 关",
+        "pairs": 14,
+        "difficulty": "challenge",
+        "difficultyLabel": "大师",
+        "timeLimit": 183,
+        "moveLimit": 37,
+        "stage": 7,
+        "idleSeconds": 9
+      },
+      {
+        "id": 8,
+        "name": "第 8 关",
+        "pairs": 15,
+        "difficulty": "challenge",
+        "difficultyLabel": "巅峰",
+        "timeLimit": 189,
+        "moveLimit": 38,
+        "stage": 8,
         "idleSeconds": 8
+      },
+      {
+        "id": 9,
+        "name": "第 9 关",
+        "pairs": 16,
+        "difficulty": "challenge",
+        "difficultyLabel": "传奇",
+        "timeLimit": 194,
+        "moveLimit": 40,
+        "stage": 9,
+        "idleSeconds": 8
+      },
+      {
+        "id": 10,
+        "name": "第 10 关",
+        "pairs": 18,
+        "difficulty": "challenge",
+        "difficultyLabel": "终极",
+        "timeLimit": 210,
+        "moveLimit": 44,
+        "stage": 10,
+        "idleSeconds": 7
       }
     ]
   }

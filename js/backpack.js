@@ -39,7 +39,7 @@
   };
 
   /** 各模式关卡数（与 difficulty.js 一致，用于 stage 上限） */
-  const LEVELS_PER_MODE = { normal: 3, hard: 4, challenge: 5, daily: 3 };
+  const LEVELS_PER_MODE = { normal: 3, hard: 8, challenge: 10, daily: 3 };
 
   /**
    * 碎片掉落概率（%），整数。

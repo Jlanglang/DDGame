@@ -1,0 +1,342 @@
+:root {
+  --ink: #eef2fa;
+  --muted: #8d99b5;
+  --line: rgba(150, 176, 220, 0.16);
+  --pink: #ff9ec4;
+  --green: #7ec850;
+  --hp: #4ade80;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #05070c;
+  overflow: hidden;
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* 竖屏舞台：始终保持 720:1600，窗口多宽都不变形 */
+#stage {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(100vw, calc(100vh * 0.45));
+  height: min(100vh, calc(100vw / 0.45));
+  overflow: hidden;
+  background: #0b0f16;
+  box-shadow: 0 0 80px -20px rgba(0, 0, 0, 0.9);
+}
+
+#game {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2.6% 4%;
+  pointer-events: none;
+}
+
+.pause {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(20, 26, 38, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pause i {
+  display: block;
+  width: 6px;
+  height: 20px;
+  border-radius: 2px;
+  background: #e8c44a;
+}
+
+.pause:active { transform: scale(0.94); }
+
+/* 暂停中：两根竖条变成 ▶ */
+.pause.paused i:first-child {
+  width: 0;
+  height: 0;
+  background: transparent;
+  border-radius: 0;
+  border-left: 16px solid #e8c44a;
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+}
+
+.pause.paused i:last-child { display: none; }
+
+/* 暂停遮罩：压暗但不挡点击（左上角的暂停键还能按） */
+.paused-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 7, 12, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+
+.paused-veil[hidden] { display: none; }
+
+.paused-card { text-align: center; }
+
+.paused-title {
+  margin: 0 0 8px;
+  font-size: clamp(22px, 5.6vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: #ffd166;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+}
+
+.paused-sub {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: #9fb0cc;
+}
+
+.stage-name {
+  font-size: clamp(13px, 3.3vw, 17px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #f0f3fa;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+}
+
+/* ---------------- 血条 ---------------- */
+
+.hp {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 3.2%;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(120, 150, 200, 0.2);
+  overflow: hidden;
+}
+
+.hp-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34d17a, #6ee7a0);
+  transition: width 0.18s ease, background 0.3s;
+}
+
+.hp-fill.low {
+  background: linear-gradient(90deg, #e2574c, #ff8a6b);
+}
+
+/* ---------------- 属性面板（放底部，别挡卡片） ---------------- */
+
+.buffs {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 7.6%;
+  display: flex;
+  gap: 6px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.buffs[hidden] { display: none; }
+
+.buff {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 4px 6px;
+  border-radius: 9px;
+  background: rgba(8, 12, 20, 0.74);
+  border: 1px solid rgba(150, 176, 220, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.buff .k {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: #9fb0cc;
+}
+
+.buff .v {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffd166;
+}
+
+/* ---------------- 升级横幅 ---------------- */
+
+.upgrade {
+  position: absolute;
+  top: 12%;
+  left: 4%;
+  right: 4%;
+  display: flex;
+  gap: 10px;
+  z-index: 5;
+}
+
+.upgrade[hidden] { display: none; }
+
+.up-card {
+  flex: 1;
+  border: 0;
+  border-radius: 10px;
+  padding: 22px 10px;
+  font: inherit;
+  font-size: clamp(19px, 5vw, 26px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1a1c14;
+  cursor: pointer;
+  box-shadow: 0 10px 26px -10px rgba(0, 0, 0, 0.8);
+  animation: drop 0.4s cubic-bezier(0.2, 1.2, 0.4, 1) backwards;
+  transition: transform 0.12s, filter 0.15s;
+}
+
+.up-card:nth-child(1) { animation-delay: 0ms; }
+.up-card:nth-child(2) { animation-delay: 70ms; }
+.up-card:nth-child(3) { animation-delay: 140ms; }
+
+.up-card:active { transform: scale(0.97); filter: brightness(1.12); }
+
+.up-card.gold { background: linear-gradient(180deg, #f0d24a, #d9b02e); }
+.up-card.jade { background: linear-gradient(180deg, #6ee08a, #46bd64); }
+.up-card.ice  { background: linear-gradient(180deg, #8fd4f0, #5aa8d6); }
+.up-card.rose { background: linear-gradient(180deg, #f0a0b8, #d4738f); }
+
+@keyframes drop {
+  from { opacity: 0; transform: translateY(-24px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------------- 结算 ---------------- */
+
+.over {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 7, 12, 0.76);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  z-index: 9;
+  animation: fade 0.3s ease;
+}
+
+.over[hidden] { display: none; }
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.over-card {
+  width: 82%;
+  text-align: center;
+  padding: 36px 24px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(16, 22, 34, 0.94);
+  animation: rise 0.4s cubic-bezier(0.2, 1.1, 0.3, 1);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.over-k {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.36em;
+  color: #ffd166;
+}
+
+.over-k.lost { color: #e2574c; }
+
+.over-title {
+  margin: 0 0 12px;
+  font-size: clamp(22px, 6vw, 28px);
+  font-weight: 700;
+}
+
+.over-sub {
+  margin: 0 0 24px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.over-btn {
+  border: 1px solid rgba(255, 158, 196, 0.5);
+  background: rgba(255, 158, 196, 0.14);
+  color: #ffcfe0;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  padding: 12px 34px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.over-btn:active { transform: scale(0.97); }
+
+/* 游戏库返回入口（多游戏门户） */
+.hub-back {
+  position: absolute;
+  top: 2.6%;
+  right: 4%;
+  z-index: 7;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(20, 26, 38, 0.72);
+  border: 1px solid rgba(150, 176, 220, 0.18);
+  color: #cfd8ea;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.hub-back:active { transform: scale(0.96); }

@@ -2,7 +2,7 @@
   "name": "豆豆大挑战",
   "short_name": "豆豆挑战",
   "description": "表情包记忆配对小游戏",
-  "start_url": "./index.html",
+  "start_url": "./match.html",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#16213e",

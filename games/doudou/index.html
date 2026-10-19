@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>守护豆豆</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <a class="hub-back" href="../../index.html">← 游戏库</a>
+
+  <div class="paused-veil" id="pausedVeil" hidden>
+    <div class="paused-card">
+      <p class="paused-title">暂停中</p>
+      <p class="paused-sub">点左上角，或按空格继续</p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <button class="pause" id="pause" type="button" aria-label="暂停">
+      <i></i><i></i>
+    </button>
+    <div class="stage-name" id="stageName">守护豆豆 · 第 1 波</div>
+  </header>
+
+  <div class="buffs" id="buffs" hidden></div>
+
+  <div class="hp">
+    <div class="hp-fill" id="hpFill"></div>
+  </div>
+
+  <div class="upgrade" id="upgrade" hidden></div>
+
+  <div class="over" id="over" hidden>
+    <div class="over-card">
+      <p class="over-k" id="overK">失守</p>
+      <h2 class="over-title" id="overTitle">豆豆被外星人抓走了</h2>
+      <p class="over-sub" id="overSub"></p>
+      <button class="over-btn" id="again" type="button">再来一次</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

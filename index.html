@@ -1,156 +1,274 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#16213e">
-  <meta name="description" content="表情包记忆配对小游戏">
-  <link rel="apple-touch-icon" href="assets/tiles/1.png">
-  <title>豆豆大挑战</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script>
-    (function () {
-      if (location.protocol === 'http:' || location.protocol === 'https:') {
-        var link = document.createElement('link');
-        link.rel = 'manifest';
-        link.href = 'manifest.json';
-        document.head.appendChild(link);
-      }
-    })();
-  </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DDGame · 豆豆游戏盒</title>
+<meta name="description" content="豆豆游戏盒：守护豆豆、豆豆大挑战……打开浏览器就能玩的小游戏合集，零安装。">
+<meta name="theme-color" content="#070a11">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🫘</text></svg>">
+<style>
+  :root {
+    --bg: #070a11;
+    --card: #101623;
+    --line: rgba(150, 176, 220, 0.14);
+    --ink: #eef2fa;
+    --muted: #8d99b5;
+    --gold: #ffd166;
+    --pink: #ff9ec4;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(90, 120, 190, 0.18), transparent 62%),
+      radial-gradient(900px 520px at 100% 100%, rgba(255, 158, 196, 0.08), transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: clamp(22px, 5vw, 48px) clamp(16px, 4vw, 32px) 34px;
+  }
+
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: clamp(24px, 5vw, 40px);
+  }
+
+  .logo {
+    width: 60px;
+    height: 60px;
+    flex: none;
+    border-radius: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 32px;
+    background: linear-gradient(160deg, #1a2336, #0e1420);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(20px, 4.6vw, 28px);
+    letter-spacing: 0.04em;
+  }
+
+  h1 span {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.6em;
+    margin-left: 8px;
+    letter-spacing: 0.12em;
+  }
+
+  .hero p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 18px;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(22, 29, 44, 0.92), rgba(14, 19, 31, 0.92));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 209, 102, 0.45);
+    box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+
+  .cover {
+    aspect-ratio: 16 / 10;
+    background: #0a0f18;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .cover img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 38%;
+    display: block;
+    transition: transform 0.4s ease;
+  }
+
+  .card:hover .cover img { transform: scale(1.04); }
+
+  .cover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 55%, rgba(10, 14, 22, 0.85));
+  }
+
+  .body {
+    padding: 16px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .tag { color: var(--gold); }
+  .dot { opacity: 0.5; }
+
+  h2 {
+    margin: 0;
+    font-size: 19px;
+    letter-spacing: 0.06em;
+  }
+
+  .body p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    flex: 1;
+  }
+
+  .play {
+    color: var(--pink);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .play i { font-style: normal; transition: transform 0.18s ease; }
+  .card:hover .play i { transform: translateX(4px); }
+
+  .soon {
+    cursor: default;
+    border-style: dashed;
+    opacity: 0.66;
+  }
+
+  .soon:hover {
+    transform: none;
+    border-color: var(--line);
+    box-shadow: none;
+  }
+
+  .soon .cover {
+    display: grid;
+    place-items: center;
+    font-size: 40px;
+    color: #2a3448;
+    background: repeating-linear-gradient(45deg, #0b1019, #0b1019 12px, #0d121c 12px, #0d121c 24px);
+  }
+
+  .soon h2 { color: var(--muted); }
+  .play.muted { color: #56607a; }
+
+  footer {
+    margin-top: 38px;
+    display: flex;
+    justify-content: space-between;
+    color: #5c6780;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+
+  footer a { color: #8d99b5; text-decoration: none; }
+  footer a:hover { color: var(--pink); }
+
+  @media (max-width: 420px) {
+    .logo { width: 50px; height: 50px; font-size: 26px; border-radius: 15px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card, .cover img, .play i { transition: none; }
+  }
+</style>
 </head>
 <body>
-  <div id="combo-toast" class="combo-toast hidden" aria-live="polite"></div>
-  <div id="app" class="app-shell">
-    <section id="home-page" class="page page--home" aria-label="首页">
-      <header class="home-header">
-        <h1 class="home-title"><span class="home-title-icon" aria-hidden="true">🫘</span>豆豆大挑战</h1>
-        <button id="btn-sound" type="button" class="btn-sound" aria-label="音效开关" title="音效">🔊</button>
-      </header>
-      <div id="home-menu" class="home-menu">
-        <p id="home-hint" class="home-hint">选关或快速开始 · 每局随机表情包</p>
-        <div class="mode-select" role="group" aria-label="游戏模式">
-          <p class="mode-select-title">游戏模式</p>
-          <div id="mode-list" class="mode-list"></div>
+  <div class="wrap">
+    <header class="hero">
+      <div class="logo" aria-hidden="true">🫘</div>
+      <div>
+        <h1>DDGame <span>豆豆游戏盒</span></h1>
+        <p>打开浏览器就能玩的小游戏合集 · 零安装</p>
+      </div>
+    </header>
+
+    <main class="grid">
+      <a class="card" href="games/doudou/">
+        <div class="cover"><img src="games/doudou/thumbnail.png" alt="守护豆豆"></div>
+        <div class="body">
+          <div class="meta"><span class="tag">塔防 / 射击</span><span class="dot">·</span><span>一局 3 分钟</span></div>
+          <h2>守护豆豆</h2>
+          <p>外星人从桥那头涌来。喂卡、变强，别让豆豆被抓走。</p>
+          <span class="play">开始游戏 <i>→</i></span>
         </div>
-        <div id="daily-card" class="daily-card hidden"></div>
-        <div class="home-actions">
-          <button type="button" id="btn-quick-start" class="home-btn home-btn--primary">快速开始</button>
-          <button type="button" id="btn-pick-level" class="home-btn">选关</button>
+      </a>
+
+      <a class="card" href="match.html">
+        <div class="cover"><img src="assets/tiles/1.png" alt="豆豆大挑战"></div>
+        <div class="body">
+          <div class="meta"><span class="tag">休闲 / 记忆</span><span class="dot">·</span><span>随开随玩</span></div>
+          <h2>豆豆大挑战</h2>
+          <p>表情包记忆配对。连击、成就、抽奖，越玩越上头。</p>
+          <span class="play">开始游戏 <i>→</i></span>
         </div>
-        <div class="home-toolbar">
-          <button type="button" id="btn-achievements" class="toolbar-btn">成就</button>
-          <button type="button" id="btn-backpack" class="toolbar-btn">背包</button>
-          <button type="button" id="btn-lottery-log" class="toolbar-btn">抽奖记录</button>
+      </a>
+
+      <div class="card soon">
+        <div class="cover" aria-hidden="true">?</div>
+        <div class="body">
+          <div class="meta"><span class="tag">制作中</span></div>
+          <h2>下一款</h2>
+          <p>还在锅里，等豆豆熟。</p>
+          <span class="play muted">敬请期待</span>
         </div>
       </div>
-      <section id="sub-panel" class="sub-panel hidden" aria-hidden="true">
-        <div class="sub-panel-head">
-          <h2 id="sub-panel-title"></h2>
-          <button type="button" id="btn-sub-back" class="toolbar-btn">返回</button>
-        </div>
-        <div id="sub-panel-body" class="sub-panel-body"></div>
-      </section>
-      <p id="error-msg" class="error-msg hidden"></p>
-    </section>
-    <section id="game-page" class="page page--game hidden" aria-label="游戏" aria-hidden="true">
-      <header class="header game-header">
-        <div id="combo-hud" class="combo-hud hidden">连击 x0</div>
-        <div class="stats">
-          <span id="level-label">第 1 关</span>
-          <span id="moves-label">步数: 0</span>
-          <span id="timer-label">时间: 0s</span>
-        </div>
-        <div class="header-actions">
-          <button id="btn-hint" type="button" class="btn-hint hidden" title="提示">💡<span id="hint-count"></span></button>
-          <button id="btn-sound-game" type="button" class="btn-sound" aria-label="音效开关" title="音效">🔊</button>
-          <button id="btn-menu" type="button" class="btn-menu">选关</button>
-          <button id="btn-home" type="button" class="btn-home">首页</button>
-        </div>
-      </header>
-      <p id="drop-rate-hud" class="drop-rate-hud hidden" aria-live="polite"></p>
-      <div id="board-viewport" class="board-viewport">
-        <div id="preview-overlay" class="preview-overlay hidden" aria-hidden="true" aria-live="polite">
-          <div class="preview-overlay-banner">
-            <p class="preview-overlay-label">记住牌面</p>
-            <p id="preview-overlay-count" class="preview-overlay-count">3</p>
-          </div>
-        </div>
-        <div id="board-scaler" class="board-scaler">
-          <main id="board" class="board" aria-label="游戏棋盘"></main>
-        </div>
-      </div>
-    </section>
+    </main>
+
+    <footer>
+      <span>© DDGame</span>
+      <a href="https://github.com/Jlanglang/DDGame" target="_blank" rel="noopener">GitHub</a>
+    </footer>
   </div>
-  <div id="level-picker" class="level-picker hidden" aria-hidden="true">
-    <div class="level-picker-sheet" role="dialog" aria-labelledby="level-picker-title">
-      <div class="level-picker-head">
-        <h2 id="level-picker-title">选择关卡</h2>
-        <button type="button" id="btn-level-picker-close" class="level-picker-close" aria-label="关闭">×</button>
-      </div>
-      <p id="level-select-hint" class="level-select-hint"></p>
-      <div id="level-list" class="level-list"></div>
-    </div>
-  </div>
-  <div id="synth-picker" class="level-picker synth-picker hidden" aria-hidden="true">
-    <div class="level-picker-sheet synth-picker-sheet" role="dialog" aria-labelledby="synth-picker-title">
-      <div class="level-picker-head">
-        <h2 id="synth-picker-title">选择合成卡片</h2>
-        <button type="button" id="btn-synth-picker-close" class="level-picker-close" aria-label="关闭">×</button>
-      </div>
-      <p id="synth-picker-hint" class="level-select-hint synth-picker-hint"></p>
-      <div id="synth-picker-list" class="synth-picker-list"></div>
-    </div>
-  </div>
-  <div id="lottery-picker" class="level-picker lottery-picker hidden" aria-hidden="true">
-    <div class="level-picker-sheet lottery-picker-sheet" role="dialog" aria-labelledby="lottery-picker-title">
-      <div class="level-picker-head">
-        <h2 id="lottery-picker-title">选择抽奖卡片</h2>
-        <button type="button" id="btn-lottery-picker-close" class="level-picker-close" aria-label="关闭">×</button>
-      </div>
-      <p id="lottery-picker-hint" class="level-select-hint lottery-picker-hint"></p>
-      <div id="lottery-picker-list" class="lottery-picker-list"></div>
-    </div>
-  </div>
-  <div id="lottery-result" class="level-picker lottery-result hidden" aria-hidden="true">
-    <div class="level-picker-sheet lottery-result-sheet" role="dialog" aria-labelledby="lottery-result-title">
-      <div class="lottery-result-body">
-        <span id="lottery-result-emoji" class="lottery-result-emoji" aria-hidden="true">🎀</span>
-        <span id="lottery-result-tag" class="lottery-result-tag lottery-result-tag--reward">正向奖励</span>
-        <h2 id="lottery-result-title" class="lottery-result-title"></h2>
-        <p id="lottery-result-desc" class="lottery-result-desc"></p>
-        <p class="lottery-result-hint">记得给家长看，按约定兑现哦～</p>
-        <button type="button" id="btn-lottery-result-close" class="home-btn home-btn--primary">收下</button>
-      </div>
-    </div>
-  </div>
-  <div id="overlay" class="overlay hidden" aria-hidden="true">
-    <div id="achievement-pop" class="achievement-pop hidden"></div>
-    <div class="modal">
-      <h2 id="overlay-title">过关!</h2>
-      <p id="overlay-text"></p>
-      <div id="overlay-drops" class="overlay-drops hidden" aria-hidden="true"></div>
-      <div class="modal-actions">
-        <button id="btn-share" type="button" class="hidden">分享成绩</button>
-        <button id="btn-replay" type="button">再玩一次</button>
-        <button id="btn-overlay-close" type="button" class="hidden">关闭</button>
-        <button id="btn-next" type="button" class="primary">下一关</button>
-        <button id="btn-select" type="button">选关</button>
-      </div>
-    </div>
-  </div>
-  <script src="js/difficulty.js"></script>
-  <script src="js/rarity.js"></script>
-  <script src="js/modes.js"></script>
-  <script src="js/progress.js"></script>
-  <script src="js/lottery-rewards.js"></script>
-  <script src="js/backpack.js"></script>
-  <script src="js/daily.js"></script>
-  <script src="js/achievements.js"></script>
-  <script src="js/tutorial.js"></script>
-  <script src="js/levels-data.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/game.js"></script>
 </body>
 </html>

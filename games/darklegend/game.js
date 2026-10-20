@@ -4,7 +4,7 @@
 (() => {
   'use strict';
 
-  const TILE = 32;
+  let TILE = 44;
   const VIEW_W = 720;
   const VIEW_H = 1120;
   const SAVE_KEY = 'darklegend-save-v1';
@@ -404,24 +404,39 @@
   const cam = { x: 0, y: 0 };
 
   function visible(x, y) {
-    return Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8;
+    const dx = x - P.x, dy = y - P.y;
+    return dx * dx + dy * dy <= 72; // 半径 ≈ 8.5 格，圆形视野
+  }
+
+  function viewport() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, canvas.clientWidth);
+    const h = Math.max(1, canvas.clientHeight);
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    TILE = clamp(Math.round(w / 14), 42, 60); // 约 14 格宽，视野圆撑满屏宽
+    return { w, h };
   }
 
   function draw() {
+    const { w: vw, h: vh } = viewport();
     const mw = map[0].length * TILE;
     const mh = map.length * TILE;
-    const tx = clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, Math.max(0, mw - VIEW_W));
-    const ty = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, mh - VIEW_H));
+    const tx = clamp(P.x * TILE + TILE / 2 - vw / 2, 0, Math.max(0, mw - vw));
+    const ty = clamp(P.y * TILE + TILE / 2 - vh / 2, 0, Math.max(0, mh - vh));
     cam.x += (tx - cam.x) * 0.18;
     cam.y += (ty - cam.y) * 0.18;
 
     ctx.fillStyle = '#070a11';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.fillRect(0, 0, vw, vh);
 
     const x0 = Math.floor(cam.x / TILE) - 1;
     const y0 = Math.floor(cam.y / TILE) - 1;
-    const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
-    const y1 = y0 + Math.ceil(VIEW_H / TILE) + 3;
+    const x1 = x0 + Math.ceil(vw / TILE) + 3;
+    const y1 = y0 + Math.ceil(vh / TILE) + 3;
 
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
@@ -430,16 +445,25 @@
         const vis = visible(x, y);
         if (vis) seen.add(key(x, y));
         if (!seen.has(key(x, y))) continue;
-        const sx = x * TILE - cam.x;
-        const sy = y * TILE - cam.y;
-        if (t === 1) ctx.fillStyle = vis ? '#151f33' : '#0d1422';
-        else if (t === 2) ctx.fillStyle = vis ? '#b8860b' : '#5b440f';
-        else ctx.fillStyle = vis ? (inCave ? '#1b1a2e' : '#1b2436') : '#111827';
-        ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
-        if (t === 2 && vis) {
-          ctx.font = '18px system-ui';
+        const sx = Math.round(x * TILE - cam.x);
+        const sy = Math.round(y * TILE - cam.y);
+        if (t === 1) {
+          ctx.fillStyle = vis ? '#131b2c' : '#0c1220';
+          ctx.fillRect(sx, sy, TILE, TILE);
+          ctx.fillStyle = vis ? 'rgba(120, 160, 230, 0.12)' : 'rgba(120, 160, 230, 0.05)';
+          ctx.fillRect(sx, sy, TILE, 3);
+        } else if (t === 2) {
+          ctx.fillStyle = vis ? '#7a5a12' : '#453311';
+          ctx.fillRect(sx, sy, TILE, TILE);
+          ctx.font = '24px system-ui';
           ctx.textAlign = 'center';
-          ctx.fillText('🕳', sx + TILE / 2, sy + TILE - 6);
+          ctx.fillText('🕳', sx + TILE / 2, sy + TILE - 8);
+        } else {
+          ctx.fillStyle = vis ? (inCave ? '#2a2540' : '#26314a') : '#161d2e';
+          ctx.fillRect(sx, sy, TILE, TILE);
+          ctx.strokeStyle = vis ? 'rgba(10, 15, 26, 0.55)' : 'rgba(10, 15, 26, 0.35)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
         }
       }
     }
@@ -449,29 +473,30 @@
       if (!visible(e.x, e.y) || !seen.has(key(e.x, e.y))) continue;
       const sx = e.x * TILE - cam.x + TILE / 2;
       const sy = e.y * TILE - cam.y + TILE / 2;
-      ctx.font = `${e.boss ? 34 : 24}px system-ui`;
+      ctx.font = `${e.boss ? 44 : 32}px system-ui`;
       ctx.textAlign = 'center';
-      ctx.fillText(e.glyph, sx, sy + 8);
-      const w = 26;
+      ctx.fillText(e.glyph, sx, sy + 10);
+      const w = 34;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(sx - w / 2, sy - 18, w, 4);
+      ctx.fillRect(sx - w / 2, sy - 24, w, 5);
       ctx.fillStyle = '#e05a5a';
-      ctx.fillRect(sx - w / 2, sy - 18, w * clamp(e.hp / e.maxHp, 0, 1), 4);
+      ctx.fillRect(sx - w / 2, sy - 24, w * clamp(e.hp / e.maxHp, 0, 1), 5);
     }
 
     // 玩家
     const px = P.x * TILE - cam.x + TILE / 2;
     const py = P.y * TILE - cam.y + TILE / 2;
-    ctx.font = '26px system-ui';
+    ctx.font = '36px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('🧙', px, py + 8);
+    ctx.fillText('🧙', px, py + 10);
 
     // 视野暗角
-    const g = ctx.createRadialGradient(px, py, 120, px, py, 520);
+    const r = Math.min(vw, vh) * 0.62;
+    const g = ctx.createRadialGradient(px, py, r * 0.25, px, py, r);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0.5)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.fillRect(0, 0, vw, vh);
 
     requestAnimationFrame(draw);
   }

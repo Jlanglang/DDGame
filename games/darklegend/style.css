@@ -141,6 +141,9 @@ canvas {
   z-index: 10;
 }
 
+/* hidden 属性要压过上面的 display: grid，否则开局就盖着通关遮罩 */
+.over[hidden] { display: none; }
+
 .over-card {
   width: min(86%, 420px);
   padding: 22px;

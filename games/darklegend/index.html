@@ -17,24 +17,29 @@
       </div>
     </div>
     <div class="hud-right">
-      <div class="stat" id="gold">🪙 0</div>
-      <div class="stat" id="potion">🧪 3</div>
+      <div class="hud-btns">
+        <button id="btnChar" class="icon-btn" type="button" title="角色">👤</button>
+        <button id="btnMenu" class="icon-btn" type="button" title="菜单" aria-label="菜单">☰</button>
+      </div>
+      <div class="stat" id="gold">💰 0</div>
       <div class="stat" id="exp">经验 0/100</div>
     </div>
   </header>
 
+  <div class="gear" id="gear">⚔ 空手　🛡 布衣</div>
+
   <canvas id="game" width="720" height="1120"></canvas>
 
-  <div class="tips" id="tips">WASD 移动 · J 攻击 · 1 半月 · 2 烈火 · Q 药水</div>
+  <div class="tips" id="tips">点击地面移动 · 点击怪物攻击 · WASD 也能走</div>
 
   <div class="log" id="log"></div>
 
   <div class="actions">
     <button id="btnAtk" type="button">⚔ 攻击<kbd>J</kbd></button>
-    <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd></button>
-    <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd></button>
-    <button id="btnPotion" type="button">🧪 药水<kbd>Q</kbd></button>
-    <button id="btnRestart" type="button" class="ghost">重开</button>
+    <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd><span class="cost">6</span><span class="cd" id="halfCd"></span></button>
+    <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd><span class="cost">12</span><span class="cd" id="fireCd"></span></button>
+    <button id="btnPotion" type="button">🧪 药水 <b class="badge" id="potionCount">3</b><kbd>Q</kbd><span class="cd" id="potionCd"></span></button>
+    <button id="btnShop" type="button" disabled>🏪 商店<kbd>E</kbd></button>
   </div>
 
   <div class="over" id="over" hidden>
@@ -43,6 +48,96 @@
       <h2 id="overT">你击败了巨型稻草人</h2>
       <p id="overS"></p>
       <button id="overBtn" type="button">再来一次</button>
+      <button id="overAlt" type="button" class="ghost" hidden>重开新档</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="shop" hidden>
+    <div class="sheet-card">
+      <div class="sheet-head">
+        <h3>村口杂货铺</h3>
+        <span class="sheet-gold">💰 <b id="shopGold">0</b></span>
+      </div>
+      <button type="button" class="buy" id="buyPotion">药水 ×1<em>50 金</em></button>
+      <button type="button" class="buy" id="buySword">铁剑 +3 攻击<em>80 金</em></button>
+      <button type="button" class="buy" id="buyArmor">皮甲 +2 防御<em>70 金</em></button>
+      <button type="button" class="ghost" id="shopClose">离开</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="char" hidden>
+    <div class="sheet-card char-card">
+      <div class="char-hero">
+        <div class="char-avatar">🧙</div>
+        <div class="char-id">
+          <div class="char-name">Lv.<b id="charLv">1</b> 战士</div>
+          <div class="char-exp"><i id="charExpFill"></i><span id="charExpText">0/100</span></div>
+        </div>
+        <div class="char-right">
+          <div class="char-power"><span>战力</span><b id="charPower">0</b></div>
+          <div class="char-gold">💰 <b id="charGold">0</b></div>
+        </div>
+      </div>
+
+      <div class="char-tabs" id="charTabs">
+        <button type="button" class="char-tab active" data-tab="gear">装备</button>
+        <button type="button" class="char-tab" data-tab="bag">背包 <b class="bag-count" id="bagCount">0</b></button>
+      </div>
+
+      <div class="char-pane" id="paneGear">
+        <div class="char-stats" id="charStats"></div>
+        <div class="char-slots" id="charSlots"></div>
+        <h4 class="char-h">自动喝药</h4>
+        <div class="char-setting">
+          <label for="autoPot">血量低于</label>
+          <select id="autoPot">
+            <option value="0">关闭</option>
+            <option value="30">30%</option>
+            <option value="50">50%</option>
+            <option value="70">70%</option>
+          </select>
+          <span>时自动喝药（CD 3 回合）</span>
+        </div>
+      </div>
+
+      <div class="char-pane" id="paneBag" hidden>
+        <div class="bag-list" id="bagList"></div>
+      </div>
+
+      <button type="button" class="ghost" id="charClose">关闭</button>
+    </div>
+  </div>
+
+  <div class="loot" id="loot" hidden>
+    <div class="loot-name" id="lootName"></div>
+    <div class="loot-stats" id="lootStats"></div>
+    <div class="loot-affix" id="lootAffix"></div>
+  </div>
+
+  <div class="menu" id="menu" hidden>
+    <div class="sheet-card">
+      <h3>豆豆暗黑传奇</h3>
+      <p class="menu-help">点击地面移动，点击怪物攻击。WASD/方向键也能走。不操作时每 1 秒自动行动（自动普攻/技能），打开菜单/商店会暂停。J 普攻，1 半月，2 烈火，Q 药水，E 商店，R 撤退，C 角色/背包。比玩家低 5 级以上的怪不会主动。</p>
+      <p class="menu-help">地图种子：<b id="seedText">-</b>（同一存档固定）</p>
+      <button type="button" id="menuClose">继续游戏</button>
+      <button type="button" class="ghost" id="menuRetreat">撤退（R）</button>
+      <button type="button" class="danger" id="menuRestart">重开新档</button>
+    </div>
+  </div>
+
+  <div class="intro" id="intro" hidden>
+    <div class="intro-card">
+      <p class="over-k">图 1 · 鸡鸣村外</p>
+      <h2>豆豆暗黑传奇</h2>
+      <ul>
+        <li><b>点击地面</b>移动，<b>点击怪物</b>攻击</li>
+        <li>WASD / 方向键也能走，J 普攻</li>
+        <li>1 半月 · 2 烈火 · Q 药水 · E 商店</li>
+        <li>被怪缠住时人物锁定，按 R 撤退</li>
+        <li>不操作时会自动打怪、放技能，打开菜单可暂停</li>
+        <li>先打鸡，攒钱买药；村口有商人</li>
+      </ul>
+      <button type="button" id="introBtn">出发</button>
     </div>
   </div>
 </div>

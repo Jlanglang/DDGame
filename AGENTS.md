@@ -8,9 +8,11 @@
   - GitHub：https://github.com/Jlanglang/DDGame
   - 线上：https://jlanglang.github.io/DDGame/
   - 提交到 `master` 就会自动部署（GitHub Pages）。
-- **AI 只做本地 `git commit`，不执行 `git push`**。推送由主人手动完成：
-  当前环境没有可用的 GitHub 凭据，`push` 会卡在认证上。
-  改完 → 本地验证 → commit → 告诉主人「已本地提交，请推送」。
+- **能推就直接推**：改完 → 本地验证 → `git commit` → `git push origin master`。
+  - 本地 SSH 能连 GitHub（`ssh -T git@github.com` 通、`push` 不要求认证）时，AI 自己推完，顺手验一下线上 Pages。
+  - 没有可用 SSH 凭据（`Permission denied (publickey)`、卡认证、超时）时**不要重试、不要改走 HTTPS**，
+    停下来说「已本地提交，请手动推送」。
+  - 真推之前先 `git push --dry-run` 探一次，能过再推；别把认证失败当网络问题反复重试。
 - `D:\DP\bridge-defense` 是旧副本，**已冻结**，不要再去那里改。
 - 新游戏放 `games/<id>/`，并在根目录 `index.html` 的游戏库里加一张卡。
 - 本地调试工具在 `D:\DP\.tools\`（不参与部署）。

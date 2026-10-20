@@ -154,37 +154,66 @@
      跨局保留，结算时入账
      ---------------------------------------------------------- */
 
-  const SAVE_KEY = 'doudou-hero-save-v1';
+  const SAVE_KEY = 'doudou-hero-save-v1';       // 旧版单档，启动时迁移
+  const SLOT_KEY = 'doudou-hero-slots-v2';
 
   function defaultSave() {
     return { v: 1, exp: 0, gold: 0, weapon: 0, armor: 0, potions: 3, sp: 0, atkSp: 0, hpSp: 0, clears: 0, best: 0 };
   }
 
-  function loadSave() {
-    try {
-      if (new URLSearchParams(location.search).has('fresh')) localStorage.removeItem(SAVE_KEY);
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return defaultSave();
-      const s = JSON.parse(raw);
-      const d = defaultSave();
-      for (const k of Object.keys(d)) if (!(k in s)) s[k] = d[k];
-      s.weapon = clamp(s.weapon | 0, 0, 5);
-      s.armor = clamp(s.armor | 0, 0, 5);
-      s.potions = clamp(s.potions | 0, 0, 5);
-      s.sp = Math.max(0, s.sp | 0);
-      s.atkSp = Math.max(0, s.atkSp | 0);
-      s.hpSp = Math.max(0, s.hpSp | 0);
-      return s;
-    } catch {
-      return defaultSave();
-    }
+  function normalizeSave(s) {
+    const d = defaultSave();
+    if (!s || typeof s !== 'object') s = {};
+    for (const k of Object.keys(d)) if (!(k in s)) s[k] = d[k];
+    s.weapon = clamp(s.weapon | 0, 0, 5);
+    s.armor = clamp(s.armor | 0, 0, 5);
+    s.potions = clamp(s.potions | 0, 0, 5);
+    s.sp = Math.max(0, s.sp | 0);
+    s.atkSp = Math.max(0, s.atkSp | 0);
+    s.hpSp = Math.max(0, s.hpSp | 0);
+    return s;
   }
+
+  function loadSlots() {
+    try {
+      if (new URLSearchParams(location.search).has('fresh')) {
+        localStorage.removeItem(SLOT_KEY);
+        localStorage.removeItem(SAVE_KEY);
+      }
+      const raw = localStorage.getItem(SLOT_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.slots)) {
+          data.slots = data.slots
+            .filter((s) => s && typeof s.name === 'string')
+            .slice(0, 6)
+            .map((s) => ({ name: String(s.name).slice(0, 8), save: normalizeSave(s.save) }));
+          data.current = clamp(data.current | 0, 0, Math.max(0, data.slots.length - 1));
+          return data;
+        }
+      }
+      // 旧版单档迁移成第一个角色
+      const old = localStorage.getItem(SAVE_KEY);
+      if (old) {
+        const migrated = { current: 0, slots: [{ name: '豆豆', save: normalizeSave(JSON.parse(old)) }] };
+        localStorage.removeItem(SAVE_KEY);
+        localStorage.setItem(SLOT_KEY, JSON.stringify(migrated));
+        return migrated;
+      }
+    } catch { /* 隐私模式 / 坏档：当空档处理 */ }
+    return { current: 0, slots: [] };
+  }
+
+  const DATA = loadSlots();
+  let SAVE = DATA.slots.length ? DATA.slots[DATA.current].save : defaultSave();
 
   function writeSave() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch { /* 隐私模式忽略 */ }
+    try {
+      if (DATA.slots.length) DATA.current = clamp(DATA.current, 0, DATA.slots.length - 1);
+      else DATA.current = 0;
+      localStorage.setItem(SLOT_KEY, JSON.stringify(DATA));
+    } catch { /* 隐私模式忽略 */ }
   }
-
-  const SAVE = loadSave();
 
   const levelNeed = (lv) => Math.round(55 * Math.pow(1.34, lv - 1));
 
@@ -200,16 +229,20 @@
     return { level: lv, exp: rest, expNeed: need };
   }
 
-  function statsFromSave() {
-    const l = levelFromExp(SAVE.exp);
+  function statsOf(save) {
+    const l = levelFromExp(save.exp);
     return {
       level: l.level,
       exp: l.exp,
       expNeed: l.expNeed,
-      atk: 28 + (l.level - 1) * 3 + SAVE.weapon * 5 + SAVE.atkSp * 2,
-      maxHp: 200 + (l.level - 1) * 16 + SAVE.armor * 24 + SAVE.hpSp * 14,
-      crit: 0.12 + SAVE.atkSp * 0.01,
+      atk: 28 + (l.level - 1) * 3 + save.weapon * 5 + save.atkSp * 2,
+      maxHp: 200 + (l.level - 1) * 16 + save.armor * 24 + save.hpSp * 14,
+      crit: 0.12 + save.atkSp * 0.01,
     };
+  }
+
+  function statsFromSave() {
+    return statsOf(SAVE);
   }
 
   const weaponCost = (w) => 60 * Math.pow(2, w);
@@ -301,6 +334,14 @@
     shopClose: document.getElementById('shopClose'),
     potionCount: document.getElementById('potionCount'),
     potionCd: document.getElementById('potionCd'),
+    chars: document.getElementById('chars'),
+    charList: document.getElementById('charList'),
+    charNew: document.getElementById('charNew'),
+    charName: document.getElementById('charName'),
+    charCreate: document.getElementById('charCreate'),
+    charCancel: document.getElementById('charCancel'),
+    charAdd: document.getElementById('charAdd'),
+    charBtn: document.getElementById('charBtn'),
   };
 
   /* ----------------------------------------------------------
@@ -763,6 +804,100 @@
 
   el.shopTip.addEventListener('click', openShop);
   el.shopClose.addEventListener('click', closeShop);
+
+  /* ----------------------------------------------------------
+     角色选择 / 多存档
+     ---------------------------------------------------------- */
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function renderChars() {
+    if (!el.charList) return;
+    if (!DATA.slots.length) {
+      el.charList.innerHTML = '<p class="char-empty">还没有角色，先建一个吧</p>';
+    } else {
+      el.charList.innerHTML = DATA.slots.map((s, i) => {
+        const st = statsOf(s.save);
+        return `<div class="char-card">
+          <button class="char-enter" data-i="${i}" type="button">
+            <span class="char-avatar">🫘</span>
+            <span class="char-name">${esc(s.name)}</span>
+            <span class="char-meta">Lv.${st.level} · ${fmt(s.save.gold)} 金币</span>
+            <span class="char-gear">武器 ${s.save.weapon} · 护甲 ${s.save.armor} · 药水 ${s.save.potions}</span>
+          </button>
+          <button class="char-del" data-del="${i}" type="button" aria-label="删除">×</button>
+        </div>`;
+      }).join('');
+
+      el.charList.querySelectorAll('.char-enter').forEach((b) => {
+        b.addEventListener('click', () => enterChar(Number(b.dataset.i)));
+      });
+      el.charList.querySelectorAll('.char-del').forEach((b) => {
+        b.addEventListener('click', () => deleteChar(Number(b.dataset.del)));
+      });
+    }
+    el.charAdd.hidden = DATA.slots.length >= 6;
+  }
+
+  function enterChar(i) {
+    if (!DATA.slots[i]) return;
+    DATA.current = i;
+    SAVE = DATA.slots[i].save;
+    writeSave();
+    el.chars.hidden = true;
+    hideNewChar();
+    reset();
+  }
+
+  function deleteChar(i) {
+    const s = DATA.slots[i];
+    if (!s) return;
+    if (!window.confirm(`删除角色「${s.name}」？这个角色的存档也会一起删掉。`)) return;
+    DATA.slots.splice(i, 1);
+    if (DATA.current >= DATA.slots.length) DATA.current = Math.max(0, DATA.slots.length - 1);
+    SAVE = DATA.slots.length ? DATA.slots[DATA.current].save : defaultSave();
+    writeSave();
+    renderChars();
+  }
+
+  function showChars() {
+    if (G.state === 'play' && !G.banked) bankRun(false);
+    writeSave();
+    G.state = 'menu';
+    G.shopOpen = false;
+    el.shop.hidden = true;
+    el.over.hidden = true;
+    el.pauseVeil.hidden = true;
+    el.chars.hidden = false;
+    renderChars();
+  }
+
+  function createChar() {
+    const name = (el.charName.value || '').trim().slice(0, 8);
+    if (!name) { el.charName.focus(); return; }
+    DATA.slots.push({ name, save: defaultSave() });
+    DATA.current = DATA.slots.length - 1;
+    SAVE = DATA.slots[DATA.current].save;
+    writeSave();
+    enterChar(DATA.current);
+  }
+
+  function hideNewChar() {
+    el.charNew.hidden = true;
+    el.charName.value = '';
+  }
+
+  el.charAdd.addEventListener('click', () => {
+    el.charNew.hidden = false;
+    el.charName.value = '';
+    el.charName.focus();
+  });
+  el.charCancel.addEventListener('click', hideNewChar);
+  el.charCreate.addEventListener('click', createChar);
+  el.charName.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); createChar(); }
+  });
+  el.charBtn.addEventListener('click', showChars);
 
   /* ----------------------------------------------------------
      物理
@@ -2695,11 +2830,27 @@
 
   resize();
   reset();
+
+  if (QS.has('skipmenu')) {
+    if (!DATA.slots.length) {
+      DATA.slots.push({ name: '豆豆', save: defaultSave() });
+      DATA.current = 0;
+      SAVE = DATA.slots[0].save;
+      writeSave();
+    }
+    enterChar(DATA.current);
+  } else {
+    G.state = 'menu';
+    el.chars.hidden = false;
+    renderChars();
+  }
+
   if (QS.has('debug')) {
     window.__g = G;
     window.__castLog = [];
-    window.__hero = { attack, jump, castSkill, reset, keys, pointer, spawnBoss, enterStage };
-    window.__save = SAVE;
+    window.__hero = { attack, jump, castSkill, reset, keys, pointer, spawnBoss, enterStage, showChars, renderChars, enterChar };
+    Object.defineProperty(window, '__save', { get: () => SAVE, configurable: true });
+    window.__data = DATA;
     window.__refreshGrow = refreshGrow;
   }
   requestAnimationFrame(frame);

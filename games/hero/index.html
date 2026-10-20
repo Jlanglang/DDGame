@@ -12,6 +12,7 @@
   <canvas id="game"></canvas>
 
   <div class="top-right">
+    <button class="hub-back" id="charBtn" type="button">角色</button>
     <button class="hub-back" id="restartTop" type="button">↻ 重开</button>
     <a class="hub-back" href="../../index.html">← 游戏库</a>
   </div>
@@ -120,6 +121,26 @@
       </div>
 
       <button class="over-btn" id="again" type="button">再来一局</button>
+    </div>
+  </div>
+
+  <!-- 角色选择 / 存档 -->
+  <div class="chars" id="chars" hidden>
+    <div class="chars-card">
+      <p class="chars-k">豆豆勇者</p>
+      <h1 class="chars-title">选择角色</h1>
+      <div class="char-list" id="charList"></div>
+
+      <div class="char-new" id="charNew" hidden>
+        <input class="char-input" id="charName" maxlength="8" placeholder="给角色取个名字" autocomplete="off">
+        <div class="char-new-btns">
+          <button class="char-ok" id="charCreate" type="button">创建并出发</button>
+          <button class="char-cancel" id="charCancel" type="button">取消</button>
+        </div>
+      </div>
+
+      <button class="char-add" id="charAdd" type="button">＋ 新建角色</button>
+      <p class="chars-tip">存档保存在这台设备上，清浏览器数据会一起没</p>
     </div>
   </div>
 

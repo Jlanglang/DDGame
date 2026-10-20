@@ -759,6 +759,192 @@ body {
 
 .over-btn:active { transform: scale(0.97); }
 
+/* ---------------- 角色选择 ---------------- */
+
+.chars {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--u) * 18px);
+  background:
+    radial-gradient(900px 500px at 50% 0%, rgba(80, 120, 190, 0.22), transparent 70%),
+    rgba(4, 6, 12, 0.9);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.chars-card {
+  width: calc(var(--u) * 900px);
+  max-width: 96%;
+  text-align: center;
+}
+
+.chars-k {
+  margin: 0;
+  font-size: calc(var(--u) * 15px);
+  letter-spacing: 0.4em;
+  color: #8d99b5;
+}
+
+.chars-title {
+  margin: calc(var(--u) * 8px) 0 calc(var(--u) * 22px);
+  font-size: calc(var(--u) * 40px);
+  letter-spacing: 0.12em;
+}
+
+.char-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(var(--u) * 14px);
+}
+
+.char-card {
+  position: relative;
+  border-radius: calc(var(--u) * 16px);
+  background: linear-gradient(180deg, rgba(28, 36, 54, 0.96), rgba(14, 19, 30, 0.96));
+  border: 1px solid rgba(150, 176, 220, 0.2);
+  overflow: hidden;
+}
+
+.char-enter {
+  width: 100%;
+  padding: calc(var(--u) * 18px) calc(var(--u) * 14px) calc(var(--u) * 16px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 5px);
+}
+
+.char-enter:active { background: rgba(120, 190, 255, 0.08); }
+
+.char-avatar {
+  width: calc(var(--u) * 64px);
+  height: calc(var(--u) * 64px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #cdd8ea 70%);
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--u) * 30px);
+  margin-bottom: calc(var(--u) * 4px);
+}
+
+.char-name {
+  font-size: calc(var(--u) * 22px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.char-meta {
+  font-size: calc(var(--u) * 14px);
+  color: #ffd166;
+}
+
+.char-gear {
+  font-size: calc(var(--u) * 12px);
+  color: #8d99b5;
+}
+
+.char-del {
+  position: absolute;
+  top: calc(var(--u) * 6px);
+  right: calc(var(--u) * 8px);
+  width: calc(var(--u) * 26px);
+  height: calc(var(--u) * 26px);
+  border-radius: 50%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: calc(var(--u) * 16px);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.char-del:active { background: rgba(224, 82, 63, 0.7); color: #fff; }
+
+.char-empty {
+  grid-column: 1 / -1;
+  padding: calc(var(--u) * 40px) 0;
+  color: #7d8aa5;
+  font-size: calc(var(--u) * 17px);
+}
+
+.char-new {
+  margin-top: calc(var(--u) * 18px);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 10px);
+  align-items: center;
+}
+
+.char-input {
+  width: min(100%, calc(var(--u) * 360px));
+  padding: calc(var(--u) * 12px) calc(var(--u) * 14px);
+  border-radius: calc(var(--u) * 12px);
+  border: 1px solid rgba(150, 176, 220, 0.3);
+  background: rgba(8, 12, 20, 0.8);
+  color: #eef2fa;
+  font-family: inherit;
+  font-size: calc(var(--u) * 18px);
+  text-align: center;
+  outline: none;
+}
+
+.char-input:focus { border-color: rgba(255, 209, 102, 0.6); }
+
+.char-new-btns {
+  display: flex;
+  gap: calc(var(--u) * 10px);
+}
+
+.char-ok,
+.char-cancel {
+  padding: calc(var(--u) * 11px) calc(var(--u) * 22px);
+  border-radius: calc(var(--u) * 11px);
+  border: 0;
+  font-family: inherit;
+  font-size: calc(var(--u) * 16px);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.char-ok {
+  background: linear-gradient(90deg, #e0523f, #ff8a5c);
+  color: #fff;
+}
+
+.char-cancel {
+  background: rgba(40, 48, 66, 0.9);
+  color: #cfd8ea;
+}
+
+.char-add {
+  margin-top: calc(var(--u) * 20px);
+  padding: calc(var(--u) * 11px) calc(var(--u) * 26px);
+  border-radius: 999px;
+  border: 1px dashed rgba(150, 176, 220, 0.4);
+  background: transparent;
+  color: #cfd8ea;
+  font-family: inherit;
+  font-size: calc(var(--u) * 15px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.char-add:active { background: rgba(120, 190, 255, 0.1); }
+
+.chars-tip {
+  margin: calc(var(--u) * 12px) 0 0;
+  font-size: calc(var(--u) * 12px);
+  color: #5c6780;
+}
+
 /* ---------------- 竖屏提示 ---------------- */
 
 .rotate {

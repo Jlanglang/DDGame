@@ -1298,27 +1298,91 @@
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
   });
 
+  /* ----------------------------------------------------------
+     拖动：PC 鼠标 + 手机触摸共用一套 Pointer Events
+     ----------------------------------------------------------
+     手机上的坑：
+       1. 没有 touch-action: none 时，浏览器会把拖动当成滚动/缩放，
+          直接发 pointercancel，表现就是"拖到一半就断了"。
+       2. 多根手指会互相抢 pointerId，只认第一根按下的。
+       3. 老浏览器没有 PointerEvent，用 touch 事件兜底。 */
+
   let dragging = false;
+  let dragId = null;
 
-  canvas.addEventListener('pointerdown', (e) => {
-    if (paused) return;
-    dragging = true;
-    try { canvas.setPointerCapture(e.pointerId); } catch { /* 某些环境不支持 */ }
-  });
-
-  canvas.addEventListener('pointermove', (e) => {
-    if (!dragging || paused) return;
+  function moveToClientX(clientX) {
     const r = canvas.getBoundingClientRect();
-    G.player.x = clampX(((e.clientX - r.left) / r.width) * W);
-  });
+    if (r.width <= 0) return;
+    G.player.x = clampX(((clientX - r.left) / r.width) * W);
+  }
 
-  const endDrag = (e) => {
+  function startDrag(e) {
+    if (paused || G.state === 'over') return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return; // 只认左键
+    if (dragId !== null) return;                             // 已经有一根手指在拖
+
+    dragId = e.pointerId;
+    dragging = true;
+
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 某些环境不支持 */ }
+
+    // 触摸/笔：按下即跟手；鼠标：保持原来"按住拖"的手感
+    if (e.pointerType !== 'mouse') moveToClientX(e.clientX);
+
+    e.preventDefault();
+  }
+
+  function moveDrag(e) {
+    if (!dragging || e.pointerId !== dragId || paused) return;
+    moveToClientX(e.clientX);
+    e.preventDefault();
+  }
+
+  function endDrag(e) {
+    if (e.pointerId !== dragId) return;
     dragging = false;
+    dragId = null;
     try { canvas.releasePointerCapture(e.pointerId); } catch { /* 同上 */ }
-  };
+  }
 
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
+  if (window.PointerEvent) {
+    canvas.addEventListener('pointerdown', startDrag, { passive: false });
+    canvas.addEventListener('pointermove', moveDrag, { passive: false });
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('lostpointercapture', endDrag);
+  } else {
+    // 兜底：iPhone 12 以前的 Safari / 一些老安卓浏览器
+    const touchOf = (e) => (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || null;
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (paused || G.state === 'over') return;
+      const t = touchOf(e);
+      if (!t) return;
+      dragging = true;
+      moveToClientX(t.clientX);
+      e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+      if (!dragging || paused) return;
+      const t = touchOf(e);
+      if (!t) return;
+      moveToClientX(t.clientX);
+      e.preventDefault();
+    }, { passive: false });
+
+    const endTouch = (e) => {
+      dragging = false;
+      if (e.cancelable) e.preventDefault();
+    };
+
+    canvas.addEventListener('touchend', endTouch, { passive: false });
+    canvas.addEventListener('touchcancel', endTouch, { passive: false });
+  }
+
+  // 手机上长按会弹菜单/选择，影响拖动
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   pauseBtn.addEventListener('click', () => setPaused(!paused));
 

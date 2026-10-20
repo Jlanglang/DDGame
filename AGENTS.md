@@ -1,0 +1,58 @@
+# DDGame 项目规则
+
+> 改代码前先读这份。人设/语气按全局 `~/.dsh/AGENTS.md`，这里只放工程约定。
+
+## 1. 工作目录
+
+- 所有游戏改动都在 `D:\DDGame`。
+  - GitHub：https://github.com/Jlanglang/DDGame
+  - 线上：https://jlanglang.github.io/DDGame/
+  - 提交到 `master` 就会自动部署（GitHub Pages）。
+- `D:\DP\bridge-defense` 是旧副本，**已冻结**，不要再去那里改。
+- 新游戏放 `games/<id>/`，并在根目录 `index.html` 的游戏库里加一张卡。
+- 本地调试工具在 `D:\DP\.tools\`（不参与部署）。
+
+## 2. 输入：PC + 手机触摸必须同时可用 ⚠️
+
+**每个游戏都要在鼠标和触摸两种输入下验证，不能只测桌面。**
+手机上「拖到一半断掉」几乎都是下面第一条没做。
+
+- 画布加 `touch-action: none`；`html/body` 加 `overscroll-behavior: none`。
+  否则手机浏览器会把拖动当成滚动/缩放，直接发 `pointercancel`。
+- 用 Pointer Events：`pointerdown / pointermove / pointerup / pointercancel`，
+  配合 `setPointerCapture`。
+- **多指只认第一根**：记录 `pointerId`，其他手指的 down/move 直接忽略；
+  `pointerup/pointercancel/lostpointercapture` 里按 id 清理。
+- 触摸/笔按下即跟手（tap-to-move）；鼠标保持「按住拖」。
+- 老浏览器没有 `PointerEvent` 时，用 `touchstart/touchmove/touchend` 兜底，
+  监听要 `{ passive: false }` 且 `preventDefault()`，否则照样被滚动抢走。
+- 坐标统一用 `getBoundingClientRect()` 换算回 720×1600 逻辑坐标。
+- 触摸目标 ≥ 44×44 CSS px；不要依赖 hover。
+- 屏蔽长按菜单：`canvas.addEventListener('contextmenu', e => e.preventDefault())`。
+- viewport 用 `maximum-scale=1,user-scalable=no`，全屏游戏避免误缩放。
+- 手机地址栏会变，舞台尺寸优先用 `dvh`（保留 `vh` 作为旧浏览器回退）。
+
+### 验证
+
+```powershell
+node D:\DP\.tools\input-test.js
+```
+
+无头 Chrome 模拟触摸（450×1000、touch emulation）和鼠标，检查 `__g.player.x`：
+触摸从 300 拖到 120 应落在 192 附近，鼠标从 350 拖到 150 应落在 240 附近。
+输出 `RESULT touch=PASS mouse=PASS` 才算过。
+
+## 3. 游戏约定
+
+- 竖屏 720×1600；双击 `index.html` 即可玩；零依赖、零构建。
+- 中文 UI；大数字用万/亿。
+- 所有美术程序化生成（或仓库现有素材），不引外部图片。
+- 改完先本地跑通 + 输入测试，再 commit / push。
+- 提交信息用中文简述改了什么、为什么。
+
+## 4. 现有关卡 / 玩法速查（守护豆豆）
+
+- 敌人血量 `36 × 1.65^(波数-1)`；伤害上限 `50 × 1.4^(波数-1)`。
+- 攻击卡 ÷30 起步、很稀有，是通关门票；没有攻击卡必输。
+- 桥头 10 点血；BOSS 过桥直接判负。
+- 数值实验：`node D:\DP\.tools\headless.js --runs 40 --policy feed`。

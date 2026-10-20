@@ -243,6 +243,7 @@
     fadeDir: 0,
     pendingStage: -1,
     runExp: 0,
+    runGold: 0,
     runStartLevel: 1,
     banked: false,
     gainedExp: 0,
@@ -340,6 +341,7 @@
     G.particles = [];
     G.skillTick = 0;
     G.runExp = 0;
+    G.runGold = 0;
     G.runStartLevel = st.level;
     G.banked = false;
     G.gainedExp = 0;
@@ -581,12 +583,12 @@
     if (!p) return;
 
     G.gainedExp = Math.max(0, Math.round(G.runExp));
-    G.gainedGold = Math.max(0, Math.round(p.gold));
+    G.gainedGold = Math.max(0, Math.round(G.runGold || 0));
     G.gainedSp = Math.max(0, p.level - G.runStartLevel);
 
     SAVE.exp += G.gainedExp;
-    SAVE.gold += G.gainedGold;
     SAVE.sp += G.gainedSp;
+    // 金币在拾取时已经实时入账，这里不再重复加
     if (won) {
       SAVE.clears = (SAVE.clears || 0) + 1;
       const t = Math.round(G.time);
@@ -1491,7 +1493,10 @@
       if (d < 42) {
         o.life = 0;
         if (o.kind === 'gold') {
-          p.gold += o.value;
+          // 金币实时入账：回城立刻能花，不用等结算
+          SAVE.gold += o.value;
+          G.runGold = (G.runGold || 0) + o.value;
+          writeSave();
         } else {
           p.hp = Math.min(p.maxHp, p.hp + 40);
           addText(o.x, o.y - 16, '+40', '#7ef2a4', 22);
@@ -2432,7 +2437,7 @@
     const hpPct = clamp(p.hp / p.maxHp, 0, 1) * 100;
     const expPct = clamp(p.exp / p.expNeed, 0, 1) * 100;
     const bossKey = G.boss && !G.boss.dead ? `B${Math.ceil(G.boss.hp)}` : '-';
-    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${p.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}|${bossKey}|${SAVE.potions}|${Math.ceil(p.potionCd)}`;
+    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${SAVE.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}|${bossKey}|${SAVE.potions}|${Math.ceil(p.potionCd)}`;
     if (!force && key === hudKey) return;
     hudKey = key;
 
@@ -2440,7 +2445,7 @@
     el.hpFill.style.width = `${hpPct}%`;
     el.hpText.textContent = `${Math.ceil(p.hp)} / ${Math.ceil(p.maxHp)}`;
     el.expFill.style.width = `${expPct}%`;
-    el.gold.textContent = fmt(p.gold);
+    el.gold.textContent = fmt(SAVE.gold);
 
     el.potionCount.textContent = String(SAVE.potions);
     if (p.potionCd > 0.05) {

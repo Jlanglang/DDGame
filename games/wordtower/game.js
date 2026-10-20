@@ -27,22 +27,18 @@
     bulletSpeed: 1000,
 
     hpBase: 10,         // 第 1 波小怪血量
-    hpGrowth: 1.2,      // 每波 ×1.2（12 波 + BOSS，一把约 2 分 50）
+    hpGrowth: 1.12,     // 每波 ×1.12（200 波无尽，先按这个跑，后面再调）
     speed: 84,          // 小怪推进速度（像素/秒）
-    waves: 12,          // 12 波杂兵，清完 BOSS 登场
-    waveCounts: [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24],
+    waves: 200,         // 无尽模式：200 波，每 20 波一个 BOSS
     spawnGap: 0.26,     // 同一波里两只怪的间隔（越小越挤）
     waveGap: 0.8,       // 清场后的休息
-    bossMul: 6,         // BOSS 血量 = 最后一波血量 ×6
+    bossMul: 14,        // BOSS 血量 = 当波血量 ×14
     bossSpeed: 30,
-
-    eliteEvery: 6,      // 每 N 只怪里出 1 只精英（金色，3 倍经验 + 掉提示）
-    eliteHpMul: 2.6,
-    eliteSpeed: 62,
+    bossEvery: 20,      // 每 N 波出一只 BOSS
 
     expGrunt: 1,
     expElite: 3,
-    expBoss: 25,
+    expBoss: 40,
     levelBase: 5,       // 升级所需经验 = levelBase + 等级 × levelStep
     levelStep: 3,
 
@@ -59,15 +55,76 @@
   }, (typeof globalThis !== 'undefined' && globalThis.__BALANCE) || {});
 
   /* ----------------------------------------------------------
+     怪物种类：波数越高，出现的种类越多、也越强
+     ---------------------------------------------------------- */
+
+  const TYPES = {
+    grunt:    { hp: 1,   spd: 1,    r: 20, exp: 1 },
+    elite:    { hp: 2.6, spd: 0.78, r: 26, exp: 3 },
+    armor:    { hp: 2.2, spd: 0.8,  r: 25, exp: 3 },   // 减伤 + 挡穿透
+    ranged:   { hp: 1.3, spd: 1,    r: 22, exp: 3 },   // 停下来远程打塔
+    splitter: { hp: 1.7, spd: 1,    r: 26, exp: 2 },   // 死了分裂
+    healer:   { hp: 1.9, spd: 0.7,  r: 24, exp: 3 },   // 给周围怪回血
+    leveler:  { hp: 1.2, spd: 1.15, r: 22, exp: 0 },   // 死了直接升 1 级
+  };
+
+  /** 这一波会出哪些种类（权重） */
+  function typeWeights(wave) {
+    const w = { grunt: 100 };
+    if (wave >= 3) w.elite = 26;
+    if (wave >= 5) w.armor = 24;
+    if (wave >= 7) w.ranged = 22;
+    if (wave >= 9) w.splitter = 20;
+    if (wave >= 11) w.healer = 16;
+    if (wave >= 13) w.leveler = 7;
+    return w;
+  }
+
+  function pickType(wave) {
+    const w = typeWeights(wave);
+    let total = 0;
+    for (const k in w) total += w[k];
+    let r = Math.random() * total;
+    for (const k in w) {
+      r -= w[k];
+      if (r <= 0) return k;
+    }
+    return 'grunt';
+  }
+
+  /** 200 波无尽：人数随波数涨，40 封顶 */
+  function waveCount(wave) {
+    return Math.min(40, 8 + Math.floor(wave * 1.1));
+  }
+
+  /* ----------------------------------------------------------
      升级卡池：每张卡绑一个 buff，单词从词库里按 buff 抽
      ---------------------------------------------------------- */
 
-  /** 卡片分级：B 常见但弱，S 稀有但强；等级越高给的选择越多 */
+  /** 卡片分级：每张卡自己掷；波数越靠后越容易出高级卡 */
   const GRADES = {
-    B: { key: 'B', weight: 62, choices: 2, mul: 1,   color: '#8fb4ff' },
-    A: { key: 'A', weight: 28, choices: 3, mul: 1.5, color: '#ffd166' },
-    S: { key: 'S', weight: 10, choices: 4, mul: 2.2, color: '#ff9ec4' },
+    B: { key: 'B', mul: 1,   color: '#8fb4ff' },
+    A: { key: 'A', mul: 1.5, color: '#ffd166' },
+    S: { key: 'S', mul: 2.2, color: '#ff9ec4' },
   };
+
+  function gradeWeights(wave) {
+    if (wave <= 4) return { B: 80, A: 20, S: 0 };      // 前期：B 多 A 少
+    if (wave <= 8) return { B: 55, A: 35, S: 10 };     // 中期：三种都有
+    if (wave <= 14) return { B: 35, A: 40, S: 25 };    // 后期：S 开始常见
+    return { B: 20, A: 40, S: 40 };                    // 深水区
+  }
+
+  function rollGrade(wave) {
+    const w = gradeWeights(wave);
+    const total = w.B + w.A + w.S;
+    let r = Math.random() * total;
+    for (const k of ['B', 'A', 'S']) {
+      r -= w[k];
+      if (r <= 0) return GRADES[k];
+    }
+    return GRADES.B;
+  }
 
   // 离散加成：B 1 档 / A 2 档 / S 3 档
   const stepOf = (m) => Math.max(1, Math.round(m * 1.2));
@@ -134,12 +191,14 @@
 
     enemies: [],
     bullets: [],
+    ebullets: [],
     particles: [],
     floaters: [],
     queue: [],
     spawnTimer: 0,
     waveGap: 0,
     bossSpawned: false,
+    bossPending: false,
 
     tower: {
       x: W / 2,
@@ -341,14 +400,9 @@
     G.paused = true;
     hideHint();
 
-    // 先掷等级：B 经常出但只给 2 选 1，S 稀有但给 4 选 1 且更强
-    const grade = rollGrade();
-    G.cards.grade = grade;
-
-    const pool = shuffle(CARDS.slice());
-    const picks = pool
-      .slice(0, grade.choices)
-      .map((c) => buildOption(c, grade));
+    // 固定三张，但每张卡自己掷等级（前期多 B，后期多 S）
+    const pool = shuffle(CARDS.slice()).slice(0, 3);
+    const picks = pool.map((c) => buildOption(c, rollGrade(G.wave)));
     G.cards.options = picks;
 
     renderCardPanel();
@@ -356,23 +410,23 @@
   }
 
   function renderCardPanel() {
-    const g = G.cards.grade || GRADES.B;
-    cardsK.textContent = `升级 Lv.${G.level} · ${g.key} 级卡`;
-    cardsK.style.color = g.color;
-    cardsTip.textContent = `${g.key} 级 · ${g.choices} 选 1 · 外面只露中文，拼对单词才拿得到`;
+    cardsK.textContent = `升级 Lv.${G.level}`;
+    cardsK.style.color = '';
+    cardsTip.textContent = '三选一 · 每张卡自带 B/A/S 等级，越高越强';
 
     cardList.hidden = false;
     puzzleEl.hidden = true;
     cardList.innerHTML = '';
 
     G.cards.options.forEach((opt, i) => {
+      const g = opt.grade;
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'up grade-' + g.key + (opt.dead ? ' dead' : '');
       b.innerHTML = `
         <span class="up-icon">${opt.card.icon}</span>
         <span class="up-body">
-          <span class="up-name">${opt.card.name}</span>
+          <span class="up-name">${opt.card.name}<i class="up-grade" style="color:${g.color}">${g.key}</i></span>
           <span class="up-desc">${opt.desc}</span>
         </span>
         <span class="up-zh">${opt.zh}</span>`;
@@ -424,7 +478,7 @@
     if (letter === opt.correct) {
       applyCard(opt);
       G.cards.solved += 1;
-      puzzleTip.textContent = `✔ ${opt.word} ${opt.zh} · ${opt.card.desc}`;
+      puzzleTip.textContent = `✔ ${opt.word} ${opt.zh} · ${opt.desc}`;
       puzzleTip.className = 'puzzle-tip ok';
       floatText(TOWER_Y - 190, opt.card.name, '#7ee0a0');
       G.cards.hold = 0.75;
@@ -472,52 +526,68 @@
   }
 
   function startWave() {
-    const n = BAL.waveCounts[Math.min(G.wave - 1, BAL.waveCounts.length - 1)] || 8;
+    const n = waveCount(G.wave);
     const hp = enemyHp(G.wave);
     const q = [];
-    for (let i = 0; i < n; i++) {
-      const elite = i > 0 && i % BAL.eliteEvery === BAL.eliteEvery - 1;
-      q.push({
-        kind: elite ? 'elite' : 'grunt',
-        hp: elite ? Math.round(hp * BAL.eliteHpMul) : hp,
-      });
-    }
+    for (let i = 0; i < n; i++) q.push({ kind: pickType(G.wave), hp });
     G.queue = q;
     G.spawnTimer = 0.2;
     syncHud();
   }
 
-  function spawnFromQueue() {
-    const item = G.queue.shift();
-    if (!item) return;
-
-    const isBoss = item.kind === 'boss';
-    const isElite = item.kind === 'elite';
-    const x = isBoss
-      ? W / 2
-      : BRIDGE.left + 55 + Math.random() * (BRIDGE.right - BRIDGE.left - 110);
-
-    G.enemies.push({
-      kind: item.kind,
+  function makeEnemy(kind, hp, x, y, gen, maxGen) {
+    const t = TYPES[kind] || TYPES.grunt;
+    return {
+      kind,
       x,
-      y: isBoss ? SPAWN_Y - 60 : SPAWN_Y + Math.random() * 26 - 13,
-      r: isBoss ? 56 : isElite ? 26 : 20,
-      hp: item.hp,
-      maxHp: item.hp,
-      speed: isBoss ? BAL.bossSpeed : isElite ? BAL.eliteSpeed : BAL.speed,
+      y,
+      r: t.r,
+      hp,
+      maxHp: hp,
+      speed: BAL.speed * t.spd,
+      exp: t.exp,
       dead: false,
       hitFlash: 0,
       slowT: 0,
       burnT: 0,
       burnDps: 0,
       wob: Math.random() * Math.PI * 2,
-      mark: '',
-    });
+      gen: gen || 0,
+      maxGen: maxGen || 0,
+      // 专属状态
+      armor: kind === 'armor' ? 0.45 : 0,
+      stopY: kind === 'ranged' ? 620 : 0,
+      stopped: false,
+      shotCd: 1.6,
+      healCd: 2.4,
+      healPulse: 0,
+    };
+  }
+
+  function spawnFromQueue() {
+    const item = G.queue.shift();
+    if (!item) return;
+
+    const t = TYPES[item.kind] || TYPES.grunt;
+    const x = BRIDGE.left + 55 + Math.random() * (BRIDGE.right - BRIDGE.left - 110);
+    const hp = Math.max(1, Math.round(item.hp * t.hp));
+    const maxGen = item.kind === 'splitter' ? (Math.random() < 0.5 ? 1 : 2) : 0;
+
+    G.enemies.push(makeEnemy(item.kind, hp, x, SPAWN_Y + Math.random() * 26 - 13, 0, maxGen));
+  }
+
+  function spawnBoss() {
+    const hp = Math.round(enemyHp(BAL.waves > 0 ? G.wave : 1) * BAL.bossMul);
+    const e = makeEnemy('boss', hp, W / 2, SPAWN_Y - 70, 0, 0);
+    e.r = 56;
+    e.speed = BAL.bossSpeed;
+    e.exp = BAL.expBoss;
+    G.enemies.push(e);
+    G.bossSpawned = true;
+    syncHud();
   }
 
   function updateSpawner(dt) {
-    if (G.bossSpawned && G.enemies.length === 0 && G.queue.length === 0) return;
-
     if (G.queue.length) {
       G.spawnTimer -= dt;
       if (G.spawnTimer <= 0) {
@@ -529,20 +599,24 @@
 
     if (G.enemies.length > 0) return;
 
+    // 本波该出 BOSS：清完杂兵后放出来，打死才进下一波
+    if (G.bossPending) {
+      G.bossPending = false;
+      spawnBoss();
+      return;
+    }
+
     G.waveGap -= dt;
     if (G.waveGap > 0) return;
 
     if (G.wave >= BAL.waves) {
-      if (!G.bossSpawned) {
-        G.bossSpawned = true;
-        G.queue.push({ kind: 'boss', hp: Math.round(enemyHp(BAL.waves) * BAL.bossMul) });
-        G.spawnTimer = 0;
-        syncHud();
-      }
+      win();
       return;
     }
 
     G.wave += 1;
+    G.bossPending = G.wave % BAL.bossEvery === 0;
+    G.bossSpawned = false;
     startWave();
     G.waveGap = BAL.waveGap;
   }
@@ -616,12 +690,24 @@
     G.kills += 1;
     puff(e.x, e.y, '#9be26a', e.kind === 'boss' ? 70 : 14);
 
-    if (e.kind === 'boss') {
-      win();
-      return;
+    // 分裂怪：死了裂成两只小的，最多裂 maxGen 代
+    if (e.kind === 'splitter' && e.gen < e.maxGen) {
+      const childHp = Math.max(1, Math.round(e.maxHp * 0.35));
+      for (let i = 0; i < 2; i++) {
+        const c = makeEnemy('grunt', childHp, e.x + (i ? 26 : -26), e.y + 6, e.gen + 1, e.maxGen);
+        c.speed = e.speed * 1.15;
+        G.enemies.push(c);
+      }
+      floatText(e.y - 20, '分裂！', '#ffd166');
     }
 
-    addExp(e.kind === 'elite' ? BAL.expElite : BAL.expGrunt);
+    // 升级怪：打死直接升一级
+    if (e.kind === 'leveler') {
+      G.pendingLevels += 1;
+      floatText(e.y - 20, '升级！', '#7ee0a0');
+    }
+
+    addExp(e.exp != null ? e.exp : TYPES[e.kind] ? TYPES[e.kind].exp : 1);
   }
 
   function updateEnemies(dt) {
@@ -638,7 +724,37 @@
       }
 
       e.wob += dt * 6;
-      e.y += e.speed * dt * (e.slowT > 0 ? 0.62 : 1);
+
+      // 远程怪：走到中途停下来朝塔开火
+      if (e.kind === 'ranged') {
+        if (!e.stopped && e.y >= e.stopY) e.stopped = true;
+        if (e.stopped) {
+          e.shotCd -= dt;
+          if (e.shotCd <= 0) {
+            e.shotCd = 2;
+            enemyShoot(e);
+          }
+        }
+      }
+
+      // 奶妈：定期给周围 220px 内的怪回血
+      if (e.kind === 'healer') {
+        e.healCd -= dt;
+        if (e.healCd <= 0) {
+          e.healCd = 3;
+          e.healPulse = 1;
+          for (const o of G.enemies) {
+            if (o.dead || o === e) continue;
+            if (Math.hypot(o.x - e.x, o.y - e.y) > 220) continue;
+            o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.12);
+          }
+        }
+      }
+      if (e.healPulse > 0) e.healPulse = Math.max(0, e.healPulse - dt * 2);
+
+      if (!(e.kind === 'ranged' && e.stopped)) {
+        e.y += e.speed * dt * (e.slowT > 0 ? 0.62 : 1);
+      }
 
       if (e.y >= TOWER_Y) {
         e.dead = true;
@@ -687,7 +803,8 @@
           hitEnemy(e, b);
           b.hit.push(e);
 
-          if (b.pierce > 0) {
+          // 护甲怪：子弹打在它身上就停，穿透也穿不过去
+          if (b.pierce > 0 && !e.armor) {
             b.pierce -= 1;
           } else {
             b.dead = true;
@@ -701,7 +818,8 @@
   }
 
   function hitEnemy(e, b) {
-    e.hp -= b.damage;
+    const dmg = b.damage * (1 - (e.armor || 0));
+    e.hp -= dmg;
     e.hitFlash = 1;
 
     if (b.crit) {
@@ -714,10 +832,49 @@
 
     if (G.tower.burnLevel > 0) {
       e.burnT = 2;
-      e.burnDps = b.damage * BAL.buffBurn * G.tower.burnLevel;
+      e.burnDps = dmg * BAL.buffBurn * G.tower.burnLevel;
     }
 
     if (e.hp <= 0) killEnemy(e);
+  }
+
+  /** 远程怪朝塔开火 */
+  function enemyShoot(e) {
+    const dx = G.tower.x - e.x;
+    const dy = TOWER_Y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    G.ebullets.push({
+      x: e.x,
+      y: e.y,
+      vx: (dx / d) * 330,
+      vy: (dy / d) * 330,
+      dead: false,
+    });
+    puff(e.x, e.y, '#ff8a6b', 4);
+  }
+
+  function updateEnemyBullets(dt) {
+    for (const b of G.ebullets) {
+      if (b.dead) continue;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+
+      if (Math.hypot(b.x - G.tower.x, b.y - TOWER_Y) < 46) {
+        b.dead = true;
+        puff(b.x, b.y, '#ff7a6b', 16);
+        shake = 1;
+        G.hp -= 1;
+        syncHud();
+        if (G.hp <= 0) {
+          lose();
+          return;
+        }
+        continue;
+      }
+
+      if (b.y > TOWER_Y + 60 || b.y < -60 || b.x < -40 || b.x > W + 40) b.dead = true;
+    }
+    G.ebullets = G.ebullets.filter((b) => !b.dead);
   }
 
   /* ----------------------------------------------------------
@@ -804,12 +961,14 @@
     G.pendingLevels = 0;
     G.enemies = [];
     G.bullets = [];
+    G.ebullets = [];
     G.particles = [];
     G.floaters = [];
     G.queue = [];
     G.spawnTimer = 0;
     G.waveGap = 0;
     G.bossSpawned = false;
+    G.bossPending = false;
     G.tower = {
       x: W / 2,
       y: TOWER_Y,
@@ -878,6 +1037,7 @@
 
     updateTower(dt);
     updateBullets(dt);
+    updateEnemyBullets(dt);
     updateParticles(dt);
   }
 
@@ -911,6 +1071,7 @@
     drawEnemies();
     drawTower();
     drawBullets();
+    drawEnemyBullets();
     drawParticles();
     drawFloaters();
   }
@@ -1008,6 +1169,25 @@
     ctx.stroke();
   }
 
+  const TYPE_COLOR = {
+    grunt: ['#9be26a', '#3f7a2c'],
+    elite: ['#ffe6a8', '#c98f2a'],
+    armor: ['#c3d2e8', '#5a6c86'],
+    ranged: ['#ffb09a', '#a83b2c'],
+    splitter: ['#8ce6d8', '#2f7d72'],
+    healer: ['#b4f5c0', '#2f8a45'],
+    leveler: ['#b6dcff', '#2f6da8'],
+    boss: ['#ff9b8a', '#b83a30'],
+  };
+
+  const TYPE_ICON = {
+    armor: '◍',
+    ranged: '◎',
+    splitter: '✂',
+    healer: '＋',
+    leveler: '★',
+  };
+
   function drawEnemies() {
     for (const e of G.enemies) {
       if (e.dead) continue;
@@ -1026,20 +1206,43 @@
         e.x - e.r * 0.3, y - e.r * 0.35, e.r * 0.2,
         e.x, y, e.r
       );
-      if (isBoss) {
-        bodyGrad.addColorStop(0, '#ff9b8a');
-        bodyGrad.addColorStop(1, '#b83a30');
-      } else if (isElite) {
-        bodyGrad.addColorStop(0, '#ffe6a8');
-        bodyGrad.addColorStop(1, '#c98f2a');
-      } else {
-        bodyGrad.addColorStop(0, '#9be26a');
-        bodyGrad.addColorStop(1, '#3f7a2c');
-      }
+      const col = TYPE_COLOR[e.kind] || TYPE_COLOR.grunt;
+      bodyGrad.addColorStop(0, col[0]);
+      bodyGrad.addColorStop(1, col[1]);
       ctx.beginPath();
       ctx.arc(e.x, y, e.r, 0, Math.PI * 2);
       ctx.fillStyle = bodyGrad;
       ctx.fill();
+
+      // 护甲怪：外面套一层壳
+      if (e.armor) {
+        ctx.beginPath();
+        ctx.arc(e.x, y, e.r + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(200, 215, 235, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
+      // 奶妈回血时的绿光
+      if (e.healPulse > 0) {
+        ctx.beginPath();
+        ctx.arc(e.x, y, e.r + 6 + e.healPulse * 10, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(126, 224, 160, ${e.healPulse * 0.6})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
+      // 种类标记
+      if (TYPE_ICON[e.kind]) {
+        ctx.font = '800 18px "PingFang SC", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.72)';
+        ctx.strokeText(TYPE_ICON[e.kind], e.x + e.r * 0.9, y - e.r * 0.9);
+        ctx.fillStyle = col[0];
+        ctx.fillText(TYPE_ICON[e.kind], e.x + e.r * 0.9, y - e.r * 0.9);
+      }
 
       // 点燃：外圈红焰
       if (e.burnT > 0) {
@@ -1171,6 +1374,21 @@
       ctx.fillStyle = b.crit ? '#ffd0d0' : '#fff3c4';
       ctx.fill();
       ctx.lineCap = 'butt';
+    }
+  }
+
+  function drawEnemyBullets() {
+    for (const b of G.ebullets) {
+      if (b.dead) continue;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff7a6b';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 122, 107, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   }
 

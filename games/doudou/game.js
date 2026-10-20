@@ -27,15 +27,16 @@
   const BAL = Object.assign({
     dmgBase: 12,        // 初始单发伤害
     playerHp: 10,       // 桥头血量：漏一个小怪扣 1 点
-    baseRate: 5.0,      // 初始攻速（发/秒）
+    baseRate: 6.0,      // 初始攻速（发/秒）
     rateStep: 0.2,      // 每档攻速 +0.2/s
     rateFloor: 0.8,     // 攻速下限（吃了 -20 档的卡也不至于停火）
-    rateMaxTier: 40,    // 攻速档位上限 → 5 + 8 = 13/s
+    rateMaxTier: 40,    // 攻速档位上限 → 6 + 8 = 14/s
 
     hpBase: 36,         // 第 1 波单个小怪血量
-    hpGrowth: 1.65,     // 每过一波 ×1.65
-    bossAt: 160,        // 杀满这么多杂兵，BOSS 登场
-    bossMul: 12,        // BOSS 血量 = 当前波血量 ×12
+    hpGrowth: 1.88,     // 每过一波 ×1.88
+    waves: 10,          // 10 波杂兵，清完 BOSS 登场
+    bossMul: 14,        // BOSS 血量 = 第 10 波血量 ×14
+    formationRowGap: 90, // 阵型里前后排的间距（像素）
 
     dmgAddMin: 4,       // 伤害卡：固定 +4 起步，每命中 +1，最多 +60
     dmgAddMax: 60,
@@ -48,7 +49,7 @@
     shotsMin: -24,      // 弹道卡从 -24 开始
     shotsMax: 5,
 
-    cardCd: 18,         // 一对卡之间的冷却（秒）
+    cardCd: 14,         // 一对卡之间的冷却（秒）
     cardSpeed: 230,     // 卡片下落速度 → 5.8 秒落地
 
     // 攻击卡很少出：单张抽到的权重只有 12
@@ -118,10 +119,7 @@
     waveGap: 0,
     round: 0,
     waveSize: 0,
-    waveQueue: 0,
-    spawnGap: 1,
     cols: 2,
-    spawnIdx: 0,
     bossSpawned: false,
     cardCd: 0,
     player: {
@@ -216,9 +214,41 @@
     return a;
   }
 
-  // 列数：2 → 4 → 6 → 8，按波数推进
-  function waveCols(n) {
-    return Math.min(8, 2 * Math.ceil(n / 2));
+  /* ----------------------------------------------------------
+     阵型：每波固定一个形状，整组同时出现在桥顶
+     ----------------------------------------------------------
+     行号 0 是最前面（离桥头最近）的一排，行号越大越靠后。
+     形状用 (列, 行) 生成，再换算成屏幕坐标。 */
+
+  const WAVE_SCHEDULE = [
+    { kind: 'line',    w: 4, h: 1 },   // 1 波：4       一字
+    { kind: 'rect',    w: 3, h: 2 },   // 2 波：6       长方形
+    { kind: 'invTri',  w: 4, h: 4 },   // 3 波：10      倒三角（尖头朝桥头）
+    { kind: 'rect',    w: 4, h: 3 },   // 4 波：12      长方形
+    { kind: 'diamond', w: 4, h: 4 },   // 5 波：16      菱形
+    { kind: 'invTri',  w: 5, h: 5 },   // 6 波：15      倒三角
+    { kind: 'rect',    w: 5, h: 3 },   // 7 波：15      长方形
+    { kind: 'rect',    w: 5, h: 4 },   // 8 波：20      长方形
+    { kind: 'diamond', w: 5, h: 5 },   // 9 波：25      菱形
+    { kind: 'rect',    w: 5, h: 6 },   // 10 波：30     长方形
+  ];
+
+  function formationCells(kind, w, h) {
+    const cells = [];
+    const row = (r, width) => {
+      const start = (w - width) / 2;
+      for (let k = 0; k < width; k++) cells.push({ c: start + k, r });
+    };
+
+    if (kind === 'line') row(0, w);
+    else if (kind === 'rect') for (let r = 0; r < h; r++) row(r, w);
+    else if (kind === 'tri') for (let r = 0; r < h; r++) row(r, h - r);
+    else if (kind === 'invTri') for (let r = 0; r < h; r++) row(r, r + 1);
+    else if (kind === 'diamond') {
+      const rows = 2 * w - 1;
+      for (let r = 0; r < rows; r++) row(r, w - Math.abs(w - 1 - r));
+    }
+    return cells;
   }
 
   // 敌人站位：整组居中，第一波（2 列）正好落在左右半屏的中线上（180 / 540）。
@@ -243,7 +273,9 @@
     const ratio = Math.max(0, p.hp / p.maxHp);
     hpFill.style.width = `${ratio * 100}%`;
     hpFill.classList.toggle('low', ratio <= 0.3);
-    stageName.textContent = `守护豆豆 · 第 ${G.wave} 波`;
+    stageName.textContent = G.bossSpawned
+      ? '守护豆豆 · BOSS'
+      : `守护豆豆 · 第 ${G.wave} 波`;
   }
 
   /* ----------------------------------------------------------
@@ -255,7 +287,6 @@
     G.state = 'playing';
     G.waveGap = 1.4;
     G.cols = 2;
-    G.spawnIdx = 0;
     G.bossSpawned = false;
     G.spawnTimer = 0;
     G.cardCd = 0;
@@ -276,19 +307,14 @@
     return BAL.dmgCapBase * Math.pow(BAL.dmgCapGrowth, G.wave - 1);
   }
 
-  function spawnEnemy() {
-    const cols = G.cols;
-
-    const lane = G.spawnIdx % cols;
-    G.spawnIdx += 1;
-    const lx = laneX(lane, cols);
-
+  // 在指定位置放一个杂兵（一波开始时整组一起放出来）
+  function spawnGrunt(x, y, col) {
     const hp = enemyHp(G.wave);
 
     G.enemies.push({
       kind: 'grunt',
-      x: lx,
-      y: -70,
+      x,
+      y,
       hp,
       maxHp: hp,
       speed: 72,
@@ -296,14 +322,15 @@
       dead: false,
       hitFlash: 0,
       // 相邻两列的血条错开，后期数字长，不然会糊成一片
-      lift: (lane % 2) * 34,
+      lift: (Math.round(col) % 2) * 34,
       wob: Math.random() * Math.PI * 2,
     });
   }
 
   function spawnBoss() {
     // BOSS 是这道坎：当前波血量的十几倍
-    const hp = Math.round(enemyHp(G.wave) * BAL.bossMul);
+    // BOSS 按第 10 波的基准血量放大
+    const hp = Math.round(enemyHp(BAL.waves) * BAL.bossMul);
 
     G.enemies.push({
       kind: 'boss',
@@ -398,44 +425,42 @@
     return { wL, wR: W - wL, left, right };
   }
 
-  const BOSS_AT = BAL.bossAt;      // 打死这么多杂兵后，最终 BOSS 登场
-
-  // 一波一波来：生成完 → 等清场 → 歇一会 → 下一波
+  // 一波一波来：整组阵型一次放出来 → 等清场 → 歇一会 → 下一波
+  // 第 10 波清完，第 11 波直接上 BOSS。
   function startNextWave() {
     G.round += 1;
     G.wave = G.round;
-    G.cols = waveCols(G.wave);
-
-    G.waveSize = 4 + G.wave;           // 每波数量随波数增长
-    G.waveQueue = G.waveSize;
-    G.spawnGap = Math.max(0.4, 1.0 - G.wave * 0.05);
     G.spawnTimer = 0;
     G.waveGap = 2.2;                   // 清场后的休息时间
 
-    syncHud();
-
-    if (G.kills >= BOSS_AT && !G.bossSpawned) {
-      spawnBoss();
-      G.bossSpawned = true;
-      G.waveQueue = 0;
+    if (G.round > BAL.waves) {
+      if (!G.bossSpawned) {
+        spawnBoss();
+        G.bossSpawned = true;
+      }
+      syncHud();
+      return;
     }
+
+    const sched = WAVE_SCHEDULE[Math.min(G.round - 1, WAVE_SCHEDULE.length - 1)];
+    const cells = formationCells(sched.kind, sched.w, sched.h);
+    G.cols = sched.w;
+    G.waveSize = cells.length;
+
+    // 整组同时放出来：y 用行号错开，阵型就固定住了
+    for (const cell of cells) {
+      spawnGrunt(
+        laneX(cell.c, G.cols),
+        -70 - cell.r * BAL.formationRowGap,
+        cell.c
+      );
+    }
+
+    syncHud();
   }
 
   function updateSpawner(dt) {
     if (G.bossSpawned && G.enemies.length === 0) return;
-
-    // 这一波还没吐完
-    if (G.waveQueue > 0) {
-      G.spawnTimer -= dt;
-      if (G.spawnTimer <= 0) {
-        spawnEnemy();
-        G.waveQueue -= 1;
-        G.spawnTimer = G.spawnGap;
-      }
-      return;
-    }
-
-    // 吐完了，等场上清干净
     if (G.enemies.length > 0) return;
 
     // 清场了，歇一会儿再开下一波
@@ -798,7 +823,6 @@
     G.waveGap = 0;
     G.round = 0;
     G.waveSize = 0;
-    G.waveQueue = 0;
     G.bossSpawned = false;
     G.cardCd = 0;
 

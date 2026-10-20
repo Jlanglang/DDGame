@@ -41,6 +41,7 @@
 
   const CAM_LERP = 9;
   const PORTAL_X = 3040;
+  const LAIR_PORTAL_X = 70;   // 巢穴回森林的门（左侧）
   const SHOP_X = 200;
 
   /* 平台：x 左边缘，y 顶面，w 宽 */
@@ -680,12 +681,12 @@
     el.buyWeapon.textContent = SAVE.weapon >= 5 ? '武器已满级' : `武器 +5 攻 · ${fmt(wCost)} 金`;
     el.buyWeapon.disabled = SAVE.weapon >= 5 || SAVE.gold < wCost;
 
-    el.buyArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +30 血 · ${fmt(aCost)} 金`;
+    el.buyArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +24 血 · ${fmt(aCost)} 金`;
     el.buyArmor.disabled = SAVE.armor >= 5 || SAVE.gold < aCost;
 
     el.spAtk.textContent = '+2 攻 · 1 点';
     el.spAtk.disabled = SAVE.sp <= 0;
-    el.spHp.textContent = '+20 血 · 1 点';
+    el.spHp.textContent = '+14 血 · 1 点';
     el.spHp.disabled = SAVE.sp <= 0;
 
     el.growTip.textContent = SAVE.sp > 0
@@ -746,7 +747,7 @@
     el.shopWeapon.textContent = SAVE.weapon >= 5 ? '武器已满级' : `武器 +5 攻 · ${fmt(wCost)} 金`;
     el.shopWeapon.disabled = SAVE.weapon >= 5 || SAVE.gold < wCost;
 
-    el.shopArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +30 血 · ${fmt(aCost)} 金`;
+    el.shopArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +24 血 · ${fmt(aCost)} 金`;
     el.shopArmor.disabled = SAVE.armor >= 5 || SAVE.gold < aCost;
 
     el.shopPotion.textContent = SAVE.potions >= 5
@@ -1039,8 +1040,14 @@
     G.boss = null;
     G.bossSpawned = false;
     G.bossDelay = 0;
-    G.portal = null;
     G.spawnT = 1.6;
+    // 传送门双向常驻：森林尽头 → 巢穴，巢穴左侧 → 森林
+    // 进图后锁 0.6s，避免刚落地就被门弹回去
+    G.portal =
+      n === 1
+        ? { x: LAIR_PORTAL_X, y: GROUND_Y, t: 0, to: 0 }
+        : { x: PORTAL_X, y: GROUND_Y, t: 0, to: 1 };
+    G.portalLock = 0.6;
 
     const p = G.player;
     p.x = n === 0 ? 340 : 180;
@@ -2488,7 +2495,7 @@
     }
   }
 
-  /* 森林尽头的传送门 */
+  /* 双向传送门：森林尽头 ⇄ 巢穴左侧 */
   function drawPortal() {
     const po = G.portal;
     if (!po) return;
@@ -2545,11 +2552,11 @@
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    // 门下的提示
+    // 门下的提示：指向对面那张图
     ctx.font = '700 26px "PingFang SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(230, 213, 255, 0.95)';
-    ctx.fillText('蘑菇王巢穴', po.x, po.y - 186);
+    ctx.fillText(po.to === 1 ? '蘑菇王巢穴' : '蘑菇森林', po.x, po.y - 186);
     ctx.textAlign = 'left';
   }
 

@@ -27,7 +27,7 @@
     bulletSpeed: 1000,
 
     hpBase: 10,         // 第 1 波小怪血量
-    hpGrowth: 1.19,     // 每波 ×1.19（12 波 + BOSS，一把约 2 分 50）
+    hpGrowth: 1.2,      // 每波 ×1.2（12 波 + BOSS，一把约 2 分 50）
     speed: 84,          // 小怪推进速度（像素/秒）
     waves: 12,          // 12 波杂兵，清完 BOSS 登场
     waveCounts: [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24],
@@ -62,15 +62,53 @@
      升级卡池：每张卡绑一个 buff，单词从词库里按 buff 抽
      ---------------------------------------------------------- */
 
+  /** 卡片分级：B 常见但弱，S 稀有但强；等级越高给的选择越多 */
+  const GRADES = {
+    B: { key: 'B', weight: 62, choices: 2, mul: 1,   color: '#8fb4ff' },
+    A: { key: 'A', weight: 28, choices: 3, mul: 1.5, color: '#ffd166' },
+    S: { key: 'S', weight: 10, choices: 4, mul: 2.2, color: '#ff9ec4' },
+  };
+
+  // 离散加成：B 1 档 / A 2 档 / S 3 档
+  const stepOf = (m) => Math.max(1, Math.round(m * 1.2));
+
   const CARDS = [
-    { id: 'dmg',    name: '强化弹头', icon: '✦', desc: '伤害 +22%',       buff: 'dmg' },
-    { id: 'rate',   name: '速射机匣', icon: '⇈', desc: '攻速 +0.35/s',    buff: 'rate' },
-    { id: 'split',  name: '分裂弹道', icon: '⌇', desc: '弹道 +1',         buff: 'split' },
-    { id: 'shield', name: '护盾装甲', icon: '◈', desc: '塔血 +1 并回 1',  buff: 'shield' },
-    { id: 'slow',   name: '冰冻弹',   icon: '❄', desc: '命中减速',        buff: 'slow' },
-    { id: 'burn',   name: '燃烧弹',   icon: '♨', desc: '命中点燃 2 秒',   buff: 'burn' },
-    { id: 'pierce', name: '穿甲弹',   icon: '➤', desc: '子弹穿透 +1',     buff: 'pierce' },
-    { id: 'crit',   name: '瞄准镜',   icon: '◎', desc: '暴击 +10%', buff: 'crit' },
+    { id: 'dmg', name: '强化弹头', icon: '✦', buff: 'dmg',
+      desc: (m) => `伤害 +${Math.round(22 * m)}%`,
+      apply: (t, m) => { t.dmgMul *= 1 + 0.22 * m; } },
+
+    { id: 'rate', name: '速射机匣', icon: '⇈', buff: 'rate',
+      desc: (m) => `攻速 +${(0.35 * m).toFixed(2)}/s`,
+      apply: (t, m) => { t.rate = Math.min(BAL.rateMax, t.rate + BAL.buffRate * m); } },
+
+    { id: 'split', name: '分裂弹道', icon: '⌇', buff: 'split',
+      desc: (m) => `弹道 +${stepOf(m)}`,
+      apply: (t, m) => { t.shots = Math.min(BAL.shotsMax, t.shots + stepOf(m)); } },
+
+    { id: 'shield', name: '护盾装甲', icon: '◈', buff: 'shield',
+      desc: (m) => `塔血 +${stepOf(m)} 并回血`,
+      apply: (t, m) => {
+        const n = stepOf(m);
+        t.shield += n;
+        G.maxHp += n;
+        G.hp = Math.min(G.maxHp, G.hp + n);
+      } },
+
+    { id: 'slow', name: '冰冻弹', icon: '❄', buff: 'slow',
+      desc: (m) => `命中减速 Lv.${stepOf(m)}`,
+      apply: (t, m) => { t.slowLevel = Math.min(BAL.slowMax, t.slowLevel + stepOf(m)); } },
+
+    { id: 'burn', name: '燃烧弹', icon: '♨', buff: 'burn',
+      desc: (m) => `点燃 Lv.${stepOf(m)}`,
+      apply: (t, m) => { t.burnLevel = Math.min(BAL.burnMax, t.burnLevel + stepOf(m)); } },
+
+    { id: 'pierce', name: '穿甲弹', icon: '➤', buff: 'pierce',
+      desc: (m) => `穿透 +${stepOf(m)}`,
+      apply: (t, m) => { t.pierce += stepOf(m); } },
+
+    { id: 'crit', name: '瞄准镜', icon: '◎', buff: 'crit',
+      desc: (m) => `暴击 +${Math.round(10 * m)}%`,
+      apply: (t, m) => { t.crit = Math.min(0.75, t.crit + BAL.buffCrit * m); } },
   ];
 
   /* ----------------------------------------------------------
@@ -257,19 +295,34 @@
     return pick(all);
   }
 
-  function buildOption(card) {
+  function rollGrade() {
+    const keys = ['B', 'A', 'S'];
+    const total = keys.reduce((s, k) => s + GRADES[k].weight, 0);
+    let r = Math.random() * total;
+    for (const k of keys) {
+      r -= GRADES[k].weight;
+      if (r <= 0) return GRADES[k];
+    }
+    return GRADES.B;
+  }
+
+  function buildOption(card, grade) {
     const item = wordForCard(card.buff);
     const w = item.w;
     const blank = w.length <= 3 ? w.length - 1 : 1 + Math.floor(Math.random() * (w.length - 2));
     const correct = w[blank];
 
-    const others = w.split('').filter((c, i) => i !== blank && c !== correct);
-    const d1 = others.length ? pick(others) : 'E';
-    let d2 = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-    if (d2 === correct) d2 = d2 === 'A' ? 'B' : 'A';
+    // 三个候选字母必须互不相同
+    const others = [...new Set(w.split('').filter((c, i) => i !== blank && c !== correct))];
+    const pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter((c) => c !== correct);
+    const d1 = others.length ? pick(others) : pick(pool);
+    const d2 = pick(pool.filter((c) => c !== d1));
 
     return {
       card,
+      grade,
+      mul: grade.mul,
+      desc: card.desc(grade.mul),
       word: w,
       zh: item.zh,
       blank,
@@ -288,16 +341,14 @@
     G.paused = true;
     hideHint();
 
-    // 三张不同种类的卡
+    // 先掷等级：B 经常出但只给 2 选 1，S 稀有但给 4 选 1 且更强
+    const grade = rollGrade();
+    G.cards.grade = grade;
+
     const pool = shuffle(CARDS.slice());
-    const seen = new Set();
-    const picks = [];
-    for (const c of pool) {
-      if (picks.length >= 3) break;
-      if (seen.has(c.id)) continue;
-      seen.add(c.id);
-      picks.push(buildOption(c));
-    }
+    const picks = pool
+      .slice(0, grade.choices)
+      .map((c) => buildOption(c, grade));
     G.cards.options = picks;
 
     renderCardPanel();
@@ -305,8 +356,10 @@
   }
 
   function renderCardPanel() {
-    cardsK.textContent = `升级 Lv.${G.level}`;
-    cardsTip.textContent = '三选一 · 外面只露中文，拼对单词才拿得到';
+    const g = G.cards.grade || GRADES.B;
+    cardsK.textContent = `升级 Lv.${G.level} · ${g.key} 级卡`;
+    cardsK.style.color = g.color;
+    cardsTip.textContent = `${g.key} 级 · ${g.choices} 选 1 · 外面只露中文，拼对单词才拿得到`;
 
     cardList.hidden = false;
     puzzleEl.hidden = true;
@@ -315,12 +368,12 @@
     G.cards.options.forEach((opt, i) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'up' + (opt.dead ? ' dead' : '');
+      b.className = 'up grade-' + g.key + (opt.dead ? ' dead' : '');
       b.innerHTML = `
         <span class="up-icon">${opt.card.icon}</span>
         <span class="up-body">
           <span class="up-name">${opt.card.name}</span>
-          <span class="up-desc">${opt.card.desc}</span>
+          <span class="up-desc">${opt.desc}</span>
         </span>
         <span class="up-zh">${opt.zh}</span>`;
       b.addEventListener('click', () => pickCard(i));
@@ -343,7 +396,7 @@
     cardList.hidden = true;
     puzzleEl.hidden = false;
 
-    puzzleName.textContent = `${opt.card.name} · ${opt.card.desc}`;
+    puzzleName.textContent = `${opt.card.name} · ${opt.desc}`;
     puzzleZh.textContent = opt.zh;
     puzzleWord.innerHTML = blankHtml(opt);
     // 长单词缩小字号，别折行
@@ -369,7 +422,7 @@
     if (!opt || opt.dead || G.cards.hold > 0) return;
 
     if (letter === opt.correct) {
-      applyCard(opt.card);
+      applyCard(opt);
       G.cards.solved += 1;
       puzzleTip.textContent = `✔ ${opt.word} ${opt.zh} · ${opt.card.desc}`;
       puzzleTip.className = 'puzzle-tip ok';
@@ -405,23 +458,8 @@
     syncHud();
   }
 
-  function applyCard(card) {
-    const t = G.tower;
-    switch (card.id) {
-      case 'dmg': t.dmgMul *= BAL.buffDmg; break;
-      case 'rate': t.rate = Math.min(BAL.rateMax, t.rate + BAL.buffRate); break;
-      case 'split': t.shots = Math.min(BAL.shotsMax, t.shots + 1); break;
-      case 'shield':
-        t.shield += 1;
-        G.maxHp += 1;
-        G.hp = Math.min(G.maxHp, G.hp + 1);
-        break;
-      case 'slow': t.slowLevel = Math.min(BAL.slowMax, t.slowLevel + 1); break;
-      case 'burn': t.burnLevel = Math.min(BAL.burnMax, t.burnLevel + 1); break;
-      case 'pierce': t.pierce += 1; break;
-      case 'crit': t.crit = Math.min(0.75, t.crit + BAL.buffCrit); break;
-      default: break;
-    }
+  function applyCard(opt) {
+    opt.card.apply(G.tower, opt.mul);
     syncHud();
   }
 
@@ -473,7 +511,7 @@
       burnT: 0,
       burnDps: 0,
       wob: Math.random() * Math.PI * 2,
-      mark: isElite || isBoss ? String.fromCharCode(65 + Math.floor(Math.random() * 26)) : '',
+      mark: '',
     });
   }
 
@@ -1027,17 +1065,6 @@
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.globalAlpha = 1;
-      }
-
-      if (e.mark) {
-        ctx.font = '800 24px "SF Mono", Consolas, monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-        ctx.strokeText(e.mark, e.x, y - e.r - 22);
-        ctx.fillStyle = '#ffd166';
-        ctx.fillText(e.mark, e.x, y - e.r - 22);
       }
 
       if (e.hp < e.maxHp) {

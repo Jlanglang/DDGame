@@ -282,6 +282,27 @@ body {
 
 .up:active { transform: scale(0.98); border-color: rgba(255, 209, 102, 0.6); }
 
+/* 卡片等级配色 */
+.up.grade-B { border-color: rgba(143, 180, 255, 0.34); }
+.up.grade-A { border-color: rgba(255, 209, 102, 0.55); }
+.up.grade-S {
+  border-color: rgba(255, 158, 196, 0.6);
+  background: rgba(48, 26, 40, 0.92);
+  box-shadow: 0 0 22px -6px rgba(255, 158, 196, 0.45);
+}
+
+.up.grade-A .up-icon { background: rgba(255, 209, 102, 0.18); }
+.up.grade-S .up-icon {
+  background: rgba(255, 158, 196, 0.18);
+  border-color: rgba(255, 158, 196, 0.4);
+  color: #ffcfe0;
+}
+.up.grade-S .up-zh {
+  background: rgba(255, 158, 196, 0.16);
+  border-color: rgba(255, 158, 196, 0.45);
+  color: #ffd7e5;
+}
+
 .up.dead {
   opacity: 0.3;
   filter: grayscale(1);

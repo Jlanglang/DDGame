@@ -27,7 +27,7 @@
     bulletSpeed: 1000,
 
     hpBase: 10,         // 第 1 波小怪血量
-    hpGrowth: 1.12,     // 每波 ×1.12（200 波无尽，先按这个跑，后面再调）
+    hpGrowth: 1.105,    // 每波 ×1.105（200 波无尽）
     speed: 84,          // 小怪推进速度（像素/秒）
     waves: 200,         // 无尽模式：200 波，每 20 波一个 BOSS
     spawnGap: 0.26,     // 同一波里两只怪的间隔（越小越挤）
@@ -72,11 +72,11 @@
   function typeWeights(wave) {
     const w = { grunt: 100 };
     if (wave >= 3) w.elite = 26;
-    if (wave >= 5) w.armor = 24;
-    if (wave >= 7) w.ranged = 22;
-    if (wave >= 9) w.splitter = 20;
-    if (wave >= 11) w.healer = 16;
-    if (wave >= 13) w.leveler = 7;
+    if (wave >= 4) w.armor = 24;
+    if (wave >= 5) w.ranged = 22;
+    if (wave >= 6) w.splitter = 20;
+    if (wave >= 8) w.healer = 16;
+    if (wave >= 10) w.leveler = 7;
     return w;
   }
 
@@ -252,6 +252,7 @@
   const overEl = document.getElementById('over');
   const overSub = document.getElementById('overSub');
   const pauseBtn = document.getElementById('pause');
+  const speedEl = document.getElementById('speed');
   const hintEl = document.getElementById('hint');
 
   let hintShown = false;
@@ -1475,13 +1476,26 @@
 
   let last = 0;
   const QS = new URLSearchParams(location.search);
-  const FAST = Math.max(1, Math.min(8, Number(QS.get('fast')) || 1));
+  const SPEEDS = [1, 2, 4];
+  let speed = Math.max(1, Math.min(4, Number(QS.get('fast')) || 1));
+  if (SPEEDS.indexOf(speed) === -1) speed = 1;
+
+  function applySpeed() {
+    speedEl.textContent = `×${speed}`;
+    speedEl.classList.toggle('on', speed > 1);
+  }
+
+  function cycleSpeed() {
+    const i = SPEEDS.indexOf(speed);
+    speed = SPEEDS[(i + 1) % SPEEDS.length];
+    applySpeed();
+  }
 
   function frame(now) {
     if (!last) last = now;
     let dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    dt *= FAST;
+    dt *= speed;
 
     if (!G.paused && G.state === 'playing') {
       let remain = dt;
@@ -1495,9 +1509,9 @@
       updateParticles(dt);
     }
 
-    // 选卡面板的对错停留（暂停中也要走）
+    // 选卡面板的对错停留（暂停中也要走，按真实时间）
     if (G.cards.hold > 0) {
-      G.cards.hold -= dt / FAST;
+      G.cards.hold -= dt / speed;
       if (G.cards.hold <= 0) {
         G.cards.hold = 0;
         finishCardHold();
@@ -1513,6 +1527,7 @@
      ---------------------------------------------------------- */
 
   pauseBtn.addEventListener('click', () => setPaused(!G.paused));
+  speedEl.addEventListener('click', cycleSpeed);
   puzzleNext.addEventListener('click', () => closeCards());
   document.getElementById('again').addEventListener('click', reset);
 
@@ -1521,6 +1536,7 @@
       e.preventDefault();
       setPaused(!G.paused);
     }
+    if (e.key === 'f' || e.key === 'F') cycleSpeed();
   });
 
   /* ----------------------------------------------------------
@@ -1529,6 +1545,7 @@
 
   resize();
   reset();
+  applySpeed();
   if (QS.has('debug')) {
     window.__g = G;
     window.__api = {

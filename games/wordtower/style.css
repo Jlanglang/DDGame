@@ -98,6 +98,33 @@ body {
 
 .pause:active { transform: scale(0.94); }
 
+/* 倍速开关 */
+.speed {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  background: rgba(20, 26, 38, 0.72);
+  color: #cfd8ea;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.speed.on {
+  color: #1a1c14;
+  background: linear-gradient(180deg, #f0d24a, #d9b02e);
+  border-color: transparent;
+}
+
+.speed:active { transform: scale(0.95); }
+
 .pause.paused i:first-child {
   width: 0;
   height: 0;

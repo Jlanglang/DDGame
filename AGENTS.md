@@ -8,6 +8,9 @@
   - GitHub：https://github.com/Jlanglang/DDGame
   - 线上：https://jlanglang.github.io/DDGame/
   - 提交到 `master` 就会自动部署（GitHub Pages）。
+- **AI 只做本地 `git commit`，不执行 `git push`**。推送由主人手动完成：
+  当前环境没有可用的 GitHub 凭据，`push` 会卡在认证上。
+  改完 → 本地验证 → commit → 告诉主人「已本地提交，请推送」。
 - `D:\DP\bridge-defense` 是旧副本，**已冻结**，不要再去那里改。
 - 新游戏放 `games/<id>/`，并在根目录 `index.html` 的游戏库里加一张卡。
 - 本地调试工具在 `D:\DP\.tools\`（不参与部署）。
@@ -89,3 +92,20 @@ node D:\DP\.tools\input-test.js
 - 加怪物：在 `TYPES` 里加一条，再在 `typeWeights` 里按波数开放，行为写在 `updateEnemies` / `killEnemy`。
 - 调参：`node D:\DP\.tools\headless-word.js --runs 40 --acc 0.8 --max 1800`
   （`--acc` = 模拟玩家的单词正确率，`--max` = 单局最长秒数；玩家决策用局内种子，结果可复现）。
+
+## 6. 豆豆勇者（games/hero）
+
+**横屏割草 + 单挑 BOSS，两张地图分开**（照冒险岛「野外图 → BOSS 图」的结构）。
+
+- 舞台 **1280×720 横屏**（不是 720×1600）。手机竖屏会提示旋转，也可点「竖屏凑合玩」。
+- **图 1 蘑菇森林**：世界宽 3200，杀满 20 只小怪 → 森林尽头（x=3040）出现紫色传送门 → 走进去切图。
+- **图 2 蘑菇王巢穴**：世界宽 1500、只有 2 个平台、不刷杂兵；进图即生成 BOSS（x=820），
+  冲撞 / 跳砸冲击波 / 召唤小蘑菇，45% 血进二阶段。
+- 切图用黑幕淡入淡出（`G.fade`），全黑时调 `enterStage(n)` 换 `worldW` / `platforms` / 清场。
+- 战斗：三段连击（第三段 ×1.8）、空中下劈、旋风斩（8s CD、0.72s 持续、每 0.13s 判定）。
+- 受击无敌帧 0.95s（前 0.35s 快闪）；伤害数字附近同色会合并，避免 AOE 刷屏。
+- 操作：左手拖屏移动，右手攻击 / 跳 / 旋风；键盘 `A D`、`空格`、`J`、`K`、`P`。
+- 自检：`node D:\DP\.tools\hero-test.js "file:///D:/DDGame/games/hero/index.html?debug=1"`
+  （10 项输入）和 `node D:\DP\.tools\hero-stage.js`（两图切换 6 项）。
+- 调参在 `game.js` 顶部：`STAGE_W`、`PLATFORMS_FOREST` / `PLATFORMS_LAIR`、`ENEMY`、`BOSS`、
+  `ATTACK_*`、`TOTAL_KILLS`、`PORTAL_X`。

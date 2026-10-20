@@ -134,6 +134,44 @@ body {
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* ---------------- 当前强化 ---------------- */
+
+.stats {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 10.2%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(8, 12, 20, 0.74);
+  border: 1px solid rgba(150, 176, 220, 0.2);
+  font-size: 11px;
+  color: #9fb0cc;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.stat b {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffd166;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat.on { border-color: rgba(255, 209, 102, 0.4); }
+.stat.on b { color: var(--green); }
+
 /* ---------------- 底部状态条 ---------------- */
 
 .bars {

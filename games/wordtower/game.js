@@ -236,6 +236,7 @@
   const hpFill = document.getElementById('hpFill');
   const expFill = document.getElementById('expFill');
   const lvEl = document.getElementById('lv');
+  const statsEl = document.getElementById('stats');
   const stageName = document.getElementById('stageName');
   const cardsEl = document.getElementById('cards');
   const cardsK = document.getElementById('cardsK');
@@ -308,9 +309,36 @@
     expFill.style.width = `${er * 100}%`;
     lvEl.textContent = `Lv.${G.level}`;
 
-    stageName.textContent = G.bossSpawned
-      ? '豆豆单词塔 · BOSS'
-      : `豆豆单词塔 · 第 ${G.wave} 波`;
+    stageName.textContent = G.bossSpawned ? `BOSS · 第 ${G.wave} 波` : `第 ${G.wave} 波`;
+
+    syncStats();
+  }
+
+  /** 当前强化：攻/速/弹常显，其余只在拿到后才出现 */
+  let lastStatsKey = '';
+  function syncStats() {
+    const t = G.tower;
+    const rows = [
+      ['攻击', Math.round(t.damage * t.dmgMul)],
+      ['攻速', t.rate.toFixed(1)],
+      ['弹道', t.shots],
+    ];
+    if (t.pierce) rows.push(['穿透', t.pierce]);
+    if (t.crit) rows.push(['暴击', `${Math.round(t.crit * 100)}%`]);
+    if (t.slowLevel) rows.push(['减速', t.slowLevel]);
+    if (t.burnLevel) rows.push(['燃烧', t.burnLevel]);
+    if (t.shield) rows.push(['回血', t.shield]);
+
+    const key = rows.map((r) => r.join(':')).join('|');
+    if (key === lastStatsKey) return;
+    lastStatsKey = key;
+
+    statsEl.innerHTML = rows
+      .map(
+        ([k, v], i) =>
+          `<div class="stat${i >= 3 ? ' on' : ''}"><span>${k}</span><b>${v}</b></div>`
+      )
+      .join('');
   }
 
   /* ----------------------------------------------------------

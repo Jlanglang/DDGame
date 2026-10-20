@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆暗黑传奇</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <header class="hud">
+    <div class="hud-left">
+      <div class="lv" id="lv">Lv.1</div>
+      <div class="bars">
+        <div class="bar hp"><i id="hpFill"></i><span id="hpText">60 / 60</span></div>
+        <div class="bar mp"><i id="mpFill"></i><span id="mpText">15 / 15</span></div>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="stat" id="gold">🪙 0</div>
+      <div class="stat" id="potion">🧪 3</div>
+      <div class="stat" id="exp">经验 0/100</div>
+    </div>
+  </header>
+
+  <canvas id="game" width="720" height="1120"></canvas>
+
+  <div class="tips" id="tips">WASD 移动 · J 攻击 · 1 半月 · 2 烈火 · Q 药水</div>
+
+  <div class="log" id="log"></div>
+
+  <div class="actions">
+    <button id="btnAtk" type="button">⚔ 攻击<kbd>J</kbd></button>
+    <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd></button>
+    <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd></button>
+    <button id="btnPotion" type="button">🧪 药水<kbd>Q</kbd></button>
+    <button id="btnRestart" type="button" class="ghost">重开</button>
+  </div>
+
+  <div class="over" id="over" hidden>
+    <div class="over-card">
+      <p class="over-k" id="overK">通关</p>
+      <h2 id="overT">你击败了巨型稻草人</h2>
+      <p id="overS"></p>
+      <button id="overBtn" type="button">再来一次</button>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

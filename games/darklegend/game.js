@@ -268,7 +268,9 @@
       if (e.hp <= 0) continue;
       const d = Math.abs(e.x - P.x) + Math.abs(e.y - P.y);
       if (d === 1) {
-        const dmg = Math.max(1, Math.round(roll(e.atk) - roll(defMean() * 0.8)));
+        let dmg = Math.max(1, Math.round(roll(e.atk) - roll(defMean() * 0.8)));
+        // R14.11 防秒杀：前期单次伤害有上限，普通 35%、首领 50%
+        dmg = Math.min(dmg, Math.ceil(maxHp() * (e.boss ? 0.5 : 0.35)));
         P.hp -= dmg;
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
         if (P.hp <= 0) { die(); return; }

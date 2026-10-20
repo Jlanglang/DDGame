@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆勇者</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div class="top-right">
+    <button class="hub-back" id="restartTop" type="button">↻ 重开</button>
+    <a class="hub-back" href="../../index.html">← 游戏库</a>
+  </div>
+
+  <header class="topbar">
+    <button class="pause" id="pause" type="button" aria-label="暂停">
+      <i></i><i></i>
+    </button>
+    <div class="stage-name" id="stageName">豆豆勇者 · 蘑菇森林</div>
+  </header>
+
+  <!-- 左上：等级 + 血量 + 经验 -->
+  <div class="hud">
+    <div class="lv" id="lv">Lv.1</div>
+    <div class="bars">
+      <div class="bar hp">
+        <div class="fill hp-fill" id="hpFill"></div>
+        <span class="num" id="hpText">400 / 400</span>
+      </div>
+      <div class="bar exp">
+        <div class="fill exp-fill" id="expFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="gold">🪙<span id="gold">0</span></div>
+
+  <!-- BOSS 血条 -->
+  <div class="bossbar" id="bossbar" hidden>
+    <div class="boss-top">
+      <span class="boss-name" id="bossName">蘑菇王</span>
+      <span class="boss-hp" id="bossHp">3200 / 3200</span>
+    </div>
+    <div class="boss-track"><div class="boss-fill" id="bossFill"></div></div>
+  </div>
+
+  <div class="hint" id="hint">拖动屏幕左右跑 · 跳上平台 · 砍光蘑菇</div>
+
+  <!-- 右下操作区 -->
+  <div class="pad">
+    <button class="btn skill" id="btnSkill" type="button">
+      <span class="ico">🌀</span><span class="lbl">旋风</span>
+      <span class="cd" id="skillCd" hidden></span>
+    </button>
+    <button class="btn jump" id="btnJump" type="button">
+      <span class="ico">▲</span><span class="lbl">跳</span>
+    </button>
+    <button class="btn atk" id="btnAtk" type="button">
+      <span class="ico">⚔</span><span class="lbl">攻击</span>
+    </button>
+  </div>
+
+  <div class="paused-veil" id="pauseVeil" hidden>
+    <div class="paused-card">
+      <p class="paused-title">暂停中</p>
+      <p class="paused-sub">点左上角，或按空格继续</p>
+    </div>
+  </div>
+
+  <div class="over" id="over" hidden>
+    <div class="over-card">
+      <p class="over-k" id="overK">通关</p>
+      <h2 class="over-title" id="overTitle">蘑菇王倒下了</h2>
+      <p class="over-sub" id="overSub"></p>
+      <button class="over-btn" id="again" type="button">再来一局</button>
+    </div>
+  </div>
+
+  <!-- 竖屏提示：横屏才好玩 -->
+  <div class="rotate" id="rotate">
+    <div>
+      <div class="rotate-icon" aria-hidden="true">⟳</div>
+      <p>把手机横过来</p>
+      <p class="rotate-sub">横版动作，横屏视野宽一倍</p>
+      <button class="rotate-skip" id="rotateSkip" type="button">竖屏凑合玩</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

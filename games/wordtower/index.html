@@ -20,32 +20,34 @@
     <div class="stage-name" id="stageName">豆豆单词塔 · 第 1 波</div>
   </header>
 
-  <!-- 当前要拼的词 -->
-  <div class="wordcard" id="wordcard">
-    <div class="word-zh" id="wordZh">苹果</div>
-    <div class="word-w" id="wordW">_ P P L E</div>
+  <!-- 底部：塔血 + 等级经验 -->
+  <div class="bars">
+    <div class="bar hp">
+      <div class="bar-fill hp-fill" id="hpFill"></div>
+    </div>
+    <div class="bar exp">
+      <div class="bar-fill exp-fill" id="expFill"></div>
+      <span class="lv" id="lv">Lv.1</span>
+    </div>
   </div>
 
-  <!-- 底部：血条 / 字母托盘 / 拼词 -->
-  <div class="hp">
-    <div class="hp-fill" id="hpFill"></div>
-  </div>
+  <div class="hint" id="hint">击杀攒经验 → 升级选卡 → 补全单词才拿得到</div>
 
-  <div class="dock">
-    <div class="tray" id="tray"></div>
-    <button class="spell" id="spell" type="button" disabled>拼 词</button>
-  </div>
+  <!-- 升级选卡面板：打开即暂停 -->
+  <div class="cards" id="cards" hidden>
+    <div class="cards-card">
+      <p class="cards-k" id="cardsK">升级 Lv.2</p>
+      <p class="cards-tip" id="cardsTip">三选一 · 补全单词才能拿到</p>
 
-  <div class="hint" id="hint">打掉带字母的怪 → 点「拼词」补全 → 拼对变强</div>
+      <div class="card-list" id="cardList"></div>
 
-  <!-- 答题面板：打开即暂停 -->
-  <div class="quiz" id="quiz" hidden>
-    <div class="quiz-card">
-      <p class="quiz-k">补全单词</p>
-      <p class="quiz-zh" id="quizZh">苹果</p>
-      <div class="quiz-word" id="quizWord"></div>
-      <div class="quiz-letters" id="quizLetters"></div>
-      <p class="quiz-tip" id="quizTip">选错就没了</p>
+      <div class="puzzle" id="puzzle" hidden>
+        <p class="puzzle-name" id="puzzleName">强化弹头</p>
+        <p class="puzzle-zh" id="puzzleZh">火</p>
+        <div class="puzzle-word" id="puzzleWord"></div>
+        <div class="puzzle-letters" id="puzzleLetters"></div>
+        <p class="puzzle-tip" id="puzzleTip">拼错这张卡就没了</p>
+      </div>
     </div>
   </div>
 

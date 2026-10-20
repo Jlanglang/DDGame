@@ -31,6 +31,9 @@ window.WORD_BANK = {
     { w: 'LEAF', zh: '叶子', buff: 'slow' },
     { w: 'JADE', zh: '玉', buff: 'shield' },
     { w: 'WAVE', zh: '浪', buff: 'slow' },
+    { w: 'AIM', zh: '瞄准', buff: 'crit' },
+    { w: 'GEM', zh: '宝石', buff: 'shield' },
+    { w: 'SPARK', zh: '火花', buff: 'burn' },
   ],
 
   // 5-6 个字母：进阶
@@ -63,6 +66,11 @@ window.WORD_BANK = {
     { w: 'BRAVE', zh: '勇敢', buff: 'dmg' },
     { w: 'SHINE', zh: '闪耀', buff: 'dmg' },
     { w: 'FROST', zh: '霜', buff: 'slow' },
+    { w: 'FLAME', zh: '火焰', buff: 'burn' },
+    { w: 'EMBER', zh: '余烬', buff: 'burn' },
+    { w: 'SPEAR', zh: '长矛', buff: 'pierce' },
+    { w: 'BLADE', zh: '刀刃', buff: 'pierce' },
+    { w: 'TARGET', zh: '目标', buff: 'crit' },
   ],
 
   // 7-8 个字母：大师
@@ -83,7 +91,7 @@ window.WORD_BANK = {
     { w: 'SUNSHINE', zh: '阳光', buff: 'dmg' },
     { w: 'TREASURE', zh: '宝藏', buff: 'shield' },
     { w: 'UMBRELLA', zh: '雨伞', buff: 'shield' },
-    { w: 'VOLCANO', zh: '火山', buff: 'dmg' },
+    { w: 'VOLCANO', zh: '火山', buff: 'burn' },
     { w: 'WHISTLE', zh: '口哨', buff: 'rate' },
     { w: 'PYRAMID', zh: '金字塔', buff: 'shield' },
     { w: 'GIRAFFE', zh: '长颈鹿', buff: 'rate' },

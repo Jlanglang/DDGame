@@ -62,3 +62,16 @@ node D:\DP\.tools\input-test.js
 - 桥头 9 点血；BOSS 过桥直接判负。
 - 数值实验：`node D:\DP\.tools\headless.js --runs 40 --policy feed`。
 - 看每波耗时：`node D:\DP\.tools\wave-time.js 16 feed`；看胜负时长：`node D:\DP\.tools\win-time.js 40 feed`。
+
+## 5. 豆豆单词塔（games/wordtower）
+
+**固定炮台 + 拼词成长**：塔不动，怪掉字母，点「拼词」补全单词（面板一开就暂停）。
+
+- 敌人血量 `20 × 1.2^(波数-1)`，推进速度 95 px/s，8 波 + BOSS（`bossMul` 5）。
+- 每波 3 只字母怪，掉 3 个候选字母（1 个正确 + 2 个干扰），拼对给 buff，拼错停火 2s。
+- buff 由单词决定（`words.js` 每条带 `buff`）：
+  `dmg` 伤害 ×1.25 / `rate` 攻速 +0.45 / `split` 弹道 +1 / `shield` 塔血 +1 / `slow` 命中减速。
+- **一把 ≈100 秒，胜率跟词汇量挂钩**：headless 100 局，认识 75% 的词赢 66%，认识 90% 赢 75%，只认识 55% 赢 57%。
+  所以难度旋钮不只是数值，还有词库难度（`easy/mid/hard` 按波次 1-3 / 4-6 / 7-8 抽）。
+- 加词：直接往 `words.js` 三个档位里加 `{ w, zh, buff }`，不用改代码。
+- 调参：`node D:\DP\.tools\headless-word.js --runs 100 --acc 0.75`（`--acc` 就是模拟玩家的单词正确率）。

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆单词塔</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <a class="hub-back" href="../../index.html">← 游戏库</a>
+
+  <header class="topbar">
+    <button class="pause" id="pause" type="button" aria-label="暂停">
+      <i></i><i></i>
+    </button>
+    <div class="stage-name" id="stageName">豆豆单词塔 · 第 1 波</div>
+  </header>
+
+  <!-- 当前要拼的词 -->
+  <div class="wordcard" id="wordcard">
+    <div class="word-zh" id="wordZh">苹果</div>
+    <div class="word-w" id="wordW">_ P P L E</div>
+  </div>
+
+  <!-- 底部：血条 / 字母托盘 / 拼词 -->
+  <div class="hp">
+    <div class="hp-fill" id="hpFill"></div>
+  </div>
+
+  <div class="dock">
+    <div class="tray" id="tray"></div>
+    <button class="spell" id="spell" type="button" disabled>拼 词</button>
+  </div>
+
+  <div class="hint" id="hint">打掉带字母的怪 → 点「拼词」补全 → 拼对变强</div>
+
+  <!-- 答题面板：打开即暂停 -->
+  <div class="quiz" id="quiz" hidden>
+    <div class="quiz-card">
+      <p class="quiz-k">补全单词</p>
+      <p class="quiz-zh" id="quizZh">苹果</p>
+      <div class="quiz-word" id="quizWord"></div>
+      <div class="quiz-letters" id="quizLetters"></div>
+      <p class="quiz-tip" id="quizTip">选错就没了</p>
+    </div>
+  </div>
+
+  <!-- 结算 -->
+  <div class="over" id="over" hidden>
+    <div class="over-card">
+      <p class="over-k" id="overK">失守</p>
+      <h2 class="over-title" id="overTitle">豆豆塔被推平了</h2>
+      <p class="over-sub" id="overSub"></p>
+      <button class="over-btn" id="again" type="button">再来一次</button>
+    </div>
+  </div>
+</div>
+
+<script src="words.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

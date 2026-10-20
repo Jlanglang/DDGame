@@ -131,11 +131,11 @@
 
   const CARDS = [
     { id: 'dmg', name: '强化弹头', icon: '✦', buff: 'dmg',
-      desc: (m) => `伤害 +${Math.round(22 * m)}%`,
+      desc: (m) => `攻击 +${Math.round(22 * m)}%`,
       apply: (t, m) => { t.dmgMul *= 1 + 0.22 * m; } },
 
     { id: 'rate', name: '速射机匣', icon: '⇈', buff: 'rate',
-      desc: (m) => `攻速 +${(0.35 * m).toFixed(2)}/s`,
+      desc: (m) => `攻速 +${(0.35 * m).toFixed(2)}`,
       apply: (t, m) => { t.rate = Math.min(BAL.rateMax, t.rate + BAL.buffRate * m); } },
 
     { id: 'split', name: '分裂弹道', icon: '⌇', buff: 'split',
@@ -143,7 +143,7 @@
       apply: (t, m) => { t.shots = Math.min(BAL.shotsMax, t.shots + stepOf(m)); } },
 
     { id: 'shield', name: '护盾装甲', icon: '◈', buff: 'shield',
-      desc: (m) => `塔血 +${stepOf(m)} 并回血`,
+      desc: (m) => `回血 +${stepOf(m)}`,
       apply: (t, m) => {
         const n = stepOf(m);
         t.shield += n;
@@ -152,11 +152,11 @@
       } },
 
     { id: 'slow', name: '冰冻弹', icon: '❄', buff: 'slow',
-      desc: (m) => `命中减速 Lv.${stepOf(m)}`,
+      desc: (m) => `减速 ×${stepOf(m)}`,
       apply: (t, m) => { t.slowLevel = Math.min(BAL.slowMax, t.slowLevel + stepOf(m)); } },
 
     { id: 'burn', name: '燃烧弹', icon: '♨', buff: 'burn',
-      desc: (m) => `点燃 Lv.${stepOf(m)}`,
+      desc: (m) => `燃烧 ×${stepOf(m)}`,
       apply: (t, m) => { t.burnLevel = Math.min(BAL.burnMax, t.burnLevel + stepOf(m)); } },
 
     { id: 'pierce', name: '穿甲弹', icon: '➤', buff: 'pierce',
@@ -426,7 +426,10 @@
       b.innerHTML = `
         <span class="up-icon">${opt.card.icon}</span>
         <span class="up-body">
-          <span class="up-name">${opt.card.name}<i class="up-grade" style="color:${g.color}">${g.key}</i></span>
+          <span class="up-line">
+            <span class="up-name">${opt.card.name}</span>
+            <i class="up-grade" style="color:${g.color}">${g.key}</i>
+          </span>
           <span class="up-desc">${opt.desc}</span>
         </span>
         <span class="up-zh">${opt.zh}</span>`;

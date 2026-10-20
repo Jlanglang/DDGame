@@ -41,6 +41,7 @@
 
   const CAM_LERP = 9;
   const PORTAL_X = 3040;
+  const SHOP_X = 200;
 
   /* 平台：x 左边缘，y 顶面，w 宽 */
   const PLATFORMS_FOREST = [
@@ -63,13 +64,13 @@
   const STAGE_PLATFORMS = [PLATFORMS_FOREST, PLATFORMS_LAIR];
 
   const ENEMY = {
-    shroom: { w: 70, h: 76, hp: 60, speed: 66, dmg: 16, exp: 16, gold: [2, 5] },
-    ghost:  { w: 64, h: 72, hp: 46, speed: 92, dmg: 20, exp: 14, gold: [3, 7] },
-    stump:  { w: 78, h: 94, hp: 110, speed: 0, dmg: 14, exp: 22, gold: [4, 9] },
+    shroom: { w: 70, h: 76, hp: 60, speed: 66, dmg: 14, exp: 16, gold: [2, 5] },
+    ghost:  { w: 64, h: 72, hp: 46, speed: 92, dmg: 18, exp: 14, gold: [3, 7] },
+    stump:  { w: 78, h: 94, hp: 110, speed: 0, dmg: 12, exp: 22, gold: [4, 9] },
   };
 
   const BOSS = {
-    w: 200, h: 210, hp: 2200, dmg: 30, exp: 260,
+    w: 200, h: 210, hp: 2200, dmg: 34, exp: 260,
   };
 
   /* ----------------------------------------------------------
@@ -156,7 +157,7 @@
   const SAVE_KEY = 'doudou-hero-save-v1';
 
   function defaultSave() {
-    return { v: 1, exp: 0, gold: 0, weapon: 0, armor: 0, sp: 0, atkSp: 0, hpSp: 0, clears: 0, best: 0 };
+    return { v: 1, exp: 0, gold: 0, weapon: 0, armor: 0, potions: 3, sp: 0, atkSp: 0, hpSp: 0, clears: 0, best: 0 };
   }
 
   function loadSave() {
@@ -169,6 +170,7 @@
       for (const k of Object.keys(d)) if (!(k in s)) s[k] = d[k];
       s.weapon = clamp(s.weapon | 0, 0, 5);
       s.armor = clamp(s.armor | 0, 0, 5);
+      s.potions = clamp(s.potions | 0, 0, 5);
       s.sp = Math.max(0, s.sp | 0);
       s.atkSp = Math.max(0, s.atkSp | 0);
       s.hpSp = Math.max(0, s.hpSp | 0);
@@ -205,7 +207,7 @@
       exp: l.exp,
       expNeed: l.expNeed,
       atk: 28 + (l.level - 1) * 3 + SAVE.weapon * 5 + SAVE.atkSp * 2,
-      maxHp: 400 + (l.level - 1) * 22 + SAVE.armor * 30 + SAVE.hpSp * 20,
+      maxHp: 200 + (l.level - 1) * 16 + SAVE.armor * 24 + SAVE.hpSp * 14,
       crit: 0.12 + SAVE.atkSp * 0.01,
     };
   }
@@ -234,6 +236,9 @@
     bossSpawned: false,
     bossDelay: 0,
     portal: null,
+    portalLock: 0,
+    shopOpen: false,
+    nearShop: false,
     fade: 0,
     fadeDir: 0,
     pendingStage: -1,
@@ -285,6 +290,16 @@
     buyArmor: document.getElementById('buyArmor'),
     spAtk: document.getElementById('spAtk'),
     spHp: document.getElementById('spHp'),
+    shop: document.getElementById('shop'),
+    shopTip: document.getElementById('shopTip'),
+    shopGold: document.getElementById('shopGold'),
+    shopWeapon: document.getElementById('shopWeapon'),
+    shopArmor: document.getElementById('shopArmor'),
+    shopPotion: document.getElementById('shopPotion'),
+    shopHint: document.getElementById('shopHint'),
+    shopClose: document.getElementById('shopClose'),
+    potionCount: document.getElementById('potionCount'),
+    potionCd: document.getElementById('potionCd'),
   };
 
   /* ----------------------------------------------------------
@@ -311,7 +326,10 @@
     G.boss = null;
     G.bossSpawned = false;
     G.bossDelay = 0;
-    G.portal = null;
+    G.portal = { x: PORTAL_X, y: GROUND_Y, t: 0, to: 1 };
+    G.portalLock = 0;
+    G.shopOpen = false;
+    G.nearShop = false;
     G.fade = 0;
     G.fadeDir = 0;
     G.pendingStage = -1;
@@ -343,14 +361,23 @@
       comboT: 0, combo: 0,
       invuln: 0, hurtT: 0,
       skillT: 0, skillCd: 0, skillTick: 0,
+      potionCd: 0,
       gold: 0,
       dead: false,
       anim: 0,
     };
+    // 每局开始补满 3 瓶药，多的保留
+    if (SAVE.potions < 3) { SAVE.potions = 3; writeSave(); }
+    el.shop.hidden = true;
+    el.shopTip.hidden = true;
     el.over.hidden = true;
     el.pauseVeil.hidden = true;
     el.bossbar.hidden = true;
     el.stageName.textContent = '豆豆勇者 · 蘑菇森林';
+    keys.left = false;
+    keys.right = false;
+    keys.down = false;
+    for (const k of Object.keys(dkEls)) dkEls[k].classList.remove('active');
     el.hint.classList.remove('gone');
     el.pause.classList.remove('paused');
     setHint('拖动屏幕左右跑 · 跳上平台 · 砍光蘑菇', 4.5);
@@ -532,8 +559,8 @@
       p.exp -= p.expNeed;
       p.level++;
       p.expNeed = Math.round(55 * Math.pow(1.34, p.level - 1));
-      p.maxHp += 22;
-      p.hp = Math.min(p.maxHp, p.hp + 90);
+      p.maxHp += 16;
+      p.hp = Math.min(p.maxHp, p.hp + 60);
       p.atk += 3;
       addText(p.x, p.y - p.h - 118, `LEVEL UP!`, '#ffd166', 36);
       addText(p.x, p.y - p.h - 80, `Lv.${p.level}  攻击 +3`, '#ffe9a8', 26);
@@ -665,6 +692,77 @@
   bindGrow();
 
   /* ----------------------------------------------------------
+     安全区商店：装备 + 药水
+     ---------------------------------------------------------- */
+
+  function refreshShop() {
+    const wCost = weaponCost(SAVE.weapon);
+    const aCost = armorCost(SAVE.armor);
+    el.shopGold.textContent = fmt(SAVE.gold);
+
+    el.shopWeapon.textContent = SAVE.weapon >= 5 ? '武器已满级' : `武器 +5 攻 · ${fmt(wCost)} 金`;
+    el.shopWeapon.disabled = SAVE.weapon >= 5 || SAVE.gold < wCost;
+
+    el.shopArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +30 血 · ${fmt(aCost)} 金`;
+    el.shopArmor.disabled = SAVE.armor >= 5 || SAVE.gold < aCost;
+
+    el.shopPotion.textContent = SAVE.potions >= 5
+      ? `药水已带满（${SAVE.potions}/5）`
+      : `药水 +1 · 25 金（${SAVE.potions}/5）`;
+    el.shopPotion.disabled = SAVE.potions >= 5 || SAVE.gold < 25;
+
+    el.shopHint.textContent = '血量低于 45% 会自动喝药，10 秒 CD';
+  }
+
+  function openShop() {
+    if (G.shopOpen || G.state !== 'play' || G.paused) return;
+    G.shopOpen = true;
+    el.shop.hidden = false;
+    el.shopTip.hidden = true;
+    refreshShop();
+    ac();
+  }
+
+  function closeShop() {
+    if (!G.shopOpen) return;
+    G.shopOpen = false;
+    el.shop.hidden = true;
+    G.portalLock = 0.4;
+  }
+
+  el.shopWeapon.addEventListener('click', () => {
+    const c = weaponCost(SAVE.weapon);
+    if (SAVE.weapon >= 5 || SAVE.gold < c) return;
+    SAVE.gold -= c;
+    SAVE.weapon++;
+    writeSave();
+    refreshShop();
+    SFX.level();
+  });
+
+  el.shopArmor.addEventListener('click', () => {
+    const c = armorCost(SAVE.armor);
+    if (SAVE.armor >= 5 || SAVE.gold < c) return;
+    SAVE.gold -= c;
+    SAVE.armor++;
+    writeSave();
+    refreshShop();
+    SFX.level();
+  });
+
+  el.shopPotion.addEventListener('click', () => {
+    if (SAVE.potions >= 5 || SAVE.gold < 25) return;
+    SAVE.gold -= 25;
+    SAVE.potions++;
+    writeSave();
+    refreshShop();
+    SFX.level();
+  });
+
+  el.shopTip.addEventListener('click', openShop);
+  el.shopClose.addEventListener('click', closeShop);
+
+  /* ----------------------------------------------------------
      物理
      ---------------------------------------------------------- */
 
@@ -712,7 +810,8 @@
       baseX = p.x - rand(540, 860);
       if (baseX < 80) baseX = p.x + rand(540, 860);
     }
-    baseX = clamp(baseX, 80, G.worldW - 80);
+    // 安全区（营地）在 x<380，不刷怪
+    baseX = clamp(baseX, 430, G.worldW - 80);
 
     if (type === 'ghost') {
       return { x: baseX, y: p.y - rand(240, 430) };
@@ -720,7 +819,7 @@
 
     if (type === 'stump' && Math.random() < 0.5) {
       const pl = G.platforms[randi(0, G.platforms.length - 1)];
-      if (Math.abs(pl.x + pl.w / 2 - p.x) > 260) {
+      if (pl.x > 430 && Math.abs(pl.x + pl.w / 2 - p.x) > 260) {
         return { x: pl.x + pl.w / 2, y: pl.y };
       }
     }
@@ -751,6 +850,9 @@
       deadT: 0,
       bob: rand(0, 6.28),
       homeY: pt.y,
+      homeX: pt.x,
+      patrolDir: Math.random() < 0.5 ? -1 : 1,
+      alert: 0,
     };
     G.enemies.push(e);
     return e;
@@ -993,7 +1095,7 @@
      ---------------------------------------------------------- */
 
   function update(rawDt) {
-    if (G.paused || G.state !== 'play') {
+    if (G.paused || G.shopOpen || G.state !== 'play') {
       updateFx(rawDt);
       return;
     }
@@ -1074,7 +1176,7 @@
     }
 
     /* --- 玩家物理 --- */
-    moveBody(p, dt, false);
+    moveBody(p, dt, keys.down);
 
     if (p.onGround) {
       p.jumps = 0;
@@ -1082,6 +1184,31 @@
     }
 
     p.anim += dt * (2 + Math.abs(p.vx) / 90);
+
+    /* --- 安全区：慢回血 + 商店入口 --- */
+    if (G.stage === 0) {
+      const near = Math.abs(p.x - SHOP_X) < 140;
+      if (near !== G.nearShop) {
+        G.nearShop = near;
+        el.shopTip.hidden = !near;
+      }
+      if (p.x < 380) p.hp = Math.min(p.maxHp, p.hp + 12 * dt);
+    } else if (G.nearShop) {
+      G.nearShop = false;
+      el.shopTip.hidden = true;
+    }
+
+    /* --- 自动喝药：血量低于 45%、10 秒 CD --- */
+    p.potionCd = Math.max(0, p.potionCd - dt);
+    if (p.hp < p.maxHp * 0.45 && p.potionCd <= 0 && SAVE.potions > 0) {
+      SAVE.potions--;
+      writeSave();
+      p.hp = Math.min(p.maxHp, p.hp + 50);
+      p.potionCd = 10;
+      addText(p.x, p.y - p.h - 20, '+50', '#7ee0a0', 26);
+      puff(p.x, p.y - p.h * 0.6, 10, '#7ee0a0');
+      SFX.level();
+    }
 
     /* --- 掉坑？没有坑，只有地面 --- */
 
@@ -1092,16 +1219,12 @@
     /* --- 生成 --- */
     spawnWave(dt);
 
-    // 杀满之后：森林尽头开一道传送门
-    if (G.stage === 0 && !G.portal && !G.bossSpawned && G.kills >= TOTAL_KILLS) {
-      G.portal = { x: PORTAL_X, y: GROUND_Y, t: 0 };
-      setHint('森林尽头出现了传送门 → 去蘑菇王巢穴', 5);
-      addText(PORTAL_X, GROUND_Y - 150, '传送门', '#c9a3ff', 30);
-    }
+    // 传送门常驻：森林尽头 → 巢穴，巢穴左侧 → 森林
     if (G.portal) {
       G.portal.t += dt;
-      if (Math.abs(p.x - G.portal.x) < 74 && Math.abs(p.y - G.portal.y) < 130) {
-        startTransition(1);
+      if (G.portalLock > 0) G.portalLock -= dt;
+      else if (Math.abs(p.x - G.portal.x) < 74 && Math.abs(p.y - G.portal.y) < 130) {
+        startTransition(G.portal.to);
       }
     }
 
@@ -1221,28 +1344,39 @@
       e.touchCd = Math.max(0, e.touchCd - dt);
       e.bob += dt * 3;
 
+      const dxp = p.x - e.x;
+      const dyp = (p.y - p.h * 0.5) - (e.y - e.h * 0.5);
+      const dist = Math.hypot(dxp, dyp);
+      e.alert = Math.max(0, e.alert - dt);
+
       if (e.type === 'ghost') {
-        if (e.stun <= 0) {
-          const dx = p.x - e.x;
-          const dy = (p.y - p.h * 0.5) - (e.y - e.h * 0.5);
-          const d = Math.hypot(dx, dy) || 1;
-          e.vx = (dx / d) * e.speed;
-          e.vy = (dy / d) * e.speed * 0.85;
-        } else {
+        // 平时绕着出生点飘；玩家靠近 280 才追
+        if (dist < 280) e.alert = 1.6;
+        if (e.stun > 0) {
           e.vx *= 0.92;
           e.vy *= 0.92;
+        } else if (e.alert > 0) {
+          const d = dist || 1;
+          e.vx = (dxp / d) * e.speed;
+          e.vy = (dyp / d) * e.speed * 0.85;
+        } else {
+          const tx = e.homeX + Math.sin(e.bob * 0.6) * 150;
+          const ty = e.homeY - 120 + Math.sin(e.bob * 0.45) * 60;
+          e.vx = clamp((tx - e.x) * 0.8, -e.speed * 0.45, e.speed * 0.45);
+          e.vy = clamp((ty - e.y) * 0.8, -e.speed * 0.45, e.speed * 0.45);
         }
         e.x += e.vx * dt;
         e.y += e.vy * dt;
-        e.y = clamp(e.y, 200, GROUND_Y);
-        e.x = clamp(e.x, 40, G.worldW - 40);
+        e.y = clamp(e.y, 160, GROUND_Y);
+        e.x = clamp(e.x, 430, G.worldW - 40);
         e.dir = e.vx < 0 ? -1 : 1;
       } else if (e.type === 'stump') {
         e.vx *= 0.9;
         moveBody(e, dt, false);
         e.dir = p.x < e.x ? -1 : 1;
         e.shootT -= dt;
-        if (e.shootT <= 0) {
+        // 只有玩家靠近 460 才吐种子
+        if (dist < 460 && e.shootT <= 0) {
           e.shootT = rand(2.2, 3.2);
           const sx = e.x;
           const sy = e.y - e.h * 0.62;
@@ -1256,13 +1390,18 @@
           });
         }
       } else {
-        if (e.stun <= 0) {
-          const dx = p.x - e.x;
-          e.dir = dx < 0 ? -1 : 1;
-          if (Math.abs(dx) > 26) e.vx = e.dir * e.speed;
-          else e.vx = 0;
-        } else {
+        // 蘑菇：平时在出生点 ±120 来回走，玩家靠近 300 才追
+        if (dist < 300) e.alert = 1.4;
+        if (e.stun > 0) {
           e.vx *= 0.9;
+        } else if (e.alert > 0) {
+          e.dir = dxp < 0 ? -1 : 1;
+          e.vx = e.dir * e.speed;
+        } else {
+          if (e.x < e.homeX - 120) e.patrolDir = 1;
+          else if (e.x > e.homeX + 120) e.patrolDir = -1;
+          e.dir = e.patrolDir;
+          e.vx = e.patrolDir * e.speed * 0.5;
         }
         moveBody(e, dt, false);
       }
@@ -1354,8 +1493,8 @@
         if (o.kind === 'gold') {
           p.gold += o.value;
         } else {
-          p.hp = Math.min(p.maxHp, p.hp + 70);
-          addText(o.x, o.y - 16, '+70', '#7ef2a4', 22);
+          p.hp = Math.min(p.maxHp, p.hp + 40);
+          addText(o.x, o.y - 16, '+40', '#7ef2a4', 22);
           puff(o.x, o.y, 8, '#7ef2a4');
         }
       }
@@ -1566,6 +1705,105 @@
       rr(ctx, pl.x, pl.y, pl.w, 6, 4);
       ctx.fill();
     }
+  }
+
+  /* --- 安全区营地 --- */
+
+  function drawCamp() {
+    if (G.stage !== 0) return;
+
+    const glow = ctx.createRadialGradient(SHOP_X, GROUND_Y - 60, 20, SHOP_X, GROUND_Y - 60, 260);
+    glow.addColorStop(0, 'rgba(255, 190, 110, 0.16)');
+    glow.addColorStop(1, 'rgba(255, 190, 110, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(SHOP_X - 280, GROUND_Y - 300, 560, 340);
+
+    // 帐篷
+    ctx.fillStyle = '#3a4a63';
+    ctx.beginPath();
+    ctx.moveTo(50, GROUND_Y);
+    ctx.lineTo(115, GROUND_Y - 128);
+    ctx.lineTo(180, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#22304a';
+    ctx.beginPath();
+    ctx.moveTo(103, GROUND_Y);
+    ctx.lineTo(115, GROUND_Y - 86);
+    ctx.lineTo(127, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+
+    // 篝火
+    const t = G.time;
+    ctx.fillStyle = '#4a2f1c';
+    rr(ctx, 262, GROUND_Y - 12, 48, 12, 5);
+    ctx.fill();
+    const flame = 15 + Math.sin(t * 9) * 4;
+    ctx.fillStyle = 'rgba(255, 138, 61, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(286, GROUND_Y - 28, flame, flame * 1.5, 0, 0, 6.28);
+    ctx.fill();
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath();
+    ctx.ellipse(286, GROUND_Y - 23, flame * 0.5, flame * 0.9, 0, 0, 6.28);
+    ctx.fill();
+
+    drawMerchant(SHOP_X, GROUND_Y);
+
+    ctx.font = '700 22px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255, 209, 102, 0.95)';
+    ctx.fillText('商人豆豆', SHOP_X, GROUND_Y - 168);
+    ctx.textAlign = 'left';
+  }
+
+  function drawMerchant(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // 柜台
+    ctx.fillStyle = '#5a3a22';
+    rr(ctx, -48, -42, 96, 42, 8);
+    ctx.fill();
+    ctx.fillStyle = '#7a5232';
+    rr(ctx, -52, -50, 104, 14, 6);
+    ctx.fill();
+
+    // 身体
+    ctx.fillStyle = '#f4ead8';
+    ctx.beginPath();
+    ctx.ellipse(0, -78, 27, 30, 0, 0, 6.28);
+    ctx.fill();
+
+    // 帽子
+    ctx.fillStyle = '#8a5cff';
+    ctx.beginPath();
+    ctx.ellipse(0, -104, 32, 10, 0, 0, 6.28);
+    ctx.fill();
+    rr(ctx, -14, -128, 28, 28, 6);
+    ctx.fill();
+
+    // 眼睛
+    ctx.fillStyle = '#241417';
+    ctx.beginPath();
+    ctx.arc(-9, -84, 3.4, 0, 6.28);
+    ctx.arc(9, -84, 3.4, 0, 6.28);
+    ctx.fill();
+    ctx.strokeStyle = '#241417';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -76, 6, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+
+    // 柜台上的药水
+    ctx.fillStyle = '#7ee0a0';
+    rr(ctx, -30, -62, 12, 16, 4);
+    ctx.fill();
+    rr(ctx, 20, -60, 10, 14, 4);
+    ctx.fill();
+
+    ctx.restore();
   }
 
   /* --- 玩家 --- */
@@ -2090,6 +2328,7 @@
     ctx.translate(-Math.round(G.camX) + shakeX, shakeY);
 
     drawGroundAndPlatforms();
+    drawCamp();
     drawPortal();
     drawOrbs();
     for (const e of G.enemies) drawEnemy(e);
@@ -2193,7 +2432,7 @@
     const hpPct = clamp(p.hp / p.maxHp, 0, 1) * 100;
     const expPct = clamp(p.exp / p.expNeed, 0, 1) * 100;
     const bossKey = G.boss && !G.boss.dead ? `B${Math.ceil(G.boss.hp)}` : '-';
-    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${p.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}|${bossKey}`;
+    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${p.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}|${bossKey}|${SAVE.potions}|${Math.ceil(p.potionCd)}`;
     if (!force && key === hudKey) return;
     hudKey = key;
 
@@ -2202,6 +2441,14 @@
     el.hpText.textContent = `${Math.ceil(p.hp)} / ${Math.ceil(p.maxHp)}`;
     el.expFill.style.width = `${expPct}%`;
     el.gold.textContent = fmt(p.gold);
+
+    el.potionCount.textContent = String(SAVE.potions);
+    if (p.potionCd > 0.05) {
+      el.potionCd.hidden = false;
+      el.potionCd.textContent = `${Math.ceil(p.potionCd)}s`;
+    } else {
+      el.potionCd.hidden = true;
+    }
 
     if (G.boss && !G.boss.dead) {
       el.bossHp.textContent = `${fmt(Math.max(0, G.boss.hp))} / ${fmt(G.boss.maxHp)}`;
@@ -2232,21 +2479,67 @@
      输入
      ---------------------------------------------------------- */
 
-  const keys = { left: false, right: false };
+  const keys = { left: false, right: false, down: false };
   const pointer = { active: false, id: null, x: 0, usedByButton: false };
 
+  /* 左下角 WASD：常驻半透明，按到才亮；键盘和触摸共用一个高亮状态 */
+  const dkEls = {};
+  for (const k of ['up', 'left', 'down', 'right']) {
+    const b = document.querySelector(`.dk[data-k="${k}"]`);
+    if (b) dkEls[k] = b;
+  }
+
+  function setKey(k, on) {
+    if (k === 'left' || k === 'right' || k === 'down') keys[k] = on;
+    if (dkEls[k]) dkEls[k].classList.toggle('active', on);
+    if (k === 'up' && on) jump();
+  }
+
+  for (const k of Object.keys(dkEls)) {
+    const b = dkEls[k];
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      ac();
+      setKey(k, true);
+      try { b.setPointerCapture(e.pointerId); } catch { /* 忽略 */ }
+    });
+    const up = (e) => {
+      e.preventDefault();
+      setKey(k, false);
+    };
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointercancel', up);
+    b.addEventListener('lostpointercapture', up);
+    b.addEventListener('click', (e) => e.preventDefault());
+  }
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { keys.left = true; e.preventDefault(); }
-    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { keys.right = true; e.preventDefault(); }
-    if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { e.preventDefault(); jump(); }
+    if (e.repeat && (e.key === 'w' || e.key === 'W' || e.key === ' ' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { setKey('left', true); e.preventDefault(); }
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { setKey('right', true); e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') { setKey('down', true); e.preventDefault(); }
+    if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+      setKey('up', true);
+      e.preventDefault();
+    }
     if (e.key === 'j' || e.key === 'J' || e.key === 'z' || e.key === 'Z') { e.preventDefault(); attack(); }
     if (e.key === 'k' || e.key === 'K' || e.key === 'x' || e.key === 'X') { e.preventDefault(); castSkill(); }
     if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePause(); }
+    if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+      if (G.shopOpen) closeShop();
+      else if (G.nearShop) openShop();
+    }
   });
 
   window.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
-    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') setKey('left', false);
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') setKey('right', false);
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') setKey('down', false);
+    if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') setKey('up', false);
   });
 
   /* 画布拖动：手指在角色右边就往右跑，在左边就往左跑。

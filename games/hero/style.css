@@ -249,6 +249,147 @@ body {
   pointer-events: none;
 }
 
+.potion {
+  position: absolute;
+  top: calc(var(--u) * 140px);
+  right: calc(var(--u) * 22px);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 5px);
+  padding: calc(var(--u) * 6px) calc(var(--u) * 12px);
+  border-radius: calc(var(--u) * 11px);
+  background: rgba(8, 12, 20, 0.62);
+  border: 1px solid rgba(126, 224, 160, 0.25);
+  color: #7ee0a0;
+  font-size: calc(var(--u) * 17px);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.potion-cd {
+  font-size: calc(var(--u) * 13px);
+  color: #8d99b5;
+  font-weight: 600;
+}
+
+/* 安全区商店入口 */
+.shop-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 26%;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: calc(var(--u) * 10px) calc(var(--u) * 22px);
+  border-radius: 999px;
+  background: rgba(20, 26, 38, 0.88);
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  color: var(--gold);
+  font-family: inherit;
+  font-size: calc(var(--u) * 17px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 8px 26px -10px rgba(255, 209, 102, 0.6);
+}
+
+.shop-tip kbd {
+  display: inline-block;
+  margin-left: calc(var(--u) * 6px);
+  padding: calc(var(--u) * 1px) calc(var(--u) * 7px);
+  border-radius: calc(var(--u) * 5px);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: inherit;
+  font-size: calc(var(--u) * 13px);
+}
+
+.shop {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 6, 12, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.shop-card {
+  width: calc(var(--u) * 460px);
+  max-width: 90%;
+  padding: calc(var(--u) * 28px) calc(var(--u) * 26px) calc(var(--u) * 24px);
+  border-radius: calc(var(--u) * 20px);
+  background: linear-gradient(180deg, rgba(26, 33, 50, 0.97), rgba(14, 19, 30, 0.97));
+  border: 1px solid rgba(150, 176, 220, 0.2);
+  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.9);
+  text-align: center;
+}
+
+.shop-k {
+  margin: 0;
+  font-size: calc(var(--u) * 14px);
+  letter-spacing: 0.22em;
+  color: #8d99b5;
+}
+
+.shop-title {
+  margin: calc(var(--u) * 10px) 0 0;
+  font-size: calc(var(--u) * 30px);
+  letter-spacing: 0.08em;
+}
+
+.shop-gold {
+  margin: calc(var(--u) * 8px) 0 calc(var(--u) * 16px);
+  font-size: calc(var(--u) * 16px);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 9px);
+}
+
+.shop-list button {
+  padding: calc(var(--u) * 12px) calc(var(--u) * 10px);
+  border-radius: calc(var(--u) * 10px);
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  background: rgba(30, 40, 60, 0.85);
+  color: #dbe4f5;
+  font-family: inherit;
+  font-size: calc(var(--u) * 15px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shop-list button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.shop-list button:active { transform: scale(0.98); }
+
+.shop-hint {
+  margin: calc(var(--u) * 14px) 0 calc(var(--u) * 16px);
+  font-size: calc(var(--u) * 13px);
+  color: #8d99b5;
+}
+
+.shop-close {
+  width: 100%;
+  padding: calc(var(--u) * 13px) 0;
+  border: 0;
+  border-radius: calc(var(--u) * 12px);
+  background: linear-gradient(90deg, #e0523f, #ff8a5c);
+  color: #fff;
+  font-family: inherit;
+  font-size: calc(var(--u) * 17px);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
 /* ---------------- BOSS 血条 ---------------- */
 
 .bossbar {
@@ -324,6 +465,54 @@ body {
 }
 
 .hint.gone { opacity: 0; }
+
+/* ---------------- 左下 WASD 方向键 ---------------- */
+
+.dpad {
+  position: absolute;
+  left: calc(var(--u) * 26px);
+  bottom: calc(var(--u) * 24px);
+  width: calc(var(--u) * 156px);
+  height: calc(var(--u) * 156px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: calc(var(--u) * 5px);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.dk {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--u) * 11px);
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  background: rgba(18, 24, 38, 0.3);
+  color: rgba(214, 226, 245, 0.5);
+  font-family: inherit;
+  font-size: calc(var(--u) * 19px);
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.08s ease, color 0.08s ease, box-shadow 0.08s ease;
+}
+
+.dk.up { grid-area: 1 / 2; }
+.dk.left { grid-area: 2 / 1; }
+.dk.down { grid-area: 2 / 2; }
+.dk.right { grid-area: 2 / 3; }
+
+.dk.active {
+  background: rgba(120, 190, 255, 0.5);
+  border-color: rgba(170, 225, 255, 0.85);
+  color: #ffffff;
+  box-shadow: 0 0 16px rgba(120, 190, 255, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.25);
+}
+
+.dk:active { transform: scale(0.96); }
 
 /* ---------------- 右下按钮 ---------------- */
 

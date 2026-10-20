@@ -39,6 +39,25 @@
 
   <div class="gold">🪙<span id="gold">0</span></div>
 
+  <div class="potion" id="potion">🧪<span id="potionCount">3</span><span class="potion-cd" id="potionCd" hidden></span></div>
+
+  <button class="shop-tip" id="shopTip" type="button" hidden>🛒 商店 <kbd>E</kbd></button>
+
+  <div class="shop" id="shop" hidden>
+    <div class="shop-card">
+      <p class="shop-k">安全区 · 商人豆豆</p>
+      <h2 class="shop-title">整备一下</h2>
+      <div class="shop-gold">金币 <span id="shopGold">0</span></div>
+      <div class="shop-list">
+        <button id="shopWeapon" type="button">武器</button>
+        <button id="shopArmor" type="button">护甲</button>
+        <button id="shopPotion" type="button">药水</button>
+      </div>
+      <p class="shop-hint" id="shopHint">血量低于 45% 会自动喝药，10 秒 CD</p>
+      <button class="shop-close" id="shopClose" type="button">继续冒险</button>
+    </div>
+  </div>
+
   <!-- BOSS 血条 -->
   <div class="bossbar" id="bossbar" hidden>
     <div class="boss-top">
@@ -49,6 +68,14 @@
   </div>
 
   <div class="hint" id="hint">拖动屏幕左右跑 · 跳上平台 · 砍光蘑菇</div>
+
+  <!-- 左下 WASD 常驻方向键：按到才亮 -->
+  <div class="dpad" id="dpad">
+    <button class="dk up" data-k="up" type="button">W</button>
+    <button class="dk left" data-k="left" type="button">A</button>
+    <button class="dk down" data-k="down" type="button">S</button>
+    <button class="dk right" data-k="right" type="button">D</button>
+  </div>
 
   <!-- 右下操作区 -->
   <div class="pad">

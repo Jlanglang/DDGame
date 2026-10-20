@@ -435,11 +435,32 @@
     });
   }
 
-  function blankHtml(opt) {
+  /** 单词按正常书写显示：首字母大写，其余小写，缺的字母是下划线 */
+  function wordHtml(opt, fillBlank) {
     return opt.word
       .split('')
-      .map((c, i) => (i === opt.blank ? '<span class="blank">_</span>' : c))
-      .join(' ');
+      .map((c, i) => {
+        const ch = i === 0 ? c : c.toLowerCase();
+        if (i !== opt.blank) return ch;
+        return fillBlank
+          ? `<span class="filled">${ch}</span>`
+          : '<span class="blank">&nbsp;</span>';
+      })
+      .join('');
+  }
+
+  function blankHtml(opt) {
+    return wordHtml(opt, false);
+  }
+
+  /** 字母块跟单词保持同一种大小写（空格在中段时用小写） */
+  function letterText(opt, letter) {
+    return opt.blank === 0 ? letter : letter.toLowerCase();
+  }
+
+  /** 结果提示里用的正常写法：Morning */
+  function pretty(opt) {
+    return opt.word[0] + opt.word.slice(1).toLowerCase();
   }
 
   function pickCard(i) {
@@ -453,10 +474,10 @@
     puzzleName.textContent = `${opt.card.name} · ${opt.desc}`;
     puzzleZh.textContent = opt.zh;
     puzzleWord.innerHTML = blankHtml(opt);
-    // 长单词缩小字号，别折行
+    // 单词不再逐字母空格，长词按长度缩字号
     const n = opt.word.length;
-    puzzleWord.style.fontSize = n >= 8 ? '26px' : n === 7 ? '29px' : n === 6 ? '32px' : '38px';
-    puzzleWord.style.letterSpacing = n >= 7 ? '0.06em' : '0.12em';
+    puzzleWord.style.fontSize = n >= 9 ? '32px' : n === 8 ? '35px' : n === 7 ? '39px' : '44px';
+    puzzleWord.style.letterSpacing = '0.06em';
     puzzleTip.textContent = '拼错这级就拿不到卡';
     puzzleTip.className = 'puzzle-tip';
     puzzleNext.hidden = true;
@@ -465,7 +486,7 @@
     for (const letter of opt.letters) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = letter;
+      b.textContent = letterText(opt, letter);
       b.addEventListener('click', () => answerLetter(letter));
       puzzleLetters.appendChild(b);
     }
@@ -478,7 +499,7 @@
     if (letter === opt.correct) {
       applyCard(opt);
       G.cards.solved += 1;
-      puzzleTip.textContent = `✔ ${opt.word} ${opt.zh} · ${opt.desc}`;
+      puzzleTip.textContent = `✔ ${pretty(opt)} ${opt.zh} · ${opt.desc}`;
       puzzleTip.className = 'puzzle-tip ok';
       floatText(TOWER_Y - 190, opt.card.name, '#7ee0a0');
       G.cards.hold = 0.75;
@@ -488,13 +509,10 @@
     // 错了：面板不自动关，把正确答案摆出来，玩家自己点「继续」
     opt.dead = true;
     G.cards.lost += 1;
-    puzzleTip.textContent = `✘ 正确答案是 ${opt.correct} · 这一级拿不到卡了`;
+    puzzleTip.textContent = `✘ 正确答案是 ${letterText(opt, opt.correct)} · 这一级拿不到卡了`;
     puzzleTip.className = 'puzzle-tip bad';
     // 把缺的字母补上，让人看到完整的词
-    puzzleWord.innerHTML = opt.word
-      .split('')
-      .map((c, i) => (i === opt.blank ? `<span class="filled">${c}</span>` : c))
-      .join(' ');
+    puzzleWord.innerHTML = wordHtml(opt, true);
     puzzleLetters.innerHTML = '';
     puzzleNext.hidden = false;
   }

@@ -398,17 +398,19 @@ body {
 
 .puzzle-word {
   font-family: "SF Mono", "Consolas", ui-monospace, monospace;
-  font-size: clamp(30px, 8vw, 40px);
+  font-size: clamp(30px, 8vw, 44px);
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   color: var(--gold);
   margin-bottom: 20px;
   white-space: nowrap;
 }
 
 .puzzle-word .blank {
-  color: #6f7d99;
-  border-bottom: 4px solid rgba(255, 209, 102, 0.75);
+  display: inline-block;
+  width: 0.55em;
+  color: transparent;
+  border-bottom: 4px solid rgba(255, 209, 102, 0.8);
 }
 
 .puzzle-word .filled {

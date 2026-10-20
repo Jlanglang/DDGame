@@ -26,7 +26,7 @@
 
   const BAL = Object.assign({
     dmgBase: 12,        // 初始单发伤害
-    playerHp: 10,       // 桥头血量：漏一个小怪扣 1 点
+    playerHp: 9,        // 桥头血量：漏一个小怪扣 1 点
     baseRate: 5.5,      // 初始攻速（发/秒）
     rateStep: 0.2,      // 每档攻速 +0.2/s
     rateFloor: 0.8,     // 攻速下限（吃了 -20 档的卡也不至于停火）
@@ -37,7 +37,7 @@
     waves: 8,           // 8 波杂兵，清完 BOSS 登场
     bossMul: 10,        // BOSS 血量 = 第 8 波血量 ×10
     formationRowGap: 55, // 阵型里前后排的间距（像素），压紧一点，少等后排走进来
-    gruntSpeed: 72,     // 小怪推进速度（像素/秒）→ 决定每波时长
+    gruntSpeed: 86,     // 小怪推进速度（像素/秒）→ 决定每波时长和压迫感
     bossSpeed: 42,      // BOSS 推进速度
     waveGap: 0.8,       // 清场后到下一波的休息时间
     waveGapFirst: 1.4,  // 开局第一波的准备时间

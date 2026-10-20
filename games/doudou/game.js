@@ -27,10 +27,10 @@
   const BAL = Object.assign({
     dmgBase: 12,        // 初始单发伤害
     playerHp: 10,       // 桥头血量：漏一个小怪扣 1 点
-    baseRate: 6.0,      // 初始攻速（发/秒）
+    baseRate: 5.5,      // 初始攻速（发/秒）
     rateStep: 0.2,      // 每档攻速 +0.2/s
     rateFloor: 0.8,     // 攻速下限（吃了 -20 档的卡也不至于停火）
-    rateMaxTier: 40,    // 攻速档位上限 → 6 + 8 = 14/s
+    rateMaxTier: 40,    // 攻速档位上限 → 5.5 + 8 = 13.5/s
 
     hpBase: 36,         // 第 1 波单个小怪血量
     hpGrowth: 1.88,     // 每过一波 ×1.88
@@ -119,6 +119,7 @@
     waveGap: 0,
     round: 0,
     waveSize: 0,
+    pairsSpawned: 0,
     cols: 2,
     bossSpawned: false,
     cardCd: 0,
@@ -287,6 +288,7 @@
     G.state = 'playing';
     G.waveGap = 1.4;
     G.cols = 2;
+    G.pairsSpawned = 0;
     G.bossSpawned = false;
     G.spawnTimer = 0;
     G.cardCd = 0;
@@ -350,17 +352,24 @@
   // 一对卡落地后，还要空这么久才会有下一对
   const CARD_COOLDOWN = BAL.cardCd;
 
-  function spawnCard(side, y, exclude) {
-    // 按权重抽卡：攻击卡很少出
-    // 前 3 波不出攻击卡——开局先让玩家把攻速/弹道/伤害铺起来
-    let pool = CARD_TYPES.filter((t) => t.id !== exclude);
-    if (G.wave <= BAL.noAtkBefore) pool = pool.filter((t) => t.id !== 'dmgMul');
-    const total = pool.reduce((s, t) => s + (BAL.weights[t.id] || 1), 0);
-    let roll = Math.random() * total;
-    let type = pool[pool.length - 1];
-    for (const t of pool) {
-      roll -= BAL.weights[t.id] || 1;
-      if (roll <= 0) { type = t; break; }
+  function spawnCard(side, y, exclude, forceId) {
+    let type;
+
+    if (forceId) {
+      // 固定卡：开局前两对用，保证起手是攻速/弹道/伤害
+      type = CARD_TYPES.find((t) => t.id === forceId) || CARD_TYPES[0];
+    } else {
+      // 按权重抽卡：攻击卡很少出
+      // 前 3 波不出攻击卡——开局先让玩家把攻速/弹道/伤害铺起来
+      let pool = CARD_TYPES.filter((t) => t.id !== exclude);
+      if (G.wave <= BAL.noAtkBefore) pool = pool.filter((t) => t.id !== 'dmgMul');
+      const total = pool.reduce((s, t) => s + (BAL.weights[t.id] || 1), 0);
+      let roll = Math.random() * total;
+      type = pool[pool.length - 1];
+      for (const t of pool) {
+        roll -= BAL.weights[t.id] || 1;
+        if (roll <= 0) { type = t; break; }
+      }
     }
 
     // 每张卡自己带 min/max/step
@@ -401,8 +410,21 @@
     if (G.cardCd > 0) return;
     G.cardCd = CARD_COOLDOWN;
 
-    const left = spawnCard('left', -100);
-    spawnCard('right', -100, left.type.id);
+    const pair = G.pairsSpawned;
+    G.pairsSpawned += 1;
+
+    // 前两对固定：攻速 + 弹道 / 攻速 + 伤害。
+    // 开局不再靠运气，玩家第一眼看到的就是"喂哪张"的选择。
+    if (pair === 0) {
+      spawnCard('left', -100, null, 'rateMul');
+      spawnCard('right', -100, 'rateMul', 'shots');
+    } else if (pair === 1) {
+      spawnCard('left', -100, null, 'rateMul');
+      spawnCard('right', -100, 'rateMul', 'dmgAdd');
+    } else {
+      const left = spawnCard('left', -100);
+      spawnCard('right', -100, left.type.id);
+    }
   }
 
   // 卡片宽度：喂得多的那边变宽，另一边被挤窄
@@ -823,6 +845,7 @@
     G.waveGap = 0;
     G.round = 0;
     G.waveSize = 0;
+    G.pairsSpawned = 0;
     G.bossSpawned = false;
     G.cardCd = 0;
 

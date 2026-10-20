@@ -70,7 +70,7 @@
     { id: 'slow',   name: '冰冻弹',   icon: '❄', desc: '命中减速',        buff: 'slow' },
     { id: 'burn',   name: '燃烧弹',   icon: '♨', desc: '命中点燃 2 秒',   buff: 'burn' },
     { id: 'pierce', name: '穿甲弹',   icon: '➤', desc: '子弹穿透 +1',     buff: 'pierce' },
-    { id: 'crit',   name: '瞄准镜',   icon: '◎', desc: '暴击 +10%（×2）', buff: 'crit' },
+    { id: 'crit',   name: '瞄准镜',   icon: '◎', desc: '暴击 +10%', buff: 'crit' },
   ];
 
   /* ----------------------------------------------------------
@@ -93,7 +93,6 @@
     exp: 0,
     expNext: BAL.levelBase + BAL.levelStep,
     pendingLevels: 0,
-    hints: 0,
 
     enemies: [],
     bullets: [],
@@ -151,6 +150,7 @@
   const puzzleWord = document.getElementById('puzzleWord');
   const puzzleLetters = document.getElementById('puzzleLetters');
   const puzzleTip = document.getElementById('puzzleTip');
+  const puzzleNext = document.getElementById('puzzleNext');
   const overEl = document.getElementById('over');
   const overSub = document.getElementById('overSub');
   const pauseBtn = document.getElementById('pause');
@@ -274,7 +274,7 @@
       zh: item.zh,
       blank,
       correct,
-      letters: shuffle([correct, d1, d2]).map((l) => ({ l, gone: false })),
+      letters: shuffle([correct, d1, d2]),
       dead: false,
     };
   }
@@ -300,26 +300,13 @@
     }
     G.cards.options = picks;
 
-    // 有提示就排除一个错误字母
-    if (G.hints > 0) {
-      G.hints -= 1;
-      for (const opt of picks) {
-        const wrong = opt.letters.filter((x) => x.l !== opt.correct);
-        if (wrong.length) pick(wrong).gone = true;
-      }
-    }
-
     renderCardPanel();
     cardsEl.hidden = false;
   }
 
   function renderCardPanel() {
     cardsK.textContent = `升级 Lv.${G.level}`;
-    cardsTip.textContent =
-      G.hints > 0 || G.cards.options.some((o) => o.letters.some((x) => x.gone))
-        ? '三选一 · 补全单词才能拿到（提示已排除一个错误字母）'
-        : '三选一 · 补全单词才能拿到，拼错这级就空过';
-    cardsTip.style.color = '';
+    cardsTip.textContent = '三选一 · 外面只露中文，拼对单词才拿得到';
 
     cardList.hidden = false;
     puzzleEl.hidden = true;
@@ -334,8 +321,8 @@
         <span class="up-body">
           <span class="up-name">${opt.card.name}</span>
           <span class="up-desc">${opt.card.desc}</span>
-          <span class="up-word">${blankHtml(opt)}</span>
-        </span>`;
+        </span>
+        <span class="up-zh">${opt.zh}</span>`;
       b.addEventListener('click', () => pickCard(i));
       cardList.appendChild(b);
     });
@@ -365,21 +352,21 @@
     puzzleWord.style.letterSpacing = n >= 7 ? '0.06em' : '0.12em';
     puzzleTip.textContent = '拼错这级就拿不到卡';
     puzzleTip.className = 'puzzle-tip';
+    puzzleNext.hidden = true;
 
     puzzleLetters.innerHTML = '';
-    for (const item of opt.letters) {
+    for (const letter of opt.letters) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = item.l;
-      if (item.gone) b.classList.add('gone');
-      b.addEventListener('click', () => answerLetter(item.l));
+      b.textContent = letter;
+      b.addEventListener('click', () => answerLetter(letter));
       puzzleLetters.appendChild(b);
     }
   }
 
   function answerLetter(letter) {
     const opt = G.cards.options[G.cards.picked];
-    if (!opt || G.cards.hold > 0) return;
+    if (!opt || opt.dead || G.cards.hold > 0) return;
 
     if (letter === opt.correct) {
       applyCard(opt.card);
@@ -391,11 +378,18 @@
       return;
     }
 
+    // 错了：面板不自动关，把正确答案摆出来，玩家自己点「继续」
     opt.dead = true;
     G.cards.lost += 1;
-    puzzleTip.textContent = `✘ 正确答案是 ${opt.correct}（${opt.word} ${opt.zh}）· 这一级拿不到卡了`;
+    puzzleTip.textContent = `✘ 正确答案是 ${opt.correct} · 这一级拿不到卡了`;
     puzzleTip.className = 'puzzle-tip bad';
-    G.cards.hold = 1.3;
+    // 把缺的字母补上，让人看到完整的词
+    puzzleWord.innerHTML = opt.word
+      .split('')
+      .map((c, i) => (i === opt.blank ? `<span class="filled">${c}</span>` : c))
+      .join(' ');
+    puzzleLetters.innerHTML = '';
+    puzzleNext.hidden = false;
   }
 
   /** 卡片面板收起：答对拿卡，答错也收起（一级只有一次机会） */
@@ -590,10 +584,6 @@
     }
 
     addExp(e.kind === 'elite' ? BAL.expElite : BAL.expGrunt);
-    if (e.kind === 'elite') {
-      G.hints = Math.min(2, G.hints + 1);
-      floatText(e.y, '提示 +1', '#ffd166');
-    }
   }
 
   function updateEnemies(dt) {
@@ -774,7 +764,6 @@
     G.exp = 0;
     G.expNext = BAL.levelBase + G.level * BAL.levelStep;
     G.pendingLevels = 0;
-    G.hints = 0;
     G.enemies = [];
     G.bullets = [];
     G.particles = [];
@@ -1230,6 +1219,7 @@
      ---------------------------------------------------------- */
 
   pauseBtn.addEventListener('click', () => setPaused(!G.paused));
+  puzzleNext.addEventListener('click', () => closeCards());
   document.getElementById('again').addEventListener('click', reset);
 
   window.addEventListener('keydown', (e) => {
@@ -1251,6 +1241,7 @@
       openCards,
       pickCard,
       answerLetter,
+      closeCards,
       reset,
       goal: () => ({
         wave: G.wave,
@@ -1262,7 +1253,7 @@
         picked: G.cards.picked,
         options: G.cards.options.map((o) => ({
           word: o.word, correct: o.correct, dead: o.dead,
-          letters: o.letters.map((l) => ({ l: l.l, gone: l.gone })),
+          letters: o.letters.slice(),
         })),
         state: G.state,
       }),

@@ -328,6 +328,20 @@ body {
 
 .up-word .blank { color: #6f7d99; }
 
+/* 卡片外面的中文（唯一的线索） */
+.up-zh {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border-radius: 11px;
+  background: rgba(255, 209, 102, 0.13);
+  border: 1px solid rgba(255, 209, 102, 0.34);
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
 /* 填空 */
 
 .puzzle { padding-top: 4px; }
@@ -341,10 +355,11 @@ body {
 }
 
 .puzzle-zh {
-  margin: 0 0 12px;
-  font-size: 13px;
-  letter-spacing: 0.2em;
-  color: var(--muted);
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #ffe6a8;
 }
 
 .puzzle-word {
@@ -360,6 +375,11 @@ body {
 .puzzle-word .blank {
   color: #6f7d99;
   border-bottom: 4px solid rgba(255, 209, 102, 0.75);
+}
+
+.puzzle-word .filled {
+  color: var(--green);
+  border-bottom: 4px solid rgba(126, 224, 160, 0.8);
 }
 
 .puzzle-letters {
@@ -385,7 +405,6 @@ body {
 }
 
 .puzzle-letters button:active { transform: scale(0.94); filter: brightness(1.15); }
-.puzzle-letters button.gone { visibility: hidden; }
 
 .puzzle-tip {
   margin: 0;
@@ -397,6 +416,24 @@ body {
 
 .puzzle-tip.ok { color: var(--green); }
 .puzzle-tip.bad { color: var(--red); }
+
+.puzzle-next {
+  margin-top: 14px;
+  padding: 11px 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 209, 102, 0.5);
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--gold);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.puzzle-next[hidden] { display: none; }
+.puzzle-next:active { transform: scale(0.96); }
 
 /* ---------------- 结算 ---------------- */
 

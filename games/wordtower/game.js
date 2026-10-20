@@ -1121,8 +1121,18 @@
     last = now;
     dt *= FAST;
 
-    if (!G.paused && G.state === 'playing') update(dt);
-    else updateParticles(dt);
+    // 固定步长推进：fast 调试和掉帧时都不会让子弹穿过怪
+    if (!G.paused && G.state === 'playing') {
+      let remain = dt;
+      while (remain > 1e-6) {
+        const step = Math.min(remain, 1 / 60);
+        update(step);
+        remain -= step;
+        if (G.state !== 'playing') break;
+      }
+    } else {
+      updateParticles(dt);
+    }
 
     // 答题面板的对错停留（暂停中也要走）
     if (G.quizHold > 0) {

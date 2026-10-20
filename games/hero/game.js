@@ -16,7 +16,10 @@
   const W = 1280;
   const H = 720;
   const GROUND_Y = 600;
-  const WORLD_W = 3200;
+  const WORLD_W = 3200;          // 背景素材的铺开宽度（森林）
+
+  /* 两张图：0 = 蘑菇森林（割草），1 = 蘑菇王巢穴（单挑） */
+  const STAGE_W = [3200, 1500];
 
   const GRAV = 2100;
   const MOVE_SPEED = 470;
@@ -33,13 +36,14 @@
   const SKILL_CD = 8;
   const SKILL_TIME = 0.72;
 
-  const TOTAL_KILLS = 20;      // 杀够这么多小怪，蘑菇王登场
+  const TOTAL_KILLS = 20;      // 杀够这么多小怪，森林尽头出现传送门
   const MAX_ALIVE = 7;
 
   const CAM_LERP = 9;
+  const PORTAL_X = 3040;
 
   /* 平台：x 左边缘，y 顶面，w 宽 */
-  const PLATFORMS = [
+  const PLATFORMS_FOREST = [
     { x: 240, y: 430, w: 280 },
     { x: 620, y: 260, w: 280 },
     { x: 1000, y: 430, w: 260 },
@@ -49,6 +53,14 @@
     { x: 2420, y: 430, w: 260 },
     { x: 2760, y: 260, w: 260 },
   ];
+
+  /* 巢穴：小一点、空一点，留出躲招的空间；右侧不挡 BOSS */
+  const PLATFORMS_LAIR = [
+    { x: 200, y: 430, w: 220 },
+    { x: 660, y: 300, w: 200 },
+  ];
+
+  const STAGE_PLATFORMS = [PLATFORMS_FOREST, PLATFORMS_LAIR];
 
   const ENEMY = {
     shroom: { w: 70, h: 76, hp: 60, speed: 66, dmg: 16, exp: 16, gold: [2, 5] },
@@ -143,6 +155,9 @@
   const G = {
     state: 'play',        // play | win | lose
     paused: false,
+    stage: 0,             // 0 森林 | 1 巢穴
+    worldW: STAGE_W[0],
+    platforms: STAGE_PLATFORMS[0],
     time: 0,
     camX: 0,
     shake: 0,
@@ -153,6 +168,10 @@
     boss: null,
     bossSpawned: false,
     bossDelay: 0,
+    portal: null,
+    fade: 0,
+    fadeDir: 0,
+    pendingStage: -1,
     enemies: [],
     projectiles: [],
     orbs: [],
@@ -175,6 +194,7 @@
     bossName: document.getElementById('bossName'),
     bossHp: document.getElementById('bossHp'),
     bossFill: document.getElementById('bossFill'),
+    stageName: document.getElementById('stageName'),
     hint: document.getElementById('hint'),
     pause: document.getElementById('pause'),
     pauseVeil: document.getElementById('pauseVeil'),
@@ -195,6 +215,9 @@
   function reset() {
     G.state = 'play';
     G.paused = false;
+    G.stage = 0;
+    G.worldW = STAGE_W[0];
+    G.platforms = STAGE_PLATFORMS[0];
     G.time = 0;
     G.camX = 0;
     G.shake = 0;
@@ -205,6 +228,10 @@
     G.boss = null;
     G.bossSpawned = false;
     G.bossDelay = 0;
+    G.portal = null;
+    G.fade = 0;
+    G.fadeDir = 0;
+    G.pendingStage = -1;
     G.enemies = [];
     G.projectiles = [];
     G.orbs = [];
@@ -233,6 +260,7 @@
     el.over.hidden = true;
     el.pauseVeil.hidden = true;
     el.bossbar.hidden = true;
+    el.stageName.textContent = '豆豆勇者 · 蘑菇森林';
     el.hint.classList.remove('gone');
     el.pause.classList.remove('paused');
     setHint('拖动屏幕左右跑 · 跳上平台 · 砍光蘑菇', 4.5);
@@ -455,7 +483,7 @@
     const prevFeet = b.y;
 
     b.x += b.vx * dt;
-    b.x = clamp(b.x, 30, WORLD_W - 30);
+    b.x = clamp(b.x, 30, G.worldW - 30);
 
     b.vy += GRAV * dt;
     if (b.vy > 1500) b.vy = 1500;
@@ -468,7 +496,7 @@
       b.vy = 0;
       b.onGround = true;
     } else if (b.vy > 0 && !dropThrough) {
-      for (const pl of PLATFORMS) {
+      for (const pl of G.platforms) {
         if (prevFeet <= pl.y + 2 && b.y >= pl.y &&
             b.x + b.w * 0.34 > pl.x && b.x - b.w * 0.34 < pl.x + pl.w) {
           b.y = pl.y;
@@ -490,19 +518,19 @@
 
     if (Math.random() < 0.72) {
       baseX = p.x + rand(540, 860);
-      if (baseX > WORLD_W - 80) baseX = p.x - rand(540, 860);
+      if (baseX > G.worldW - 80) baseX = p.x - rand(540, 860);
     } else {
       baseX = p.x - rand(540, 860);
       if (baseX < 80) baseX = p.x + rand(540, 860);
     }
-    baseX = clamp(baseX, 80, WORLD_W - 80);
+    baseX = clamp(baseX, 80, G.worldW - 80);
 
     if (type === 'ghost') {
       return { x: baseX, y: p.y - rand(240, 430) };
     }
 
     if (type === 'stump' && Math.random() < 0.5) {
-      const pl = PLATFORMS[randi(0, PLATFORMS.length - 1)];
+      const pl = G.platforms[randi(0, G.platforms.length - 1)];
       if (Math.abs(pl.x + pl.w / 2 - p.x) > 260) {
         return { x: pl.x + pl.w / 2, y: pl.y };
       }
@@ -540,6 +568,7 @@
   }
 
   function spawnWave(dt) {
+    if (G.stage !== 0) return;
     if (G.kills >= TOTAL_KILLS) return;
     const alive = G.enemies.filter((e) => !e.dead).length;
     if (alive >= MAX_ALIVE) return;
@@ -559,14 +588,63 @@
   }
 
   /* ----------------------------------------------------------
+     两张图之间的切换
+     ---------------------------------------------------------- */
+
+  function startTransition(stage) {
+    if (G.fadeDir !== 0) return;
+    G.pendingStage = stage;
+    G.fadeDir = 1;
+    G.portal = null;
+    SFX.skill();
+  }
+
+  function enterStage(n) {
+    G.stage = n;
+    G.worldW = STAGE_W[n];
+    G.platforms = STAGE_PLATFORMS[n];
+    G.enemies = [];
+    G.projectiles = [];
+    G.orbs = [];
+    G.texts = [];
+    G.particles = [];
+    G.boss = null;
+    G.bossSpawned = false;
+    G.bossDelay = 0;
+    G.portal = null;
+    G.spawnT = 1.6;
+
+    const p = G.player;
+    p.x = n === 0 ? 340 : 180;
+    p.y = GROUND_Y;
+    p.vx = 0;
+    p.vy = 0;
+    p.invuln = 1.4;
+    p.attackT = 0;
+    p.skillT = 0;
+    G.camX = clamp(p.x - W / 2, 0, Math.max(0, G.worldW - W));
+
+    el.bossbar.hidden = true;
+    el.stageName.textContent = n === 1 ? '豆豆勇者 · 蘑菇王巢穴' : '豆豆勇者 · 蘑菇森林';
+
+    if (n === 1) {
+      spawnBoss();
+      setHint('蘑菇王巢穴：跳起来躲开落地冲击波', 4.5);
+    } else {
+      setHint('回到蘑菇森林', 3);
+    }
+    G.shake = 6;
+  }
+
+  /* ----------------------------------------------------------
      BOSS
      ---------------------------------------------------------- */
 
   function spawnBoss() {
     const p = G.player;
-    let x = p.x + 520;
-    if (x > WORLD_W - 220) x = p.x - 520;
-    x = clamp(x, 240, WORLD_W - 240);
+    let x = G.stage === 1 ? 820 : p.x + 520;
+    if (G.stage === 0 && x > G.worldW - 220) x = p.x - 520;
+    x = clamp(x, 240, G.worldW - 240);
 
     G.boss = {
       x, y: GROUND_Y,
@@ -653,7 +731,7 @@
     } else if (b.mode === 'charge') {
       b.vx = b.dir * (b.phase === 2 ? 500 : 400);
       b.modeT -= dt;
-      if (b.modeT <= 0 || b.x <= 60 || b.x >= WORLD_W - 60) {
+      if (b.modeT <= 0 || b.x <= 60 || b.x >= G.worldW - 60) {
         b.mode = 'idle';
         b.modeT = b.phase === 2 ? 0.55 : 0.9;
         b.vx = 0;
@@ -673,7 +751,7 @@
       if (b.modeT <= 0) {
         for (let i = 0; i < 3; i++) {
           const e = spawnEnemy('shroom');
-          e.x = clamp(b.x + rand(-180, 180), 60, WORLD_W - 60);
+          e.x = clamp(b.x + rand(-180, 180), 60, G.worldW - 60);
           e.y = GROUND_Y;
           e.hp *= 0.6;
           e.maxHp = e.hp;
@@ -735,6 +813,21 @@
     if (G.hitstop > 0) {
       G.hitstop -= rawDt;
       dt *= 0.16;
+    }
+
+    // 切图黑幕：全黑时换地图，再淡入
+    if (G.fadeDir !== 0) {
+      G.fade += G.fadeDir * rawDt * 2.4;
+      if (G.fade >= 1) {
+        G.fade = 1;
+        G.fadeDir = -1;
+        enterStage(G.pendingStage);
+      } else if (G.fade <= 0) {
+        G.fade = 0;
+        G.fadeDir = 0;
+      }
+      updateFx(rawDt);
+      return;
     }
 
     G.time += dt;
@@ -804,11 +897,24 @@
     /* --- 掉坑？没有坑，只有地面 --- */
 
     /* --- 相机 --- */
-    const targetCam = clamp(p.x - W / 2, 0, WORLD_W - W);
+    const targetCam = clamp(p.x - W / 2, 0, G.worldW - W);
     G.camX = lerp(G.camX, targetCam, Math.min(1, CAM_LERP * dt));
 
     /* --- 生成 --- */
     spawnWave(dt);
+
+    // 杀满之后：森林尽头开一道传送门
+    if (G.stage === 0 && !G.portal && !G.bossSpawned && G.kills >= TOTAL_KILLS) {
+      G.portal = { x: PORTAL_X, y: GROUND_Y, t: 0 };
+      setHint('森林尽头出现了传送门 → 去蘑菇王巢穴', 5);
+      addText(PORTAL_X, GROUND_Y - 150, '传送门', '#c9a3ff', 30);
+    }
+    if (G.portal) {
+      G.portal.t += dt;
+      if (Math.abs(p.x - G.portal.x) < 74 && Math.abs(p.y - G.portal.y) < 130) {
+        startTransition(1);
+      }
+    }
 
     if (G.bossDelay > 0) {
       G.bossDelay -= dt;
@@ -940,7 +1046,7 @@
         e.x += e.vx * dt;
         e.y += e.vy * dt;
         e.y = clamp(e.y, 200, GROUND_Y);
-        e.x = clamp(e.x, 40, WORLD_W - 40);
+        e.x = clamp(e.x, 40, G.worldW - 40);
         e.dir = e.vx < 0 ? -1 : 1;
       } else if (e.type === 'stump') {
         e.vx *= 0.9;
@@ -999,7 +1105,7 @@
       if (b.kind === 'wave') {
         b.x += b.vx * dt;
         b.y = GROUND_Y;
-        if (b.x < 20 || b.x > WORLD_W - 20) { b.dead = true; continue; }
+        if (b.x < 20 || b.x > G.worldW - 20) { b.dead = true; continue; }
         const bb = { x: b.x - b.w / 2, y: GROUND_Y - b.h, w: b.w, h: b.h };
         const pb = { x: p.x - p.w * 0.42, y: p.y - p.h, w: p.w * 0.84, h: p.h };
         if (!b.hit && overlap(bb, pb)) {
@@ -1018,7 +1124,7 @@
           b.dead = true;
           hurtPlayer(b.dmg, b.x);
         }
-        if (b.x < 20 || b.x > WORLD_W - 20 || b.y > GROUND_Y) b.dead = true;
+        if (b.x < 20 || b.x > G.worldW - 20 || b.y > GROUND_Y) b.dead = true;
       }
     }
     G.projectiles = G.projectiles.filter((b) => !b.dead);
@@ -1147,41 +1253,51 @@
 
   function drawBackground() {
     const cam = G.camX;
+    const lair = G.stage === 1;
+
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#070c1a');
-    g.addColorStop(0.34, '#101c38');
-    g.addColorStop(0.62, '#1b2c4c');
-    g.addColorStop(0.82, '#24384f');
-    g.addColorStop(1, '#1a2733');
+    if (lair) {
+      g.addColorStop(0, '#120612');
+      g.addColorStop(0.34, '#1e0a18');
+      g.addColorStop(0.62, '#2b0e1e');
+      g.addColorStop(0.82, '#35122a');
+      g.addColorStop(1, '#1c0a14');
+    } else {
+      g.addColorStop(0, '#070c1a');
+      g.addColorStop(0.34, '#101c38');
+      g.addColorStop(0.62, '#1b2c4c');
+      g.addColorStop(0.82, '#24384f');
+      g.addColorStop(1, '#1a2733');
+    }
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
     // 星星
     for (const s of STARS) {
       const tw = 0.45 + 0.55 * Math.abs(Math.sin(G.time * s.s + s.p));
-      ctx.globalAlpha = 0.35 + tw * 0.55;
-      ctx.fillStyle = '#dfe9ff';
+      ctx.globalAlpha = (0.35 + tw * 0.55) * (lair ? 0.55 : 1);
+      ctx.fillStyle = lair ? '#ffd6e0' : '#dfe9ff';
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, 6.28);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // 月亮
+    // 月亮（巢穴是血月）
     const mx = W * 0.78 - cam * 0.04;
-    const my = 178;
+    const my = lair ? 150 : 178;
     const mg = ctx.createRadialGradient(mx, my, 20, mx, my, 150);
-    mg.addColorStop(0, 'rgba(255, 240, 200, 0.30)');
-    mg.addColorStop(1, 'rgba(255, 240, 200, 0)');
+    mg.addColorStop(0, lair ? 'rgba(255, 120, 110, 0.22)' : 'rgba(255, 240, 200, 0.30)');
+    mg.addColorStop(1, lair ? 'rgba(255, 120, 110, 0)' : 'rgba(255, 240, 200, 0)');
     ctx.fillStyle = mg;
     ctx.beginPath();
     ctx.arc(mx, my, 150, 0, 6.28);
     ctx.fill();
-    ctx.fillStyle = '#f7ecc9';
+    ctx.fillStyle = lair ? '#c94a4a' : '#f7ecc9';
     ctx.beginPath();
     ctx.arc(mx, my, 46, 0, 6.28);
     ctx.fill();
-    ctx.fillStyle = 'rgba(220, 205, 165, 0.5)';
+    ctx.fillStyle = lair ? 'rgba(120, 30, 30, 0.5)' : 'rgba(220, 205, 165, 0.5)';
     ctx.beginPath();
     ctx.arc(mx - 14, my - 10, 9, 0, 6.28);
     ctx.arc(mx + 15, my + 7, 6, 0, 6.28);
@@ -1189,20 +1305,20 @@
     ctx.fill();
 
     // 远山 + 近山
-    hills(cam * 0.1, 120, 470, '#0e1830');
-    hills(cam * 0.22, 90, 540, '#132039');
+    hills(cam * 0.1, 120, 470, lair ? '#1a0a16' : '#0e1830');
+    hills(cam * 0.22, 90, 540, lair ? '#25101f' : '#132039');
 
     // 树（视差）
     for (const t of TREES) {
       const x = t.x - cam * 0.55;
       if (x < -120 || x > W + 120) continue;
-      drawTree(x, GROUND_Y - 10, t.h, t.w, '#0b1424');
+      drawTree(x, GROUND_Y - 10, t.h, t.w, lair ? '#120711' : '#0b1424');
     }
 
     // 地面雾
     const fg = ctx.createLinearGradient(0, GROUND_Y - 220, 0, GROUND_Y + 40);
-    fg.addColorStop(0, 'rgba(24, 40, 62, 0)');
-    fg.addColorStop(1, 'rgba(20, 34, 48, 0.9)');
+    fg.addColorStop(0, lair ? 'rgba(40, 12, 28, 0)' : 'rgba(24, 40, 62, 0)');
+    fg.addColorStop(1, lair ? 'rgba(28, 8, 20, 0.92)' : 'rgba(20, 34, 48, 0.9)');
     ctx.fillStyle = fg;
     ctx.fillRect(0, GROUND_Y - 220, W, 260);
   }
@@ -1226,36 +1342,38 @@
   /* --- 世界 --- */
 
   function drawGroundAndPlatforms() {
+    const lair = G.stage === 1;
     // 地面
-    ctx.fillStyle = '#232b3c';
-    ctx.fillRect(0, GROUND_Y, WORLD_W, H - GROUND_Y);
-    ctx.fillStyle = '#2f6b4f';
-    ctx.fillRect(0, GROUND_Y, WORLD_W, 16);
-    ctx.fillStyle = '#3f8a63';
-    ctx.fillRect(0, GROUND_Y, WORLD_W, 6);
+    ctx.fillStyle = lair ? '#241820' : '#232b3c';
+    ctx.fillRect(0, GROUND_Y, G.worldW, H - GROUND_Y);
+    ctx.fillStyle = lair ? '#6f2b38' : '#2f6b4f';
+    ctx.fillRect(0, GROUND_Y, G.worldW, 16);
+    ctx.fillStyle = lair ? '#8f3a48' : '#3f8a63';
+    ctx.fillRect(0, GROUND_Y, G.worldW, 6);
 
     for (const d of GROUND_DOTS) {
-      ctx.fillStyle = d.c;
+      if (d.x > G.worldW) continue;
+      ctx.fillStyle = lair ? '#2a1a24' : d.c;
       ctx.beginPath();
       ctx.arc(d.x, d.y, d.r, 0, 6.28);
       ctx.fill();
     }
 
     // 平台
-    for (const pl of PLATFORMS) {
+    for (const pl of G.platforms) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
       rr(ctx, pl.x + 6, pl.y + 10, pl.w, 26, 10);
       ctx.fill();
 
-      ctx.fillStyle = '#2a3548';
+      ctx.fillStyle = lair ? '#3a2430' : '#2a3548';
       rr(ctx, pl.x, pl.y, pl.w, 30, 10);
       ctx.fill();
 
-      ctx.fillStyle = '#365a4b';
+      ctx.fillStyle = lair ? '#5c3040' : '#365a4b';
       rr(ctx, pl.x, pl.y, pl.w, 12, 8);
       ctx.fill();
 
-      ctx.fillStyle = '#4f9a72';
+      ctx.fillStyle = lair ? '#8f4a5c' : '#4f9a72';
       rr(ctx, pl.x, pl.y, pl.w, 6, 4);
       ctx.fill();
     }
@@ -1783,6 +1901,7 @@
     ctx.translate(-Math.round(G.camX) + shakeX, shakeY);
 
     drawGroundAndPlatforms();
+    drawPortal();
     drawOrbs();
     for (const e of G.enemies) drawEnemy(e);
     drawBoss();
@@ -1793,6 +1912,77 @@
     ctx.restore();
 
     drawVignette();
+
+    // 切图黑幕
+    if (G.fade > 0) {
+      ctx.fillStyle = `rgba(4, 6, 12, ${clamp(G.fade, 0, 1)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  /* 森林尽头的传送门 */
+  function drawPortal() {
+    const po = G.portal;
+    if (!po) return;
+
+    const t = po.t;
+    const cy = po.y - 74;
+    const pulse = 1 + Math.sin(t * 3.2) * 0.05;
+
+    ctx.save();
+    ctx.translate(po.x, cy);
+    ctx.scale(pulse, pulse);
+
+    // 光晕
+    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 120);
+    glow.addColorStop(0, 'rgba(180, 140, 255, 0.55)');
+    glow.addColorStop(0.5, 'rgba(140, 90, 240, 0.22)');
+    glow.addColorStop(1, 'rgba(140, 90, 240, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 120, 0, 6.28);
+    ctx.fill();
+
+    // 门框
+    ctx.strokeStyle = 'rgba(220, 200, 255, 0.9)';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 48, 86, 0, 0, 6.28);
+    ctx.stroke();
+
+    // 漩涡
+    ctx.strokeStyle = 'rgba(240, 232, 255, 0.85)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let a = 0; a < 6.28 * 2.6; a += 0.12) {
+      const r = 6 + a * 5.2;
+      const x = Math.cos(a + t * 2.4) * Math.min(r, 46);
+      const y = Math.sin(a + t * 2.4) * Math.min(r, 82);
+      if (a === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 粒子
+    for (let i = 0; i < 4; i++) {
+      const a = t * 1.8 + i * 1.57;
+      const px = Math.cos(a) * 54;
+      const py = Math.sin(a) * 94;
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#e6d5ff';
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // 门下的提示
+    ctx.font = '700 26px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(230, 213, 255, 0.95)';
+    ctx.fillText('蘑菇王巢穴', po.x, po.y - 186);
+    ctx.textAlign = 'left';
   }
 
   function drawVignette() {
@@ -1813,7 +2003,8 @@
     if (!p) return;
     const hpPct = clamp(p.hp / p.maxHp, 0, 1) * 100;
     const expPct = clamp(p.exp / p.expNeed, 0, 1) * 100;
-    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${p.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}`;
+    const bossKey = G.boss && !G.boss.dead ? `B${Math.ceil(G.boss.hp)}` : '-';
+    const key = `${Math.round(hpPct)}|${Math.round(expPct)}|${p.level}|${p.gold}|${Math.ceil(p.hp)}|${Math.ceil(p.maxHp)}|${p.expNeed}|${bossKey}`;
     if (!force && key === hudKey) return;
     hudKey = key;
 
@@ -2020,7 +2211,7 @@
   if (QS.has('debug')) {
     window.__g = G;
     window.__castLog = [];
-    window.__hero = { attack, jump, castSkill, reset, keys, pointer, spawnBoss };
+    window.__hero = { attack, jump, castSkill, reset, keys, pointer, spawnBoss, enterStage };
   }
   requestAnimationFrame(frame);
 })();

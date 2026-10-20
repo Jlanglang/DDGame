@@ -10,8 +10,15 @@ const ROOT = path.join(__dirname, '..');
 
 const CHECKS = [
   {
-    file: 'index.html',
+    // 豆豆大挑战本体（根 index.html 现在是游戏库首页，见下一项）
+    file: 'match.html',
     required: ['<meta charset="UTF-8">', '豆豆大挑战', '快速开始', '再玩一次', '</html>'],
+    forbidden: ['<motion', '</motion>', '????'],
+  },
+  {
+    // 游戏库首页
+    file: 'index.html',
+    required: ['<meta charset="UTF-8">', '豆豆游戏盒', '</html>'],
     forbidden: ['<motion', '</motion>', '????'],
   },
   {
@@ -77,16 +84,38 @@ function validateFile(spec) {
   return errors;
 }
 
+/** games/<id>/index.html：只校验编码与闭合，文案不设限 */
+function validateGamePages() {
+  const dir = path.join(ROOT, 'games');
+  if (!fs.existsSync(dir)) return [];
+  const errors = [];
+  fs.readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .forEach((d) => {
+      const rel = `games/${d.name}/index.html`;
+      if (!fs.existsSync(path.join(ROOT, rel))) return;
+      errors.push(
+        ...validateFile({
+          file: rel,
+          required: ['<meta charset="UTF-8">', '</html>'],
+          forbidden: ['<motion', '</motion>', '????'],
+        })
+      );
+    });
+  return errors;
+}
+
 function main() {
   const allErrors = [];
   for (const spec of CHECKS) {
     allErrors.push(...validateFile(spec));
   }
+  allErrors.push(...validateGamePages());
 
   if (allErrors.length) {
     console.error('编码/HTML 校验失败:\n');
     allErrors.forEach((e) => console.error('  -', e));
-    console.error('\n修复建议: 运行 node scripts/fix-index-html.js 或按 .cursor/rules/encoding-and-html.mdc 操作');
+    console.error('\n修复建议: 按 .cursor/rules/encoding-and-html.mdc 操作；match.html 严重损坏时可运行 node scripts/fix-index-html.js 重建');
     process.exit(1);
   }
 

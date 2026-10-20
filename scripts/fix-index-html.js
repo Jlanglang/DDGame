@@ -197,6 +197,7 @@ const html = `<!DOCTYPE html>
 </html>
 `;
 
-const target = path.join(__dirname, '..', 'index.html');
+// 根 index.html 已改成游戏库首页，本脚本重建的是豆豆大挑战本体 match.html
+const target = path.join(__dirname, '..', 'match.html');
 fs.writeFileSync(target, html, 'utf8');
-console.log('Fixed index.html', fs.readFileSync(target, 'utf8').includes(t.title));
+console.log('Fixed match.html', fs.readFileSync(target, 'utf8').includes(t.title));

@@ -36,7 +36,6 @@
   const SKILL_CD = 8;
   const SKILL_TIME = 0.72;
 
-  const TOTAL_KILLS = 20;      // 杀够这么多小怪，森林尽头出现传送门
   const MAX_ALIVE = 7;
 
   const CAM_LERP = 9;
@@ -264,11 +263,9 @@
     shake: 0,
     hitstop: 0,
     kills: 0,
-    toSpawn: TOTAL_KILLS,
     spawnT: 1.2,
     boss: null,
     bossSpawned: false,
-    bossDelay: 0,
     portal: null,
     portalLock: 0,
     shopOpen: false,
@@ -364,11 +361,9 @@
     G.shake = 0;
     G.hitstop = 0;
     G.kills = 0;
-    G.toSpawn = TOTAL_KILLS;
     G.spawnT = 1.4;
     G.boss = null;
     G.bossSpawned = false;
-    G.bossDelay = 0;
     G.portal = { x: PORTAL_X, y: GROUND_Y, t: 0, to: 1 };
     G.portalLock = 0;
     G.shopOpen = false;
@@ -563,10 +558,6 @@
     if (Math.random() < 0.1) dropOrb(e.x, e.y - e.h * 0.6, 'heart', 0);
     puff(e.x, e.y - e.h * 0.5, 14, e.type === 'ghost' ? '#b8c6ff' : '#ff8a6e');
     G.shake = Math.max(G.shake, 5);
-
-    if (G.kills >= TOTAL_KILLS && !G.bossSpawned) {
-      G.bossDelay = 1.6;
-    }
   }
 
   function hurtPlayer(dmg, fromX) {
@@ -998,7 +989,6 @@
 
   function spawnWave(dt) {
     if (G.stage !== 0) return;
-    if (G.kills >= TOTAL_KILLS) return;
     const alive = G.enemies.filter((e) => !e.dead).length;
     if (alive >= MAX_ALIVE) return;
 
@@ -1039,7 +1029,6 @@
     G.particles = [];
     G.boss = null;
     G.bossSpawned = false;
-    G.bossDelay = 0;
     G.spawnT = 1.6;
     // 传送门双向常驻：森林尽头 → 巢穴，巢穴左侧 → 森林
     // 进图后锁 0.6s，避免刚落地就被门弹回去
@@ -1370,11 +1359,6 @@
       else if (Math.abs(p.x - G.portal.x) < 74 && Math.abs(p.y - G.portal.y) < 130) {
         startTransition(G.portal.to);
       }
-    }
-
-    if (G.bossDelay > 0) {
-      G.bossDelay -= dt;
-      if (G.bossDelay <= 0 && !G.bossSpawned) spawnBoss();
     }
 
     updateEnemies(dt);

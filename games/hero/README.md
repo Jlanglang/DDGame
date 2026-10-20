@@ -79,7 +79,7 @@ doudou-hero/
 └── game.js      全部逻辑：物理、战斗、AI、BOSS、渲染、音效
 ```
 
-调参集中在 `game.js` 顶部：`GROUND_Y`、`PLATFORMS`、`ENEMY`、`BOSS`、`ATTACK_*`、`TOTAL_KILLS`。
+调参集中在 `game.js` 顶部：`GROUND_Y`、`PLATFORMS_*`、`ENEMY`、`BOSS`、`ATTACK_*`、`PORTAL_X` / `LAIR_PORTAL_X`。
 
 ## 自检
 

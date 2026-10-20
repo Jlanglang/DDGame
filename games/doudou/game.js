@@ -33,15 +33,19 @@
     rateMaxTier: 40,    // 攻速档位上限 → 5.5 + 8 = 13.5/s
 
     hpBase: 36,         // 第 1 波单个小怪血量
-    hpGrowth: 1.88,     // 每过一波 ×1.88
-    waves: 10,          // 10 波杂兵，清完 BOSS 登场
-    bossMul: 14,        // BOSS 血量 = 第 10 波血量 ×14
-    formationRowGap: 90, // 阵型里前后排的间距（像素）
+    hpGrowth: 2.05,     // 每过一波 ×2.05（8 波走完 ≈ 原来 10 波的难度）
+    waves: 8,           // 8 波杂兵，清完 BOSS 登场
+    bossMul: 10,        // BOSS 血量 = 第 8 波血量 ×10
+    formationRowGap: 55, // 阵型里前后排的间距（像素），压紧一点，少等后排走进来
+    gruntSpeed: 72,     // 小怪推进速度（像素/秒）→ 决定每波时长
+    bossSpeed: 42,      // BOSS 推进速度
+    waveGap: 0.8,       // 清场后到下一波的休息时间
+    waveGapFirst: 1.4,  // 开局第一波的准备时间
 
     dmgAddMin: 4,       // 伤害卡：固定 +4 起步，每命中 +1，最多 +60
     dmgAddMax: 60,
-    dmgCapBase: 50,     // 伤害天花板：前期几十
-    dmgCapGrowth: 1.4,  // 每波 ×1.4 → 中期几百、后期几千
+    dmgCapBase: 65,     // 伤害天花板：前期几十
+    dmgCapGrowth: 1.45, // 每波 ×1.45 → 中期几百、后期几千
 
     atkMin: -29,        // 攻击卡从 ÷30 开始
     atkMax: 12,         // 上限 ×13
@@ -229,9 +233,7 @@
     { kind: 'diamond', w: 4, h: 4 },   // 5 波：16      菱形
     { kind: 'invTri',  w: 5, h: 5 },   // 6 波：15      倒三角
     { kind: 'rect',    w: 5, h: 3 },   // 7 波：15      长方形
-    { kind: 'rect',    w: 5, h: 4 },   // 8 波：20      长方形
-    { kind: 'diamond', w: 5, h: 5 },   // 9 波：25      菱形
-    { kind: 'rect',    w: 5, h: 6 },   // 10 波：30     长方形
+    { kind: 'rect',    w: 5, h: 4 },   // 8 波：20      长方形（终波）
   ];
 
   function formationCells(kind, w, h) {
@@ -286,7 +288,7 @@
   function startWave() {
     G.wave = 1;
     G.state = 'playing';
-    G.waveGap = 1.4;
+    G.waveGap = BAL.waveGapFirst;
     G.cols = 2;
     G.pairsSpawned = 0;
     G.bossSpawned = false;
@@ -319,7 +321,7 @@
       y,
       hp,
       maxHp: hp,
-      speed: 72,
+      speed: BAL.gruntSpeed,
       r: 22,
       dead: false,
       hitFlash: 0,
@@ -340,7 +342,7 @@
       y: -120,
       hp,
       maxHp: hp,
-      speed: 42,
+      speed: BAL.bossSpeed,
       r: 46,
       dead: false,
       hitFlash: 0,
@@ -453,7 +455,7 @@
     G.round += 1;
     G.wave = G.round;
     G.spawnTimer = 0;
-    G.waveGap = 2.2;                   // 清场后的休息时间
+    G.waveGap = BAL.waveGap;           // 清场后的休息时间
 
     if (G.round > BAL.waves) {
       if (!G.bossSpawned) {

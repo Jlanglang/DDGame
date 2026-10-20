@@ -52,9 +52,12 @@ node D:\DP\.tools\input-test.js
 
 ## 4. 现有关卡 / 玩法速查（守护豆豆）
 
-- 敌人血量 `36 × 1.88^(波数-1)`；伤害上限 `50 × 1.4^(波数-1)`。
-- 10 波杂兵，每波固定阵型（一字 / 长方形 / 倒三角 / 菱形），第 11 波 BOSS。
+- 敌人血量 `36 × 2.1^(波数-1)`；伤害上限 `65 × 1.45^(波数-1)`。
+- 8 波杂兵，每波固定阵型（一字 / 长方形 / 倒三角 / 菱形），第 9 波 BOSS。
+- 一把目标 **≈100 秒**（headless 40 局均值 102s，胜率 ~75%）。改波数/节奏前先跑模拟。
+- 节奏全靠 `BAL` 里的 `gruntSpeed / waveGap / formationRowGap / bossSpeed`，别写死。
 - 前两对卡固定：攻速+弹道 / 攻速+伤害；初始攻速 5.5/s。
 - 攻击卡 ÷30 起步、很稀有，是通关门票；没有攻击卡基本必输。
 - 桥头 10 点血；BOSS 过桥直接判负。
 - 数值实验：`node D:\DP\.tools\headless.js --runs 40 --policy feed`。
+- 看每波耗时：`node D:\DP\.tools\wave-time.js 16 feed`；看胜负时长：`node D:\DP\.tools\win-time.js 40 feed`。

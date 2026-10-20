@@ -485,10 +485,72 @@ body {
 }
 
 .over-sub {
-  margin: calc(var(--u) * 12px) 0 calc(var(--u) * 24px);
+  margin: calc(var(--u) * 12px) 0 calc(var(--u) * 16px);
   font-size: calc(var(--u) * 17px);
   line-height: 1.8;
   color: #a9b6cf;
+}
+
+/* 回城整备 */
+.grow {
+  margin: 0 0 calc(var(--u) * 18px);
+  padding: calc(var(--u) * 12px) calc(var(--u) * 14px);
+  border-radius: calc(var(--u) * 12px);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(150, 176, 220, 0.16);
+  text-align: left;
+}
+
+.grow-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: calc(var(--u) * 14px);
+  color: #cfd8ea;
+  letter-spacing: 0.06em;
+}
+
+.grow-head span:last-child {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.grow-stats {
+  margin: calc(var(--u) * 6px) 0 calc(var(--u) * 10px);
+  font-size: calc(var(--u) * 13px);
+  color: #a9b6cf;
+}
+
+.grow-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 8px);
+}
+
+.grow-btns button {
+  padding: calc(var(--u) * 9px) calc(var(--u) * 6px);
+  border-radius: calc(var(--u) * 9px);
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  background: rgba(30, 40, 60, 0.85);
+  color: #dbe4f5;
+  font-family: inherit;
+  font-size: calc(var(--u) * 13px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grow-btns button:active { transform: scale(0.97); }
+
+.grow-btns button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.grow-tip {
+  margin: calc(var(--u) * 8px) 0 0;
+  font-size: calc(var(--u) * 12px);
+  color: #8d99b5;
+  min-height: calc(var(--u) * 16px);
 }
 
 .over-btn {

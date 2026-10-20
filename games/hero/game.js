@@ -149,6 +149,71 @@
   };
 
   /* ----------------------------------------------------------
+     本地存档：等级 / 经验 / 金币 / 装备 / 技能点
+     跨局保留，结算时入账
+     ---------------------------------------------------------- */
+
+  const SAVE_KEY = 'doudou-hero-save-v1';
+
+  function defaultSave() {
+    return { v: 1, exp: 0, gold: 0, weapon: 0, armor: 0, sp: 0, atkSp: 0, hpSp: 0, clears: 0, best: 0 };
+  }
+
+  function loadSave() {
+    try {
+      if (new URLSearchParams(location.search).has('fresh')) localStorage.removeItem(SAVE_KEY);
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return defaultSave();
+      const s = JSON.parse(raw);
+      const d = defaultSave();
+      for (const k of Object.keys(d)) if (!(k in s)) s[k] = d[k];
+      s.weapon = clamp(s.weapon | 0, 0, 5);
+      s.armor = clamp(s.armor | 0, 0, 5);
+      s.sp = Math.max(0, s.sp | 0);
+      s.atkSp = Math.max(0, s.atkSp | 0);
+      s.hpSp = Math.max(0, s.hpSp | 0);
+      return s;
+    } catch {
+      return defaultSave();
+    }
+  }
+
+  function writeSave() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch { /* 隐私模式忽略 */ }
+  }
+
+  const SAVE = loadSave();
+
+  const levelNeed = (lv) => Math.round(55 * Math.pow(1.34, lv - 1));
+
+  function levelFromExp(total) {
+    let lv = 1;
+    let rest = Math.max(0, total);
+    let need = levelNeed(1);
+    while (rest >= need && lv < 99) {
+      rest -= need;
+      lv++;
+      need = levelNeed(lv);
+    }
+    return { level: lv, exp: rest, expNeed: need };
+  }
+
+  function statsFromSave() {
+    const l = levelFromExp(SAVE.exp);
+    return {
+      level: l.level,
+      exp: l.exp,
+      expNeed: l.expNeed,
+      atk: 28 + (l.level - 1) * 3 + SAVE.weapon * 5 + SAVE.atkSp * 2,
+      maxHp: 400 + (l.level - 1) * 22 + SAVE.armor * 30 + SAVE.hpSp * 20,
+      crit: 0.12 + SAVE.atkSp * 0.01,
+    };
+  }
+
+  const weaponCost = (w) => 60 * Math.pow(2, w);
+  const armorCost = (a) => 70 * Math.pow(2, a);
+
+  /* ----------------------------------------------------------
      状态
      ---------------------------------------------------------- */
 
@@ -172,6 +237,12 @@
     fade: 0,
     fadeDir: 0,
     pendingStage: -1,
+    runExp: 0,
+    runStartLevel: 1,
+    banked: false,
+    gainedExp: 0,
+    gainedGold: 0,
+    gainedSp: 0,
     enemies: [],
     projectiles: [],
     orbs: [],
@@ -206,6 +277,14 @@
     btnAtk: document.getElementById('btnAtk'),
     btnJump: document.getElementById('btnJump'),
     btnSkill: document.getElementById('btnSkill'),
+    grow: document.getElementById('grow'),
+    growGold: document.getElementById('growGold'),
+    growStats: document.getElementById('growStats'),
+    growTip: document.getElementById('growTip'),
+    buyWeapon: document.getElementById('buyWeapon'),
+    buyArmor: document.getElementById('buyArmor'),
+    spAtk: document.getElementById('spAtk'),
+    spHp: document.getElementById('spHp'),
   };
 
   /* ----------------------------------------------------------
@@ -213,6 +292,10 @@
      ---------------------------------------------------------- */
 
   function reset() {
+    // 中途重开：本局收益先入账，别让玩家白打
+    if (G.player && G.state === 'play' && !G.banked) bankRun(false);
+
+    const st = statsFromSave();
     G.state = 'play';
     G.paused = false;
     G.stage = 0;
@@ -238,6 +321,12 @@
     G.texts = [];
     G.particles = [];
     G.skillTick = 0;
+    G.runExp = 0;
+    G.runStartLevel = st.level;
+    G.banked = false;
+    G.gainedExp = 0;
+    G.gainedGold = 0;
+    G.gainedSp = 0;
     G.player = {
       x: 340, y: GROUND_Y,
       vx: 0, vy: 0,
@@ -246,9 +335,10 @@
       onGround: true,
       jumps: 0,
       coyote: 0,
-      hp: 400, maxHp: 400,
-      atk: 28,
-      level: 1, exp: 0, expNeed: 55,
+      hp: st.maxHp, maxHp: st.maxHp,
+      atk: st.atk,
+      crit: st.crit,
+      level: st.level, exp: st.exp, expNeed: st.expNeed,
       attackT: 0, attackDur: 1, attackStep: 0, hitDone: true,
       comboT: 0, combo: 0,
       invuln: 0, hurtT: 0,
@@ -436,6 +526,7 @@
 
   function gainExp(n) {
     const p = G.player;
+    G.runExp += n;
     p.exp += n;
     while (p.exp >= p.expNeed) {
       p.exp -= p.expNeed;
@@ -455,25 +546,123 @@
      结算
      ---------------------------------------------------------- */
 
+  /* 本局收益入账（经验 / 金币 / 技能点），只结算一次 */
+  function bankRun(won) {
+    if (G.banked) return;
+    G.banked = true;
+    const p = G.player;
+    if (!p) return;
+
+    G.gainedExp = Math.max(0, Math.round(G.runExp));
+    G.gainedGold = Math.max(0, Math.round(p.gold));
+    G.gainedSp = Math.max(0, p.level - G.runStartLevel);
+
+    SAVE.exp += G.gainedExp;
+    SAVE.gold += G.gainedGold;
+    SAVE.sp += G.gainedSp;
+    if (won) {
+      SAVE.clears = (SAVE.clears || 0) + 1;
+      const t = Math.round(G.time);
+      if (!SAVE.best || t < SAVE.best) SAVE.best = t;
+    }
+    writeSave();
+  }
+
   function win() {
     if (G.state !== 'play') return;
     G.state = 'win';
+    bankRun(true);
     el.overK.textContent = '通关';
     el.overTitle.textContent = '蘑菇王倒下了';
-    el.overSub.innerHTML = `击杀 ${G.kills} 只 · 等级 Lv.${G.player.level} · 金币 ${fmt(G.player.gold)}<br>森林暂时安静了。`;
+    el.overSub.innerHTML = `击杀 ${G.kills} 只 · 本局 +${fmt(G.gainedExp)} 经验 · +${fmt(G.gainedGold)} 金币`
+      + `${G.gainedSp ? ` · +${G.gainedSp} 技能点` : ''}`;
     el.over.hidden = false;
+    refreshGrow();
   }
 
   function lose() {
     if (G.state !== 'play') return;
     G.state = 'lose';
     G.player.dead = true;
+    bankRun(false);
     el.overK.textContent = '倒下';
     el.overTitle.textContent = '豆豆勇者被抬回去了';
-    el.overSub.innerHTML = `击杀 ${G.kills} 只 · 等级 Lv.${G.player.level} · 金币 ${fmt(G.player.gold)}<br>下次记得先跳起来再砍。`;
+    el.overSub.innerHTML = `击杀 ${G.kills} 只 · 本局 +${fmt(G.gainedExp)} 经验 · +${fmt(G.gainedGold)} 金币`
+      + `${G.gainedSp ? ` · +${G.gainedSp} 技能点` : ''}<br>收益已保留，回城整备再来。`;
     el.over.hidden = false;
+    refreshGrow();
     SFX.die();
   }
+
+  /* ----------------------------------------------------------
+     回城整备：花金币买装备、分配技能点
+     ---------------------------------------------------------- */
+
+  function refreshGrow() {
+    if (!el.grow) return;
+    const st = statsFromSave();
+    const wCost = weaponCost(SAVE.weapon);
+    const aCost = armorCost(SAVE.armor);
+
+    el.growGold.textContent = `金币 ${fmt(SAVE.gold)}`;
+    el.growStats.textContent = `Lv.${st.level} · 攻击 ${st.atk} · 生命 ${st.maxHp} · 暴击 ${Math.round(st.crit * 100)}%`;
+
+    el.buyWeapon.textContent = SAVE.weapon >= 5 ? '武器已满级' : `武器 +5 攻 · ${fmt(wCost)} 金`;
+    el.buyWeapon.disabled = SAVE.weapon >= 5 || SAVE.gold < wCost;
+
+    el.buyArmor.textContent = SAVE.armor >= 5 ? '护甲已满级' : `护甲 +30 血 · ${fmt(aCost)} 金`;
+    el.buyArmor.disabled = SAVE.armor >= 5 || SAVE.gold < aCost;
+
+    el.spAtk.textContent = '+2 攻 · 1 点';
+    el.spAtk.disabled = SAVE.sp <= 0;
+    el.spHp.textContent = '+20 血 · 1 点';
+    el.spHp.disabled = SAVE.sp <= 0;
+
+    el.growTip.textContent = SAVE.sp > 0
+      ? `还有 ${SAVE.sp} 点技能点没分配`
+      : (SAVE.weapon >= 5 && SAVE.armor >= 5
+        ? '装备满级了，后面靠等级继续变强'
+        : '攒金币升级装备，下一局立刻生效');
+  }
+
+  function bindGrow() {
+    el.buyWeapon.addEventListener('click', () => {
+      const c = weaponCost(SAVE.weapon);
+      if (SAVE.weapon >= 5 || SAVE.gold < c) return;
+      SAVE.gold -= c;
+      SAVE.weapon++;
+      writeSave();
+      refreshGrow();
+      SFX.level();
+    });
+    el.buyArmor.addEventListener('click', () => {
+      const c = armorCost(SAVE.armor);
+      if (SAVE.armor >= 5 || SAVE.gold < c) return;
+      SAVE.gold -= c;
+      SAVE.armor++;
+      writeSave();
+      refreshGrow();
+      SFX.level();
+    });
+    el.spAtk.addEventListener('click', () => {
+      if (SAVE.sp <= 0) return;
+      SAVE.sp--;
+      SAVE.atkSp++;
+      writeSave();
+      refreshGrow();
+      SFX.level();
+    });
+    el.spHp.addEventListener('click', () => {
+      if (SAVE.sp <= 0) return;
+      SAVE.sp--;
+      SAVE.hpSp++;
+      writeSave();
+      refreshGrow();
+      SFX.level();
+    });
+  }
+
+  bindGrow();
 
   /* ----------------------------------------------------------
      物理
@@ -984,7 +1173,7 @@
       if (e.dead) continue;
       const eb = { x: e.x - e.w / 2, y: e.y - e.h, w: e.w, h: e.h };
       if (overlap(rect, eb)) {
-        const crit = Math.random() < 0.12;
+        const crit = Math.random() < p.crit;
         let dmg = p.atk * mul * rand(0.92, 1.08);
         if (crit) dmg *= 1.8;
         hurtEnemy(e, Math.round(dmg), crit, p.x);
@@ -995,7 +1184,7 @@
     if (b && !b.dead) {
       const bb = { x: b.x - b.w / 2, y: b.y - b.h, w: b.w, h: b.h };
       if (overlap(rect, bb)) {
-        const crit = Math.random() < 0.12;
+        const crit = Math.random() < p.crit;
         let dmg = p.atk * mul * rand(0.92, 1.08);
         if (crit) dmg *= 1.8;
         damageBoss(Math.round(dmg), crit);
@@ -2212,6 +2401,8 @@
     window.__g = G;
     window.__castLog = [];
     window.__hero = { attack, jump, castSkill, reset, keys, pointer, spawnBoss, enterStage };
+    window.__save = SAVE;
+    window.__refreshGrow = refreshGrow;
   }
   requestAnimationFrame(frame);
 })();

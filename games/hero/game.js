@@ -422,8 +422,8 @@
     keys.down = false;
     for (const k of Object.keys(dkEls)) dkEls[k].classList.remove('active');
     el.hint.classList.remove('gone');
-    el.pause.classList.remove('paused');
-    setHint('拖动屏幕左右跑 · 跳上平台 · 砍光蘑菇', 4.5);
+    G.paused = false;
+    setHint('WASD 移动 · J 攻击 · K 旋风 · 靠近商人按 E', 4.5);
     hideSkillCd();
     last = 0;
     syncHUD(true);
@@ -2780,10 +2780,8 @@
     if (G.state !== 'play') return;
     G.paused = !G.paused;
     el.pauseVeil.hidden = !G.paused;
-    el.pause.classList.toggle('paused', G.paused);
   }
 
-  el.pause.addEventListener('click', togglePause);
   document.getElementById('again').addEventListener('click', reset);
   document.getElementById('restartTop').addEventListener('click', reset);
 

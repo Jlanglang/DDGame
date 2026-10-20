@@ -129,7 +129,8 @@ node D:\DP\.tools\input-test.js
 - **药水**：存档 `potions`（上限 5，每局补到 3）；血量 <45% 自动喝，回 50，10 秒 CD，
   商店 25 金/瓶。HUD 在右上角金币下面。
 - 操作：左下 **WASD 常驻方向键**（半透明，键盘按下也同步变亮），`W` 跳、`S` 下平台；
-  右下攻击 / 跳 / 旋风；`J` 攻击、`K` 技能、`E` 商店、`P` 暂停。手机也可拖屏移动。
+  右下攻击 / 跳 / 旋风；`J` 攻击、`K` 技能、`E` 商店、`P` 暂停。
+  **界面上没有暂停按钮**（养成游戏不加暂停键），暂停只有 PC 的 P 键隐藏功能。
 - 自检：`hero-test.js`（10 项输入）、`hero-stage.js`（两图切换 6 项）、
   `hero-save.js`（存档 13 项）、`hero-shop.js`（商店/药水 8 项）。
 - 调参在 `game.js` 顶部：`STAGE_W`、`PLATFORMS_FOREST` / `PLATFORMS_LAIR`、`ENEMY`、`BOSS`、

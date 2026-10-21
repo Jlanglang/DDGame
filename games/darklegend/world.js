@@ -74,28 +74,28 @@
   }
 
   /* ---------- 主城 ---------- */
-  // 20×20 小村庄：左出生、右三个传送门、中间商人
+  // 24×24 小村庄：左出生、右三个传送门、中间商人
   function genHub(rooms) {
-    const size = 20;
+    const size = 24;
     const m = blank(size, size);
     for (let y = 1; y < size - 1; y++) {
       for (let x = 1; x < size - 1; x++) m[y][x] = 0;
     }
 
     // 中间一条石板路（视觉用，不挡路）
-    for (let x = 2; x < size - 2; x++) m[10][x] = 0;
+    for (let x = 2; x < size - 2; x++) m[12][x] = 0;
 
     // 传送门：右侧竖排三个，按 rooms 顺序
     const doors = [];
-    const ys = [4, 10, 16];
+    const ys = [6, 12, 18];
     for (let i = 0; i < Math.min(rooms.length, ys.length); i++) {
       const d = { x: size - 2, y: ys[i], room: rooms[i].id, name: rooms[i].name, lv: rooms[i].lvMin };
       m[d.y][d.x] = 2;
       doors.push(d);
     }
 
-    const npc = { x: 10, y: 10 };
-    const spawn = { x: 3, y: 10 };
+    const npc = { x: 12, y: 12 };
+    const spawn = { x: 3, y: 12 };
     return { map: m, doors, npc, spawn };
   }
 

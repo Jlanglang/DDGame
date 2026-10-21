@@ -26,17 +26,11 @@
 
   // 等比缩放：逻辑坐标始终 720×1120；CSS 尺寸按容器等比缩放，缓冲区按 dpr 放大
   function resizeCanvas() {
-    const stage = document.getElementById('stage');
-    if (!stage) return;
-    let used = 0;
-    for (const c of stage.children) {
-      if (c === canvas || c.hidden) continue;
-      if (c.classList && (c.classList.contains('sheet') || c.classList.contains('over'))) continue;
-      used += c.offsetHeight || 0;
-    }
-    const availW = stage.clientWidth || VIEW_W;
-    const availH = Math.max(240, (stage.clientHeight || VIEW_H) - used);
+    const wrap = canvas.parentElement;
+    const availW = (wrap && wrap.clientWidth) || VIEW_W;
+    const availH = (wrap && wrap.clientHeight) || VIEW_H;
     const scale = Math.min(availW / VIEW_W, availH / VIEW_H);
+    if (!(scale > 0)) return;
     canvas.style.width = Math.floor(VIEW_W * scale) + 'px';
     canvas.style.height = Math.floor(VIEW_H * scale) + 'px';
 
@@ -161,8 +155,9 @@
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
-    cam.x = clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, Math.max(0, map[0].length * TILE - VIEW_W));
-    cam.y = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, map.length * TILE - VIEW_H));
+    const mw = map[0].length * TILE, mh = map.length * TILE;
+    cam.x = mw <= VIEW_W ? (mw - VIEW_W) / 2 : clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, mw - VIEW_W);
+    cam.y = mh <= VIEW_H ? (mh - VIEW_H) / 2 : clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, mh - VIEW_H);
   }
 
   /* ---------------- 主城 / 小世界 ---------------- */
@@ -1300,8 +1295,13 @@
   function updateCamera() {
     const mw = map[0].length * TILE;
     const mh = map.length * TILE;
-    const tx = clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, Math.max(0, mw - VIEW_W));
-    const ty = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, mh - VIEW_H));
+    // 地图比视野小时居中，避免全部堆在左上角
+    const tx = mw <= VIEW_W
+      ? (mw - VIEW_W) / 2
+      : clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, mw - VIEW_W);
+    const ty = mh <= VIEW_H
+      ? (mh - VIEW_H) / 2
+      : clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, mh - VIEW_H);
     cam.x += (tx - cam.x) * 0.18;
     cam.y += (ty - cam.y) * 0.18;
   }

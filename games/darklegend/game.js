@@ -90,6 +90,7 @@
   /* ---------------- 数据（来自 data.js） ---------------- */
   const MON = D.MON;
   const BOSS = D.BOSS;
+  const GRADE = D.GRADE;
   const RARITY = D.RARITY;
   const WEAPON_NAMES = D.WEAPON_NAMES;
   const ARMOR_NAMES = D.ARMOR_NAMES;
@@ -204,6 +205,14 @@
     log('你回到了主城。', 'good');
   }
 
+  // 品级 roll：94% 普通、5% 精英、1% 稀有
+  function rollGrade() {
+    const r = Math.random();
+    if (r < GRADE.rare.p) return 'rare';
+    if (r < GRADE.rare.p + GRADE.elite.p) return 'elite';
+    return 'normal';
+  }
+
   function spawnRoomMobs(spec) {
     const out = [];
     const spots = [];
@@ -215,10 +224,12 @@
       if (x === back.x && y === back.y) continue;
       spots.push({ x, y });
     }
+    // 怪池：按房间等级段筛怪；筛不到就放宽一级
+    let pool = MON.filter((m) => m.lv >= spec.lvMin && m.lv <= spec.lvMax);
+    if (!pool.length) pool = MON.slice();
     for (const s of spots) {
-      const lv = randi(spec.lvMin, spec.lvMax);
-      const type = MON[clamp(Math.round((lv - 1) * 0.85), 0, MON.length - 1)];
-      const e = makeEnemy(lv, type);
+      const mon = pool[randi(0, pool.length - 1)];
+      const e = makeEnemy(mon, rollGrade());
       e.x = s.x; e.y = s.y;
       out.push(e);
     }
@@ -231,7 +242,7 @@
         if (d > bd) { bd = d; best = { x, y }; }
       }
       if (best) {
-        const b = makeEnemy(spec.lvMax, BOSS, true);
+        const b = makeEnemy(BOSS, 'boss');
         b.x = best.x; b.y = best.y;
         out.push(b);
       }
@@ -281,23 +292,29 @@
   // 房间内不再野外重生
   function spawnWild() { /* 小世界房间不自动刷怪 */ }
 
-  function makeEnemy(lv, type, boss = false, elite = false) {
-    const hp = 18 * Math.pow(1.16, lv) * (boss ? 4 : elite ? 3 : 1);
+  // mon：MON / BOSS 表项；gradeKey：normal / elite / rare / boss
+  function makeEnemy(mon, gradeKey = 'normal') {
+    const g = GRADE[gradeKey] || GRADE.normal;
+    const lv = mon.lv + (g.lvAdd || 0);
+    const isBoss = gradeKey === 'boss';
+    const hp = 18 * Math.pow(1.16, lv) * g.hp;
     return {
-      name: type.name,
-      glyph: type.glyph,
-      boss,
-      elite,
-      aggro: type.aggro,
+      name: mon.name + (g.name ? `·${g.name}` : ''),
+      glyph: mon.glyph,
+      boss: isBoss,
+      elite: gradeKey === 'elite',
+      rare: gradeKey === 'rare',
+      grade: gradeKey,
+      aggro: mon.aggro,
       aggroOn: false,
       lv,
       x: 0, y: 0,
       hp: Math.round(hp),
       maxHp: Math.round(hp),
-      atk: (10 + 4 * lv) * (boss ? 1.0 : elite ? 1.5 : 0.8),
-      def: 2 * Math.pow(1.075, lv) * (boss ? 1.5 : elite ? 1.2 : 1),
-      exp: Math.round(10 * Math.pow(1.12, lv - 1) * (boss ? 12 : elite ? 3 : 1)),
-      gold: boss ? randi(80, 120) : randi(2, 4 + lv),
+      atk: (10 + 4 * lv) * g.atk,
+      def: 2 * Math.pow(1.075, lv) * (isBoss ? 1.5 : gradeKey === 'rare' ? 1.4 : gradeKey === 'elite' ? 1.2 : 1),
+      exp: Math.round(10 * Math.pow(1.12, lv - 1) * g.exp),
+      gold: isBoss ? randi(80, 120) : randi(2, 4 + lv),
     };
   }
 
@@ -685,13 +702,24 @@
     P.kills++;
     log(`${e.name}倒下了，+${e.exp} 经验、+${e.gold} 金币。`, 'good');
     if (Math.random() < 0.18) { P.potions++; log('捡到 1 瓶药水。', 'good'); }
+    // 掉落：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
     if (e.boss) {
       dropEquip(e, 'blue');
       dropEquip(e, 'yellow');
+      if (Math.random() < 0.25) dropEquip(e, 'orange');
+    } else if (e.rare) {
+      dropEquip(e, 'yellow');                              // 保底 A
+      if (Math.random() < 0.10) dropEquip(e, 'orange');    // 10% S
     } else if (e.elite) {
-      dropEquip(e, Math.random() < 0.25 ? 'yellow' : 'blue');
-    } else if (Math.random() < 0.30) {
-      dropEquip(e);
+      dropEquip(e, 'blue');                                // 保底 B
+      if (Math.random() < 0.10) dropEquip(e, 'yellow');    // 10% A
+      if (Math.random() < 0.01) dropEquip(e, 'orange');    // 1% S
+    } else {
+      const r = Math.random();
+      if (r < 0.001) dropEquip(e, 'orange');               // S 0.1%
+      else if (r < 0.006) dropEquip(e, 'yellow');          // A 0.5%
+      else if (r < 0.026) dropEquip(e, 'blue');            // B 2%
+      else if (r < 0.076) dropEquip(e);                    // C 5%
     }
     while (P.exp >= needExp()) {
       P.exp -= needExp();
@@ -1637,6 +1665,7 @@
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
+      makeEnemy, rollGrade,
       addToBag, equipFromBag, sellFromBag, sellPrice, identifyFromBag, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,

@@ -262,6 +262,22 @@ try {
   dl.rest();
   ok('学会后可释放半月', dl.halfMoon() === true);
 
+  /* 20. 怪物：1 级鸡 / 2 级鸡(精英) / 3 级鸡(稀有) */
+  const DATA = sandbox.window.DL.DATA;
+  const chicken = DATA.MON.find((m) => m.id === 'chicken');
+  const n = dl.makeEnemy(chicken, 'normal');
+  const e = dl.makeEnemy(chicken, 'elite');
+  const r = dl.makeEnemy(chicken, 'rare');
+  ok('鸡普通 Lv1', n.lv === 1 && n.name === '鸡', [n.lv, n.name]);
+  ok('鸡精英 Lv2', e.lv === 2 && e.name.includes('精英'), [e.lv, e.name]);
+  ok('鸡稀有 Lv3', r.lv === 3 && r.name.includes('稀有'), [r.lv, r.name]);
+  ok('稀有血量 > 精英 > 普通', r.hp > e.hp && e.hp > n.hp, [n.hp, e.hp, r.hp]);
+  ok('图 1 共 4 种怪 + BOSS Lv10', DATA.MON.length === 4 && DATA.BOSS.lv === 10, [DATA.MON.length, DATA.BOSS.lv]);
+
+  let rareHit = 0;
+  for (let i = 0; i < 4000; i++) if (dl.rollGrade() === 'rare') rareHit++;
+  ok('稀有空率约 1%', rareHit > 15 && rareHit < 85, rareHit);
+
   /* 20. 未鉴定：掉落品不知道属性，鉴定后才可装备 */
   dl.P.bag = [];
   const unk = dl.makeEquip('weapon', 5, 'yellow', { identified: false });

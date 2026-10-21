@@ -17,17 +17,22 @@
     IDLE_MS: 1000,
 
     /* ---------- 怪物表 ---------- */
+    /* ---------- 怪物表（图 1：4 种 + 1 BOSS，每种 3 品级） ---------- */
     MON: [
-      { id: 'chicken', name: '鸡', glyph: '🐔', aggro: 0 },
-      { id: 'rat', name: '田鼠', glyph: '🐭', aggro: 0 },
-      { id: 'dog', name: '野狗', glyph: '🐕', aggro: 5 },
-      { id: 'bee', name: '蜜蜂', glyph: '🐝', aggro: 5 },
-      { id: 'scarecrow', name: '稻草人', glyph: '🎃', aggro: 0 },
-      { id: 'boar', name: '野猪', glyph: '🐗', aggro: 5 },
-      { id: 'queen', name: '蜂后', glyph: '🐝', aggro: 5 },
-      { id: 'treant', name: '树精', glyph: '🌳', aggro: 5 },
+      { id: 'chicken', name: '鸡', glyph: '🐔', lv: 1, aggro: 0 },
+      { id: 'scarecrow', name: '稻草人', glyph: '🎃', lv: 3, aggro: 0 },
+      { id: 'dog', name: '野狗', glyph: '🐕', lv: 5, aggro: 5 },
+      { id: 'boar', name: '野猪', glyph: '🐗', lv: 7, aggro: 5 },
     ],
-    BOSS: { id: 'boss', name: '巨型稻草人', glyph: '👹', aggro: 6 },
+    BOSS: { id: 'boss', name: '巨型稻草人', glyph: '👹', lv: 10, aggro: 6 },
+
+    /* 怪物品级：普通 / 精英 / 稀有（等级 +0/+1/+2，概率 94/5/1） */
+    GRADE: {
+      normal: { name: '', hp: 1, atk: 1, lvAdd: 0, p: 0.94, exp: 1 },
+      elite: { name: '精英', hp: 3, atk: 1.4, lvAdd: 1, p: 0.05, exp: 3 },
+      rare: { name: '稀有', hp: 8, atk: 1.8, lvAdd: 2, p: 0.01, exp: 6 },
+      boss: { name: '', hp: 4, atk: 1.0, lvAdd: 0, p: 0, exp: 12 },
+    },
 
     /* ---------- 稀有度 ---------- */
     RARITY: {
@@ -55,9 +60,9 @@
 
     /* ---------- 小世界房间（从主城传送门进入） ---------- */
     ROOMS: [
-      { id: 'field1', name: '鸡鸣村外', lvMin: 1, lvMax: 5, size: 24, layout: 'open', mobs: 10, cd: 0 },
-      { id: 'field2', name: '荒田', lvMin: 6, lvMax: 8, size: 24, layout: 'open', mobs: 12, cd: 5 },
-      { id: 'cave1', name: '稻草垛洞', lvMin: 9, lvMax: 10, size: 20, layout: 'cave', mobs: 3, boss: true, cd: 30 },
+      { id: 'field1', name: '鸡鸣村外', lvMin: 1, lvMax: 4, size: 24, layout: 'open', mobs: 10, cd: 0 },
+      { id: 'field2', name: '荒田', lvMin: 5, lvMax: 8, size: 24, layout: 'open', mobs: 12, cd: 5 },
+      { id: 'cave1', name: '稻草垛洞', lvMin: 7, lvMax: 10, size: 20, layout: 'cave', mobs: 3, boss: true, cd: 30 },
     ],
 
     /* ---------- 区域地面色 ---------- */

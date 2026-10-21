@@ -62,14 +62,24 @@
       .sort((a, b) => a.hp - b.hp)[0] || null;
   }
 
-  /* ---------- 怪物行为判定 ---------- */
-  // 返回：leash（脱战）| idle（不动）| attack（相邻攻击）| chase（追击）
+  /* ---------- 怪物行为判定（R14.6 两档） ---------- */
+  // passive 被动（鸡 / 稻草人）：不主动进攻；挨打才还手，追够 passiveChase 格就放弃
+  // active  主动（野狗 / 野猪 / BOSS）：进入 aggro 半径就追
+  // 返回：leash（脱战）| idle（不动）| giveup（放你走）| attack（相邻攻击）| chase（追击）
+  const aiOf = (enemy) => (enemy.ai === 'passive' ? 'passive' : 'active');
+
   function decide(enemy, playerLv, distance) {
-    if (distance > 14) return 'leash';
+    const A = (DL.DATA && DL.DATA.AI) || {};
+    const ai = aiOf(enemy);
+    if (distance > (A.leash || 14)) return 'leash';
     if (!enemy.boss && enemy.lv < playerLv - 5 && !enemy.aggroOn) return 'idle';
     if (distance === 1) return 'attack';
-    if (enemy.aggroOn || distance <= enemy.aggro) return 'chase';
-    return 'idle';
+    if (enemy.aggroOn) {
+      if (ai === 'passive' && distance > (A.passiveChase || 3)) return 'giveup';
+      return 'chase';
+    }
+    if (ai === 'passive') return 'idle';                       // 被动怪绝不主动
+    return distance <= (enemy.aggro || 0) ? 'chase' : 'idle';
   }
 
   // 朝玩家走一步（先横后竖 / 先竖后横），返回下一步坐标或 null

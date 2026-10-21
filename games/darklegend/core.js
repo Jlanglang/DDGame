@@ -60,11 +60,24 @@
   const atkMean = (p) => Math.round((atkRange(p).min + atkRange(p).max) / 2);
   const defMean = (p) => Math.round((defRange(p).min + defRange(p).max) / 2);
 
+  /* ---------- 等级差经验（R2.11） ----------
+     玩家比怪高的级差 gap，按 data.EXP_GAP 的表查倍率：gap ≤3 全给，7 级起归零。
+     gap 可以为负（越级打怪），首版不给加成。 */
+  function expMulByGap(gap) {
+    const t = (DL.DATA && DL.DATA.EXP_GAP) || {};
+    let mul = 1;
+    for (const k of Object.keys(t).map(Number).sort((a, b) => a - b)) {
+      if (gap >= k) mul = t[k];
+    }
+    return mul;
+  }
+
   DL.Core = {
     rand, randi, clamp, roll, mulberry32, randomSeed,
     key, dist,
     eqAtkMin, eqAtkMax, eqDefMin, eqDefMax, eqHp,
     eqAtk, eqDef, eqScore,
     maxHp, maxMp, atkRange, defRange, atkMean, defMean, needExp,
+    expMulByGap,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

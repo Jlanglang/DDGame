@@ -132,6 +132,39 @@ html, body {
   text-shadow: 0 1px 2px #000;
 }
 
+/* 玩家状态条（R15.2 符号+数字，R5.16 剩余 ≤2 回合闪烁） */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.status-row .st {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #1a2336;
+  color: #ffd7a1;
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.status-row .st b { color: var(--gold); font-size: 10px; }
+.status-row .st.poison { color: #9ad06a; border-color: rgba(154, 208, 106, 0.42); }
+.status-row .st.burn { color: #ff9a5a; border-color: rgba(255, 154, 90, 0.45); }
+.status-row .st.stun,
+.status-row .st.paralyze { color: #ffd54a; border-color: rgba(255, 213, 74, 0.5); }
+.status-row .st.blink { animation: stBlink 0.9s steps(2, start) infinite; }
+
+@keyframes stBlink {
+  50% { opacity: 0.3; }
+}
+
 .gear {
   padding: 4px 12px;
   font-size: 11px;
@@ -507,6 +540,49 @@ canvas {
 .rarity-white { color: #b8c0cc; }
 .rarity-blue { color: var(--blue); }
 .rarity-yellow { color: var(--yellow); }
+.rarity-orange { color: #ff8a3d; }
+
+/* 品级字母徽章：不只靠颜色区分 C/B/A/S */
+.rbadge {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+.rbadge.white { color: #b8c0cc; }
+.rbadge.blue { color: var(--blue); }
+.rbadge.yellow { color: var(--yellow); }
+.rbadge.orange { color: #ff8a3d; box-shadow: 0 0 8px rgba(255, 138, 61, 0.45); }
+.rbadge.unknown { color: #7c88a4; border-style: dashed; }
+
+/* 词缀位：词缀系统 M2 才做，先用"未鉴定"占位 */
+.affix-todo {
+  color: #6d7893;
+  font-size: 10px;
+  border-bottom: 1px dashed rgba(109, 120, 147, 0.6);
+}
+
+.rarity-tag {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.rarity-tag.white { color: #b8c0cc; }
+.rarity-tag.blue { color: var(--blue); }
+.rarity-tag.yellow { color: var(--yellow); }
+.rarity-tag.orange { color: #ff8a3d; background: rgba(255, 138, 61, 0.14); }
 .gear { cursor: pointer; }
 .sheet-card .danger { background: transparent; color: #ff8a8a; border: 1px solid rgba(255, 138, 138, 0.35); }
 

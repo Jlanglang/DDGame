@@ -58,6 +58,8 @@
     'loot', 'lootName', 'lootStats', 'lootAffix',
     'intro', 'introBtn', 'seedText',
     'doorConfirm', 'doorTitle', 'doorDesc', 'doorYes', 'doorNo',
+    'pStatus',
+    'lootPick', 'pickTitle', 'pickHint', 'pickList', 'pickAll', 'pickClose',
   ].forEach((id) => { el[id] = document.getElementById(id); });
 
   const {
@@ -92,6 +94,7 @@
   const BOSS = D.BOSS;
   const GRADE = D.GRADE;
   const CRUSH = D.CRUSH;
+  const AI = D.AI || {};
   const RARITY = D.RARITY;
   const WEAPON_NAMES = D.WEAPON_NAMES;
   const ARMOR_NAMES = D.ARMOR_NAMES;
@@ -100,6 +103,8 @@
   const FLOAT_P = D.FLOAT_P;
   const FLOAT_MIN = D.FLOAT_MIN;
   const FLOAT_MAX = D.FLOAT_MAX;
+  const DROP = D.DROP || {};
+  const DEATH = D.DEATH || { dropP: 0, expLoss: 0.05 };
 
   /* ---------------- 玩家 ---------------- */
   const P = {
@@ -110,7 +115,10 @@
     skills: { half: false, fire: false },   // 技能书解锁：半月 / 烈火
     autoPot: 50, potionCd: 0,
     kills: 0,
+    statuses: {},                           // R5：中毒 / 灼烧 / 眩晕 / 麻痹（见 status.js）
   };
+
+  const S = DL.Status;                      // 状态层
 
   const maxHp = () => DL.Core.maxHp(P);
   const maxMp = () => DL.Core.maxMp(P);
@@ -162,7 +170,7 @@
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
   // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
   const visible = () => true;
-  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden;
+  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden;
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
@@ -176,6 +184,19 @@
   let currentRoom = null;        // 当前房间 id；在主城为 null
   let doors = [];                // 主城传送门列表
   const roomClearedAt = {};      // 房间最后清空时间（游戏内分钟）
+
+  /* ---------------- 地面掉落袋（R9 改） ----------------
+     怪死掉的装备不再直接进背包，而是落在地上一个袋子；走过去/点它才捡，
+     捡起来先看清单，自己决定拿走哪几件。金币和药水照旧即时结算。 */
+  let groundBags = {};           // roomKey -> [bag]
+  let activeBags = [];           // 当前地图上的袋子
+  const bagKey = () => currentRoom || 'hub';
+  const bagAt = (x, y) => activeBags.find((b) => b.x === x && b.y === y) || null;
+  function loadBags() {
+    const k = bagKey();
+    if (!groundBags[k]) groundBags[k] = [];
+    activeBags = groundBags[k];
+  }
 
   const roomSpec = (id) => ROOMS.find((r) => r.id === id) || null;
 
@@ -202,6 +223,8 @@
     doors = h.doors;
     door = doors[0] || { x: 0, y: 0 };
     lastZoneLv = 1;
+    S.clear(P);                     // 换图脱战：状态清零
+    loadBags();
     centerCam();
     log('你回到了主城。', 'good');
   }
@@ -225,8 +248,8 @@
       if (x === back.x && y === back.y) continue;
       spots.push({ x, y });
     }
-    // 怪池：按房间等级段筛怪；筛不到就放宽一级
-    let pool = MON.filter((m) => m.lv >= spec.lvMin && m.lv <= spec.lvMax);
+    // 怪池：按房间的 pool 刷（每道门怪不一样）；没配就退回全表
+    let pool = (spec.pool || []).map((id) => MON.find((m) => m.id === id)).filter(Boolean);
     if (!pool.length) pool = MON.slice();
     for (const s of spots) {
       const mon = pool[randi(0, pool.length - 1)];
@@ -266,6 +289,8 @@
     P.x = r.spawn.x;
     P.y = r.spawn.y;
     back = r.exit;
+    S.clear(P);                     // 换图脱战：状态清零
+    loadBags();
     enemies = spawnRoomMobs(spec);
 
     // 刷新 CD：Boss 房清过且还在冷却，就不刷 Boss
@@ -307,8 +332,11 @@
     const isBoss = gradeKey === 'boss';
     const hp = 18 * Math.pow(1.16, lv) * g.hp;
     return {
+      id: mon.id,
       name: mon.name + (g.name ? `·${g.name}` : ''),
       glyph: mon.glyph,
+      ai: mon.ai || 'active',          // R14.6：passive / active
+      harmless: !!mon.harmless,        // 新手兜底：打玩家 0 伤害（鸡）
       boss: isBoss,
       elite: gradeKey === 'elite',
       rare: gradeKey === 'rare',
@@ -319,12 +347,16 @@
       x: 0, y: 0,
       hp: Math.round(hp),
       maxHp: Math.round(hp),
+      statuses: {},
       atk: (10 + 4 * lv) * g.atk,
       def: 2 * Math.pow(1.075, lv) * (isBoss ? 1.5 : gradeKey === 'rare' ? 1.4 : gradeKey === 'elite' ? 1.2 : 1),
       exp: Math.round(10 * Math.pow(1.12, lv - 1) * g.exp),
-      gold: isBoss
-        ? randi(200, 300)
-        : Math.round(randi(8 + 2 * lv, 12 + 3 * lv) * (gradeKey === 'elite' ? 3 : gradeKey === 'rare' ? 8 : 1)),
+      gold: isBoss ? randi(200, 300) : (() => {
+        // 怪物表给了自己的金币区间（鸡 1–5）就用自己的，否则按等级
+        const base = mon.gold ? randi(mon.gold[0], mon.gold[1]) : randi(8 + 2 * lv, 12 + 3 * lv);
+        return Math.round(base * (gradeKey === 'elite' ? 3 : gradeKey === 'rare' ? 8 : 1));
+      })(),
+      goldP: mon.goldP != null ? mon.goldP : 1,   // 金币掉落概率（鸡不是必掉）
     };
   }
 
@@ -355,13 +387,13 @@
 
     const eq = {
       slot, name, rarity, ilvl,
-      atkMin: opts.atkMin ?? (atkMin0 + upMin),
-      atkMax: opts.atkMax ?? (atkMax0 + upMax),
-      defMin: opts.defMin ?? (defMin0 + upMin),
-      defMax: opts.defMax ?? (defMax0 + upMax),
+      // 浮动只加在本来就有这一项上：武器不会凭空长防御，护甲也不会长攻击
+      atkMin: opts.atkMin ?? (slot === 'weapon' ? atkMin0 + upMin : 0),
+      atkMax: opts.atkMax ?? (slot === 'weapon' ? atkMax0 + upMax : 0),
+      defMin: opts.defMin ?? (slot === 'armor' ? defMin0 + upMin : 0),
+      defMax: opts.defMax ?? (slot === 'armor' ? defMax0 + upMax : 0),
       hp: opts.hp ?? hp0,
       affix: null,
-      identified: opts.identified !== false,   // 掉落品默认未鉴定
       elite: (upMin > 0 && upMax > 0),        // 双浮 = 极品标记
     };
     const affixChance = rarity === 'yellow' ? 1 : rarity === 'blue' ? 0.45 : 0;
@@ -373,14 +405,13 @@
     return eq;
   }
 
-  function affixText(eq) {
-    return eq.affix ? ` · ${eq.affix.name} ${Math.round(eq.affix.pct * 100)}%` : '';
-  }
+  // 词缀系统在 M2：装备身上会带 affix，但界面上先不显示名字（R8）
 
   function sellPrice(eq) {
     return Math.max(5, Math.round((eqScore(eq) + 4) * 2 * (1 + (eq.ilvl || 1) * 0.05)));
   }
 
+  // 装备属性（含词缀加成）。词缀系统在 M2，现在词缀位显示"未鉴定"，但数值照算
   function eqStatText(eq) {
     const aMin = eqAtkMin(eq), aMax = eqAtkMax(eq);
     const dMin = eqDefMin(eq), dMax = eqDefMax(eq);
@@ -390,6 +421,9 @@
       eq.hp ? `HP +${eq.hp}` : '',
     ].filter(Boolean).join(' · ');
   }
+
+  // 词缀位：词缀系统 M2 才做，现在统一显示"未鉴定"（R8）
+  const affixSlot = () => '<span class="affix-todo">词缀 未鉴定</span>';
 
   function trimBag() {
     while (P.bag.length > BAG_MAX) {
@@ -405,14 +439,6 @@
   }
 
   function addToBag(eq) {
-    // 未鉴定：不知道好坏，先塞背包，不自动换
-    if (!eq.identified) {
-      P.bag.push(eq);
-      trimBag();
-      showLoot(eq, false);
-      log(`获得未鉴定的 ${eq.name}（${RARITY[eq.rarity].name}），已放背包。`);
-      return false;
-    }
     const cur = eq.slot === 'weapon' ? P.weapon : P.armor;
     if (eqScore(eq) > eqScore(cur) + 0.001) {
       if (cur) P.bag.push(cur);
@@ -421,13 +447,13 @@
       P.hp = Math.min(P.hp, maxHp());
       trimBag();
       showLoot(eq, true);
-      log(`装备 ${eq.name}（${RARITY[eq.rarity].name}）${affixText(eq)}。`, 'good');
+      log(`装备 ${eq.name}（${RARITY[eq.rarity].name}）。`, 'good');
       return true;
     }
     P.bag.push(eq);
     trimBag();
     showLoot(eq, false);
-    log(`获得 ${eq.name}（${RARITY[eq.rarity].name}）${affixText(eq)}，已放背包。`);
+    log(`获得 ${eq.name}（${RARITY[eq.rarity].name}），已放背包。`);
     return false;
   }
 
@@ -463,14 +489,11 @@
 
   function showLoot(eq, equipped) {
     if (!el.loot) return;
-    el.lootName.textContent = `${eq.name}${equipped ? '（已装备）' : '（已放背包）'}`;
+    const r = RARITY[eq.rarity] || RARITY.white;
+    el.lootName.textContent = `【${r.letter} ${r.name}】${eq.name}${equipped ? '（已装备）' : '（已放背包）'}`;
     el.lootName.className = 'loot-name ' + eq.rarity;
-    el.lootStats.textContent = `Lv.${eq.ilvl || 1} · ${[
-      eq.atk ? `攻击 +${eqAtk(eq)}` : '',
-      eq.def ? `防御 +${eqDef(eq)}` : '',
-      eq.hp ? `HP +${eq.hp}` : '',
-    ].filter(Boolean).join(' · ')} · 评分 ${Math.round(eqScore(eq))}`;
-    el.lootAffix.textContent = eq.affix ? `${eq.affix.name} ${Math.round(eq.affix.pct * 100)}%` : '';
+    el.lootStats.textContent = `Lv.${eq.ilvl || 1} · ${eqStatText(eq)}`;
+    el.lootAffix.textContent = '词缀 未鉴定';
     el.loot.hidden = false;
     clearTimeout(lootTimer);
     lootTimer = setTimeout(() => { el.loot.hidden = true; }, 2800);
@@ -485,44 +508,34 @@
   }
 
   function gearText() {
-    const w = P.weapon ? `${P.weapon.name} +${eqAtk(P.weapon)}` : '空手';
-    const a = P.armor ? `${P.armor.name} +${eqDef(P.armor)}` : '布衣';
-    const wa = P.weapon && P.weapon.affix ? `（${P.weapon.affix.name}）` : '';
-    const aa = P.armor && P.armor.affix ? `（${P.armor.affix.name}）` : '';
-    return `⚔ ${w}${wa}　🛡 ${a}${aa}`;
+    const tag = (eq) => (eq ? `[${(RARITY[eq.rarity] || RARITY.white).letter}]` : '');
+    const w = P.weapon ? `${P.weapon.name}${tag(P.weapon)} +${eqAtk(P.weapon)}` : '空手';
+    const a = P.armor ? `${P.armor.name}${tag(P.armor)} +${eqDef(P.armor)}` : '布衣';
+    return `⚔ ${w}　🛡 ${a}`;
   }
 
   function slotHtml(label, eq, icon) {
     if (!eq) return `<div class="slot empty"><div class="name">${icon} ${label}：未装备</div><div class="stats">去打怪，或去背包换一件。</div></div>`;
-    return `<div class="slot rarity-${eq.rarity}"><div class="name rarity-${eq.rarity}">${icon} ${label}：${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span></div><div class="stats">${eqStatText(eq)}${affixText(eq)} · 评分 ${Math.round(eqScore(eq))}</div></div>`;
+    return `<div class="slot rarity-${eq.rarity}"><div class="name rarity-${eq.rarity}">${icon} ${label}：${eq.name} ${rarBadge(eq)} <span class="ilvl">Lv.${eq.ilvl || 1}</span></div><div class="stats">${eqStatText(eq)} · ${affixSlot()} · 评分 ${Math.round(eqScore(eq))}</div></div>`;
+  }
+
+  function rarBadge(eq) {
+    const r = RARITY[eq.rarity] || RARITY.white;
+    return `<span class="rbadge ${eq.rarity}">${r.letter}</span>`;
   }
 
   function bagItemHtml(eq, i) {
-    if (!eq.identified) {
-      return `<div class="bag-item rarity-${eq.rarity} unidentified">
-        <div class="bag-main"><div class="name rarity-${eq.rarity}">未鉴定的 ${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span></div><div class="stats">${RARITY[eq.rarity].name} · 属性未知</div></div>
-        <button data-identify="${i}">鉴定</button>
-        <button class="sell" data-sell="${i}">卖 ${sellPrice(eq)}</button>
-      </div>`;
-    }
     const cur = eq.slot === 'weapon' ? P.weapon : P.armor;
     const up = eqScore(eq) > eqScore(cur) + 0.001;
     return `<div class="bag-item rarity-${eq.rarity}">
-      <div class="bag-main"><div class="name rarity-${eq.rarity}">${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span>${up ? ' <span class="up">↑ 提升</span>' : ''}</div><div class="stats">${eqStatText(eq)}${affixText(eq)} · 评分 ${Math.round(eqScore(eq))}</div></div>
+      ${rarBadge(eq)}
+      <div class="bag-main"><div class="name rarity-${eq.rarity}">${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span> ${rarTag(eq)}${up ? ' <span class="up">↑ 提升</span>' : ''}</div><div class="stats">${eqStatText(eq)} · ${affixSlot()} · 评分 ${Math.round(eqScore(eq))}</div></div>
       <button data-equip="${i}">装备</button>
       <button class="sell" data-sell="${i}">卖 ${sellPrice(eq)}</button>
     </div>`;
   }
 
-  // 鉴定：揭晓属性，进入可装备状态
-  function identifyFromBag(i) {
-    const eq = P.bag[i];
-    if (!eq || eq.identified) return;
-    eq.identified = true;
-    log(`鉴定出 ${eq.name}（${RARITY[eq.rarity].name}）：${eqStatText(eq)}${affixText(eq)}。`, 'good');
-    if (!el.char.hidden) renderChar();
-    save();
-  }
+  // 鉴定这套先不做（品级直接显示、词缀 M2 再做），保留占位说明
 
   function powerOf() {
     return Math.round(atkMean() * 4 + defMean() * 3 + maxHp() * 0.5 + maxMp() * 0.3);
@@ -583,18 +596,27 @@
 
   function updateTips() {
     if (over) return;
-    const zone = inCave ? '稻草垛洞' : zoneName(P.x);
-    const range = inCave ? 'Lv.9-10' : zoneRange(P.x);
+    const spec = currentRoom ? roomSpec(currentRoom) : null;
+    const zone = spec ? spec.name : zoneName(P.x);
+    const range = spec ? `Lv.${spec.lvMin}-${spec.lvMax}` : zoneRange(P.x);
     const tag = inCombat() ? '⚔ ' : '';
     const n = nearestEnemy();
     if (!n) {
-      el.tips.textContent = `${tag}${zone} ${range}　这一带暂时安全。`;
+      el.tips.textContent = `${tag}${zone} ${range}　这一带暂时安全。${bagNearby() ? '　💰 脚边有袋子' : ''}`;
       return;
     }
     const d = dist(n, P);
     const dx = n.x - P.x, dy = n.y - P.y;
     const arrow = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? '→' : '←') : (dy > 0 ? '↓' : '↑');
-    el.tips.textContent = `${tag}${zone} ${range}　最近：Lv.${n.lv} ${n.name} ${d}格${arrow}`;
+    const aiTag = n.ai === 'passive' ? '被动' : '主动';
+    const stTxt = S.text(n);
+    const nearBag = bagNearby();
+    el.tips.textContent = `${tag}${zone} ${range}　最近：Lv.${n.lv} ${n.name}·${aiTag} ${d}格${arrow}${stTxt ? '　' + stTxt : ''}${nearBag ? '　💰 脚边有袋子' : ''}`;
+  }
+
+  // 3 格内有袋子就提示一下，免得玩家不知道要过去捡
+  function bagNearby() {
+    return activeBags.some((b) => Math.abs(b.x - P.x) + Math.abs(b.y - P.y) <= 3);
   }
 
   function nearestEnemy() {
@@ -634,7 +656,19 @@
     el.btnShop.disabled = over || !nearShop();
     setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half, P.skills.half);
     setSkillBtn(el.btnFire, el.fireCd, 12, P.cd.fire, P.skills.fire);
+    renderStatus();
     updateTips();
+  }
+
+  // 玩家状态条（R15.2 符号 + 数字；R5.16 剩余 ≤2 回合闪烁）
+  function renderStatus() {
+    if (!el.pStatus) return;
+    const list = S.list(P);
+    el.pStatus.hidden = !list.length;
+    el.pStatus.innerHTML = list.map((s) => {
+      const n = s.stacks > 1 ? `<b>·${s.stacks}</b>` : '';
+      return `<span class="st ${s.key}${s.blink ? ' blink' : ''}" title="${s.name} 剩 ${s.left} 回合">${s.sym}${s.left}${n}</span>`;
+    }).join('');
   }
 
   function setSkillBtn(btn, cdEl, cost, cd, learned) {
@@ -653,6 +687,7 @@
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot,
         skills: P.skills,
         rooms: roomClearedAt,
+        ground: groundBags,          // 地上的袋子（含死亡遗物）
       }));
     } catch { /* 忽略 */ }
   }
@@ -684,7 +719,9 @@
       clock = Number.isFinite(s.clock) ? s.clock : 8 * 60;
       P.weapon = normalizeEquip(s.weapon, 'weapon');
       P.armor = normalizeEquip(s.armor, 'armor');
+      S.clear(P);                       // 状态不存档：读档后从干净状态开始
       if (s.rooms && typeof s.rooms === 'object') Object.assign(roomClearedAt, s.rooms);
+      if (s.ground && typeof s.ground === 'object') groundBags = s.ground;
       P.skills = Object.assign({ half: false, fire: false }, s.skills || {});
       const rawHp = s.hp ?? maxHp();
       P.hp = rawHp <= 0 ? Math.ceil(maxHp() * 0.5) : Math.min(rawHp, maxHp());
@@ -699,6 +736,7 @@
     const dmg = DL.Combat.playerDamage(ar.min, ar.max, e.def, mult);
     e.hp -= dmg;
     e.aggroOn = true;
+    S.onHit(e);                 // R5.8：眩晕受击解除
     addFloater(e.x, e.y - 0.4, `-${dmg}`, '#ffd166');
     log(`${tag}对${e.name}造成 <b>${dmg}</b> 伤害，剩余 ${Math.max(0, Math.ceil(e.hp))}。`);
     if (e.hp <= 0) kill(e);
@@ -708,33 +746,44 @@
   function kill(e) {
     e.hp = 0;
     const crushed = isCrush(P.lv, e.lv, e.boss || e.elite || e.rare);
-    const goldGain = crushed ? Math.max(1, Math.round(e.gold * CRUSH.goldMul)) : e.gold;
-    P.exp += e.exp;
+    // 金币不是必掉（鸡只有 60%），掉了才按碾压打折
+    const gotGold = Math.random() < (e.goldP == null ? 1 : e.goldP);
+    const goldGain = !gotGold ? 0 : crushed ? Math.max(1, Math.round(e.gold * CRUSH.goldMul)) : e.gold;
+    // 等级差经验（R2.2c）：比怪高 4 级起没经验，防止靠刷鸡升级
+    const expGain = Math.round(e.exp * DL.Core.expMulByGap(P.lv - e.lv));
+    const noExp = expGain === 0 && e.exp > 0;
+    P.exp += expGain;
     P.gold += goldGain;
     P.kills++;
-    log(`${e.name}倒下了，+${e.exp} 经验、+${goldGain} 金币。`, 'good');
-    if (Math.random() < (crushed ? 0.03 : 0.18)) { P.potions++; log('捡到 1 瓶药水。', 'good'); }
-    // 掉落：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
-    // 碾压时只衰减"额外掉落"，保底照旧
+    log(`${e.name}倒下了，+${expGain} 经验、${goldGain > 0 ? `+${goldGain} 金币` : '没掉金币'}。${noExp ? '（等级差太大，没经验了）' : ''}`, 'good');
+    if (Math.random() < (crushed ? DROP.potionCrush : DROP.potion)) { P.potions++; log('捡到 1 瓶药水。', 'good'); }
+
+    // 装备掉落：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
+    // 碾压时只衰减"额外掉落"，保底照旧。掉出来的进地面袋，不直接进包。
     const dropMul = crushed ? CRUSH.dropMul : 1;
+    const drops = [];
+    const push = (eq) => { if (eq) drops.push(eq); };
     if (e.boss) {
-      dropEquip(e, 'blue');
-      dropEquip(e, 'yellow');
-      if (Math.random() < 0.25 * dropMul) dropEquip(e, 'orange');
+      push(rollDrop(e, 'blue'));
+      push(rollDrop(e, 'yellow'));
+      if (Math.random() < (DROP.boss.s) * dropMul) push(rollDrop(e, 'orange'));
     } else if (e.rare) {
-      dropEquip(e, 'yellow');                              // 保底 A
-      if (Math.random() < 0.10 * dropMul) dropEquip(e, 'orange');    // 10% S
+      push(rollDrop(e, 'yellow'));                                   // 保底 A
+      if (Math.random() < DROP.rare.s * dropMul) push(rollDrop(e, 'orange'));
     } else if (e.elite) {
-      dropEquip(e, 'blue');                                // 保底 B
-      if (Math.random() < 0.10 * dropMul) dropEquip(e, 'yellow');    // 10% A
-      if (Math.random() < 0.01 * dropMul) dropEquip(e, 'orange');    // 1% S
+      push(rollDrop(e, 'blue'));                                     // 保底 B
+      if (Math.random() < DROP.elite.a * dropMul) push(rollDrop(e, 'yellow'));
+      if (Math.random() < DROP.elite.s * dropMul) push(rollDrop(e, 'orange'));
     } else {
+      const N = DROP.normal;
       const r = Math.random();
-      if (r < 0.001 * dropMul) dropEquip(e, 'orange');     // S 0.1%
-      else if (r < 0.006 * dropMul) dropEquip(e, 'yellow'); // A 0.5%
-      else if (r < 0.026 * dropMul) dropEquip(e, 'blue');   // B 2%
-      else if (r < 0.076 * dropMul) dropEquip(e);           // C 5%
+      const s = N.s * dropMul, a = s + N.a * dropMul, b = a + N.b * dropMul, c = b + N.c * dropMul;
+      if (r < s) push(rollDrop(e, 'orange'));
+      else if (r < a) push(rollDrop(e, 'yellow'));
+      else if (r < b) push(rollDrop(e, 'blue'));
+      else if (r < c) push(rollDrop(e));
     }
+    if (drops.length) dropBag(e.x, e.y, drops);
     while (P.exp >= needExp()) {
       P.exp -= needExp();
       P.lv++;
@@ -765,11 +814,118 @@
     syncHud();
   }
 
-  function dropEquip(e, forceRarity) {
+  // 生成一件掉落（还没落地）；ilvl 取怪等级，精英 +5、首领 +10
+  function rollDrop(e, forceRarity) {
     const ilvl = clamp((e.lv || 1) + (e.boss ? 10 : e.elite ? 5 : 0), 1, 30);
     const slot = Math.random() < 0.5 ? 'weapon' : 'armor';
-    const eq = makeEquip(slot, ilvl, forceRarity || rollRarity(ilvl), { identified: false });
+    return makeEquip(slot, ilvl, forceRarity || rollRarity(ilvl));
+  }
+
+  // 调试/兼容：直接掉进背包（正常击杀走地面袋）
+  function dropEquip(e, forceRarity) {
+    const eq = rollDrop(e, forceRarity);
     giveEquip(eq);
+    return eq;
+  }
+
+  /* ---------------- 地面掉落袋 ---------------- */
+
+  // 把掉落物放在地上；同格已有袋子就合并
+  function dropBag(x, y, items, opts = {}) {
+    if (!items || !items.length) return null;
+    const exist = bagAt(x, y);
+    if (exist) {
+      exist.items.push(...items);
+      if (opts.relic) exist.relic = true;
+      return exist;
+    }
+    const bag = { x, y, items: items.slice(), relic: !!opts.relic };
+    activeBags.push(bag);
+    while (activeBags.length > 40) {
+      activeBags.shift();
+      log('地上旧的袋子散落了。');
+    }
+    return bag;
+  }
+
+  /* ---------------- 拾取清单 ---------------- */
+  let pickBag = null;
+
+  function pickupBag(bag) {
+    if (!bag || !bag.items.length) return;
+    pickBag = bag;
+    renderPick();
+    el.lootPick.hidden = false;
+    log(`打开地上的${bag.relic ? '遗物袋' : '钱袋'}：${bag.items.length} 件装备，挑一挑。`, 'good');
+    syncHud();
+    save();
+  }
+
+  function closePick() {
+    el.lootPick.hidden = true;
+    pickBag = null;
+    syncHud();
+    save();
+  }
+
+  // 袋子空了就从地上消失
+  function removeBagIfEmpty(bag) {
+    if (bag && !bag.items.length) {
+      const i = activeBags.indexOf(bag);
+      if (i >= 0) activeBags.splice(i, 1);
+    }
+  }
+
+  function rarTag(eq) {
+    const r = RARITY[eq.rarity] || RARITY.white;
+    return `<span class="rarity-tag ${eq.rarity}">${r.letter} ${r.name}</span>`;
+  }
+
+  function pickRow(eq, i) {
+    const r = RARITY[eq.rarity] || RARITY.white;
+    const cur = eq.slot === 'weapon' ? P.weapon : P.armor;
+    const up = eqScore(eq) > eqScore(cur) + 0.001;
+    return `<div class="bag-item rarity-${eq.rarity}">
+      <span class="rbadge ${eq.rarity}">${r.letter}</span>
+      <div class="bag-main">
+        <div class="name rarity-${eq.rarity}">${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span> ${rarTag(eq)}${up ? ' <span class="up">↑ 比身上好</span>' : ''}</div>
+        <div class="stats">${eqStatText(eq)} · ${affixSlot()}</div>
+      </div>
+      <button data-pick="${i}">捡起</button>
+    </div>`;
+  }
+
+  function renderPick() {
+    if (!el.pickList) return;
+    if (!pickBag || !pickBag.items.length) {
+      el.pickList.innerHTML = '<p class="menu-help">袋子空了。</p>';
+      return;
+    }
+    el.pickTitle.textContent = pickBag.relic ? '你的遗物' : '地上的钱袋';
+    el.pickHint.textContent = pickBag.relic
+      ? '死在这里时掉的装备。捡回来它就回到你身上。'
+      : '品级和属性都看得见，看中了再拿；不拿的话袋子继续留在原地。';
+    el.pickList.innerHTML = pickBag.items.map((eq, i) => pickRow(eq, i)).join('');
+  }
+
+  function takeFromBag(i) {
+    if (!pickBag) return;
+    const eq = pickBag.items[i];
+    if (!eq) return;
+    pickBag.items.splice(i, 1);
+    addToBag(eq);
+    removeBagIfEmpty(pickBag);
+    if (!pickBag.items.length) closePick();
+    else renderPick();
+    syncHud();
+  }
+
+  function takeAllFromBag() {
+    if (!pickBag) return;
+    const items = pickBag.items.splice(0);
+    for (const eq of items) addToBag(eq);
+    removeBagIfEmpty(pickBag);
+    closePick();
   }
 
   function enemiesTurn() {
@@ -780,19 +936,65 @@
       const action = DL.Combat.decide(e, P.lv, d);
       if (action === 'leash') { e.aggroOn = false; continue; }
       if (action === 'idle') continue;
+      if (action === 'giveup') { e.aggroOn = false; continue; }   // 被动怪追 3 格就放弃
       if (action === 'attack') {
+        // 新手兜底：鸡啄不动你，新手可以安全刷鸡续命，不用一直回城
+        if (e.harmless) {
+          addFloater(P.x, P.y - 0.4, '无伤', '#8d99b5');
+          continue;
+        }
         if (isCrush(P.lv, e.lv, e.boss || e.elite || e.rare)) continue;   // 碾压：只有普通怪打不动你
         const dr = defRange(P);
         const dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
         P.hp -= dmg;
+        S.onHit(P);                                                   // R5.8：眩晕受击解除
         addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
         hurtFlash();
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
+        if (e.boss) bossTrick(e);                                     // R5.2 / R5.8
         if (P.hp <= 0) { die(); return; }
       } else if (action === 'chase') {
         e.aggroOn = true;
         stepToward(e);
       }
+    }
+  }
+
+  // BOSS 出招：相邻攻击时按概率附带眩晕 / 麻痹（数值见 data.js 的 AI 表）
+  function bossTrick(e) {
+    if (over) return;
+    const stunP = AI.bossStunP || 0;
+    const paraP = AI.bossParalyzeP || 0;
+    const r = Math.random();
+    if (r < stunP) {
+      S.apply(P, 'stun', { turn, turns: 1 });
+      addFloater(P.x, P.y - 0.8, '💫', '#ffd54a');
+      log(`${e.name}一记横扫把你打得眼冒金星，这一回合动不了。`, 'bad');
+    } else if (r < stunP + paraP) {
+      const t = randi(AI.bossParalyzeMin || 1, AI.bossParalyzeMax || 2);
+      S.apply(P, 'paralyze', { turn, turns: t });
+      addFloater(P.x, P.y - 0.8, '⚡', '#ffd54a');
+      log(`${e.name}喷出的腐气让你浑身发麻（⚡${t} 回合）。`, 'bad');
+    }
+  }
+
+  // 回合末状态结算（R5.14：先毒后灼烧，玩家和怪都算）
+  function tickStatuses() {
+    if (over) return;
+    const pr = S.tick(P, turn);
+    for (const h of pr.hits) {
+      addFloater(P.x, P.y - 0.4, `-${h.dmg}`, h.key === 'poison' ? '#9ad06a' : '#ff9a5a');
+    }
+    if (pr.dead) { log('你被持续伤害拖垮了。', 'bad'); die(); return; }
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+      const r = S.tick(e, turn);
+      for (const h of r.hits) addFloater(e.x, e.y - 0.4, `-${h.dmg}`, h.key === 'poison' ? '#9ad06a' : '#ff9a5a');
+      for (const k of r.expired) {
+        if (k === 'burn') log(`${e.name}身上的火熄了。`);
+      }
+      if (e.hp <= 0) kill(e);
+      if (over) return;
     }
   }
 
@@ -805,10 +1007,25 @@
   function die() {
     over = true;
     P.hp = 0;
-    P.exp = Math.floor(P.exp * 0.95);
+    P.exp = Math.floor(P.exp * (1 - (DEATH.expLoss || 0.05)));
+    // R3.19：按概率掉一件身上穿的装备，留在倒下的地方；回去能捡回来
+    let lost = null;
+    const worn = ['weapon', 'armor'].filter((s) => P[s]);
+    if (currentRoom && worn.length && Math.random() < (DEATH.dropP || 0)) {
+      const slot = worn[randi(0, worn.length - 1)];
+      lost = P[slot];
+      P[slot] = null;
+      dropBag(P.x, P.y, [lost], { relic: true });
+    }
+    S.clear(P);
     save();
+    const r = lost ? RARITY[lost.rarity] : null;
+    syncHud();
     showOver('倒下', '你被稻草垛里的东西拖了进去',
-      `Lv.${P.lv} · 经验 -5%，等级与装备保留。回村可以再来。`,
+      [`Lv.${P.lv} · 经验 -${Math.round((DEATH.expLoss || 0.05) * 100)}%，等级不掉。`]
+        .concat(lost ? [`${lost.name}【${r.letter} ${r.name}】掉在了原地，回那个房间还能捡回来。`] : [])
+        .concat(['回村可以再来。'])
+        .join('<br>'),
       '回村复活', revive);
   }
 
@@ -853,7 +1070,7 @@
   function showOver(kicker, title, sub, btnText, action) {
     el.overK.textContent = kicker;
     el.overT.textContent = title;
-    el.overS.textContent = sub;
+    el.overS.innerHTML = sub;
     el.overBtn.textContent = btnText;
     el.overBtn.onclick = () => { el.over.hidden = true; action(); };
     el.overAlt.hidden = false;
@@ -873,6 +1090,8 @@
 
   /* ---------------- 行动 ---------------- */
   function after() {
+    if (over) return;
+    tickStatuses();                 // R5.14：回合末结算毒 / 灼烧
     if (over) return;
     P.mp = Math.min(maxMp(), P.mp + Math.max(1, Math.round(maxMp() * 0.08)));
     if (P.cd.half > 0) P.cd.half--;
@@ -918,6 +1137,7 @@
   function autoStep() {
     if (over || uiOpen() || walkTimer) return false;
     const t = turn;
+    if (!S.canAct(P)) { blockAction(); return turn !== t; }   // 被控：这一回合什么也做不了（含自动喝药）
     // 自动喝药优先：血量低于阈值、有药、不在 CD
     if (P.autoPot > 0 && P.potions > 0 && P.potionCd <= 0 &&
       P.hp <= maxHp() * P.autoPot / 100) {
@@ -1017,6 +1237,11 @@
     P.mp -= 12;
     P.cd.fire = 3;
     strike(t, 2.2, '烈火');
+    // R4.1：烈火剑法 = 单体 ×2.2 + 灼烧 3 回合（R3.12 灼烧 = 攻击 ×15% × 层数）
+    if (t.hp > 0) {
+      const st = S.apply(t, 'burn', { turn, dmg: S.damageFrom('burn', atkMean()) });
+      if (st) log(`${t.name}被点燃了（🔥${st.stacks}，剩 ${st.left} 回合）。`, 'good');
+    }
     return true;
   }
 
@@ -1032,9 +1257,20 @@
     return true;
   }
 
+  // 眩晕 / 麻痹：这一回合什么也做不了（R5.2 / R5.8）。能行动返回 true。
+  function blockAction() {
+    if (S.canAct(P)) return true;
+    const st = P.statuses || {};
+    log(st.stun ? '你眼冒金星，动弹不得。' : '你被麻痹了，动弹不得。', 'bad');
+    addFloater(P.x, P.y - 0.7, st.stun ? '💫' : '⚡', '#ffd54a');
+    after();
+    return false;
+  }
+
   function act(kind) {
     if (over || uiOpen()) return;
     stopWalk();
+    if (!blockAction()) return;
     if (kind === 'attack') { if (attack(1.2, '攻击')) after(); }
     else if (kind === 'half') { if (halfMoon()) after(); }
     else if (kind === 'fire') { if (fireSword()) after(); }
@@ -1049,8 +1285,15 @@
   function promptDoor(d, ox, oy) {
     pendingDoor = d;
     doorReturnPos = { x: ox, y: oy };
+    const spec = roomSpec(d.room) || {};
+    const names = (spec.pool || [])
+      .map((id) => (MON.find((m) => m.id === id) || {}).name)
+      .filter(Boolean).join('、');
     el.doorTitle.textContent = `进入「${d.name}」？`;
-    el.doorDesc.textContent = `Lv.${d.lv} 起 · 房间会刷怪，清空后首领进入冷却。`;
+    const tail = spec.boss
+      ? `清空后首领 ${spec.cd} 分钟内不再刷新。`
+      : '每次进来都会重新刷满。';
+    el.doorDesc.textContent = `Lv.${spec.lvMin ?? d.lv}–${spec.lvMax ?? ''}　怪：${names || '杂兵'}${spec.boss ? ' + 首领' : ''}。${tail}`;
     el.doorConfirm.hidden = false;
     pauseAuto();
   }
@@ -1079,6 +1322,10 @@
 
   function move(dx, dy, fromWalk = false) {
     if (over) return false;
+    if (!S.canAct(P)) {                 // 麻痹/眩晕：走不动
+      if (!fromWalk) blockAction();
+      return false;
+    }
     if (inCombat()) {
       const target = enemyAt(P.x + dx, P.y + dy);
       if (!target) {
@@ -1127,12 +1374,16 @@
       if (fromWalk) stopWalk();
       return true;
     }
+    // 走到袋子上就捡（拾取后弹清单）
+    const bag = bagAt(nx, ny);
+    if (bag) pickupBag(bag);
     after();
     return true;
   }
 
   function retreat() {
     if (over || uiOpen()) return;
+    if (!blockAction()) return;
     const foes = combatTargets();
     if (!foes.length) { log('没有敌人，不用撤。'); return; }
     const nearest = foes.slice().sort((a, b) => dist(a, P) - dist(b, P))[0];
@@ -1225,6 +1476,7 @@
   /* ---------------- 输入 ---------------- */
   function onPointer(e) {
     if (over || uiOpen()) return;
+    if (!S.canAct(P)) { blockAction(); return; }   // 被控：点哪儿都只消耗一回合
     if (e.cancelable) e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const px = (e.clientX - rect.left) * (VIEW_W / rect.width);
@@ -1235,6 +1487,11 @@
     if (wx < 0 || wy < 0 || wx >= map[0].length || wy >= map.length) return;
     if (isWall(wx, wy)) return;
     stopWalk();
+    // 脚下有袋子：点一下就重新打开清单
+    if (P.x === wx && P.y === wy) {
+      const here = bagAt(wx, wy);
+      if (here) { pickupBag(here); return; }
+    }
     const enemy = enemyAt(wx, wy);
     if (enemy) {
       if (inCombat() && dist(enemy, P) !== 1) {
@@ -1351,6 +1608,7 @@
     el.shop.hidden = true;
     el.menu.hidden = true;
     el.char.hidden = true;
+    el.lootPick.hidden = true;
   }
 
   function bind() {
@@ -1390,8 +1648,6 @@
       log(P.autoPot ? `自动喝药：血量低于 ${P.autoPot}% 时喝。` : '自动喝药已关闭。');
     });
     el.bagList.addEventListener('click', (e) => {
-      const idBtn = e.target.closest('[data-identify]');
-      if (idBtn) { identifyFromBag(Number(idBtn.dataset.identify)); return; }
       const eqBtn = e.target.closest('[data-equip]');
       if (eqBtn) { equipFromBag(Number(eqBtn.dataset.equip)); return; }
       const sellBtn = e.target.closest('[data-sell]');
@@ -1404,6 +1660,12 @@
     el.buyArmor.addEventListener('click', () => buy('armor'));
     el.doorYes.addEventListener('click', confirmDoor);
     el.doorNo.addEventListener('click', cancelDoor);
+    el.pickAll.addEventListener('click', takeAllFromBag);
+    el.pickClose.addEventListener('click', closePick);
+    el.pickList.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-pick]');
+      if (b) takeFromBag(Number(b.dataset.pick));
+    });
     el.introBtn.addEventListener('click', () => {
       el.intro.hidden = true;
       save();
@@ -1509,6 +1771,53 @@
     }
   }
 
+  // 1.6 层：地上的掉落袋（颜色/字母 = 袋里最好的品级，品级本来就该直接看得见）
+  const RAR_ORDER = ['white', 'blue', 'yellow', 'orange'];
+  function bestRarityOf(items) {
+    let best = 'white';
+    for (const eq of items) {
+      if (RAR_ORDER.indexOf(eq.rarity) > RAR_ORDER.indexOf(best)) best = eq.rarity;
+    }
+    return RARITY[best] || RARITY.white;
+  }
+
+  function drawBags() {
+    if (!activeBags.length) return;
+    const t = Date.now() / 380;
+    for (const b of activeBags) {
+      const sx = Math.round(b.x * TILE - cam.x + TILE / 2);
+      const sy = Math.round(b.y * TILE - cam.y + TILE / 2);
+      if (sx < -TILE || sy < -TILE || sx > VIEW_W + TILE || sy > VIEW_H + TILE) continue;
+      const rar = b.relic ? RARITY.yellow : bestRarityOf(b.items);
+      const col = rar.color;
+      const pulse = 0.5 + 0.3 * Math.sin(t + b.x + b.y);
+      const g = ctx.createRadialGradient(sx, sy, 2, sx, sy, TILE * 0.95);
+      g.addColorStop(0, col + 'cc');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(sx, sy, TILE * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'center';
+      ctx.font = '22px system-ui';
+      ctx.fillText(b.relic ? '🎒' : '💰', sx, sy + 8);
+      // 品级字母：地上就能看见
+      ctx.font = 'bold 11px system-ui';
+      const lw = ctx.measureText ? ctx.measureText(rar.letter).width : 8;
+      ctx.fillStyle = 'rgba(6, 10, 18, 0.8)';
+      ctx.fillRect(sx - lw / 2 - 3, sy - 21, lw + 6, 12);
+      ctx.fillStyle = col;
+      ctx.fillText(rar.letter, sx, sy - 12);
+      if (b.items.length > 1) {
+        ctx.font = 'bold 10px system-ui';
+        ctx.fillStyle = col;
+        ctx.fillText(`×${b.items.length}`, sx + 15, sy + 2);
+      }
+    }
+  }
+
   // 第 2 层：实体
   function drawEntities() {
     // 商人
@@ -1529,17 +1838,41 @@
       if (!visible(e.x, e.y)) continue;
       const sx = e.x * TILE - cam.x + TILE / 2;
       const sy = e.y * TILE - cam.y + TILE / 2;
+      const grade = GRADE[e.grade] || GRADE.normal;
       ctx.textAlign = 'center';
       ctx.font = `${e.boss ? 40 : e.elite ? 34 : 30}px system-ui`;
+      // 精英/稀有：脚下画一圈，远处也能认出来
+      if (e.elite || e.rare || e.boss) {
+        ctx.strokeStyle = grade.color;
+        ctx.globalAlpha = 0.75;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, TILE * 0.56, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
       ctx.fillText(e.glyph, sx, sy + 10);
-      ctx.font = '10px system-ui';
-      ctx.fillStyle = e.boss ? '#ffd166' : 'rgba(220, 228, 245, 0.85)';
-      ctx.fillText(`Lv.${e.lv} ${e.name}`, sx, sy - 22);
+      // 品级染色 + 深色底衬，贴在一起时也读得清
+      const label = `Lv.${e.lv} ${e.name}`;
+      ctx.font = 'bold 10px system-ui';
+      const lw = (ctx.measureText ? ctx.measureText(label).width : 40) || 40;
+      const ly = sy - 22 - (((e.x * 7 + e.y * 3) % 2) * 8);
+      ctx.fillStyle = 'rgba(6, 10, 18, 0.72)';
+      ctx.fillRect(sx - lw / 2 - 3, ly - 9, lw + 6, 12);
+      ctx.fillStyle = grade.color;
+      ctx.fillText(label, sx, ly);
       const w = 28;
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.fillRect(sx - w / 2, sy - 18, w, 4);
       ctx.fillStyle = '#e05a5a';
       ctx.fillRect(sx - w / 2, sy - 18, w * clamp(e.hp / e.maxHp, 0, 1), 4);
+      // 状态图标（R15.2 符号 + 剩余回合）
+      const stTxt = S.text(e);
+      if (stTxt) {
+        ctx.font = 'bold 10px system-ui';
+        ctx.fillStyle = '#ffb066';
+        ctx.fillText(stTxt, sx, sy - 34);
+      }
     }
 
     // 玩家
@@ -1589,6 +1922,7 @@
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     drawMap();        // 1
     drawGroundFx();   // 1.5
+    drawBags();       // 1.6
     drawEntities();   // 2
     drawFloaters();   // 2.5
     drawVignette();   // 3
@@ -1634,9 +1968,13 @@
       ctx.fillStyle = '#ffd166';
       ctx.fillRect(ox + npc.x * s - 1, oy + npc.y * s - 1, 3, 3);
     }
+    for (const b of activeBags) {
+      ctx.fillStyle = (b.relic ? RARITY.yellow : bestRarityOf(b.items)).color;
+      ctx.fillRect(ox + b.x * s - 1.5, oy + b.y * s - 1.5, 3, 3);
+    }
     for (const e of enemies) {
       if (e.hp <= 0 || !visible(e.x, e.y)) continue;
-      ctx.fillStyle = e.boss ? '#ff8a3d' : '#ff5a5a';
+      ctx.fillStyle = (GRADE[e.grade] || GRADE.normal).color;
       ctx.fillRect(ox + e.x * s - 1, oy + e.y * s - 1, 2.5, 2.5);
     }
     ctx.fillStyle = '#ffffff';
@@ -1691,7 +2029,7 @@
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
       makeEnemy, rollGrade, isCrush,
       hubRegen,
-      addToBag, equipFromBag, sellFromBag, sellPrice, identifyFromBag, openChar,
+      addToBag, equipFromBag, sellFromBag, sellPrice, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,
@@ -1704,6 +2042,16 @@
       setSeed: (n) => { worldSeed = n >>> 0; },
       seed: () => worldSeed,
       retreat, inCombat, combatTargets,
+      Status: S,
+      tickStatuses, enemiesTurn, bossTrick,
+      statusText: (unit) => S.text(unit || P),
+      after,
+      bags: () => activeBags,
+      groundBags: () => groundBags,
+      bagAt, dropBag, pickupBag, takeFromBag, takeAllFromBag, closePick, rollDrop,
+      eqText: (eq) => eqStatText(eq),
+      pickOpen: () => !el.lootPick.hidden,
+      pickItems: () => (pickBag ? pickBag.items.slice() : []),
       maxHp: () => maxHp(), maxMp: () => maxMp(),
       idleMs: () => IDLE_MS,
       clock: () => clock,
@@ -1717,7 +2065,7 @@
       setGold: (v) => { P.gold = v; },
       rest: () => { P.hp = maxHp(); P.mp = maxMp(); },
       state: () => ({
-        lv: P.lv, hp: P.hp, mp: P.mp, gold: P.gold, potions: P.potions,
+        lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold, potions: P.potions,
         turn, over, inCave, room: currentRoom, weapon: P.weapon, armor: P.armor,
         cd: { ...P.cd }, skills: { ...P.skills },
         enemyCount: enemies.filter((e) => e.hp > 0).length,

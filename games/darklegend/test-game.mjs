@@ -238,6 +238,12 @@ try {
   ok('相机：地图大于视野时夹到边界', dl.camTarget(-100, 768, 720) === 0, dl.camTarget(-100, 768, 720));
   ok('相机：地图小于视野时允许负值', dl.camTarget(-200, 640, 720) === -80, dl.camTarget(-200, 640, 720));
   ok('相机：视野内原样返回', dl.camTarget(24, 768, 720) === 24, dl.camTarget(24, 768, 720));
+
+  /* 18. 自动回合：pauseAuto 后必须能 resumeAuto，否则自动攻击永久停摆 */
+  dl.pauseAuto();
+  ok('pauseAuto 后自动战斗关闭', dl.autoEnabled() === false, dl.autoEnabled());
+  dl.resumeAuto();
+  ok('resumeAuto 后自动战斗恢复', dl.autoEnabled() === true, dl.autoEnabled());
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

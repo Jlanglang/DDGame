@@ -841,6 +841,12 @@
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
   }
 
+  // 恢复自动回合（pauseAuto 之后必须调用，否则自动攻击永久停摆）
+  function resumeAuto() {
+    autoDisabled = false;
+    scheduleIdle();
+  }
+
   function facingVec() {
     return DL.Combat.dirVec(P.dir);
   }
@@ -940,7 +946,7 @@
     centerCam();
     syncHud();
     save();
-    scheduleIdle();
+    resumeAuto();
   }
 
   function cancelDoor() {
@@ -949,7 +955,7 @@
     if (doorReturnPos) { P.x = doorReturnPos.x; P.y = doorReturnPos.y; }
     doorReturnPos = null;
     el.doorConfirm.hidden = true;
-    scheduleIdle();
+    resumeAuto();
   }
 
   function move(dx, dy, fromWalk = false) {
@@ -1569,7 +1575,8 @@
       idleMs: () => IDLE_MS,
       clock: () => clock,
       clockText,
-      tick: autoStep, pauseAuto,
+      tick: autoStep, pauseAuto, resumeAuto,
+      autoEnabled: () => !autoDisabled,
       hideIntro: () => { el.intro.hidden = true; },
       setPos: (x, y) => { P.x = x; P.y = y; },
       setHp: (v) => { P.hp = v; },

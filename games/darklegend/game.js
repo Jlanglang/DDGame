@@ -156,8 +156,8 @@
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
     const mw = map[0].length * TILE, mh = map.length * TILE;
-    cam.x = mw <= VIEW_W ? (mw - VIEW_W) / 2 : clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, mw - VIEW_W);
-    cam.y = mh <= VIEW_H ? (mh - VIEW_H) / 2 : clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, mh - VIEW_H);
+    cam.x = camTarget(P.x * TILE + TILE / 2 - VIEW_W / 2, mw, VIEW_W);
+    cam.y = camTarget(P.y * TILE + TILE / 2 - VIEW_H / 2, mh, VIEW_H);
   }
 
   /* ---------------- 主城 / 小世界 ---------------- */
@@ -1292,16 +1292,18 @@
      2.5 层：上层特效（飘字）
      第 3 层：UI（暗角 + 小地图；DOM HUD 独立）
   */
+  // 相机夹取：地图比视野大时夹在 [0, size-view]；比视野小时允许负值，让玩家保持居中
+  function camTarget(v, mapSize, viewSize) {
+    const min = Math.min(0, mapSize - viewSize);
+    const max = Math.max(0, mapSize - viewSize);
+    return clamp(v, min, max);
+  }
+
   function updateCamera() {
     const mw = map[0].length * TILE;
     const mh = map.length * TILE;
-    // 地图比视野小时居中，避免全部堆在左上角
-    const tx = mw <= VIEW_W
-      ? (mw - VIEW_W) / 2
-      : clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, mw - VIEW_W);
-    const ty = mh <= VIEW_H
-      ? (mh - VIEW_H) / 2
-      : clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, mh - VIEW_H);
+    const tx = camTarget(P.x * TILE + TILE / 2 - VIEW_W / 2, mw, VIEW_W);
+    const ty = camTarget(P.y * TILE + TILE / 2 - VIEW_H / 2, mh, VIEW_H);
     cam.x += (tx - cam.x) * 0.18;
     cam.y += (ty - cam.y) * 0.18;
   }
@@ -1555,6 +1557,8 @@
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,
+      cam: () => ({ x: cam.x, y: cam.y }),
+      camTarget,
       doors: () => doors,
       roomSpec,
       roomClearedAt: () => ({ ...roomClearedAt }),

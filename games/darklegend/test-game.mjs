@@ -233,6 +233,11 @@ try {
   ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 100, true));
   ok('低 5 级怪不主动', C.decide({ lv: 1, boss: false, aggroOn: false, aggro: 5 }, 10, 3) === 'idle');
   ok('Boss 相邻必攻击', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 5 }, 10, 1) === 'attack');
+
+  /* 17. 相机夹取：地图大时贴边、地图小时让视野溢出去 */
+  ok('相机：地图大于视野时夹到边界', dl.camTarget(-100, 768, 720) === 0, dl.camTarget(-100, 768, 720));
+  ok('相机：地图小于视野时允许负值', dl.camTarget(-200, 640, 720) === -80, dl.camTarget(-200, 640, 720));
+  ok('相机：视野内原样返回', dl.camTarget(24, 768, 720) === 24, dl.camTarget(24, 768, 720));
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

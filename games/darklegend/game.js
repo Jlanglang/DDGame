@@ -1669,10 +1669,19 @@
     spawnWild();
     syncHud();
   }, 7000);
+  // 主城缓慢回血：每秒 1% 最大 HP
+  function hubRegen() {
+    if (currentRoom || over || P.hp <= 0) return false;
+    if (P.hp >= maxHp()) return false;
+    P.hp = Math.min(maxHp(), P.hp + maxHp() * 0.01);
+    return true;
+  }
+
   clockTimer = setInterval(() => {
     if (document.hidden) return;
     clock = (clock + 1) % 1440;
     updateClockLabel();
+    if (hubRegen()) syncHud();
   }, 1000);
   save();
 
@@ -1681,6 +1690,7 @@
       P, act, move, attack, halfMoon, fireSword, drink, buy,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
       makeEnemy, rollGrade, isCrush,
+      hubRegen,
       addToBag, equipFromBag, sellFromBag, sellPrice, identifyFromBag, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,

@@ -286,6 +286,14 @@ try {
   ok('BOSS 不吃碾压', dl.isCrush(60, 10, true) === false);
   ok('精英/稀有不吃碾压', dl.isCrush(60, 10, true) === false && dl.isCrush(60, 5, true) === false);
 
+  /* 22. 主城缓慢回血；房间里不回 */
+  dl.genHub();
+  dl.setHp(10);
+  ok('主城回血生效', dl.hubRegen() === true && dl.state().hp > 10, dl.state().hp);
+  dl.enterRoom('field1');
+  dl.setHp(10);
+  ok('房间里不回血', dl.hubRegen() === false && dl.state().hp === 10, dl.state().hp);
+
   /* 20. 未鉴定：掉落品不知道属性，鉴定后才可装备 */
   dl.P.bag = [];
   const unk = dl.makeEquip('weapon', 5, 'yellow', { identified: false });

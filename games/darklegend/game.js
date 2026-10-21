@@ -24,12 +24,12 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  // 等比缩放：逻辑坐标始终 720×1120；CSS 尺寸按容器等比缩放，缓冲区按 dpr 放大
+  // 等比铺满：逻辑坐标 720×1120；canvas 覆盖整个舞台（超出裁剪），UI 浮在上面
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     const availW = (wrap && wrap.clientWidth) || VIEW_W;
     const availH = (wrap && wrap.clientHeight) || VIEW_H;
-    const scale = Math.min(availW / VIEW_W, availH / VIEW_H);
+    const scale = Math.max(availW / VIEW_W, availH / VIEW_H);
     if (!(scale > 0)) return;
     canvas.style.width = Math.floor(VIEW_W * scale) + 'px';
     canvas.style.height = Math.floor(VIEW_H * scale) + 'px';

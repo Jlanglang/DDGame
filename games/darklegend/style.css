@@ -36,6 +36,28 @@ html, body {
   display: flex;
   flex-direction: column;
   background: #0b1019;
+  overflow: hidden;
+}
+
+/* canvas 铺满整个舞台，UI 浮在上面 */
+.canvas-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.hud, .gear, .tips, .log, .actions {
+  position: relative;
+  z-index: 1;
+}
+
+/* 中间留白把底部三栏推到底 */
+.tips {
+  margin-top: auto;
 }
 
 .hud {
@@ -44,7 +66,8 @@ html, body {
   gap: 10px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  background: rgba(16, 22, 35, 0.9);
+  backdrop-filter: blur(6px);
 }
 
 .hud-left { flex: 1; min-width: 0; }
@@ -113,20 +136,11 @@ html, body {
   padding: 4px 12px;
   font-size: 11px;
   color: #a9b6d1;
-  background: #0d1320;
+  background: rgba(11, 16, 25, 0.72);
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.canvas-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
 }
 
 canvas {
@@ -154,7 +168,7 @@ canvas {
   font-size: 11px;
   line-height: 1.5;
   color: var(--muted);
-  background: #0d1320;
+  background: rgba(11, 16, 25, 0.8);
   border-top: 1px solid var(--line);
 }
 
@@ -167,7 +181,7 @@ canvas {
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   padding: 10px 10px 14px;
-  background: var(--panel);
+  background: linear-gradient(transparent, rgba(11, 16, 25, 0.94) 35%);
   border-top: 1px solid var(--line);
 }
 

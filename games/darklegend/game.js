@@ -1320,22 +1320,20 @@
       for (let x = x0; x <= x1; x++) {
         if (x < 0 || y < 0 || x >= map[0].length || y >= map.length) continue;
         const t = map[y][x];
-        const vis = visible(x, y);
-        if (vis) seen.add(key(x, y));
-        if (!seen.has(key(x, y))) continue;
+        // 画面全亮；探索记录只更新玩家周围 8 格，留给小地图做迷雾
+        if (Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8) seen.add(key(x, y));
         // 取整 + 整格填充：保证每格都是同样大小的正方形
         const sx = Math.round(x * TILE - cam.x);
         const sy = Math.round(y * TILE - cam.y);
-        if (t === 1) ctx.fillStyle = vis ? '#151f33' : '#0d1422';
-        else if (t === 2) ctx.fillStyle = vis ? '#2a2410' : '#1a160a';
-        else if (vis) ctx.fillStyle = inCave ? '#1b1a2e' : '#232a3d';
-        else ctx.fillStyle = '#111827';
+        if (t === 1) ctx.fillStyle = '#151f33';
+        else if (t === 2) ctx.fillStyle = '#2a2410';
+        else ctx.fillStyle = inCave ? '#1b1a2e' : '#232a3d';
         ctx.fillRect(sx, sy, TILE, TILE);
         // 极淡网格线，让"正方形"看得出来
         ctx.strokeStyle = 'rgba(255,255,255,0.035)';
         ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
         // 玩家脚下这格亮起来
-        if (vis && x === P.x && y === P.y) {
+        if (x === P.x && y === P.y) {
           ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
           ctx.fillRect(sx, sy, TILE, TILE);
           ctx.strokeStyle = 'rgba(120, 210, 255, 0.6)';
@@ -1386,7 +1384,7 @@
   // 第 2 层：实体
   function drawEntities() {
     // 商人
-    if (npc && seen.has(key(npc.x, npc.y))) {
+    if (npc) {
       const sx = npc.x * TILE - cam.x + TILE / 2;
       const sy = npc.y * TILE - cam.y + TILE / 2;
       ctx.font = '30px system-ui';
@@ -1400,7 +1398,7 @@
     // 敌人
     for (const e of enemies) {
       if (e.hp <= 0) continue;
-      if (!visible(e.x, e.y) || !seen.has(key(e.x, e.y))) continue;
+      if (!visible(e.x, e.y)) continue;
       const sx = e.x * TILE - cam.x + TILE / 2;
       const sy = e.y * TILE - cam.y + TILE / 2;
       ctx.textAlign = 'center';

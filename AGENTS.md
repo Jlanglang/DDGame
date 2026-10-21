@@ -36,15 +36,32 @@
 - viewport 用 `maximum-scale=1,user-scalable=no`，全屏游戏避免误缩放。
 - 手机地址栏会变，舞台尺寸优先用 `dvh`（保留 `vh` 作为旧浏览器回退）。
 
-### 验证
+### 验证（测试脚本只认自己游戏目录里的）
 
-```powershell
-node D:\DP\.tools\input-test.js
-```
+**每个游戏目录自带测试，不要去别处跑别人的脚本。**
+`D:\DP\.tools\input-test.js` 以前是"全局输入测试"，实际写死了 `games/doudou` 和 `__g`——
+拿它去测别的游戏，只会得到一个"别的游戏"的 PASS，比不测更糟。已经搬回各游戏目录了。
 
-无头 Chrome 模拟触摸（450×1000、touch emulation）和鼠标，检查 `__g.player.x`：
-触摸从 300 拖到 120 应落在 192 附近，鼠标从 350 拖到 150 应落在 240 附近。
-输出 `RESULT touch=PASS mouse=PASS` 才算过。
+| 游戏 | 命令 | 类型 |
+|---|---|---|
+| 暗黑传奇 `games/darklegend` | `node games/darklegend/test-game.mjs` | 逻辑（Node + DOM 桩） |
+| 暗黑传奇 `games/darklegend` | `node games/darklegend/test-input.js` | 真浏览器输入 |
+| 守护豆豆 `games/doudou` | `node games/doudou/test-input.js` | 真浏览器输入 |
+| 守护豆豆 `games/doudou` | `node games/doudou/headless.js --runs 40 --policy feed` | 数值模拟（无渲染） |
+| 守护豆豆 `games/doudou` | `node games/doudou/wave-time.js 16 feed` | 每波耗时 |
+| 守护豆豆 `games/doudou` | `node games/doudou/win-time.js 40 feed` | 胜负时长 |
+| 单词塔 `games/wordtower` | `node games/wordtower/headless.js --runs 40 --acc 0.8` | 数值模拟（无渲染） |
+| 豆豆勇者 `games/hero` | `node games/hero/test-input.js` | 真浏览器输入（11 项） |
+| 豆豆勇者 `games/hero` | `test-stage.js` / `test-save.js` / `test-shop.js` | 真浏览器流程（6 / 13 / 8 项） |
+
+所有 `test-*.js` 都是**零依赖**的：用 Chrome 的 `--remote-debugging-pipe`
+直接对话（fd 3 写、fd 4 读），**不用 ws、不起端口、不写临时文件**，
+在真浏览器里发真实的 `Input.dispatchTouchEvent` / `dispatchMouseEvent` / `dispatchKeyEvent`。
+输出 `RESULT ... pass=N fail=0`（或 `PASS (N/N)`）才算过。hero 的四个测试共用同目录的 `test-lib.js`。
+
+模拟器（`headless.js`）只跑逻辑、不开浏览器，秒级跑完一局，用来做数值实验。
+
+不覆盖：真机的手势冲突（`touch-action`、系统手势抢走拖动）——那条仍要主人真机确认。
 
 ## 3. 游戏约定
 
@@ -56,6 +73,7 @@ node D:\DP\.tools\input-test.js
 
 ## 4. 现有关卡 / 玩法速查（守护豆豆）
 
+- 自检：`node games/doudou/test-input.js`（真浏览器触摸拖动 + 鼠标拖动，输出 `RESULT pass=4 fail=0`）
 - 敌人血量 `36 × 2.05^(波数-1)`；伤害上限 `65 × 1.45^(波数-1)`。
 - 8 波杂兵，每波固定阵型（一字 / 长方形 / 倒三角 / 菱形），第 9 波 BOSS。
 - 一把目标 **≈100 秒 + 胜率 60%**（headless 120 局：均值 96s，胜率 60.0%）。改波数/节奏前先跑模拟。
@@ -64,8 +82,8 @@ node D:\DP\.tools\input-test.js
 - 前两对卡固定：攻速+弹道 / 攻速+伤害；初始攻速 5.5/s。
 - 攻击卡 ÷30 起步、很稀有，是通关门票；没有攻击卡基本必输（120 局里 28 局没吃到，0 胜）。
 - 桥头 9 点血；BOSS 过桥直接判负。
-- 数值实验：`node D:\DP\.tools\headless.js --runs 40 --policy feed`。
-- 看每波耗时：`node D:\DP\.tools\wave-time.js 16 feed`；看胜负时长：`node D:\DP\.tools\win-time.js 40 feed`。
+- 数值实验：`node games/doudou/headless.js --runs 40 --policy feed`。
+- 看每波耗时：`node games/doudou/wave-time.js 16 feed`；看胜负时长：`node games/doudou/win-time.js 40 feed`。
 
 ## 5. 豆豆单词塔（games/wordtower）
 
@@ -103,7 +121,7 @@ node D:\DP\.tools\input-test.js
   8 分钟是 1× 的时长，玩家开 2× 就是 4 分钟——倍速开关就是给这个曲线配的。
 - 加词：往 `words.js` 三档里加 `{ w, zh, buff }`；新 `buff` 标签要同时在 `game.js` 的 `CARDS` 里配一张卡。
 - 加怪物：在 `TYPES` 里加一条，再在 `typeWeights` 里按波数开放，行为写在 `updateEnemies` / `killEnemy`。
-- 调参：`node D:\DP\.tools\headless-word.js --runs 40 --acc 0.8 --max 1800`
+- 调参：`node games/wordtower/headless.js --runs 40 --acc 0.8 --max 1800`
   （`--acc` = 模拟玩家的单词正确率，`--max` = 单局最长秒数；玩家决策用局内种子，结果可复现）。
 
 ## 6. 豆豆勇者（games/hero）
@@ -132,7 +150,22 @@ node D:\DP\.tools\input-test.js
 - 操作：左下 **WASD 常驻方向键**（半透明，键盘按下也同步变亮），`W` 跳、`S` 下平台；
   右下攻击 / 跳 / 旋风；`J` 攻击、`K` 技能、`E` 商店、`P` 暂停。
   **界面上没有暂停按钮**（养成游戏不加暂停键），暂停只有 PC 的 P 键隐藏功能。
-- 自检：`hero-test.js`（10 项输入）、`hero-stage.js`（两图切换 6 项）、
-  `hero-save.js`（存档 13 项）、`hero-shop.js`（商店/药水 8 项）。
+- 自检（真浏览器，零依赖，共用同目录 `test-lib.js`）：
+  `node games/hero/test-input.js`（11 项输入）、`test-stage.js`（两图切换 6 项）、
+  `test-save.js`（存档 13 项）、`test-shop.js`（商店/药水 8 项）。
 - 调参在 `game.js` 顶部：`STAGE_W`、`PLATFORMS_FOREST` / `PLATFORMS_LAIR`、`ENEMY`、`BOSS`、
   `ATTACK_*`、`PORTAL_X`、`SHOP_X`。
+
+## 7. 暗黑传奇（games/darklegend）
+
+**主城 + 小世界房间 + 回合制刷宝**。规则和进度都在 `docs/` 里，改之前先读：
+
+- `docs/豆豆暗黑传奇-规则与任务.md` —— 规则表（每条都有验收），**决策以它为准**
+- `docs/豆豆暗黑传奇-进度与完成度.md` —— 当前进度、架构、测试覆盖、关键教训
+
+- 自检：`node games/darklegend/test-game.mjs`（136 项逻辑）＋ `node games/darklegend/test-input.js`（真浏览器输入）
+- 架构分层：`data` 表与常量 / `core` 纯公式 / `world` 地图 / `combat` 战斗判定 / `status` 状态 / `game` 编排
+  —— 调数值只改 `data.js`，加状态只改 `status.js`，换地图只改 `world.js`
+- **文档里有几处是实现历史遗留、还没对齐**（改之前先看进度文档的"还没做"）：
+  装备槽位实际只有武器+护甲 2 个（规则 R7.1 写的是 10 槽）、背包 `BAG_MAX` 是 24（R10.1 写 40）、
+  药水 25 金（R10.9 还留着旧价 50）、词缀系统没做只是占位显示"未鉴定"。

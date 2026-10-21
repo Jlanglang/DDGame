@@ -11,11 +11,6 @@
   <header class="hud">
     <div class="hud-left">
       <div class="lv" id="lv">Lv.1</div>
-      <div class="bars">
-        <div class="bar hp"><i id="hpFill"></i><span id="hpText">60 / 60</span></div>
-        <div class="bar mp"><i id="mpFill"></i><span id="mpText">15 / 15</span></div>
-      </div>
-      <div class="status-row" id="pStatus" hidden></div>
     </div>
     <div class="hud-right">
       <div class="hud-btns">
@@ -23,26 +18,49 @@
         <button id="btnMenu" class="icon-btn" type="button" title="菜单" aria-label="菜单">☰</button>
       </div>
       <div class="stat" id="gold">💰 0</div>
-      <div class="stat" id="exp">经验 0/100</div>
     </div>
   </header>
 
   <div class="gear" id="gear">⚔ 空手　🛡 布衣</div>
 
+  <div class="log-wrap" id="logWrap">
+    <button type="button" class="log-toggle" id="logToggle" title="展开/折叠日志" aria-expanded="false">日志 ▾</button>
+    <div class="log collapsed" id="log"></div>
+  </div>
+
   <div class="canvas-wrap">
     <canvas id="game" width="720" height="1120"></canvas>
   </div>
 
-  <div class="tips" id="tips">点击地面移动 · 点击怪物攻击 · WASD 也能走</div>
+  <div class="controls">
+    <div class="dpad stick" id="dpad" aria-label="移动轮盘">
+      <div class="stick-base" id="stickBase">
+        <div class="stick-ring"></div>
+        <div class="stick-knob" id="stickKnob"></div>
+      </div>
+    </div>
+    <div class="skill-pad actions" id="skillPad" aria-label="技能">
+      <button id="btnAtk" type="button">⚔ 攻击<kbd>J</kbd></button>
+      <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd><span class="cost">6</span><span class="cd" id="halfCd"></span></button>
+      <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd><span class="cost">12</span><span class="cd" id="fireCd"></span></button>
+      <button id="btnPotion" type="button">🧪 红药 <b class="badge" id="potionCount">3</b><kbd>Q</kbd><span class="cd" id="potionCd"></span></button>
+      <button id="btnMpPotion" type="button">💙 蓝药 <b class="badge" id="mpPotionCount">3</b><kbd>F</kbd><span class="cd" id="mpPotionCd"></span></button>
+      <button id="btnFarm" type="button" title="挂机（只打普通/精英）" aria-label="挂机" aria-pressed="false">挂机<kbd>E</kbd></button>
+      <button id="btnInteract" type="button" disabled title="靠近 NPC 交谈">💬 交谈<kbd>空格</kbd></button>
+      <button id="btnRetreat" type="button">↩ 撤退<kbd>R</kbd></button>
+    </div>
+  </div>
 
-  <div class="log" id="log"></div>
-
-  <div class="actions">
-    <button id="btnAtk" type="button">⚔ 攻击<kbd>J</kbd></button>
-    <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd><span class="cost">6</span><span class="cd" id="halfCd"></span></button>
-    <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd><span class="cost">12</span><span class="cd" id="fireCd"></span></button>
-    <button id="btnPotion" type="button">🧪 药水 <b class="badge" id="potionCount">3</b><kbd>Q</kbd><span class="cd" id="potionCd"></span></button>
-    <button id="btnShop" type="button" disabled>🏪 商店<kbd>E</kbd></button>
+  <div class="bars-dock">
+    <div class="tips" id="tips">点击地面移动 · 点击怪物攻击 · WASD 也能走</div>
+    <div class="bars-side">
+      <div class="status-row" id="pStatus" hidden></div>
+      <div class="bars">
+        <div class="bar hp"><i id="hpFill"></i><span id="hpText">60 / 60</span></div>
+        <div class="bar mp"><i id="mpFill"></i><span id="mpText">15 / 15</span></div>
+        <div class="bar exp"><i id="expFill"></i><span id="expText">经验 0 / 100</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="over" id="over" hidden>
@@ -56,14 +74,21 @@
   </div>
 
   <div class="sheet" id="shop" hidden>
-    <div class="sheet-card">
+    <div class="sheet-card shop-card">
       <div class="sheet-head">
         <h3>村口杂货铺</h3>
         <span class="sheet-gold">💰 <b id="shopGold">0</b></span>
       </div>
-      <button type="button" class="buy" id="buyPotion">药水 ×1<em>50 金</em></button>
-      <button type="button" class="buy" id="buySword">铁剑 +3 攻击<em>80 金</em></button>
-      <button type="button" class="buy" id="buyArmor">皮甲 +2 防御<em>70 金</em></button>
+      <div class="shop-split">
+        <div class="shop-pane">
+          <h4 class="shop-h">货架 <small class="muted">悬停看详情 · 双击购买</small></h4>
+          <div class="eq-grid shop" id="shopStock"></div>
+        </div>
+        <div class="shop-pane">
+          <h4 class="shop-h">背包 <small class="muted">双击/右键出售</small></h4>
+          <div class="eq-grid shop-bag" id="shopBag"></div>
+        </div>
+      </div>
       <button type="button" class="ghost" id="shopClose">离开</button>
     </div>
   </div>
@@ -81,7 +106,7 @@
     <div class="sheet-card">
       <h3 id="pickTitle">地上的钱袋</h3>
       <p class="menu-help" id="pickHint"></p>
-      <div class="bag-list" id="pickList"></div>
+      <div class="eq-grid pick" id="pickList"></div>
       <button type="button" id="pickAll">全部捡起</button>
       <button type="button" class="ghost" id="pickClose">走了（剩下的留在地上）</button>
     </div>
@@ -108,7 +133,10 @@
 
       <div class="char-pane" id="paneGear">
         <div class="char-stats" id="charStats"></div>
-        <div class="char-slots" id="charSlots"></div>
+        <h4 class="char-h">已装备 <small class="muted">按等级解锁 · 点格子看详情</small></h4>
+        <div class="eq-grid worn" id="charSlots"></div>
+        <h4 class="char-h">药水库存</h4>
+        <div class="pot-stock" id="potStock"></div>
         <h4 class="char-h">自动喝药</h4>
         <div class="char-setting">
           <label for="autoPot">血量低于</label>
@@ -118,16 +146,36 @@
             <option value="50">50%</option>
             <option value="70">70%</option>
           </select>
-          <span>时自动喝药（CD 3 回合）</span>
+          <span>喝红药（优先初级）</span>
+        </div>
+        <div class="char-setting">
+          <label for="autoMp">蓝量低于</label>
+          <select id="autoMp">
+            <option value="0">关闭</option>
+            <option value="20">20%</option>
+            <option value="30">30%</option>
+            <option value="50">50%</option>
+          </select>
+          <span>喝蓝药（优先初级）</span>
         </div>
       </div>
 
       <div class="char-pane" id="paneBag" hidden>
-        <div class="bag-list" id="bagList"></div>
+        <p class="menu-help eq-hint">双击穿戴。↑ 比身上好。卖掉去村口商店。</p>
+        <div class="eq-grid bag" id="bagList"></div>
       </div>
 
       <button type="button" class="ghost" id="charClose">关闭</button>
     </div>
+  </div>
+
+  <div class="eq-tip" id="eqTip" hidden>
+    <div class="eq-tip-head">
+      <div class="eq-tip-name" id="eqTipName"></div>
+      <button type="button" class="eq-tip-x" id="eqTipClose" aria-label="关闭">×</button>
+    </div>
+    <div class="eq-tip-stats" id="eqTipStats"></div>
+    <div class="eq-tip-acts" id="eqTipActs"></div>
   </div>
 
   <div class="loot" id="loot" hidden>
@@ -139,8 +187,8 @@
   <div class="menu" id="menu" hidden>
     <div class="sheet-card">
       <h3>豆豆暗黑传奇</h3>
-      <p class="menu-help">点击地面移动，点击怪物攻击。WASD/方向键也能走。不操作时每 1 秒自动行动（自动普攻/技能），打开菜单/商店会暂停。J 普攻，1 半月，2 烈火，Q 药水，E 商店，R 撤退，C 角色/背包。比玩家低 5 级以上的怪不会主动。</p>
-      <p class="menu-help"><b>被动怪</b>（鸡、稻草人）不主动、挨打才还手，追 3 格就放弃；<b>主动怪</b>（野狗、野猪）进 5 格就追过来。首领的横扫会<b>眩晕</b>（💫，受击就解），腐气会<b>麻痹</b>（⚡）；烈火剑法会点燃敌人（🔥，每回合掉血、可叠 3 层）。</p>
+      <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人按空格或点「交谈」开商店；E 挂机。J 普攻，1 半月，2 烈火，Q 红药，F 蓝药，R 撤退，C 角色。</p>
+      <p class="menu-help"><b>被动怪</b>（鸡、稻草人、<b>首领</b>）不主动追人；鸡/稻草人挨打追 3 格放弃，首领挨打后会持续还手。主动怪（野狗、野猪）进 5 格就追。首领横扫会<b>眩晕</b>，腐气会<b>麻痹</b>；烈火会点燃（🔥）。</p>
       <p class="menu-help"><b>鸡打你 0 伤害</b>，但金币只有 1–5、还常常不掉。<b>刷鸡到 5 级就没经验了</b>（比怪高 4 级起经验归零），该换门了。</p>
       <p class="menu-help">怪掉的<b>装备会落在地上变成钱袋</b>（袋子上的 C/B/A/S 是里面最好的品级），走上去就捡，捡起来能一件一件挑。<b>死了会掉一件身上的装备</b>，留在原地，回去还能捡。</p>
       <p class="menu-help">地图种子：<b id="seedText">-</b>（同一存档固定）</p>
@@ -156,12 +204,13 @@
       <h2>豆豆暗黑传奇</h2>
       <ul>
         <li><b>点击地面</b>移动，<b>点击怪物</b>攻击</li>
-        <li>WASD / 方向键也能走，J 普攻</li>
-        <li>1 半月 · 2 烈火 · Q 药水 · E 商店</li>
+        <li>WASD 可斜走（组合键），J 普攻</li>
+        <li>1 半月 · 2 烈火 · Q 红药 · F 蓝药 · E 挂机 · 空格交谈</li>
         <li>被怪缠住时人物锁定，按 R 撤退</li>
         <li>烈火会点燃敌人，烧起来每回合掉血</li>
         <li>被首领眩晕/麻痹时会少一回合，注意血线</li>
-        <li>不操作时会自动打怪、放技能，打开菜单可暂停</li>
+        <li>技能栏「挂机」：自动找普通/精英打，稀有/首领要手打</li>
+        <li>挂机收益与手打相同；不会自动捡 A/S 装备袋</li>
         <li>先打鸡：鸡啄不动你（无伤），练到 5 级就换门</li>
         <li>三扇门怪不一样：鸡/稻草人 → 稻草人/野狗 → 野猪+首领</li>
       </ul>

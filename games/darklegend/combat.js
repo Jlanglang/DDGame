@@ -53,19 +53,25 @@
     return out;
   }
 
-  // 普攻目标：先看正前方，再找四邻格里血最少的
+  // 贴身：切比雪夫距离 1（八邻）；先看朝向正前方，再取邻格血最少的
+  function isAdjacent(ax, ay, bx, by) {
+    return Math.max(Math.abs(ax - bx), Math.abs(ay - by)) === 1;
+  }
+
   function adjacentTarget(enemies, px, py, dir) {
     const [fx, fy] = dirVec(dir);
     const front = enemies.find((e) => e.hp > 0 && e.x === px + fx && e.y === py + fy);
     if (front) return front;
-    return enemies.filter((e) => e.hp > 0 && Math.abs(e.x - px) + Math.abs(e.y - py) === 1)
+    return enemies.filter((e) => e.hp > 0 && isAdjacent(e.x, e.y, px, py))
       .sort((a, b) => a.hp - b.hp)[0] || null;
   }
 
-  /* ---------- 怪物行为判定（R14.6 两档） ---------- */
-  // passive 被动（鸡 / 稻草人）：不主动进攻；挨打才还手，追够 passiveChase 格就放弃
-  // active  主动（野狗 / 野猪 / BOSS）：进入 aggro 半径就追
-  // 返回：leash（脱战）| idle（不动）| giveup（放你走）| attack（相邻攻击）| chase（追击）
+  /* ---------- 怪物行为判定（R14.5 两档） ---------- */
+  // passive 被动（鸡 / 稻草人 / BOSS）：不主动进攻；挨打才还手
+  //   - 普通被动：追够 passiveChase 格就放弃
+  //   - BOSS：激怒后持续追，直到 leash 脱战（挂机不打 BOSS，必须手控）
+  // active  主动（野狗 / 野猪）：进入 aggro 半径就追
+  // 返回：leash | idle | giveup | attack | chase
   const aiOf = (enemy) => (enemy.ai === 'passive' ? 'passive' : 'active');
 
   function decide(enemy, playerLv, distance) {
@@ -73,31 +79,56 @@
     const ai = aiOf(enemy);
     if (distance > (A.leash || 14)) return 'leash';
     if (!enemy.boss && enemy.lv < playerLv - 5 && !enemy.aggroOn) return 'idle';
-    if (distance === 1) return 'attack';
+    if (distance === 1) {
+      // 仅 BOSS：未激怒时贴身也不砍；鸡/稻草人贴身仍会啄（鸡无伤）
+      if (enemy.boss && !enemy.aggroOn) return 'idle';
+      return 'attack';
+    }
     if (enemy.aggroOn) {
-      if (ai === 'passive' && distance > (A.passiveChase || 3)) return 'giveup';
+      // BOSS 激怒后不当普通被动放弃
+      if (ai === 'passive' && !enemy.boss && distance > (A.passiveChase || 3)) return 'giveup';
       return 'chase';
     }
-    if (ai === 'passive') return 'idle';                       // 被动怪绝不主动
+    if (ai === 'passive') return 'idle';
     return distance <= (enemy.aggro || 0) ? 'chase' : 'idle';
   }
 
-  // 朝玩家走一步（先横后竖 / 先竖后横），返回下一步坐标或 null
-  function nextStep(ex, ey, px, py, blocked) {
+  // 挂机可打：普通 / 精英；稀有与 BOSS 必须手控
+  function farmEligible(enemy) {
+    if (!enemy || enemy.hp <= 0) return false;
+    if (enemy.boss || enemy.rare) return false;
+    return true;
+  }
+
+  // 朝玩家走一步（优先斜切，再正交）；blocked(nx,ny) 或 blocked(nx,ny,dx,dy)
+  // 若提供 map，则用 World.canStep 防穿角
+  function nextStep(ex, ey, px, py, blocked, map) {
     const dx = Math.sign(px - ex), dy = Math.sign(py - ey);
-    const horizFirst = Math.abs(px - ex) >= Math.abs(py - ey);
-    const steps = horizFirst ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+    const steps = [];
+    if (dx && dy) steps.push([dx, dy]);
+    if (dx) steps.push([dx, 0]);
+    if (dy) steps.push([0, dy]);
+    // 次选：另一轴优先
+    if (dx && dy) {
+      steps.push([dx, 0], [0, dy]);
+    }
+    const seen = new Set();
     for (const [mx, my] of steps) {
       if (!mx && !my) continue;
+      const key = mx + ',' + my;
+      if (seen.has(key)) continue;
+      seen.add(key);
       const nx = ex + mx, ny = ey + my;
-      if (!blocked(nx, ny)) return { x: nx, y: ny };
+      if (map && DL.World && DL.World.canStep && !DL.World.canStep(map, ex, ey, mx, my)) continue;
+      if (blocked(nx, ny, mx, my)) continue;
+      return { x: nx, y: ny };
     }
     return null;
   }
 
   DL.Combat = {
     dirVec, playerDamage, enemyDamage,
-    halfMoonCells, targetsAt, adjacentTarget,
-    decide, nextStep,
+    halfMoonCells, targetsAt, adjacentTarget, isAdjacent,
+    decide, nextStep, farmEligible,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

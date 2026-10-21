@@ -36,7 +36,23 @@
   const visible = (px, py, x, y, radius) =>
     Math.max(Math.abs(x - px), Math.abs(y - py)) <= radius;
 
-  /* ---------- BFS 寻路 ---------- */
+  // 八向一步：斜走时两侧正交有墙则禁止穿角
+  function canStep(map, x, y, dx, dy) {
+    if (!dx && !dy) return false;
+    const nx = x + dx, ny = y + dy;
+    if (isWall(map, nx, ny)) return false;
+    if (dx !== 0 && dy !== 0) {
+      if (isWall(map, x + dx, y) || isWall(map, x, y + dy)) return false;
+    }
+    return true;
+  }
+
+  const DIRS8 = [
+    [1, 0], [-1, 0], [0, 1], [0, -1],
+    [1, 1], [1, -1], [-1, 1], [-1, -1],
+  ];
+
+  /* ---------- BFS 寻路（八向） ---------- */
   function bfs(map, sx, sy, tx, ty, blocked) {
     const W = map[0].length, H = map.length;
     if (sx === tx && sy === ty) return [];
@@ -45,7 +61,6 @@
     prev[start] = start;
     const q = [start];
     let head = 0;
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     while (head < q.length) {
       const cur = q[head++];
       const cx = cur % W, cy = (cur / W) | 0;
@@ -59,10 +74,9 @@
         path.reverse();
         return path;
       }
-      for (const [dx, dy] of dirs) {
+      for (const [dx, dy] of DIRS8) {
+        if (!canStep(map, cx, cy, dx, dy)) continue;
         const nx = cx + dx, ny = cy + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        if (map[ny][nx] === 1) continue;
         if (blocked && blocked(nx, ny) && !(nx === tx && ny === ty)) continue;
         const ni = ny * W + nx;
         if (prev[ni] !== -1) continue;
@@ -137,7 +151,7 @@
 
   DL.World = {
     blank, carve, corridor,
-    isWall, visible, bfs,
+    isWall, visible, canStep, DIRS8, bfs,
     genHub, genRoom,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

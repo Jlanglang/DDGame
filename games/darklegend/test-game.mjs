@@ -67,8 +67,8 @@ const sandbox = {
   console, document: documentStub, localStorage: localStorageStub,
   location: { search: '?debug', href: 'file:///darklegend/index.html' },
   requestAnimationFrame: () => 0, cancelAnimationFrame: noop,
-  setInterval: () => 0, clearInterval: noop,
-  setTimeout: () => 0, clearTimeout: noop,
+  setInterval: (() => { let n = 0; return () => ++n; })(), clearInterval: noop,
+  setTimeout: (() => { let n = 0; return () => ++n; })(), clearTimeout: noop,
   addEventListener: noop, removeEventListener: noop,
   innerWidth: 720, innerHeight: 1120, devicePixelRatio: 1,
   Math, Date, JSON, Object, Array, String, Number, Boolean,
@@ -138,13 +138,33 @@ try {
   ok('装备有 ilvl', eq && eq.ilvl === 5, eq && eq.ilvl);
   ok('装备可估价（评分派生）', eq && dl.sellPrice(eq) > 0, eq && dl.sellPrice(eq));
 
-  /* 7. 商店 */
-  dl.setGold(300);
+  /* 7. 商店 / 三档红蓝药 */
+  ok('红药价=点数', dl.potPrice('red', 'low') === 50 && dl.potPrice('red', 'mid') === 300 && dl.potPrice('red', 'high') === 1000);
+  ok('蓝药价=红×2', dl.potPrice('blue', 'low') === 100 && dl.potPrice('blue', 'mid') === 600 && dl.potPrice('blue', 'high') === 2000);
+  dl.setGold(5000);
   const goldBefore = dl.state().gold;
-  const potBefore = dl.state().potions;
-  dl.buy('potion');
-  ok('买药扣 25 金', dl.state().gold === goldBefore - 25, [goldBefore, dl.state().gold]);
-  ok('买药 +1', dl.state().potions === potBefore + 1, [potBefore, dl.state().potions]);
+  const potBefore = dl.state().potsRed;
+  const blueBefore = dl.state().potsBlue;
+  dl.buyPotion('red', 'low');
+  ok('买初级红药扣 50', dl.state().gold === goldBefore - 50, [goldBefore, dl.state().gold]);
+  ok('买初级红药 +1', dl.state().potsRed === potBefore + 1, [potBefore, dl.state().potsRed]);
+  dl.buyPotion('blue', 'mid');
+  ok('买中级蓝药扣 600', dl.state().gold === goldBefore - 50 - 600);
+  ok('买中级蓝药 +1', dl.state().potsBlue === blueBefore + 1, [blueBefore, dl.state().potsBlue]);
+  dl.P.hp = 10;
+  dl.P.potionCd.red = 0;
+  dl.P.pots.red.low = 1;
+  dl.P.pots.red.mid = 1;
+  dl.drink('red');
+  ok('红药回 50 点', dl.P.hp === 60, dl.P.hp);
+  ok('优先消耗初级红', dl.P.pots.red.low === 0 && dl.P.pots.red.mid === 1, dl.P.pots.red);
+  dl.P.mp = 0;
+  dl.P.potionCd.blue = 0;
+  dl.P.pots.blue.high = 1;
+  dl.drink('blue');
+  ok('高级蓝药回满（受上限）', dl.P.mp === dl.maxMp(), [dl.P.mp, dl.maxMp()]);
+  const mig = dl.normalizePots(5);
+  ok('旧药水数迁到初级红', mig.red.low === 5 && mig.blue.low === 0, mig);
 
   /* 8. 死亡复活 */
   const lvBefore = dl.state().lv;
@@ -229,7 +249,8 @@ try {
   scare0.y = dl.P.y;
   es0.push(scare0);
   const hpScare0 = dl.state().hp;
-  for (let i = 0; i < 2; i++) dl.after();
+  dl.resetEnemyClock();
+  dl.after();
   ok('稻草人打得动 1 级玩家', dl.state().hp < hpScare0, [hpScare0, dl.state().hp]);
   es0.length = 0;
   dl.rest();
@@ -249,7 +270,8 @@ try {
   ok('防秒杀上限：普通 ≤35% maxHP', C.enemyDamage(9999, 0, 0, 100, false) <= 35, C.enemyDamage(9999, 0, 0, 100, false));
   ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 0, 100, true));
   ok('低 5 级怪不主动', C.decide({ lv: 1, boss: false, aggroOn: false, aggro: 5 }, 10, 3) === 'idle');
-  ok('Boss 相邻必攻击', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 5 }, 10, 1) === 'attack');
+  ok('Boss 未激怒贴身不打', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 0, ai: 'passive' }, 10, 1) === 'idle');
+  ok('Boss 激怒后贴身攻击', C.decide({ lv: 1, boss: true, aggroOn: true, aggro: 0, ai: 'passive' }, 10, 1) === 'attack');
 
   /* 17. 相机夹取：地图大时贴边、地图小时让视野溢出去 */
   ok('相机：地图大于视野时夹到边界', dl.camTarget(-100, 768, 720) === 0, dl.camTarget(-100, 768, 720));
@@ -316,8 +338,127 @@ try {
   const eqO = dl.makeEquip('weapon', 5, 'orange');
   ok('装备带着品级', eqO.rarity === 'orange', eqO.rarity);
   ok('装备没有未鉴定标记', eqO.identified === undefined, eqO.identified);
+  ok('装备有基础与浮动字段', eqO.atkBaseMax != null && eqO.atkFloatMax != null, eqO);
+  {
+    const t = dl.eqStatText(eqO);
+    ok('属性含基础区间', /攻击 \d+-\d+/.test(t), t);
+    if (eqO.atkFloatMin || eqO.atkFloatMax) {
+      ok('有浮动时显示括号', t.includes('(+'), t);
+    } else {
+      ok('无浮动时无括号', !t.includes('(+'), t);
+    }
+  }
+  {
+    const shown = dl.makeEquip('weapon', 10, 'white');
+    shown.atkBaseMin = 0; shown.atkBaseMax = 15;
+    shown.atkFloatMin = 0; shown.atkFloatMax = 10;
+    shown.atkMin = 0; shown.atkMax = 25;
+    shown.defBaseMin = 0; shown.defBaseMax = 0;
+    shown.defFloatMin = 0; shown.defFloatMax = 0;
+    shown.defMin = 0; shown.defMax = 0;
+    shown.hp = 0;
+    ok('基础+浮动文案', dl.eqStatText(shown) === '攻击 0-15(+10)', dl.eqStatText(shown));
+  }
+  dl.P.lv = 5;
   dl.addToBag(eqO);
   ok('好装备直接穿上', dl.state().weapon === eqO || dl.P.bag.includes(eqO));
+
+  /* 等级不够不能穿 */
+  {
+    const high = dl.makeEquip('weapon', 20, 'white');
+    dl.P.lv = 5;
+    dl.P.bag = [high];
+    ok('等级不足不可穿', dl.equipFromBag(0) === false && dl.P.weapon !== high, dl.P.lv);
+    ok('详情含需要等级', dl.eqDetailHtml(high).includes('需要 Lv.20'), dl.eqDetailHtml(high));
+    ok('等级不足标红', dl.eqDetailHtml(high).includes('eq-need-low'), dl.eqDetailHtml(high));
+    ok('canWearEq 否', dl.canWearEq(high, 5) === false);
+    ok('canWearEq 够级', dl.canWearEq(high, 20) === true);
+  }
+
+  /* 背包穿戴：双击格子 = equipFromBag（弱装进背包再手穿） */
+  dl.P.lv = Math.max(dl.P.lv, 5);
+  const eqWeak = dl.makeEquip('weapon', 1, 'white');
+  dl.P.bag = [eqWeak];
+  const wornBefore = dl.P.weapon;
+  ok('弱装从背包穿上', dl.equipFromBag(0) === true && dl.P.weapon === eqWeak, dl.P.weapon && dl.P.weapon.name);
+  ok('原武器回背包', wornBefore && dl.P.bag.includes(wornBefore), dl.P.bag.map((e) => e && e.name));
+
+  /* 装备对比：上下同款展示，无箭头增减文案 */
+  dl.P.lv = Math.max(dl.P.lv, 8);
+  const eqStrong = dl.makeEquip('weapon', 8, 'blue');
+  const wornName = dl.P.weapon && dl.P.weapon.name;
+  const cmpHtml = dl.eqCompareHtml(eqStrong);
+  ok('对比含身上装备名', typeof cmpHtml === 'string' && !!wornName && cmpHtml.includes(wornName), cmpHtml && cmpHtml.slice(0, 100));
+  ok('对比标穿中', cmpHtml.includes('eq-worn-tag') && cmpHtml.includes('穿'), cmpHtml && cmpHtml.slice(0, 120));
+  ok('对比无增减箭头文案', !cmpHtml.includes('对比身上') && !cmpHtml.includes('eq-delta') && !cmpHtml.includes('→'), cmpHtml && cmpHtml.slice(0, 120));
+  const bagN = dl.P.bag.length;
+  const goldBeforeSell = dl.state().gold;
+  ok('可卖背包件', dl.sellFromBag(0) === true && dl.P.bag.length === bagN - 1, dl.P.bag.length);
+  ok('卖掉加金币', dl.state().gold > goldBeforeSell, [goldBeforeSell, dl.state().gold]);
+
+  /* 商店左右窗：货架目录 + 双击购买入口 */
+  {
+    const cat = dl.ensureShopCatalog();
+    ok('货架含药水与装备', Array.isArray(cat) && cat.length >= 8
+      && cat.some((x) => x.kind === 'pot') && cat.some((x) => x.kind === 'equip'), cat && cat.length);
+    const potIdx = cat.findIndex((x) => x.kind === 'pot' && x.potKind === 'red' && x.tierId === 'low');
+    const g0 = dl.state().gold;
+    dl.P.gold = Math.max(g0, cat[potIdx].price + 10);
+    const pots0 = dl.potTotal('red');
+    ok('货架双击买药', dl.buyShopStock(potIdx) === true && dl.potTotal('red') === pots0 + 1, dl.potTotal('red'));
+    const eqIdx = cat.findIndex((x) => x.kind === 'equip' && x.buyId === 'sword');
+    const bag0 = dl.P.bag.length;
+    dl.P.gold = Math.max(dl.state().gold, cat[eqIdx].price + 10);
+    ok('货架双击买剑', dl.buyShopStock(eqIdx) === true
+      && (dl.P.bag.length > bag0 || (dl.state().weapon && dl.state().weapon.ilvl === 3)),
+      [dl.P.bag.length, dl.state().weapon && dl.state().weapon.name]);
+    dl.refreshShop();
+    const stockHtml = sandbox.document.getElementById('shopStock').innerHTML;
+    const bagHtml = sandbox.document.getElementById('shopBag').innerHTML;
+    ok('货架格子已渲染', typeof stockHtml === 'string' && stockHtml.includes('data-shop-stock'), stockHtml && stockHtml.slice(0, 80));
+    ok('商店背包格已渲染', typeof bagHtml === 'string' && bagHtml.includes('eq-cell'), bagHtml && bagHtml.slice(0, 80));
+  }
+
+  /* 槽位等级解锁 + 掉落部位（R7.1b） */
+  ok('1 级可穿武器护甲', dl.slotUnlocked('weapon', 1) && dl.slotUnlocked('armor', 1));
+  ok('1 级不可穿手套', dl.slotUnlocked('gloves', 1) === false);
+  ok('10 级可穿手套', dl.slotUnlocked('gloves', 10) === true);
+  ok('20 级可穿头盔', dl.slotUnlocked('helmet', 20) === true);
+  ok('30 级可穿项链耳环', dl.slotUnlocked('necklace', 30) && dl.slotUnlocked('earring', 30));
+  ok('40 级可穿戒指', dl.slotUnlocked('ring', 40) === true);
+  ok('低级怪不掉手套', (() => {
+    const set = new Set();
+    for (let i = 0; i < 80; i++) set.add(dl.rollDropSlot(5));
+    return !set.has('gloves') && set.has('weapon') && set.has('armor');
+  })());
+  ok('10 级怪可掉手套', (() => {
+    const set = new Set();
+    for (let i = 0; i < 120; i++) set.add(dl.rollDropSlot(10));
+    return set.has('gloves');
+  })());
+  ok('手套有防御无乱长武器攻', (() => {
+    const g = dl.makeEquip('gloves', 12, 'blue');
+    return g.slot === 'gloves' && g.defMax > 0 && g.atkMax === 0;
+  })());
+  {
+    const counts = { weapon: 0, jewelry: 0, armor: 0 };
+    for (let i = 0; i < 600; i++) {
+      const id = dl.rollDropSlot(40);
+      const g = dl.slotMeta(id).group;
+      counts[g] = (counts[g] || 0) + 1;
+    }
+    ok('掉率武器<首饰', counts.weapon < counts.jewelry, counts);
+    ok('掉率首饰<防具', counts.jewelry < counts.armor, counts);
+  }
+  {
+    dl.P.lv = 1;
+    dl.P.bag = [dl.makeEquip('gloves', 10, 'white')];
+    ok('未解锁不可手穿手套', dl.equipFromBag(0) === false && dl.P.gloves == null);
+    dl.P.lv = 10;
+    ok('解锁后可穿手套', dl.equipFromBag(0) === true && !!dl.P.gloves);
+    dl.P.gloves = null;
+    dl.P.lv = 1;
+  }
 
   /* ============ M1.18：状态系统（R5） ============ */
   const SS = sandbox.window.DL.Status;
@@ -413,17 +554,21 @@ try {
   const bigBoss = dl.makeEnemy(DATA.BOSS, 'boss');
   bigBoss.x = dl.P.x + 1;
   bigBoss.y = dl.P.y;
+  bigBoss.aggroOn = true; // 被动 BOSS：未激怒不打人
   esC.push(bigBoss);
   let sawStun = false, sawPara = false;
-  for (let i = 0; i < 500 && !(sawStun && sawPara); i++) {
+  for (let i = 0; i < 2000 && !(sawStun && sawPara); i++) {
     SS.clear(dl.P);
     dl.setHp(dl.maxHp());
+    bigBoss.aggroOn = true;
+    bigBoss.hp = bigBoss.maxHp;
+    dl.resetEnemyClock();
     dl.enemiesTurn();
     if (SS.has(dl.P, 'stun')) sawStun = true;
     if (SS.has(dl.P, 'paralyze')) sawPara = true;
   }
   ok('BOSS 能眩晕玩家', sawStun);
-  ok('BOSS 能麻痹玩家', sawPara);
+  ok('BOSS 能麻痹玩家', sawPara, { stunP: DATA.AI.bossStunP, paraP: DATA.AI.bossParalyzeP });
   SS.clear(dl.P);
 
   /* ============ 玩家被控时走不动，但照样推进一回合 ============ */
@@ -443,7 +588,8 @@ try {
   ok('鸡是被动怪', monOf('chicken').ai === 'passive', monOf('chicken').ai);
   ok('稻草人被动、野狗野猪主动',
     monOf('scarecrow').ai === 'passive' && monOf('dog').ai === 'active' && monOf('boar').ai === 'active');
-  ok('BOSS 是主动怪', DATA.BOSS.ai === 'active', DATA.BOSS.ai);
+  ok('BOSS 是被动怪（不主动追人）', DATA.BOSS.ai === 'passive', DATA.BOSS.ai);
+  ok('BOSS 激怒后追击不放弃', C2.decide({ lv: 10, boss: true, aggroOn: true, aggro: 0, ai: 'passive' }, 10, 5) === 'chase');
   ok('被动怪不主动追', C2.decide({ lv: 5, boss: false, aggroOn: false, aggro: 0, ai: 'passive' }, 10, 3) === 'idle',
     C2.decide({ lv: 5, boss: false, aggroOn: false, aggro: 0, ai: 'passive' }, 10, 3));
   ok('主动怪进半径就追', C2.decide({ lv: 5, boss: false, aggroOn: false, aggro: 5, ai: 'active' }, 10, 4) === 'chase');
@@ -479,9 +625,41 @@ try {
   const Core = sandbox.window.DL.Core;
   const chickMon = DATA.MON.find((m) => m.id === 'chicken');
   ok('高 3 级内经验全额', Core.expMulByGap(3) === 1, Core.expMulByGap(3));
-  ok('高 4 级起 0 经验', Core.expMulByGap(4) === 0 && Core.expMulByGap(9) === 0,
+  ok('高 4 级起 0 经验（≈超普通怪到 5 级刷鸡）', Core.expMulByGap(4) === 0 && Core.expMulByGap(9) === 0,
     [Core.expMulByGap(4), Core.expMulByGap(9)]);
   ok('越级打怪不给额外经验', Core.expMulByGap(-10) === 1, Core.expMulByGap(-10));
+
+  ok('普通怪金币：差 4 全额', Core.goldMulByGapNormal(4) === 1, Core.goldMulByGapNormal(4));
+  ok('普通怪金币：差 5 减半', Core.goldMulByGapNormal(5) === 0.5, Core.goldMulByGapNormal(5));
+  ok('普通怪金币：差 10 归零', Core.goldMulByGapNormal(10) === 0, Core.goldMulByGapNormal(10));
+
+  // 普通怪：差 5 金币减半；精英不受影响
+  dl.enterRoom('field1');
+  dl.P.lv = 6; // 鸡 lv1 → gap 5
+  dl.P.exp = 0;
+  dl.P.gold = 1000;
+  const esGap = dl.enemies();
+  esGap.length = 0;
+  const chickGap = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'normal');
+  chickGap.x = dl.P.x + 1; chickGap.y = dl.P.y; chickGap.hp = 1; chickGap.gold = 100; chickGap.goldP = 1;
+  esGap.push(chickGap);
+  const g0 = dl.P.gold;
+  dl.setKillFromFarm(false);
+  dl.attack(99, '金币半');
+  ok('差 5 打鸡：金币约一半', dl.P.gold === g0 + 50, [g0, dl.P.gold]);
+  dl.P.lv = 11; // gap 10
+  const chickTen = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'normal');
+  chickTen.x = dl.P.x + 1; chickTen.y = dl.P.y; chickTen.hp = 1; chickTen.gold = 100; chickTen.goldP = 1;
+  esGap.push(chickTen);
+  const g1 = dl.P.gold;
+  dl.attack(99, '金币零');
+  ok('差 10 打鸡：0 金币', dl.P.gold === g1, [g1, dl.P.gold]);
+  const eliteGap = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'elite');
+  eliteGap.x = dl.P.x + 1; eliteGap.y = dl.P.y; eliteGap.hp = 1; eliteGap.gold = 80; eliteGap.goldP = 1;
+  esGap.push(eliteGap);
+  const g2 = dl.P.gold;
+  dl.attack(99, '精英金币');
+  ok('差 10 打精英：仍有金币', dl.P.gold > g2, [g2, dl.P.gold]);
 
   const killChickenAt = (lv) => {
     dl.genHub();
@@ -603,7 +781,12 @@ try {
     atkMin: 0, atkMax: 0, defMin: 4, defMax: 7, hp: 39,
   });
   eqA.affix = { id: 'tough', name: '坚韧', pct: 0.2 };
-  ok('属性把词缀算进去（防御 4-7 → 5-8）', dl.eqText(eqA) === '防御 5-8 · HP +39', dl.eqText(eqA));
+  // 界面显示基础区间（词缀未鉴定）；战斗仍吃词缀
+  ok('界面显示基础防御', dl.eqStatText(eqA) === '防御 4-7 · HP +39', dl.eqStatText(eqA));
+  {
+    const C = sandbox.DL.Core;
+    ok('词缀仍计入战斗防御', C.eqDefMin(eqA) === 5 && C.eqDefMax(eqA) === 8, [C.eqDefMin(eqA), C.eqDefMax(eqA)]);
+  }
   ok('品级字母直接可读', DATA.RARITY[eqA.rarity].letter === 'A', DATA.RARITY[eqA.rarity].letter);
   ok('装箱时不用鉴定就能显示品级', eqA.identified === undefined);
 
@@ -617,6 +800,250 @@ try {
   }
   ok('武器不会凭空长防御', weaponHasDef === false);
   ok('护甲不会凭空长攻击', armorHasAtk === false);
+
+  /* ============ M1.21 挂机 / 刷新 / BOSS 被动 / 收益刹车 ============ */
+  ok('挂机常量存在（无收益折扣）', DATA.AUTO_FARM && DATA.AUTO_FARM.expMul == null && DATA.RESPAWN.eliteCap === 2,
+    DATA.AUTO_FARM);
+  ok('精英/稀有随机保底上限', DATA.RESPAWN.elitePityMax === 50 && DATA.RESPAWN.rarePityMax === 200,
+    DATA.RESPAWN);
+  ok('挂机档经验曲线', DATA.GROWTH.expBase === 180 && DATA.GROWTH.expRate === 1.20, DATA.GROWTH);
+  ok('走路比打怪快', DATA.MOVE_MS < DATA.COMBAT_MS && DATA.WALK_STEP_MS < DATA.MOVE_MS,
+    [DATA.COMBAT_MS, DATA.MOVE_MS, DATA.WALK_STEP_MS]);
+
+  /* 八向移动 */
+  const W = sandbox.window.DL.World;
+  ok('切比雪夫：斜邻距离 1', Core.dist({ x: 0, y: 0 }, { x: 1, y: 1 }) === 1);
+  ok('斜贴身判定', C.isAdjacent(5, 5, 6, 6) === true && C.isAdjacent(5, 5, 7, 5) === false);
+  {
+    // 3×3 空地，中间周围全空；从角到对角
+    const m = [
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+    ];
+    const path = W.bfs(m, 0, 0, 2, 2, null);
+    ok('八向寻路斜切更短', path && path.length === 2, path && path.length);
+    ok('可斜步', W.canStep(m, 0, 0, 1, 1) === true);
+    const wallCorner = [
+      [0, 1, 0],
+      [1, 0, 0],
+      [0, 0, 0],
+    ];
+    ok('穿角禁止', W.canStep(wallCorner, 0, 0, 1, 1) === false);
+    const chase = C.nextStep(0, 0, 2, 2, () => false, m);
+    ok('怪优先斜追', chase && chase.x === 1 && chase.y === 1, chase);
+  }
+  ok('farmEligible：普通/精英可挂，稀有/BOSS 否',
+    C.farmEligible({ hp: 1, rare: false, boss: false }) === true &&
+    C.farmEligible({ hp: 1, elite: true, rare: false, boss: false }) === true &&
+    C.farmEligible({ hp: 1, rare: true, boss: false }) === false &&
+    C.farmEligible({ hp: 1, boss: true }) === false);
+
+  dl.genHub();
+  ok('主城默认挂机关', dl.autoFarm() === false);
+  dl.setAutoFarm(true);
+  ok('主城不能开挂机', dl.autoFarm() === false);
+
+  dl.enterRoom('field1');
+  ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {
+    sandbox.document.getElementById(id).hidden = true;
+  });
+  ok('进房挂机默认关', dl.autoFarm() === false);
+  // 挂机关：靠近未开战不自动打；开战后方打；未开战不锁走位
+  {
+    dl.resetEnemyClock();
+    const es = dl.enemies();
+    es.length = 0;
+    const chick = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'normal');
+    chick.x = dl.P.x + 1; chick.y = dl.P.y; chick.hp = 50;
+    es.push(chick);
+    const hp0 = chick.hp;
+    dl.tick();
+    ok('靠近未开战不自动打', chick.hp === hp0, [chick.hp, hp0]);
+    ok('未开战贴身不锁战', dl.inCombat() === false);
+    // 竖着走开，避免踩左侧出口门回城
+    const py = dl.P.y;
+    const walked = dl.move(0, -1) || (dl.setPos(chick.x - 1, chick.y), dl.move(0, 1));
+    ok('未开战可走开', walked === true && dl.P.y !== py);
+    dl.setPos(chick.x - 1, chick.y);
+    dl.engage(chick);
+    ok('交战后锁战', chick.playerEngaged === true && dl.inCombat() === true);
+    ok('交战后不能朝空地走', dl.move(0, -1) === false);
+    dl.setPos(chick.x - 1, chick.y);
+    chick.playerEngaged = true;
+    dl.tick();
+    ok('开战贴身后自动打', chick.hp < hp0, [chick.hp, hp0]);
+  }
+  ok('怪追击间隔 1 秒', DATA.ENEMY_ACT_MS === 1000, DATA.ENEMY_ACT_MS);
+  // 挂机关：远处有怪时警戒推进回合，主动怪会追
+  {
+    ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {
+      sandbox.document.getElementById(id).hidden = true;
+    });
+    if (!dl.currentRoom()) dl.enterRoom('field1');
+    dl.resetEnemyClock();
+    const es = dl.enemies();
+    es.length = 0;
+    const dog = dl.makeEnemy(DATA.MON.find((m) => m.id === 'dog'), 'normal');
+    dog.x = dl.P.x + 5; dog.y = dl.P.y; dog.hp = 50; dog.aggro = 8;
+    es.push(dog);
+    const turn0 = dl.state().turn;
+    const x0 = dog.x;
+    dl.tick();
+    ok('挂机关有怪警戒推进', dl.state().turn > turn0, dl.state().turn - turn0);
+    ok('挂机关警戒主动怪会追', Math.abs(dog.x - dl.P.x) < Math.abs(x0 - dl.P.x), [dog.x, x0]);
+  }
+  // pause 后 resume 必须重启世界时钟（否则房内补刷停死）
+  {
+    dl.pauseAuto();
+    ok('pause 停时钟', dl.clockTimerOn() === false);
+    dl.resumeAuto();
+    ok('resume 重启时钟', dl.clockTimerOn() === true);
+  }
+  dl.setAutoFarm(true);
+  ok('房内可开挂机', dl.autoFarm() === true);
+
+  // 挂机不选稀有/BOSS
+  const esF = dl.enemies();
+  esF.length = 0;
+  const rareF = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'rare');
+  rareF.x = dl.P.x + 1; rareF.y = dl.P.y; rareF.aggro = 5;
+  esF.push(rareF);
+  ok('挂机时最近目标忽略稀有', dl.nearestFarmEnemy() === null);
+  ok('挂机贴身目标忽略稀有', dl.adjacentFarmTarget() === null);
+  const bossF = dl.makeEnemy(DATA.BOSS, 'boss');
+  bossF.x = dl.P.x + 1; bossF.y = dl.P.y;
+  esF.push(bossF);
+  ok('挂机贴身目标忽略 BOSS', dl.adjacentFarmTarget() === null);
+
+  // 稀有刷出/靠近都不关挂机（玩家自己关）
+  ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {
+    sandbox.document.getElementById(id).hidden = true;
+  });
+  dl.setAutoFarm(true);
+  dl.onRareSpawned(rareF);
+  ok('稀有刷出不关挂机', dl.autoFarm() === true);
+  rareF.x = dl.P.x + 1; rareF.y = dl.P.y;
+  ok('稀有威胁仍可检测', !!dl.rareThreatNear());
+  dl.tick();
+  ok('稀有靠近不关挂机', dl.autoFarm() === true);
+
+  // 挂机无收益折扣（与手打同）
+  dl.enterRoom('field1');
+  ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {
+    sandbox.document.getElementById(id).hidden = true;
+  });
+  const esKill = dl.enemies();
+  esKill.length = 0;
+  dl.P.lv = 1;
+  dl.P.exp = 0;
+  dl.rest();
+  const chick = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'normal');
+  chick.x = dl.P.x + 1; chick.y = dl.P.y; chick.hp = 1; chick.exp = 100; chick.gold = 100; chick.goldP = 1;
+  esKill.push(chick);
+  const exp0 = dl.P.exp, gold0 = dl.P.gold;
+  dl.setKillFromFarm(true);
+  dl.attack(99, '挂机测');
+  const expGain = dl.P.exp - exp0;
+  const goldGain = dl.P.gold - gold0;
+  ok('挂机击杀经验全额', expGain === 100, expGain);
+  ok('挂机击杀金币全额', goldGain === 100, goldGain);
+
+  // 自动捡袋：≤B 可捡，A/S 否
+  const bagB = { items: [dl.makeEquip('weapon', 5, 'blue')], relic: false };
+  const bagA = { items: [dl.makeEquip('weapon', 5, 'yellow')], relic: false };
+  const bagS = { items: [dl.makeEquip('weapon', 5, 'orange')], relic: false };
+  ok('B 袋可自动捡', dl.bagAutoLootable(bagB) === true);
+  ok('A 袋不自动捡', dl.bagAutoLootable(bagA) === false);
+  ok('S 袋不自动捡', dl.bagAutoLootable(bagS) === false);
+
+  // 补刷：死后 5s 才补，不立刻灌密度
+  ok('普通补刷延迟 5s', DATA.RESPAWN.normalDelayMs === 5000, DATA.RESPAWN.normalDelayMs);
+  dl.enterRoom('field1');
+  const spec1 = dl.roomSpec('field1');
+  dl.enemies().length = 0;
+  dl.tryRoomRespawn();
+  ok('无死亡队列不灌怪', dl.enemies().filter((e) => e.hp > 0).length === 0);
+  const respawnT0 = 1_000_000;
+  dl.queueNormalRespawn(respawnT0 + 5000);
+  ok('死后入队', dl.respawnPending() === 1, dl.respawnPending());
+  dl.tryRoomRespawn(respawnT0 + 1000);
+  ok('未满 5s 不刷', dl.enemies().filter((e) => e.hp > 0).length === 0 && dl.respawnPending() === 1);
+  dl.tryRoomRespawn(respawnT0 + 5000);
+  const afterFill = dl.enemies().filter((e) => e.hp > 0 && !e.boss && !e.elite && !e.rare).length;
+  ok('满 5s 补 1 只', afterFill === 1, afterFill);
+  ok('补后队列清空', dl.respawnPending() === 0);
+  // 满员不再排队
+  dl.enemies().length = 0;
+  for (let i = 0; i < spec1.mobs; i++) dl.spawnOneInRoom('normal');
+  dl.queueNormalRespawn();
+  ok('满员不排队', dl.respawnPending() === 0, [dl.respawnPending(), spec1.mobs]);
+
+  // 随机保底：阈值 ∈[1,50]/[1,200]；杀满阈值必出
+  dl.enterRoom('field1');
+  dl.enemies().length = 0;
+  ok('精英阈值在 1～50', dl.eliteThreshold() >= 1 && dl.eliteThreshold() <= 50, dl.eliteThreshold());
+  ok('稀有阈值在 1～200', dl.rareThreshold() >= 1 && dl.rareThreshold() <= 200, dl.rareThreshold());
+  // 强制阈值=3，验证到数必出并重掷
+  dl.rollEliteThreshold();
+  // 通过反复杀死重置直到我们能测：直接推进到阈值
+  const need = dl.eliteThreshold();
+  ok('开局精英还差=阈值', dl.eliteLeft() === need, [dl.eliteLeft(), need]);
+  for (let i = 0; i < need - 1; i++) dl.onNormalKillProgress();
+  ok('差 1 只时还差 1', dl.eliteLeft() === 1, dl.eliteLeft());
+  dl.onNormalKillProgress();
+  ok('到阈值必出精英', dl.enemies().some((e) => e.elite && e.hp > 0), dl.enemies().map((e) => e.grade));
+  ok('出精英后重掷阈值', dl.eliteThreshold() >= 1 && dl.eliteThreshold() <= 50 && dl.killsToElite() === 0,
+    [dl.eliteThreshold(), dl.killsToElite()]);
+  // 稀有：阈值设为 1 时下一刀必出
+  dl.enemies().length = 0;
+  // 把稀有阈值压到 1：多 roll 几次或杀到 —— 用循环滚到阈值 1 很难，改为杀满 rareThreshold
+  const rNeed = dl.rareThreshold();
+  for (let i = 0; i < rNeed; i++) dl.onNormalKillProgress();
+  ok('到稀有阈值必出稀有', dl.enemies().some((e) => e.rare && e.hp > 0), dl.enemies().map((e) => e.grade));
+
+  // BOSS CD：击杀记时，CD 内重进不刷
+  dl.enterRoom('cave1');
+  ok('进洞有首领', dl.enemies().some((e) => e.boss && e.hp > 0));
+  const bLive = dl.enemies().find((e) => e.boss && e.hp > 0);
+  bLive.hp = 1;
+  bLive.x = dl.P.x + 1;
+  bLive.y = dl.P.y;
+  dl.setKillFromFarm(false);
+  dl.P.lv = 20;
+  dl.rest();
+  dl.attack(999, '手砍首领');
+  ok('击杀首领记 CD', Number.isFinite(dl.roomClearedAt().cave1), dl.roomClearedAt().cave1);
+  dl.continueAfterWin();
+  dl.enterRoom('cave1');
+  ok('Boss CD 内重进无活首领', !dl.enemies().some((e) => e.boss && e.hp > 0),
+    dl.enemies().filter((e) => e.boss).map((e) => e.hp));
+  // 房内 try 也不该刷出来（仍在 CD）
+  for (let i = 0; i < 3; i++) dl.tryRoomRespawn();
+  ok('Boss CD 内补刷新不出首领', !dl.enemies().some((e) => e.boss && e.hp > 0));
+
+  // BOSS 未激怒不主动攻击（清 CD 后刷一只再测）
+  // 把清除时间拨到很久以前：重新进房前改存档里的 cleared——用 leave 空房 + 拨 clock
+  dl.genHub();
+  dl.enterRoom('field2'); // 无 BOSS 房，测被动用 makeEnemy
+  const esP = dl.enemies();
+  esP.length = 0;
+  const passiveBoss = dl.makeEnemy(DATA.BOSS, 'boss');
+  passiveBoss.x = dl.P.x + 1;
+  passiveBoss.y = dl.P.y;
+  passiveBoss.aggroOn = false;
+  esP.push(passiveBoss);
+  const hpBefore = dl.P.hp;
+  dl.resetEnemyClock();
+  dl.enemiesTurn();
+  ok('BOSS 未激怒不打人', dl.P.hp === hpBefore, [hpBefore, dl.P.hp]);
+  passiveBoss.aggroOn = true;
+  dl.resetEnemyClock();
+  dl.enemiesTurn();
+  ok('BOSS 激怒后会打人', dl.P.hp < hpBefore, [hpBefore, dl.P.hp]);
+
+  dl.setAutoFarm(false);
+  dl.genHub();
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

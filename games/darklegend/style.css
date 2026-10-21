@@ -50,19 +50,15 @@ html, body {
   z-index: 0;
 }
 
-.hud, .gear, .tips, .log, .actions {
+.hud, .gear, .log-wrap, .controls, .bars-dock {
   position: relative;
   z-index: 1;
-}
-
-/* 中间留白把底部三栏推到底 */
-.tips {
-  margin-top: auto;
 }
 
 .hud {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
@@ -99,15 +95,57 @@ html, body {
   font-size: 16px;
   line-height: 1;
 }
+.icon-btn.on {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: #2a2410;
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+}
 
-.lv { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 4px; }
+.lv { font-size: 14px; font-weight: 700; color: var(--gold); margin: 0; }
 
-.bars { display: flex; flex-direction: column; gap: 4px; }
+.bars-dock {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 4px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: rgba(11, 16, 25, 0.94);
+  border-top: 1px solid var(--line);
+}
+
+/* 村落/区域信息：左下 */
+.tips {
+  flex: 1 1 50%;
+  min-width: 0;
+  max-width: 50%;
+  padding: 2px 4px 2px 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #8d99b5;
+  text-align: left;
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  word-break: break-word;
+}
+
+.bars-side {
+  flex: 0 0 48%;
+  max-width: 48%;
+  min-width: 0;
+}
+
+.bars { display: flex; flex-direction: column; gap: 2px; }
 
 .bar {
   position: relative;
-  height: 16px;
-  border-radius: 8px;
+  height: 9px;
+  border-radius: 5px;
   background: #1a2336;
   overflow: hidden;
 }
@@ -121,23 +159,25 @@ html, body {
 
 .bar.hp i { background: linear-gradient(90deg, #b33a3a, var(--hp)); }
 .bar.mp i { background: linear-gradient(90deg, #2a5f9e, var(--mp)); }
+.bar.exp i { background: linear-gradient(90deg, #b8860b, var(--gold)); }
 
 .bar span {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: 8px;
+  letter-spacing: 0.02em;
   text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
 }
 
 /* 玩家状态条（R15.2 符号+数字，R5.16 剩余 ≤2 回合闪烁） */
 .status-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 3px;
+  margin-bottom: 2px;
 }
 
 .status-row .st {
@@ -183,39 +223,130 @@ canvas {
   cursor: crosshair;
 }
 
-.tips {
-  padding: 2px 12px;
+/* ---------- 日志：装备下方左侧，半宽；展开 5 条 / 折叠 1 条 ---------- */
+.log-wrap {
+  align-self: flex-start;
+  width: 50%;
+  max-width: 50%;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-radius: 0 0 10px 0;
+  background: rgba(11, 16, 25, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.log-toggle {
+  align-self: flex-end;
+  margin: 2px 6px 0;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #16203a;
+  color: var(--muted);
   font-size: 10px;
-  color: #6d7893;
-  text-align: center;
-  border-top: 1px solid var(--line);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-family: inherit;
+  min-height: 26px;
+  touch-action: manipulation;
 }
 
 .log {
-  height: 50px;
   overflow: hidden;
-  padding: 4px 12px;
+  padding: 2px 8px 6px;
   font-size: 11px;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--muted);
-  background: rgba(11, 16, 25, 0.8);
-  border-top: 1px solid var(--line);
+  max-height: calc(11px * 1.45 * 5 + 4px);
+  transition: max-height 0.15s ease;
+  word-break: break-word;
+}
+
+.log.collapsed {
+  max-height: calc(11px * 1.45 * 1 + 2px);
 }
 
 .log b { color: var(--gold); font-weight: 600; }
 .log .good { color: var(--ok); }
 .log .bad { color: #ff8a8a; }
 
-.actions {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  padding: 10px 10px 14px;
-  background: linear-gradient(transparent, rgba(11, 16, 25, 0.94) 35%);
+/* ---------- 底栏：左移动盘 + 右技能盘 ---------- */
+.controls {
+  margin-top: auto; /* 把底栏推到底 */
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 4px;
+  background: linear-gradient(transparent, rgba(11, 16, 25, 0.92) 40%);
   border-top: 1px solid var(--line);
+}
+
+/* 拖动轮盘（虚拟摇杆） */
+.dpad.stick {
+  flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.stick-base {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px solid rgba(150, 176, 220, 0.28);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(30, 42, 68, 0.35) 0%, rgba(12, 18, 30, 0.72) 70%),
+    rgba(16, 22, 35, 0.55);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.35);
+}
+
+.stick-ring {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 1px dashed rgba(150, 176, 220, 0.22);
+  pointer-events: none;
+}
+
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  height: 46%;
+  margin: -23% 0 0 -23%;
+  border-radius: 50%;
+  border: 1px solid rgba(170, 225, 255, 0.45);
+  background: radial-gradient(circle at 35% 30%, #7eb6ff, #2a4a7a 55%, #162038);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+  will-change: transform;
+  transition: box-shadow 0.1s ease;
+}
+
+.dpad.stick.active .stick-knob {
+  border-color: rgba(200, 240, 255, 0.85);
+  box-shadow: 0 0 16px rgba(120, 190, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dpad.stick.active .stick-base {
+  border-color: rgba(170, 225, 255, 0.55);
+}
+
+.skill-pad.actions {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  max-width: 360px;
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border: 0;
 }
 
 .actions button {
@@ -225,46 +356,60 @@ canvas {
   border-radius: 12px;
   background: #16203a;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 11px;
   font-family: inherit;
   padding: 4px 2px;
-  line-height: 1.2;
+  line-height: 1.15;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .actions button:active:not(:disabled) { transform: translateY(1px); }
 .actions button:disabled { opacity: 0.38; }
-.actions kbd { display: block; font-size: 9px; color: #6d7893; margin-top: 2px; }
+.actions kbd { display: block; font-size: 8px; color: #6d7893; margin-top: 1px; }
 .actions .cost {
   position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: 9px;
+  top: 3px;
+  right: 4px;
+  font-size: 8px;
   color: #7fa8d8;
 }
 .actions .badge {
   display: inline-block;
-  min-width: 16px;
+  min-width: 14px;
   padding: 0 3px;
   border-radius: 8px;
   background: #2a5f9e;
   color: #fff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   vertical-align: 1px;
 }
 .actions button.cooling { opacity: 0.55; }
+.actions button.on {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: #2a2410;
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25);
+}
 .actions button.locked {
   opacity: 0.42;
   filter: grayscale(0.7);
 }
 .actions button .cd {
   position: absolute;
-  top: 3px;
-  left: 5px;
-  font-size: 9px;
+  top: 2px;
+  left: 4px;
+  font-size: 8px;
   color: #ffd166;
 }
 .actions .ghost { background: transparent; }
+
+@media (max-width: 420px) {
+  .dpad.stick { width: 118px; height: 118px; }
+  .skill-pad.actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .actions kbd { display: none; }
+}
 
 .over, .sheet, .menu, .intro {
   position: absolute;
@@ -313,18 +458,70 @@ canvas {
 .sheet-card h3 { margin: 0 0 12px; font-size: 16px; }
 .sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
 .sheet-gold { color: var(--gold); font-size: 13px; }
-.sheet-card .buy {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #16203a;
-  color: var(--ink);
-  border: 1px solid var(--line);
-  font-size: 14px;
-  margin-top: 8px;
+.shop-card {
+  width: min(96%, 560px);
+  max-height: 88dvh;
+  overflow-y: auto;
 }
-.sheet-card .buy em { font-style: normal; color: var(--gold); font-size: 12px; }
-.sheet-card .buy:disabled { opacity: 0.45; }
+.shop-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 4px;
+  align-items: start;
+}
+.shop-pane {
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+}
+.shop-pane .shop-h {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.shop-pane .shop-h small { font-weight: 500; font-size: 10px; }
+.eq-grid.shop,
+.eq-grid.shop-bag {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  max-height: min(42dvh, 280px);
+  overflow-y: auto;
+}
+.eq-cell .eq-price {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000;
+}
+.eq-cell.unafford { opacity: 0.45; }
+.eq-cell.shop-pot {
+  border-color: rgba(120, 180, 255, 0.35);
+  background: #142033;
+}
+.eq-tip-price {
+  margin-top: 6px;
+  color: var(--gold);
+  font-size: 12px;
+}
+.eq-tip-price b { color: #ffe08a; }
+.eq-need-low { color: #ff6b6b; font-size: 11px; }
+.pot-stock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: #c6cfdf;
+  margin-bottom: 8px;
+}
+.pot-stock b { color: #fff; }
 
 .menu-help { font-size: 13px; line-height: 1.7; }
 .menu-help b { color: var(--gold); }
@@ -453,80 +650,246 @@ canvas {
   padding: 0 8px;
   font-family: inherit;
 }
-.char-slots { display: grid; gap: 8px; margin-top: 10px; }
-.slot {
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #0d1424;
-  font-size: 12px;
-}
-.slot.empty { opacity: 0.72; }
-.slot .name { font-weight: 700; }
-.slot .stats { color: var(--muted); margin-top: 2px; font-size: 11px; }
-.slot.rarity-white { border-left-color: #b8c0cc; }
-.slot.rarity-blue { border-left-color: var(--blue); }
-.slot.rarity-yellow { border-left-color: var(--yellow); box-shadow: inset 0 0 18px rgba(255, 213, 74, 0.06); }
 .bag-count { color: var(--muted); font-size: 11px; font-weight: 400; }
-.bag-list {
-  max-height: 300px;
-  overflow-y: auto;
+.char-h small.muted,
+.muted { color: var(--muted); font-weight: 400; font-size: 11px; }
+.eq-hint { margin: 0 0 8px; font-size: 11px; }
+
+/* ---------- 装备格子 ---------- */
+.eq-grid {
   display: grid;
   gap: 6px;
-  margin-bottom: 4px;
+  margin: 6px 0 4px;
 }
-.bag-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 10px;
-  padding: 7px 8px;
-  background: #0d1424;
-  font-size: 12px;
+.eq-grid.worn {
+  grid-template-columns: repeat(4, minmax(52px, 1fr));
+  justify-content: stretch;
+  max-width: 280px;
 }
-.bag-item.rarity-white { border-left-color: #b8c0cc; }
-.bag-item.rarity-blue { border-left-color: var(--blue); }
-.bag-item.rarity-yellow { border-left-color: var(--yellow); }
-.bag-main { flex: 1; min-width: 0; }
-.bag-main .name {
+.eq-cell.locked {
+  opacity: 0.55;
+}
+.eq-lock {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  font-size: 9px;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.bag-main .stats {
   color: var(--muted);
-  font-size: 11px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  pointer-events: none;
 }
-.bag-item button {
-  width: auto;
-  flex: 0 0 auto;
+.eq-grid.bag,
+.eq-grid.pick {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* 格子：半透明底，品质只靠边框色（避免 rarity-* 全局文字色把整格染黄） */
+.eq-cell {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 44px;
   margin: 0;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: 8px;
+  padding: 0;
+  border: 2px solid rgba(150, 176, 220, 0.45);
+  border-radius: 10px;
+  background: rgba(10, 14, 24, 0.28);
+  color: #eef2fa;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+}
+.eq-cell.rarity-white,
+.eq-cell.rarity-blue,
+.eq-cell.rarity-yellow,
+.eq-cell.rarity-orange {
+  color: #eef2fa; /* 盖掉全局 .rarity-* { color } */
+}
+.eq-cell:disabled,
+.eq-cell.empty {
+  opacity: 0.4;
+  cursor: default;
+  border-style: dashed;
+  border-color: rgba(150, 176, 220, 0.2);
+  background: rgba(8, 12, 20, 0.2);
+}
+.eq-cell.rarity-white {
+  border-color: #c5ccd8;
+  background: rgba(184, 192, 204, 0.08);
+}
+.eq-cell.rarity-blue {
+  border-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.1);
+}
+.eq-cell.rarity-yellow {
+  border-color: #ffd54a;
+  background: rgba(255, 213, 74, 0.1);
+}
+.eq-cell.rarity-orange {
+  border-color: #ff8a3d;
+  background: rgba(255, 138, 61, 0.12);
+}
+
+.eq-cell .eq-ico {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+}
+.eq-cell .eq-lv {
+  position: absolute;
+  left: 3px;
+  bottom: 2px;
+  font-size: 9px;
+  color: #a9b6d1;
+  pointer-events: none;
+}
+.eq-cell .eq-ltr {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  pointer-events: none;
+}
+.eq-cell.rarity-white .eq-ltr { color: #c5ccd8; }
+.eq-cell.rarity-blue .eq-ltr { color: #4a9eff; }
+.eq-cell.rarity-yellow .eq-ltr { color: #ffd54a; }
+.eq-cell.rarity-orange .eq-ltr { color: #ff8a3d; }
+.eq-cell .eq-slot {
+  font-size: 10px;
+  color: #6d7893;
+}
+.eq-cell .eq-up {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ok);
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+  animation: eqUpPulse 1.2s ease-in-out infinite;
+}
+@keyframes eqUpPulse {
+  50% { opacity: 0.45; transform: translateY(-1px); }
+}
+.eq-cell:not(.empty):active { transform: scale(0.96); }
+
+/* 装备详情浮层：JS 锚到选中格子上方 */
+.eq-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  width: min(78%, 300px);
+  max-width: calc(100% - 12px);
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid var(--line);
+  background: rgba(16, 22, 35, 0.96);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  text-align: left;
+  pointer-events: auto;
+}
+.eq-tip-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.eq-tip-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.eq-tip-x {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: #16203a;
-  color: var(--ink);
-  font-size: 11px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
   font-family: inherit;
 }
-.bag-item button.sell { color: var(--gold); }
-.up { color: var(--ok); font-size: 10px; font-weight: 700; }
-
-/* 未鉴定：名字模糊、属性未知 */
-.bag-item.unidentified .name {
+.eq-tip-stats {
+  font-size: 12px;
   color: var(--muted);
-  letter-spacing: 1px;
+  line-height: 1.55;
+  margin-bottom: 10px;
 }
-.bag-item.unidentified {
-  border-left-style: dashed;
+.eq-cmp {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.eq-cmp .eq-tip-name {
+  margin-bottom: 4px;
+}
+.eq-worn-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(141, 153, 181, 0.18);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: 2px;
+  letter-spacing: 0.05em;
+}
+.eq-tip-body {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.eq-tip-acts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12px;
+}
+.eq-tip-acts[hidden] { display: none; }
+.eq-tip-acts button {
+  flex: 1 1 auto;
+  min-height: 40px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #16203a;
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+}
+.shop-h {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+@media (max-width: 420px) {
+  .eq-grid.bag,
+  .eq-grid.pick { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .eq-grid.shop,
+  .eq-grid.shop-bag { grid-template-columns: repeat(3, 1fr); }
 }
 .ilvl {
   color: var(--gold);

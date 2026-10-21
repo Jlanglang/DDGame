@@ -60,7 +60,11 @@
     'doorConfirm', 'doorTitle', 'doorDesc', 'doorYes', 'doorNo',
   ].forEach((id) => { el[id] = document.getElementById(id); });
 
-  const { rand, randi, clamp, roll, key, dist, mulberry32, randomSeed, eqAtk, eqDef, eqHp, eqScore } = DL.Core;
+  const {
+    rand, randi, clamp, roll, key, dist, mulberry32, randomSeed,
+    eqAtkMin, eqAtkMax, eqDefMin, eqDefMax, eqAtk, eqDef, eqHp, eqScore,
+    atkRange, defRange,
+  } = DL.Core;
   // 区域划分：地图从左到右，x 越大越危险（图 1 固定村庄在左、洞穴入口在右）
   const zoneLevel = (x) => clamp(1 + Math.floor(x / 5), 1, 10);
   const zoneName = (x) => {
@@ -91,6 +95,9 @@
   const ARMOR_NAMES = D.ARMOR_NAMES;
   const SHOP = D.SHOP;
   const ZONE_FLOOR = D.ZONE_FLOOR;
+  const FLOAT_P = D.FLOAT_P;
+  const FLOAT_MIN = D.FLOAT_MIN;
+  const FLOAT_MAX = D.FLOAT_MAX;
 
   /* ---------------- 玩家 ---------------- */
   const P = {
@@ -304,19 +311,31 @@
   }
 
   function makeEquip(slot, ilvl, rarity, opts = {}) {
-    const mult = RARITY[rarity].mult;
     const names = slot === 'weapon' ? WEAPON_NAMES : ARMOR_NAMES;
     const name = names[rarity === 'yellow' ? 2 : rarity === 'blue' ? 1 : 0];
-    const baseAtk = slot === 'weapon' ? randi(3 + Math.ceil(ilvl / 4), 5 + Math.ceil(ilvl / 2)) : 0;
-    const baseDef = slot === 'armor' ? randi(2 + Math.ceil(ilvl / 2), 4 + Math.ceil(ilvl / 2)) : 0;
-    const baseHp = slot === 'armor' ? randi(8 + ilvl, 10 + ilvl * 3) : 0;
+
+    // 基础区间：所有品质相同（品质不碰属性）
+    const atkMin0 = slot === 'weapon' ? Math.round(4 + 0.2 * ilvl) : 0;
+    const atkMax0 = slot === 'weapon' ? Math.round(8 + 0.4 * ilvl) : 0;
+    const defMin0 = slot === 'armor' ? Math.round(2 + 0.2 * ilvl) : 0;
+    const defMax0 = slot === 'armor' ? Math.round(4 + 0.4 * ilvl) : 0;
+    const hp0 = slot === 'armor' ? Math.round(15 + 3 * ilvl) : 0;
+
+    // 浮动：上下限各自独立判定；幅度所有品质相同；C（白）不浮
+    const p = FLOAT_P[rarity] ?? 0;
+    const upMin = p > 0 && Math.random() < p ? randi(0, FLOAT_MIN) : 0;
+    const upMax = p > 0 && Math.random() < p ? randi(0, FLOAT_MAX) : 0;
+
     const eq = {
       slot, name, rarity, ilvl,
-      atk: opts.atk ?? Math.round(baseAtk * mult),
-      def: opts.def ?? Math.round(baseDef * mult),
-      hp: opts.hp ?? Math.round(baseHp * mult),
+      atkMin: opts.atkMin ?? (atkMin0 + upMin),
+      atkMax: opts.atkMax ?? (atkMax0 + upMax),
+      defMin: opts.defMin ?? (defMin0 + upMin),
+      defMax: opts.defMax ?? (defMax0 + upMax),
+      hp: opts.hp ?? hp0,
       affix: null,
       identified: opts.identified !== false,   // 掉落品默认未鉴定
+      elite: (upMin > 0 && upMax > 0),        // 双浮 = 极品标记
     };
     const affixChance = rarity === 'yellow' ? 1 : rarity === 'blue' ? 0.45 : 0;
     if (Math.random() < affixChance) {
@@ -336,9 +355,11 @@
   }
 
   function eqStatText(eq) {
+    const aMin = eqAtkMin(eq), aMax = eqAtkMax(eq);
+    const dMin = eqDefMin(eq), dMax = eqDefMax(eq);
     return [
-      eq.atk ? `攻击 +${eqAtk(eq)}` : '',
-      eq.def ? `防御 +${eqDef(eq)}` : '',
+      aMax ? `攻击 ${aMin}-${aMax}` : '',
+      dMax ? `防御 ${dMin}-${dMax}` : '',
       eq.hp ? `HP +${eq.hp}` : '',
     ].filter(Boolean).join(' · ');
   }
@@ -647,7 +668,8 @@
 
   /* ---------------- 战斗 ---------------- */
   function strike(e, mult, tag) {
-    const dmg = DL.Combat.playerDamage(atkMean(), e.def, mult);
+    const ar = atkRange(P);
+    const dmg = DL.Combat.playerDamage(ar.min, ar.max, e.def, mult);
     e.hp -= dmg;
     e.aggroOn = true;
     addFloater(e.x, e.y - 0.4, `-${dmg}`, '#ffd166');
@@ -717,7 +739,8 @@
       if (action === 'leash') { e.aggroOn = false; continue; }
       if (action === 'idle') continue;
       if (action === 'attack') {
-        const dmg = DL.Combat.enemyDamage(e.atk, defMean(), maxHp(), e.boss);
+        const dr = defRange(P);
+        const dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
         P.hp -= dmg;
         addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
         hurtFlash();
@@ -1070,7 +1093,8 @@
     const foes = combatTargets();
     if (!foes.length) { log('没有敌人，不用撤。'); return; }
     const nearest = foes.slice().sort((a, b) => dist(a, P) - dist(b, P))[0];
-    const dmg = DL.Combat.enemyDamage(nearest.atk, defMean(), maxHp(), nearest.boss);
+    const dr = defRange(P);
+    const dmg = DL.Combat.enemyDamage(nearest.atk, dr.min, dr.max, maxHp(), nearest.boss);
     P.hp -= dmg;
     addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
     log(`${nearest.name}趁机咬了你一口，<span class="bad">-${dmg} HP</span>。`, 'bad');
@@ -1261,9 +1285,9 @@
       P.potions++;
       log('买了 1 瓶药水。', 'good');
     } else if (kind === 'sword') {
-      giveEquip(makeEquip('weapon', 3, 'white', { atk: 3, def: 0, hp: 0 }));
+      giveEquip(makeEquip('weapon', 3, 'white', { atkMin: 3, atkMax: 3, defMin: 0, defMax: 0, hp: 0 }));
     } else if (kind === 'armor') {
-      giveEquip(makeEquip('armor', 3, 'white', { atk: 0, def: 2, hp: 15 }));
+      giveEquip(makeEquip('armor', 3, 'white', { atkMin: 0, atkMax: 0, defMin: 2, defMax: 2, hp: 15 }));
     }
     syncHud();
     refreshShop();

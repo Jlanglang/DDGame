@@ -222,16 +222,16 @@ try {
   let minDef8 = Infinity;
   for (let i = 0; i < 50; i++) {
     const a = dl.makeEquip('armor', 8, 'white');
-    minDef8 = Math.min(minDef8, a.def);
+    minDef8 = Math.min(minDef8, a.defMax);
   }
-  ok('Lv.8 白护甲 ≥ 6 防', minDef8 >= 6, minDef8);
+  ok('Lv.8 白护甲上限 ≥ 6 防', minDef8 >= 6, minDef8);
 
   /* 16. 战斗规则纯函数 */
   const C = sandbox.window.DL.Combat;
   ok('半月覆盖 5 格', C.halfMoonCells(5, 5, 'r').length === 5, C.halfMoonCells(5, 5, 'r').length);
-  ok('普攻伤害最低 1', C.playerDamage(1, 9999, 1) >= 1, C.playerDamage(1, 9999, 1));
-  ok('防秒杀上限：普通 ≤35% maxHP', C.enemyDamage(9999, 0, 100, false) <= 35, C.enemyDamage(9999, 0, 100, false));
-  ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 100, true));
+  ok('普攻伤害最低 1', C.playerDamage(1, 1, 9999, 1) >= 1, C.playerDamage(1, 1, 9999, 1));
+  ok('防秒杀上限：普通 ≤35% maxHP', C.enemyDamage(9999, 0, 0, 100, false) <= 35, C.enemyDamage(9999, 0, 0, 100, false));
+  ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 0, 100, true));
   ok('低 5 级怪不主动', C.decide({ lv: 1, boss: false, aggroOn: false, aggro: 5 }, 10, 3) === 'idle');
   ok('Boss 相邻必攻击', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 5 }, 10, 1) === 'attack');
 

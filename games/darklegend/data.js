@@ -34,7 +34,13 @@
       white: { key: 'white', name: '普通', mult: 1 },
       blue: { key: 'blue', name: '魔法', mult: 1.15 },
       yellow: { key: 'yellow', name: '稀有', mult: 1.35 },
+      orange: { key: 'orange', name: '传奇', mult: 1.5 },
     },
+
+    /* ---------- 品质浮动概率（上下限各自独立；C/白不浮动） ---------- */
+    FLOAT_P: { white: 0, blue: 0.2, yellow: 0.35, orange: 0.5 },
+    FLOAT_MIN: 5,   // 下限最多 +5
+    FLOAT_MAX: 10,  // 上限最多 +10
 
     /* ---------- 装备名 ---------- */
     WEAPON_NAMES: ['铁剑', '精铁剑', '裁决之刃'],

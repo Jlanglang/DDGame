@@ -16,14 +16,16 @@
   };
 
   /* ---------- 伤害 ---------- */
-  // 玩家打怪：攻均值（±25%）× 技能倍率 − 怪防（±25%），最低 1
-  function playerDamage(atkMean, enemyDef, mult) {
-    return Math.max(1, Math.round(DL.Core.roll(atkMean) * mult - DL.Core.roll(enemyDef)));
+  // 玩家打怪：攻击在 [min,max] 内均匀取值 × 技能倍率 − 怪防（±25%），最低 1
+  function playerDamage(atkMin, atkMax, enemyDef, mult) {
+    const atk = atkMin + Math.random() * Math.max(0, atkMax - atkMin);
+    return Math.max(1, Math.round(atk * mult - DL.Core.roll(enemyDef)));
   }
 
-  // 怪打玩家：怪攻（±25%）− 玩家防×0.9（±25%），并按防秒杀上限截断
-  function enemyDamage(enemyAtk, defMean, maxHp, isBoss) {
-    let dmg = Math.max(1, Math.round(DL.Core.roll(enemyAtk) - DL.Core.roll(defMean * 0.9)));
+  // 怪打玩家：怪攻（±25%）− 玩家防（区间内取值 × 0.9），并按防秒杀上限截断
+  function enemyDamage(enemyAtk, defMin, defMax, maxHp, isBoss) {
+    const def = defMin + Math.random() * Math.max(0, defMax - defMin);
+    let dmg = Math.max(1, Math.round(DL.Core.roll(enemyAtk) - DL.Core.roll(def * 0.9)));
     const cap = Math.ceil(maxHp * (isBoss ? 0.5 : 0.35));
     return Math.min(dmg, cap);
   }

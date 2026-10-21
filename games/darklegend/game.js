@@ -12,12 +12,14 @@
 (() => {
   'use strict';
 
-  const TILE = 32;
-  const VIEW_W = 720;
-  const VIEW_H = 1120;
-  const SAVE_KEY = 'darklegend-save-v2';
-  const LEGACY_KEY = 'darklegend-save-v1';
-  const BAG_MAX = 24;
+  const D = (window.DL && window.DL.DATA) || {};
+  if (!D.TILE) throw new Error('data.js 未加载');
+  const TILE = D.TILE;
+  const VIEW_W = D.VIEW_W;
+  const VIEW_H = D.VIEW_H;
+  const SAVE_KEY = D.SAVE_KEY;
+  const LEGACY_KEY = D.LEGACY_KEY;
+  const BAG_MAX = D.BAG_MAX;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -37,9 +39,7 @@
     'intro', 'introBtn', 'seedText',
   ].forEach((id) => { el[id] = document.getElementById(id); });
 
-  const rand = (a, b) => a + Math.random() * (b - a);
-  const randi = (a, b) => Math.floor(rand(a, b + 1));
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const { rand, randi, clamp, roll, key, dist, mulberry32, randomSeed, eqAtk, eqDef, eqHp, eqScore } = DL.Core;
   // 区域划分：地图从左到右，x 越大越危险（图 1 固定村庄在左、洞穴入口在右）
   const zoneLevel = (x) => clamp(1 + Math.floor(x / 5), 1, 10);
   const zoneName = (x) => {
@@ -58,52 +58,18 @@
     if (lv <= 8) return 'Lv.7-8';
     return 'Lv.9-10';
   };
-  const ZONE_FLOOR = [
-    '#1c2638', '#1d273a', '#1f283c', '#21293e', '#232a40',
-    '#262b42', '#292c44', '#2d2d46', '#322e48', '#372f4a',
-  ];
+  // ZONE_FLOOR 见 data.js
 
-  // 固定地图用的确定性随机：同一个 seed 永远生成同一张图
-  function mulberry32(a) {
-    return function () {
-      a |= 0;
-      a = (a + 0x6D2B79F5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-  const randomSeed = () => ((Date.now() ^ Math.floor(Math.random() * 0xFFFFFFFF)) >>> 0);
-  const roll = (v) => v * (0.75 + Math.random() * 0.5);
-  const key = (x, y) => x + ',' + y;
-  const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  // 固定地图用的确定性随机：同一个 seed 永远生成同一张图（mulberry32 / randomSeed 见 core.js）
 
-  /* ---------------- 数据 ---------------- */
-  const MON = [
-    { id: 'chicken', name: '鸡', glyph: '🐔', aggro: 0 },
-    { id: 'rat', name: '田鼠', glyph: '🐭', aggro: 0 },
-    { id: 'dog', name: '野狗', glyph: '🐕', aggro: 5 },
-    { id: 'bee', name: '蜜蜂', glyph: '🐝', aggro: 5 },
-    { id: 'scarecrow', name: '稻草人', glyph: '🎃', aggro: 0 },
-    { id: 'boar', name: '野猪', glyph: '🐗', aggro: 5 },
-    { id: 'queen', name: '蜂后', glyph: '🐝', aggro: 5 },
-    { id: 'treant', name: '树精', glyph: '🌳', aggro: 5 },
-  ];
-  const BOSS = { id: 'boss', name: '巨型稻草人', glyph: '👹', aggro: 6 };
-
-  const RARITY = {
-    white: { key: 'white', name: '普通', mult: 1 },
-    blue: { key: 'blue', name: '魔法', mult: 1.15 },
-    yellow: { key: 'yellow', name: '稀有', mult: 1.35 },
-  };
-  const WEAPON_NAMES = ['铁剑', '精铁剑', '裁决之刃'];
-  const ARMOR_NAMES = ['皮甲', '锁子甲', '重盔甲'];
-
-  const SHOP = {
-    potion: { price: 50, label: '药水' },
-    sword: { price: 80, label: '铁剑' },
-    armor: { price: 70, label: '皮甲' },
-  };
+  /* ---------------- 数据（来自 data.js） ---------------- */
+  const MON = D.MON;
+  const BOSS = D.BOSS;
+  const RARITY = D.RARITY;
+  const WEAPON_NAMES = D.WEAPON_NAMES;
+  const ARMOR_NAMES = D.ARMOR_NAMES;
+  const SHOP = D.SHOP;
+  const ZONE_FLOOR = D.ZONE_FLOOR;
 
   /* ---------------- 玩家 ---------------- */
   const P = {
@@ -115,26 +81,13 @@
     kills: 0,
   };
 
-  const maxHp = () => 60 + 18 * (P.lv - 1) + eqHp(P.armor);
-  const maxMp = () => 15 + 3 * (P.lv - 1);
-  const atkMean = () => 5 + 1.5 * (P.lv - 1) + eqAtk(P.weapon);
-  const defMean = () => 3 + 1 * (P.lv - 1) + eqDef(P.armor);
-  const needExp = () => Math.round(100 * Math.pow(1.18, P.lv - 1));
+  const maxHp = () => DL.Core.maxHp(P);
+  const maxMp = () => DL.Core.maxMp(P);
+  const atkMean = () => DL.Core.atkMean(P);
+  const defMean = () => DL.Core.defMean(P);
+  const needExp = () => DL.Core.needExp(P);
 
-  function eqAtk(eq) {
-    if (!eq) return 0;
-    let v = eq.atk || 0;
-    if (eq.affix && eq.affix.id === 'sharp') v *= 1 + eq.affix.pct;
-    return Math.round(v);
-  }
-  function eqDef(eq) {
-    if (!eq) return 0;
-    let v = eq.def || 0;
-    if (eq.affix && eq.affix.id === 'tough') v *= 1 + eq.affix.pct;
-    return Math.round(v);
-  }
-  function eqHp(eq) { return (eq && eq.hp) || 0; }
-  const eqScore = (eq) => (eq ? eqAtk(eq) * 2 + eqDef(eq) * 1.5 + eqHp(eq) * 0.12 : 0);
+  // 装备属性函数见 core.js（eqAtk / eqDef / eqHp / eqScore 已解构）
 
   /* ---------------- 状态 ---------------- */
   let map = [];
@@ -154,7 +107,7 @@
   let hurtTimer = null;
   const floaters = [];
   const cam = { x: 0, y: 0 };
-  const IDLE_MS = 1000;          // 不操作时每 1 秒自动走一回合
+  const IDLE_MS = D.IDLE_MS;     // 不操作时每 1 秒自动走一回合
   let idleTimer = null;
   let refreshTimer = null;
   let clockTimer = null;
@@ -174,30 +127,12 @@
   const mrand = (a, b) => a + mapRng() * (b - a);
   const mrandi = (a, b) => Math.floor(mrand(a, b + 1));
 
-  const isWall = (x, y) => x < 0 || y < 0 || x >= map[0].length || y >= map.length || map[y][x] === 1;
+  const isWall = (x, y) => DL.World.isWall(map, x, y);
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
-  const visible = (x, y) => Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8;
+  const visible = (x, y) => DL.World.visible(P.x, P.y, x, y, 8);
   const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden;
 
-  /* ---------------- 地图 ---------------- */
-  function blank(w, h) {
-    return Array.from({ length: h }, () => Array.from({ length: w }, () => 1));
-  }
-
-  function carve(m, x, y, w, h) {
-    for (let j = y; j < y + h; j++) {
-      for (let i = x; i < x + w; i++) {
-        if (j > 0 && i > 0 && j < m.length - 1 && i < m[0].length - 1) m[j][i] = 0;
-      }
-    }
-  }
-
-  function corridor(m, a, b) {
-    let x = a.x, y = a.y;
-    while (x !== b.x) { x += x < b.x ? 1 : -1; m[y][x] = 0; }
-    while (y !== b.y) { y += y < b.y ? 1 : -1; m[y][x] = 0; }
-  }
-
+  /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
     cam.x = clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, Math.max(0, map[0].length * TILE - VIEW_W));
     cam.y = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, map.length * TILE - VIEW_H));
@@ -205,53 +140,24 @@
 
   function genOverworld() {
     mapRng = mulberry32(worldSeed);
-    const m = blank(48, 48);
-
-    // 开阔野外：内部全部打通，只放少量树丛/石头障碍，不做房间+走廊迷宫
-    for (let y = 1; y < 47; y++) {
-      for (let x = 1; x < 47; x++) m[y][x] = 0;
-    }
-
-    const village = { x: 3, y: 22, w: 7, h: 6, cx: 6, cy: 25 };
-    const gate = { x: 40, y: 22, w: 5, h: 5, cx: 42, cy: 24 };
-
-    // 村庄到洞穴入口的主路，保证连通
-    for (let x = village.cx; x <= gate.cx; x++) {
-      for (let y = 23; y <= 26; y++) m[y][x] = 0;
-    }
-    carve(m, village.x, village.y, village.w, village.h);
-    carve(m, gate.x, gate.y, gate.w, gate.h);
-
-    // 随机障碍：避开村庄、入口和主路
-    for (let i = 0; i < 55; i++) {
-      const x = mrandi(2, 45), y = mrandi(2, 45);
-      if (x >= village.x - 2 && x <= village.x + village.w + 2 &&
-        y >= village.y - 2 && y <= village.y + village.h + 2) continue;
-      if (x >= gate.x - 2 && x <= gate.x + gate.w + 2 &&
-        y >= gate.y - 2 && y <= gate.y + gate.h + 2) continue;
-      if (y >= 23 && y <= 26) continue;
-      m[y][x] = 1;
-      if (mrand() < 0.4 && x + 1 < 47) m[y][x + 1] = 1;
-    }
-
-    map = m;
+    const w = DL.World.genOverworld(mapRng);
+    map = w.map;
     seen = new Set();
     enemies = [];
     inCave = false;
     over = false;
-    P.x = village.cx;
-    P.y = village.cy;
-    villagePos = { x: village.cx, y: village.cy };
-    npc = { x: village.cx + 1, y: village.cy };
-    door = { x: gate.cx, y: gate.cy };
-    map[door.y][door.x] = 2;
+    P.x = w.village.cx;
+    P.y = w.village.cy;
+    villagePos = { x: w.village.cx, y: w.village.cy };
+    npc = w.npc;
+    door = w.door;
 
     // 野外怪：随机撒在空地上，等级只看 x；村庄 8 格内不刷怪
     let placed = 0;
     for (let tries = 0; tries < 240 && placed < 26; tries++) {
       const x = mrandi(2, 45), y = mrandi(2, 45);
       if (isWall(x, y) || enemyAt(x, y)) continue;
-      if (Math.abs(x - village.cx) + Math.abs(y - village.cy) < 8) continue;
+      if (Math.abs(x - w.village.cx) + Math.abs(y - w.village.cy) < 8) continue;
       if (x === door.x && y === door.y) continue;
       const lv = zoneLevel(x);
       const type = MON[clamp(Math.round((lv - 1) * 0.85), 0, MON.length - 1)];
@@ -267,19 +173,15 @@
   }
 
   function genCave() {
-    const m = blank(26, 26);
-    carve(m, 2, 9, 6, 8);
-    carve(m, 14, 8, 8, 10);
-    corridor(m, { x: 5, y: 13 }, { x: 17, y: 13 });
-    map = m;
+    const c = DL.World.genCave();
+    map = c.map;
     seen = new Set();
     inCave = true;
     over = false;
     npc = null;
-    P.x = 4;
-    P.y = 13;
-    back = { x: 3, y: 13 };
-    map[back.y][back.x] = 2;
+    P.x = c.entry.x;
+    P.y = c.entry.y;
+    back = c.back;
     enemies = [
       Object.assign(makeEnemy(9, MON[7], false, true), { x: 6, y: 11 }),  // 树精只放 1 只
       Object.assign(makeEnemy(8, MON[5]), { x: 7, y: 16 }),               // 野猪
@@ -1095,39 +997,7 @@
 
   /* ---------------- 寻路 ---------------- */
   function bfs(sx, sy, tx, ty) {
-    const W = map[0].length, H = map.length;
-    if (sx === tx && sy === ty) return [];
-    const prev = new Int32Array(W * H).fill(-1);
-    const start = sy * W + sx;
-    prev[start] = start;
-    const q = [start];
-    let head = 0;
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-    while (head < q.length) {
-      const cur = q[head++];
-      const cx = cur % W, cy = (cur / W) | 0;
-      if (cx === tx && cy === ty) {
-        const path = [];
-        let k = cur;
-        while (k !== prev[k]) {
-          path.push({ x: k % W, y: (k / W) | 0 });
-          k = prev[k];
-        }
-        path.reverse();
-        return path;
-      }
-      for (const [dx, dy] of dirs) {
-        const nx = cx + dx, ny = cy + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-        if (map[ny][nx] === 1) continue;
-        if (enemyAt(nx, ny) && !(nx === tx && ny === ty)) continue;
-        const ni = ny * W + nx;
-        if (prev[ni] !== -1) continue;
-        prev[ni] = cur;
-        q.push(ni);
-      }
-    }
-    return null;
+    return DL.World.bfs(map, sx, sy, tx, ty, enemyAt);
   }
 
   function bestAdjacent(x, y) {

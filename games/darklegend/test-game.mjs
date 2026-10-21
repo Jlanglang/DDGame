@@ -81,11 +81,17 @@ sandbox.self = sandbox;
 
 /* ---------------- 加载游戏 ---------------- */
 const code = fs.readFileSync(path.join(ROOT, 'game.js'), 'utf8');
+const dataCode = fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8');
+const coreCode = fs.readFileSync(path.join(ROOT, 'core.js'), 'utf8');
+const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
 vm.createContext(sandbox);
 try {
+  vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
+  vm.runInContext(coreCode, sandbox, { filename: 'core.js' });
+  vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
   vm.runInContext(code, sandbox, { filename: 'game.js' });
 } catch (err) {
-  console.error('加载 game.js 失败：', err && err.stack ? err.stack : err);
+  console.error('加载游戏脚本失败：', err && err.stack ? err.stack : err);
   process.exit(1);
 }
 const dl = sandbox.window.__dl;

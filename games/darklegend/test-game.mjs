@@ -365,14 +365,14 @@ try {
 
   /* 等级不够不能穿 */
   {
-    const high = dl.makeEquip('weapon', 20, 'white');
+    const high = dl.makeEquip('weapon', 30, 'white');
     dl.P.lv = 5;
     dl.P.bag = [high];
     ok('等级不足不可穿', dl.equipFromBag(0) === false && dl.P.weapon !== high, dl.P.lv);
-    ok('详情含需要等级', dl.eqDetailHtml(high).includes('需要 Lv.20'), dl.eqDetailHtml(high));
+    ok('详情含需要等级', dl.eqDetailHtml(high).includes('需要 Lv.30'), dl.eqDetailHtml(high));
     ok('等级不足标红', dl.eqDetailHtml(high).includes('eq-need-low'), dl.eqDetailHtml(high));
     ok('canWearEq 否', dl.canWearEq(high, 5) === false);
-    ok('canWearEq 够级', dl.canWearEq(high, 20) === true);
+    ok('canWearEq 够级', dl.canWearEq(high, 30) === true);
   }
 
   /* 背包穿戴：双击格子 = equipFromBag（弱装进背包再手穿） */
@@ -410,7 +410,7 @@ try {
     const bag0 = dl.P.bag.length;
     dl.P.gold = Math.max(dl.state().gold, cat[eqIdx].price + 10);
     ok('货架双击买剑', dl.buyShopStock(eqIdx) === true
-      && (dl.P.bag.length > bag0 || (dl.state().weapon && dl.state().weapon.ilvl === 3)),
+      && (dl.P.bag.length > bag0 || (dl.state().weapon && dl.state().weapon.ilvl === 1)),
       [dl.P.bag.length, dl.state().weapon && dl.state().weapon.name]);
     dl.refreshShop();
     const stockHtml = sandbox.document.getElementById('shopStock').innerHTML;
@@ -419,26 +419,57 @@ try {
     ok('商店背包格已渲染', typeof bagHtml === 'string' && bagHtml.includes('eq-cell'), bagHtml && bagHtml.slice(0, 80));
   }
 
+  /* 底材固定等级（M1.40）：同名只对应一个 ilvl */
+  ok('8 级怪掉 5 级精铁剑', (() => {
+    const e = dl.makeEquip('weapon', 8, 'blue');
+    return e.ilvl === 5 && e.name === '精铁剑';
+  })());
+  ok('同名底材不跨级：8/9 级怪掉同一件', (() => {
+    const a = dl.makeEquip('weapon', 8, 'blue');
+    const b = dl.makeEquip('weapon', 9, 'blue');
+    return a.ilvl === b.ilvl && a.name === b.name;
+  })());
+  ok('10 级怪掉 10 级底材', dl.makeEquip('weapon', 10, 'white').ilvl === 10);
+  ok('30 级裁决之刃', (() => {
+    const e = dl.makeEquip('weapon', 30, 'yellow');
+    return e.name === '裁决之刃' && e.ilvl === 30;
+  })());
+  ok('40 级屠龙', (() => {
+    const e = dl.makeEquip('weapon', 40, 'orange');
+    return e.name === '屠龙' && e.ilvl === 40;
+  })());
+
   /* 槽位等级解锁 + 掉落部位（R7.1b） */
   ok('1 级可穿武器护甲', dl.slotUnlocked('weapon', 1) && dl.slotUnlocked('armor', 1));
-  ok('1 级不可穿手套', dl.slotUnlocked('gloves', 1) === false);
-  ok('10 级可穿手套', dl.slotUnlocked('gloves', 10) === true);
+  ok('1 级不可穿手套', dl.slotUnlocked('glovesL', 1) === false);
+  ok('10 级可穿双手套', dl.slotUnlocked('glovesL', 10) && dl.slotUnlocked('glovesR', 10));
+  ok('1 级不可穿鞋子', dl.slotUnlocked('shoes', 1) === false);
+  ok('10 级可穿鞋子', dl.slotUnlocked('shoes', 10) === true);
   ok('20 级可穿头盔', dl.slotUnlocked('helmet', 20) === true);
   ok('30 级可穿项链耳环', dl.slotUnlocked('necklace', 30) && dl.slotUnlocked('earring', 30));
-  ok('40 级可穿戒指', dl.slotUnlocked('ring', 40) === true);
+  ok('40 级可穿双戒', dl.slotUnlocked('ringL', 40) && dl.slotUnlocked('ringR', 40));
   ok('低级怪不掉手套', (() => {
     const set = new Set();
     for (let i = 0; i < 80; i++) set.add(dl.rollDropSlot(5));
-    return !set.has('gloves') && set.has('weapon') && set.has('armor');
+    return !set.has('glovesL') && !set.has('glovesR') && set.has('weapon') && set.has('armor');
   })());
-  ok('10 级怪可掉手套', (() => {
+  ok('10 级怪可掉双手套', (() => {
+    const set = new Set();
+    for (let i = 0; i < 160; i++) set.add(dl.rollDropSlot(10));
+    return set.has('glovesL') && set.has('glovesR');
+  })());
+  ok('10 级怪可掉鞋子', (() => {
     const set = new Set();
     for (let i = 0; i < 120; i++) set.add(dl.rollDropSlot(10));
-    return set.has('gloves');
+    return set.has('shoes');
+  })());
+  ok('鞋子有防御和少量 HP', (() => {
+    const s = dl.makeEquip('shoes', 12, 'blue');
+    return s.slot === 'shoes' && s.defMax > 0 && s.atkMax === 0 && s.hp > 0;
   })());
   ok('手套有防御无乱长武器攻', (() => {
-    const g = dl.makeEquip('gloves', 12, 'blue');
-    return g.slot === 'gloves' && g.defMax > 0 && g.atkMax === 0;
+    const g = dl.makeEquip('glovesL', 12, 'blue');
+    return g.slot === 'glovesL' && g.defMax > 0 && g.atkMax === 0;
   })());
   {
     const counts = { weapon: 0, jewelry: 0, armor: 0 };
@@ -452,11 +483,11 @@ try {
   }
   {
     dl.P.lv = 1;
-    dl.P.bag = [dl.makeEquip('gloves', 10, 'white')];
-    ok('未解锁不可手穿手套', dl.equipFromBag(0) === false && dl.P.gloves == null);
+    dl.P.bag = [dl.makeEquip('glovesL', 10, 'white')];
+    ok('未解锁不可手穿手套', dl.equipFromBag(0) === false && dl.P.glovesL == null);
     dl.P.lv = 10;
-    ok('解锁后可穿手套', dl.equipFromBag(0) === true && !!dl.P.gloves);
-    dl.P.gloves = null;
+    ok('解锁后可穿手套', dl.equipFromBag(0) === true && !!dl.P.glovesL);
+    dl.P.glovesL = null;
     dl.P.lv = 1;
   }
 

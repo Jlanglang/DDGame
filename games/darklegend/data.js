@@ -129,19 +129,71 @@
     EQUIP_SLOTS: [
       { id: 'weapon', name: '武器', group: 'weapon', unlock: 0, ico: '⚔' },
       { id: 'armor', name: '护甲', group: 'armor', unlock: 0, ico: '🛡' },
-      { id: 'gloves', name: '手套', group: 'armor', unlock: 10, ico: '🧤' },
+      { id: 'glovesL', name: '手套·左', group: 'armor', unlock: 10, ico: '🧤' },
+      { id: 'glovesR', name: '手套·右', group: 'armor', unlock: 10, ico: '🧤' },
+      { id: 'shoes', name: '鞋子', group: 'armor', unlock: 10, ico: '👢' },
       { id: 'helmet', name: '头盔', group: 'armor', unlock: 20, ico: '⛑' },
       { id: 'necklace', name: '项链', group: 'jewelry', unlock: 30, ico: '📿' },
       { id: 'earring', name: '耳环', group: 'jewelry', unlock: 30, ico: '✦' },
-      { id: 'ring', name: '戒指', group: 'jewelry', unlock: 40, ico: '💍' },
+      { id: 'ringL', name: '戒指·左', group: 'jewelry', unlock: 40, ico: '💍' },
+      { id: 'ringR', name: '戒指·右', group: 'jewelry', unlock: 40, ico: '💍' },
     ],
     /* 掉落部位权重：武器 < 首饰 < 防具 */
     DROP_SLOT_WEIGHT: { weapon: 1, jewelry: 2, armor: 3 },
+    /* 底材固定等级（M1.40）：每槽每 10 级 3 档（段首/段中/段尾）
+       ilvl 是底材的固定等级，也是穿戴需求；怪等级只决定掉“≤ 怪等级”的最高档。
+       同名底材永远只对应一个 ilvl，不会出现“裁决之刃 Lv.8 / Lv.9”。 */
+    EQUIP_BASES: {
+      weapon: [
+        { ilvl: 1, name: '铁剑' },
+        { ilvl: 5, name: '精铁剑' },
+        { ilvl: 10, name: '青铜剑' },
+        { ilvl: 30, name: '裁决之刃' },
+        { ilvl: 40, name: '屠龙' },
+      ],
+      armor: [
+        { ilvl: 1, name: '皮甲' },
+        { ilvl: 5, name: '锁子甲' },
+        { ilvl: 10, name: '青铜甲' },
+      ],
+      gloves: [
+        { ilvl: 1, name: '布手套' },
+        { ilvl: 5, name: '皮手套' },
+        { ilvl: 10, name: '锁甲手套' },
+      ],
+      shoes: [
+        { ilvl: 1, name: '布鞋' },
+        { ilvl: 5, name: '皮靴' },
+        { ilvl: 10, name: '锁甲靴' },
+      ],
+      helmet: [
+        { ilvl: 1, name: '布帽' },
+        { ilvl: 5, name: '皮帽' },
+        { ilvl: 10, name: '铁盔' },
+      ],
+      necklace: [
+        { ilvl: 1, name: '铜项链' },
+        { ilvl: 5, name: '银项链' },
+        { ilvl: 10, name: '金项链' },
+      ],
+      earring: [
+        { ilvl: 1, name: '木耳环' },
+        { ilvl: 5, name: '银耳环' },
+        { ilvl: 10, name: '金耳环' },
+      ],
+      ring: [
+        { ilvl: 1, name: '铜戒' },
+        { ilvl: 5, name: '银戒' },
+        { ilvl: 10, name: '金戒' },
+      ],
+    },
+
     /* 底材名：按品质档 0=白 1=蓝 2=黄/橙取名 */
     EQUIP_NAMES: {
       weapon: ['铁剑', '精铁剑', '裁决之刃'],
       armor: ['皮甲', '锁子甲', '重盔甲'],
       gloves: ['布手套', '皮手套', '精钢护手'],
+      shoes: ['布鞋', '皮靴', '战靴'],
       helmet: ['布帽', '铁盔', '战盔'],
       necklace: ['铜项链', '银项链', '金项链'],
       earring: ['木耳环', '银耳环', '玉耳环'],
@@ -155,6 +207,7 @@
       weapon: { atk: 1, def: 0, hp: 0 },
       armor: { atk: 0, def: 1, hp: 1 },
       gloves: { atk: 0, def: 0.55, hp: 0 },
+      shoes: { atk: 0, def: 0.55, hp: 0.2 },
       helmet: { atk: 0, def: 0.55, hp: 0.25 },
       necklace: { atk: 0, def: 0.2, hp: 0.45 },
       earring: { atk: 0.35, def: 0.15, hp: 0 },

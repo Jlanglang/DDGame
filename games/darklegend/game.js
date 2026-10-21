@@ -103,6 +103,7 @@
     { id: 'weapon', name: '武器', group: 'weapon', unlock: 0, ico: '⚔' },
     { id: 'armor', name: '护甲', group: 'armor', unlock: 0, ico: '🛡' },
   ];
+  const EQUIP_BASES = D.EQUIP_BASES || {};
   const EQUIP_NAMES = D.EQUIP_NAMES || {};
   const EQUIP_STAT_MUL = D.EQUIP_STAT_MUL || {};
   const DROP_SLOT_WEIGHT = D.DROP_SLOT_WEIGHT || { weapon: 1, jewelry: 2, armor: 3 };
@@ -182,7 +183,8 @@
     lv: 1, exp: 0, hp: 60, mp: 15, gold: 0,
     pots: defaultPots(),
     weapon: null, armor: null,
-    gloves: null, helmet: null, necklace: null, earring: null, ring: null,
+    glovesL: null, glovesR: null, shoes: null, helmet: null,
+    necklace: null, earring: null, ringL: null, ringR: null,
     bag: [],
     cd: { half: 0, fire: 0 },
     skills: { half: false, fire: false },   // 技能书解锁：半月 / 烈火
@@ -644,13 +646,15 @@
   }
 
   function makeEquip(slot, ilvl, rarity, opts = {}) {
-    const names = EQUIP_NAMES[slot]
-      || (slot === 'weapon' ? WEAPON_NAMES : ARMOR_NAMES)
-      || ['未知装备'];
-    const nameIdx = rarity === 'orange' || rarity === 'yellow' ? 2 : rarity === 'blue' ? 1 : 0;
-    const name = names[Math.min(nameIdx, names.length - 1)];
-    const mul = EQUIP_STAT_MUL[slot] || { atk: 0, def: 0, hp: 0 };
-    const lv = Math.max(1, ilvl | 0);
+    const base = String(slot || '').replace(/[LR]$/, '');
+    const bases = EQUIP_BASES[base] || [];
+    let pick = bases[0] || null;
+    for (const b of bases) {
+      if (b.ilvl <= (ilvl | 0)) pick = b;
+    }
+    const lv = pick ? pick.ilvl : Math.max(1, ilvl | 0);
+    const name = pick ? pick.name : '未知装备';
+    const mul = EQUIP_STAT_MUL[base] || { atk: 0, def: 0, hp: 0 };
 
     // 基础区间：所有品质相同（品质不碰属性）；按槽位倍率折算。等级=固定穿戴需求
     const atkMin0 = mul.atk ? Math.round((4 + 0.2 * lv) * mul.atk) : 0;
@@ -1390,6 +1394,9 @@
       for (const id of SLOT_IDS) {
         P[id] = normalizeEquip(s[id], id);
       }
+      // 旧档单槽 → 左槽
+      if (!P.glovesL && s.gloves) P.glovesL = Object.assign({}, s.gloves, { slot: 'glovesL' });
+      if (!P.ringL && s.ring) P.ringL = Object.assign({}, s.ring, { slot: 'ringL' });
       // 槽位未解锁 / 装备等级不够：卸下进包
       for (const id of SLOT_IDS) {
         if (P[id] && !canWearEq(P[id], P.lv)) {

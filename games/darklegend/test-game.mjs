@@ -258,6 +258,7 @@ try {
   ok('未学半月不耗 MP', dl.state().mp === mpBefore, [mpBefore, dl.state().mp]);
 
   dl.P.skills.half = true;
+  dl.P.cd.half = 0;
   dl.rest();
   ok('学会后可释放半月', dl.halfMoon() === true);
 } catch (err) {

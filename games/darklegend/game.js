@@ -293,10 +293,9 @@
   // 房间内不再野外重生
   function spawnWild() { /* 小世界房间不自动刷怪 */ }
 
-  // 碾压：等级差达到阈值后，怪打玩家无伤；收益大幅衰减（保底保留）
-  // BOSS 不遵守碾压：永远能打你，也永远给全额收益
-  function isCrush(playerLv, monLv, isBoss) {
-    if (isBoss) return false;
+  // 碾压：只对普通怪生效。精英/稀有/BOSS 永远能打你，也永远给全额收益。
+  function isCrush(playerLv, monLv, isSpecial) {
+    if (isSpecial) return false;
     const gap = playerLv >= CRUSH.lateFrom ? CRUSH.lateGap : CRUSH.earlyGap;
     return playerLv - monLv >= gap;
   }
@@ -708,7 +707,7 @@
 
   function kill(e) {
     e.hp = 0;
-    const crushed = isCrush(P.lv, e.lv, e.boss);
+    const crushed = isCrush(P.lv, e.lv, e.boss || e.elite || e.rare);
     const goldGain = crushed ? Math.max(1, Math.round(e.gold * CRUSH.goldMul)) : e.gold;
     P.exp += e.exp;
     P.gold += goldGain;
@@ -782,7 +781,7 @@
       if (action === 'leash') { e.aggroOn = false; continue; }
       if (action === 'idle') continue;
       if (action === 'attack') {
-        if (isCrush(P.lv, e.lv, e.boss)) continue;   // 碾压：怪打不动你（BOSS 除外）
+        if (isCrush(P.lv, e.lv, e.boss || e.elite || e.rare)) continue;   // 碾压：只有普通怪打不动你
         const dr = defRange(P);
         const dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
         P.hp -= dmg;

@@ -1211,18 +1211,25 @@
   }
 
   /* ---------------- 渲染 ---------------- */
-  function draw() {
-    if (!map.length) return;
+  /* ---------------- 渲染分层 ----------------
+     第 0 层：背景色
+     第 1 层：地图（地面 / 墙 / 门）
+     1.5 层：地面特效（半月扇形）
+     第 2 层：实体（商人 / 怪 / 玩家）
+     2.5 层：上层特效（飘字）
+     第 3 层：UI（暗角 + 小地图；DOM HUD 独立）
+  */
+  function updateCamera() {
     const mw = map[0].length * TILE;
     const mh = map.length * TILE;
     const tx = clamp(P.x * TILE + TILE / 2 - VIEW_W / 2, 0, Math.max(0, mw - VIEW_W));
     const ty = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, mh - VIEW_H));
     cam.x += (tx - cam.x) * 0.18;
     cam.y += (ty - cam.y) * 0.18;
+  }
 
-    ctx.fillStyle = '#070a11';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-
+  // 第 1 层：地图
+  function drawMap() {
     const x0 = Math.floor(cam.x / TILE) - 1;
     const y0 = Math.floor(cam.y / TILE) - 1;
     const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
@@ -1249,7 +1256,21 @@
         }
       }
     }
+  }
 
+  // 1.5 层：地面特效（在实体下面）
+  function drawGroundFx() {
+    if (halfFlash > 0) {
+      halfFlash = Math.max(0, halfFlash - 0.06);
+      ctx.fillStyle = `rgba(255, 209, 102, ${0.28 * halfFlash})`;
+      for (const [hx, hy] of halfFlashCells) {
+        ctx.fillRect(hx * TILE - cam.x, hy * TILE - cam.y, TILE - 1, TILE - 1);
+      }
+    }
+  }
+
+  // 第 2 层：实体
+  function drawEntities() {
     // 商人
     if (npc && seen.has(key(npc.x, npc.y))) {
       const sx = npc.x * TILE - cam.x + TILE / 2;
@@ -1292,17 +1313,10 @@
     ctx.beginPath();
     ctx.arc(px + fx * 15, py + fy * 15, 3, 0, Math.PI * 2);
     ctx.fill();
+  }
 
-    // 半月的扇形高亮
-    if (halfFlash > 0) {
-      halfFlash = Math.max(0, halfFlash - 0.06);
-      ctx.fillStyle = `rgba(255, 209, 102, ${0.28 * halfFlash})`;
-      for (const [hx, hy] of halfFlashCells) {
-        ctx.fillRect(hx * TILE - cam.x, hy * TILE - cam.y, TILE - 1, TILE - 1);
-      }
-    }
-
-    // 飘字
+  // 2.5 层：上层特效（在实体上面）
+  function drawFloaters() {
     for (let i = floaters.length - 1; i >= 0; i--) {
       const f = floaters[i];
       f.life -= 0.03;
@@ -1315,15 +1329,30 @@
       ctx.fillText(f.text, f.x * TILE - cam.x + TILE / 2, f.y * TILE - cam.y);
     }
     ctx.globalAlpha = 1;
+  }
 
-    // 视野暗角
+  // 第 3 层：暗角
+  function drawVignette() {
+    const px = P.x * TILE - cam.x + TILE / 2;
+    const py = P.y * TILE - cam.y + TILE / 2;
     const g = ctx.createRadialGradient(px, py, 120, px, py, 520);
     g.addColorStop(0, 'rgba(0,0,0,0)');
     g.addColorStop(1, 'rgba(0,0,0,0.55)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
 
-    drawMinimap();
+  function draw() {
+    if (!map.length) return;
+    updateCamera();
+    ctx.fillStyle = '#070a11';
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    drawMap();        // 1
+    drawGroundFx();   // 1.5
+    drawEntities();   // 2
+    drawFloaters();   // 2.5
+    drawVignette();   // 3
+    drawMinimap();    // 3
     requestAnimationFrame(draw);
   }
 

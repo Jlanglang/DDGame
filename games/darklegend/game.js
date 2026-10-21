@@ -1331,6 +1331,13 @@
         // 极淡网格线，让"正方形"看得出来
         ctx.strokeStyle = 'rgba(255,255,255,0.035)';
         ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+        // 玩家脚下这格亮起来
+        if (vis && x === P.x && y === P.y) {
+          ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
+          ctx.fillRect(sx, sy, TILE, TILE);
+          ctx.strokeStyle = 'rgba(120, 210, 255, 0.6)';
+          ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
+        }
       }
     }
   }
@@ -1409,11 +1416,6 @@
     // 玩家
     const px = P.x * TILE - cam.x + TILE / 2;
     const py = P.y * TILE - cam.y + TILE / 2;
-    // 脚下光圈，让主角更显眼
-    ctx.fillStyle = 'rgba(120, 210, 255, 0.16)';
-    ctx.beginPath();
-    ctx.arc(px, py + 4, TILE * 0.72, 0, Math.PI * 2);
-    ctx.fill();
     ctx.font = '36px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText('🧙', px, py + 12);

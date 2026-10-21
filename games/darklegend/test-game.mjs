@@ -156,18 +156,26 @@ try {
   const raw = sandbox.localStorage.getItem('darklegend-save-v2');
   ok('存档写入 v2 键', !!raw, raw ? raw.length : null);
 
-  /* 10. 固定种子 */
+  /* 10. 主城固定 + 房间按种子 */
   dl.setSeed(12345);
-  dl.genOverworld();
-  const m1 = JSON.stringify(dl.map());
-  dl.genOverworld();
-  const m2 = JSON.stringify(dl.map());
-  ok('同种子地图一致', m1 === m2);
-
+  dl.genHub();
+  const h1 = JSON.stringify(dl.map());
   dl.setSeed(99999);
-  dl.genOverworld();
-  const m3 = JSON.stringify(dl.map());
-  ok('不同种子地图不同', m1 !== m3);
+  dl.genHub();
+  const h2 = JSON.stringify(dl.map());
+  ok('主城布局固定（不随种子变）', h1 === h2);
+
+  dl.setSeed(12345);
+  dl.enterRoom('field1');
+  const r1 = JSON.stringify(dl.map());
+  dl.enterRoom('field1');
+  const r2 = JSON.stringify(dl.map());
+  ok('同种子同一房间布局一致', r1 === r2);
+
+  dl.enterRoom('field2');
+  const r3 = JSON.stringify(dl.map());
+  ok('不同房间布局不同', r1 !== r3);
+  ok('进房间后 currentRoom 正确', dl.state().room === 'field2', dl.state().room);
 
   /* 11. 战斗：造一只怪贴着玩家，攻击应扣血 */
   const enemies = dl.enemies();

@@ -47,6 +47,13 @@
       armor: { price: 70, label: '皮甲' },
     },
 
+    /* ---------- 小世界房间（从主城传送门进入） ---------- */
+    ROOMS: [
+      { id: 'field1', name: '鸡鸣村外', lvMin: 1, lvMax: 5, size: 24, layout: 'open', mobs: 10, cd: 0 },
+      { id: 'field2', name: '荒田', lvMin: 6, lvMax: 8, size: 24, layout: 'open', mobs: 12, cd: 5 },
+      { id: 'cave1', name: '稻草垛洞', lvMin: 9, lvMax: 10, size: 20, layout: 'cave', mobs: 3, boss: true, cd: 30 },
+    ],
+
     /* ---------- 区域地面色 ---------- */
     ZONE_FLOOR: [
       '#1c2638', '#1d273a', '#1f283c', '#21293e', '#232a40',

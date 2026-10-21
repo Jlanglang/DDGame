@@ -1,11 +1,11 @@
 /* 豆豆暗黑传奇 · 世界层（可替换）
-   只管"地形"：生成地图、碰撞、视野、寻路。
-   不碰怪物内容、不碰 UI、不碰战斗。
-   换房间制时，只改这个文件。
+   结构：一个主城 + N 个小世界房间。
+   - 主城：固定小场景，放传送门，人物在里面
+   - 房间：独立小地图，从传送门进入；有刷新 CD
+   如果要回到开放世界，把人物移出主城、把房间拼起来即可。
 
-   约定：
-   - 所有函数显式接收 map / 坐标，不读全局
-   - 生成器返回数据对象，由 game.js 赋值并刷怪
+   本文件只管地形：生成、碰撞、视野、寻路。
+   怪物内容由 game.js 按 spec 刷。
 */
 (function (global) {
   'use strict';
@@ -73,64 +73,71 @@
     return null;
   }
 
-  /* ---------- 生成器 ---------- */
-  // 图 1 野外：48×48 开阔地形 + 村庄 + 洞穴入口
-  function genOverworld(rng) {
-    const mrand = (a, b) => a + rng() * (b - a);
-    const mrandi = (a, b) => Math.floor(mrand(a, b + 1));
-
-    const m = blank(48, 48);
-
-    // 开阔野外：内部全部打通，只放少量树丛/石头障碍
-    for (let y = 1; y < 47; y++) {
-      for (let x = 1; x < 47; x++) m[y][x] = 0;
+  /* ---------- 主城 ---------- */
+  // 20×20 小村庄：左出生、右三个传送门、中间商人
+  function genHub(rooms) {
+    const size = 20;
+    const m = blank(size, size);
+    for (let y = 1; y < size - 1; y++) {
+      for (let x = 1; x < size - 1; x++) m[y][x] = 0;
     }
 
-    const village = { x: 3, y: 22, w: 7, h: 6, cx: 6, cy: 25 };
-    const gate = { x: 40, y: 22, w: 5, h: 5, cx: 42, cy: 24 };
+    // 中间一条石板路（视觉用，不挡路）
+    for (let x = 2; x < size - 2; x++) m[10][x] = 0;
 
-    // 村庄到洞穴入口的主路，保证连通
-    for (let x = village.cx; x <= gate.cx; x++) {
-      for (let y = 23; y <= 26; y++) m[y][x] = 0;
-    }
-    carve(m, village.x, village.y, village.w, village.h);
-    carve(m, gate.x, gate.y, gate.w, gate.h);
-
-    // 随机障碍：避开村庄、入口和主路
-    for (let i = 0; i < 55; i++) {
-      const x = mrandi(2, 45), y = mrandi(2, 45);
-      if (x >= village.x - 2 && x <= village.x + village.w + 2 &&
-        y >= village.y - 2 && y <= village.y + village.h + 2) continue;
-      if (x >= gate.x - 2 && x <= gate.x + gate.w + 2 &&
-        y >= gate.y - 2 && y <= gate.y + gate.h + 2) continue;
-      if (y >= 23 && y <= 26) continue;
-      m[y][x] = 1;
-      if (mrand() < 0.4 && x + 1 < 47) m[y][x + 1] = 1;
+    // 传送门：右侧竖排三个，按 rooms 顺序
+    const doors = [];
+    const ys = [4, 10, 16];
+    for (let i = 0; i < Math.min(rooms.length, ys.length); i++) {
+      const d = { x: size - 2, y: ys[i], room: rooms[i].id, name: rooms[i].name, lv: rooms[i].lvMin };
+      m[d.y][d.x] = 2;
+      doors.push(d);
     }
 
-    const npc = { x: village.cx + 1, y: village.cy };
-    const door = { x: gate.cx, y: gate.cy };
-    m[door.y][door.x] = 2;
-
-    return { map: m, village, gate, npc, door };
+    const npc = { x: 10, y: 10 };
+    const spawn = { x: 3, y: 10 };
+    return { map: m, doors, npc, spawn };
   }
 
-  // 图 1 洞穴：固定 26×26，两个房间 + 走廊
-  function genCave() {
-    const m = blank(26, 26);
-    carve(m, 2, 9, 6, 8);
-    carve(m, 14, 8, 8, 10);
-    corridor(m, { x: 5, y: 13 }, { x: 17, y: 13 });
+  /* ---------- 小世界房间 ---------- */
+  // layout: 'open'（开阔+障碍）| 'cave'（两房间+走廊）
+  function genRoom(spec, rng) {
+    const size = spec.size || 20;
+    const r = rng || Math.random;
+    const rndi = (a, b) => Math.floor(a + r() * (b - a + 1));
 
-    const back = { x: 3, y: 13 };
-    m[back.y][back.x] = 2;
+    if (spec.layout === 'cave') {
+      const m = blank(size, size);
+      const w = Math.floor(size * 0.4), h = Math.floor(size * 0.45);
+      const a = { x: 2, y: Math.floor(size * 0.35) };
+      const b = { x: size - 2 - w, y: Math.floor(size * 0.3) };
+      carve(m, a.x, a.y, w, h);
+      carve(m, b.x, b.y, w, h);
+      corridor(m, { x: a.x + w - 1, y: a.y + Math.floor(h / 2) }, { x: b.x, y: b.y + Math.floor(h / 2) });
+      const exit = { x: a.x, y: a.y + Math.floor(h / 2) };
+      m[exit.y][exit.x] = 2;
+      return { map: m, spawn: { x: a.x + 1, y: exit.y }, exit };
+    }
 
-    return { map: m, entry: { x: 4, y: 13 }, back };
+    // 开阔小房间：内部全部打通，撒少量障碍
+    const m = blank(size, size);
+    for (let y = 1; y < size - 1; y++) {
+      for (let x = 1; x < size - 1; x++) m[y][x] = 0;
+    }
+    const obstacles = Math.floor(size * 0.8);
+    for (let i = 0; i < obstacles; i++) {
+      const x = rndi(2, size - 3), y = rndi(2, size - 3);
+      if (Math.abs(x - 2) + Math.abs(y - Math.floor(size / 2)) < 3) continue; // 出口附近留空
+      m[y][x] = 1;
+    }
+    const exit = { x: 1, y: Math.floor(size / 2) };
+    m[exit.y][exit.x] = 2;
+    return { map: m, spawn: { x: 2, y: exit.y }, exit };
   }
 
   DL.World = {
     blank, carve, corridor,
     isWall, visible, bfs,
-    genOverworld, genCave,
+    genHub, genRoom,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -138,108 +138,117 @@
     cam.y = clamp(P.y * TILE + TILE / 2 - VIEW_H / 2, 0, Math.max(0, map.length * TILE - VIEW_H));
   }
 
-  function genOverworld() {
+  /* ---------------- 主城 / 小世界 ---------------- */
+  const ROOMS = DL.DATA.ROOMS;
+  let currentRoom = null;        // 当前房间 id；在主城为 null
+  let doors = [];                // 主城传送门列表
+  const roomClearedAt = {};      // 房间最后清空时间（游戏内分钟）
+
+  const roomSpec = (id) => ROOMS.find((r) => r.id === id) || null;
+
+  function hashId(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return h >>> 0;
+  }
+
+  // 主城：固定小村庄 + 传送门
+  function genHub() {
     mapRng = mulberry32(worldSeed);
-    const w = DL.World.genOverworld(mapRng);
-    map = w.map;
+    const h = DL.World.genHub(ROOMS);
+    map = h.map;
     seen = new Set();
     enemies = [];
     inCave = false;
+    currentRoom = null;
     over = false;
-    P.x = w.village.cx;
-    P.y = w.village.cy;
-    villagePos = { x: w.village.cx, y: w.village.cy };
-    npc = w.npc;
-    door = w.door;
-
-    // 野外怪：随机撒在空地上，等级只看 x；村庄 8 格内不刷怪
-    let placed = 0;
-    for (let tries = 0; tries < 240 && placed < 26; tries++) {
-      const x = mrandi(2, 45), y = mrandi(2, 45);
-      if (isWall(x, y) || enemyAt(x, y)) continue;
-      if (Math.abs(x - w.village.cx) + Math.abs(y - w.village.cy) < 8) continue;
-      if (x === door.x && y === door.y) continue;
-      const lv = zoneLevel(x);
-      const type = MON[clamp(Math.round((lv - 1) * 0.85), 0, MON.length - 1)];
-      const e = makeEnemy(lv, type);
-      e.x = x;
-      e.y = y;
-      enemies.push(e);
-      placed++;
-    }
-    lastZoneLv = zoneLevel(P.x);
+    P.x = h.spawn.x;
+    P.y = h.spawn.y;
+    villagePos = { x: h.spawn.x, y: h.spawn.y };
+    npc = h.npc;
+    doors = h.doors;
+    door = doors[0] || { x: 0, y: 0 };
+    lastZoneLv = 1;
     centerCam();
-    log('你回到了鸡鸣村外。', 'good');
+    log('你回到了主城。', 'good');
   }
 
-  function genCave() {
-    const c = DL.World.genCave();
-    map = c.map;
+  function spawnRoomMobs(spec) {
+    const out = [];
+    const spots = [];
+    const W = map[0].length, H = map.length;
+    for (let tries = 0; tries < 300 && spots.length < spec.mobs; tries++) {
+      const x = randi(2, W - 3), y = randi(2, H - 3);
+      if (isWall(x, y) || enemyAt(x, y)) continue;
+      if (Math.abs(x - P.x) + Math.abs(y - P.y) < 4) continue;
+      if (x === back.x && y === back.y) continue;
+      spots.push({ x, y });
+    }
+    for (const s of spots) {
+      const lv = randi(spec.lvMin, spec.lvMax);
+      const type = MON[clamp(Math.round((lv - 1) * 0.85), 0, MON.length - 1)];
+      const e = makeEnemy(lv, type);
+      e.x = s.x; e.y = s.y;
+      out.push(e);
+    }
+    if (spec.boss) {
+      let best = null, bd = -1;
+      for (let tries = 0; tries < 200; tries++) {
+        const x = randi(2, W - 3), y = randi(2, H - 3);
+        if (isWall(x, y) || enemyAt(x, y)) continue;
+        const d = Math.abs(x - P.x) + Math.abs(y - P.y);
+        if (d > bd) { bd = d; best = { x, y }; }
+      }
+      if (best) {
+        const b = makeEnemy(spec.lvMax, BOSS, true);
+        b.x = best.x; b.y = best.y;
+        out.push(b);
+      }
+    }
+    return out;
+  }
+
+  // 进入小世界房间
+  function enterRoom(roomId) {
+    const spec = roomSpec(roomId);
+    if (!spec) return;
+    mapRng = mulberry32(worldSeed ^ hashId(roomId));
+    const r = DL.World.genRoom(spec, mapRng);
+    map = r.map;
     seen = new Set();
     inCave = true;
+    currentRoom = roomId;
     over = false;
     npc = null;
-    P.x = c.entry.x;
-    P.y = c.entry.y;
-    back = c.back;
-    enemies = [
-      Object.assign(makeEnemy(9, MON[7], false, true), { x: 6, y: 11 }),  // 树精只放 1 只
-      Object.assign(makeEnemy(8, MON[5]), { x: 7, y: 16 }),               // 野猪
-      Object.assign(makeEnemy(10, BOSS, true), { x: 19, y: 13 }),
-    ];
-    centerCam();
-    log('稻草垛洞：潮湿、发霉，深处有东西在动。', 'bad');
-  }
+    P.x = r.spawn.x;
+    P.y = r.spawn.y;
+    back = r.exit;
+    enemies = spawnRoomMobs(spec);
 
-  // 进洞时把野外世界存起来，出洞原样恢复（地图、怪、迷雾、位置）
-  function enterCave() {
-    worldSnapshot = {
-      map, enemies, seen, npc, door,
-      px: P.x, py: P.y,
-    };
-    genCave();
-  }
-
-  function leaveCave() {
-    if (!worldSnapshot) { genOverworld(); return; }
-    const s = worldSnapshot;
-    map = s.map;
-    enemies = s.enemies;
-    seen = s.seen;
-    npc = s.npc;
-    door = s.door;
-    inCave = false;
-    over = false;
-    P.x = s.px;
-    P.y = s.py;
-    worldSnapshot = null;
-    lastZoneLv = zoneLevel(P.x);
-    centerCam();
-    log('你回到了村外。', 'good');
-  }
-
-  // 野外低强度重生：在玩家附近 9-24 格随机空地上刷，等级按 x 区域
-  function spawnWild() {
-    if (inCave) return;
-    const alive = enemies.filter((e) => e.hp > 0).length;
-    if (alive >= 32) return;
-    let spawned = 0;
-    for (let tries = 0; tries < 60 && spawned < 2; tries++) {
-      const x = randi(2, 45), y = randi(2, 45);
-      if (isWall(x, y) || enemyAt(x, y)) continue;
-      const d = Math.abs(x - P.x) + Math.abs(y - P.y);
-      if (d < 9 || d > 24) continue;
-      if (npc && x === npc.x && y === npc.y) continue;
-      if (x === door.x && y === door.y) continue;
-      const lv = zoneLevel(x);
-      const type = MON[clamp(Math.round((lv - 1) * 0.85), 0, MON.length - 1)];
-      const e = makeEnemy(lv, type);
-      e.x = x;
-      e.y = y;
-      enemies.push(e);
-      spawned++;
+    // 刷新 CD：Boss 房清过且还在冷却，就不刷 Boss
+    const cleared = roomClearedAt[roomId];
+    if (spec.boss && cleared != null && clock - cleared < spec.cd) {
+      enemies = enemies.filter((e) => !e.boss);
+      log(`${spec.name}：首领还在休整（${Math.ceil(spec.cd - (clock - cleared))} 分钟后刷新）。`, 'bad');
     }
+
+    centerCam();
+    log(`进入 ${spec.name}（Lv.${spec.lvMin}–${spec.lvMax}）。`, 'good');
   }
+
+  // 离开房间回主城
+  function leaveRoom() {
+    if (!currentRoom) return;
+    const alive = enemies.filter((e) => e.hp > 0).length;
+    if (alive === 0) {
+      roomClearedAt[currentRoom] = clock;
+      log('房间已清空，首领进入刷新冷却。', 'good');
+    }
+    genHub();
+  }
+
+  // 房间内不再野外重生
+  function spawnWild() { /* 小世界房间不自动刷怪 */ }
 
   function makeEnemy(lv, type, boss = false, elite = false) {
     const hp = 18 * Math.pow(1.16, lv) * (boss ? 4 : elite ? 3 : 1);
@@ -543,6 +552,7 @@
         v: 2, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         potions: P.potions, weapon: P.weapon, armor: P.armor, kills: P.kills,
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot,
+        rooms: roomClearedAt,
       }));
     } catch { /* 忽略 */ }
   }
@@ -574,6 +584,7 @@
       clock = Number.isFinite(s.clock) ? s.clock : 8 * 60;
       P.weapon = normalizeEquip(s.weapon, 'weapon');
       P.armor = normalizeEquip(s.armor, 'armor');
+      if (s.rooms && typeof s.rooms === 'object') Object.assign(roomClearedAt, s.rooms);
       const rawHp = s.hp ?? maxHp();
       P.hp = rawHp <= 0 ? Math.ceil(maxHp() * 0.5) : Math.min(rawHp, maxHp());
       P.mp = Math.max(0, Math.min(s.mp ?? maxMp(), maxMp()));
@@ -666,7 +677,7 @@
   function revive() {
     over = false;
     leveledUp = false;
-    if (inCave) leaveCave();
+    if (currentRoom) leaveRoom();
     P.x = villagePos.x;
     P.y = villagePos.y;
     P.hp = Math.ceil(maxHp() * 0.6);
@@ -690,7 +701,7 @@
   function continueAfterWin() {
     over = false;
     leveledUp = false;
-    if (inCave) leaveCave();
+    if (currentRoom) leaveRoom();
     P.x = villagePos.x;
     P.y = villagePos.y;
     lastZoneLv = zoneLevel(P.x);
@@ -741,15 +752,8 @@
     scheduleIdle();
   }
 
-  function checkZone() {
-    if (inCave) return;
-    const lv = zoneLevel(P.x);
-    if (lv > lastZoneLv && turn - zoneMsgTurn >= 3) {
-      zoneMsgTurn = turn;
-      log(`前方是 ${zoneName(P.x)}（${zoneRange(P.x)}），小心。`, 'bad');
-    }
-    lastZoneLv = lv;
-  }
+  // 主城 + 房间制：不再按 x 分区域；保留空函数避免改动调用点
+  function checkZone() { }
 
   // 战斗锁定：相邻有活怪时人物钉住，只能打/喝药/技能，移动要按 R 撤退
   function combatTargets() {
@@ -921,8 +925,13 @@
     P.x = nx;
     P.y = ny;
     if (map[ny][nx] === 2) {
-      if (inCave) leaveCave();
-      else enterCave();
+      if (currentRoom) {
+        leaveRoom();
+      } else {
+        const d = doors.find((x) => x.x === nx && x.y === ny);
+        if (d) enterRoom(d.room);
+        else log('这扇门还没接上。', 'bad');
+      }
       centerCam();
       syncHud();
       save();
@@ -1252,7 +1261,17 @@
         if (t === 2 && vis) {
           ctx.font = '18px system-ui';
           ctx.textAlign = 'center';
-          ctx.fillText('🕳', sx + TILE / 2, sy + TILE - 6);
+          if (currentRoom) {
+            ctx.fillText('🕳', sx + TILE / 2, sy + TILE - 6);
+          } else {
+            ctx.fillText('🚪', sx + TILE / 2, sy + TILE - 6);
+            const d = doors.find((dd) => dd.x === x && dd.y === y);
+            if (d) {
+              ctx.font = '9px system-ui';
+              ctx.fillStyle = '#ffd166';
+              ctx.fillText(d.name, sx + TILE / 2, sy - 4);
+            }
+          }
         }
       }
     }
@@ -1407,7 +1426,7 @@
   /* ---------------- 启动 ---------------- */
   const loaded = load();
   if (!worldSeed) worldSeed = randomSeed();
-  genOverworld();
+  genHub();
   if (!loaded) {
     P.hp = maxHp();
     P.mp = maxMp();
@@ -1439,7 +1458,11 @@
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
       addToBag, equipFromBag, sellFromBag, sellPrice, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
-      genCave, genOverworld, bfs, save, load, spawnWild,
+      genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,
+      currentRoom: () => currentRoom,
+      doors: () => doors,
+      roomSpec,
+      roomClearedAt: () => ({ ...roomClearedAt }),
       zoneLevel, zoneName, zoneRange,
       setSeed: (n) => { worldSeed = n >>> 0; },
       seed: () => worldSeed,
@@ -1457,7 +1480,7 @@
       rest: () => { P.hp = maxHp(); P.mp = maxMp(); },
       state: () => ({
         lv: P.lv, hp: P.hp, mp: P.mp, gold: P.gold, potions: P.potions,
-        turn, over, inCave, weapon: P.weapon, armor: P.armor,
+        turn, over, inCave, room: currentRoom, weapon: P.weapon, armor: P.armor,
         cd: { ...P.cd }, enemyCount: enemies.filter((e) => e.hp > 0).length,
       }),
     };

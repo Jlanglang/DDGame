@@ -37,6 +37,7 @@
     'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot',
     'loot', 'lootName', 'lootStats', 'lootAffix',
     'intro', 'introBtn', 'seedText',
+    'doorConfirm', 'doorTitle', 'doorDesc', 'doorYes', 'doorNo',
   ].forEach((id) => { el[id] = document.getElementById(id); });
 
   const { rand, randi, clamp, roll, key, dist, mulberry32, randomSeed, eqAtk, eqDef, eqHp, eqScore } = DL.Core;
@@ -130,7 +131,7 @@
   const isWall = (x, y) => DL.World.isWall(map, x, y);
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
   const visible = (x, y) => DL.World.visible(P.x, P.y, x, y, 8);
-  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden;
+  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden;
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
@@ -894,6 +895,41 @@
     else if (kind === 'wait') { log('你按兵不动。'); after(); }
   }
 
+  /* ---------------- 传送门确认 ---------------- */
+  let pendingDoor = null;
+  let doorReturnPos = null;
+
+  function promptDoor(d, ox, oy) {
+    pendingDoor = d;
+    doorReturnPos = { x: ox, y: oy };
+    el.doorTitle.textContent = `进入「${d.name}」？`;
+    el.doorDesc.textContent = `Lv.${d.lv} 起 · 房间会刷怪，清空后首领进入冷却。`;
+    el.doorConfirm.hidden = false;
+    pauseAuto();
+  }
+
+  function confirmDoor() {
+    if (!pendingDoor) return;
+    const d = pendingDoor;
+    pendingDoor = null;
+    doorReturnPos = null;
+    el.doorConfirm.hidden = true;
+    enterRoom(d.room);
+    centerCam();
+    syncHud();
+    save();
+    scheduleIdle();
+  }
+
+  function cancelDoor() {
+    if (!pendingDoor) return;
+    pendingDoor = null;
+    if (doorReturnPos) { P.x = doorReturnPos.x; P.y = doorReturnPos.y; }
+    doorReturnPos = null;
+    el.doorConfirm.hidden = true;
+    scheduleIdle();
+  }
+
   function move(dx, dy, fromWalk = false) {
     if (over) return false;
     if (inCombat()) {
@@ -922,6 +958,7 @@
       after();
       return true;
     }
+    const ox = P.x, oy = P.y;
     P.x = nx;
     P.y = ny;
     if (map[ny][nx] === 2) {
@@ -929,8 +966,12 @@
         leaveRoom();
       } else {
         const d = doors.find((x) => x.x === nx && x.y === ny);
-        if (d) enterRoom(d.room);
-        else log('这扇门还没接上。', 'bad');
+        if (d) {
+          promptDoor(d, ox, oy);
+          if (fromWalk) stopWalk();
+          return true;
+        }
+        log('这扇门还没接上。', 'bad');
       }
       centerCam();
       syncHud();
@@ -1211,6 +1252,8 @@
     el.buyPotion.addEventListener('click', () => buy('potion'));
     el.buySword.addEventListener('click', () => buy('sword'));
     el.buyArmor.addEventListener('click', () => buy('armor'));
+    el.doorYes.addEventListener('click', confirmDoor);
+    el.doorNo.addEventListener('click', cancelDoor);
     el.introBtn.addEventListener('click', () => {
       el.intro.hidden = true;
       save();
@@ -1251,39 +1294,55 @@
         const vis = visible(x, y);
         if (vis) seen.add(key(x, y));
         if (!seen.has(key(x, y))) continue;
-        const sx = x * TILE - cam.x;
-        const sy = y * TILE - cam.y;
+        // 取整 + 整格填充：保证每格都是同样大小的正方形
+        const sx = Math.round(x * TILE - cam.x);
+        const sy = Math.round(y * TILE - cam.y);
         if (t === 1) ctx.fillStyle = vis ? '#151f33' : '#0d1422';
-        else if (t === 2) ctx.fillStyle = vis ? '#b8860b' : '#5b440f';
-        else if (vis) ctx.fillStyle = inCave ? '#1b1a2e' : ZONE_FLOOR[zoneLevel(x) - 1];
+        else if (t === 2) ctx.fillStyle = vis ? '#2a2410' : '#1a160a';
+        else if (vis) ctx.fillStyle = inCave ? '#1b1a2e' : '#232a3d';
         else ctx.fillStyle = '#111827';
-        ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
-        if (t === 2 && vis) {
-          ctx.font = '18px system-ui';
-          ctx.textAlign = 'center';
-          if (currentRoom) {
-            ctx.fillText('🕳', sx + TILE / 2, sy + TILE - 6);
-          } else {
-            ctx.fillText('🚪', sx + TILE / 2, sy + TILE - 6);
-            const d = doors.find((dd) => dd.x === x && dd.y === y);
-            if (d) {
-              ctx.font = '9px system-ui';
-              ctx.fillStyle = '#ffd166';
-              ctx.fillText(d.name, sx + TILE / 2, sy - 4);
-            }
-          }
-        }
+        ctx.fillRect(sx, sy, TILE, TILE);
+        // 极淡网格线，让"正方形"看得出来
+        ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+        ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
       }
+    }
+  }
+
+  // 传送门 / 出口：光晕 + 大图标 + 名称
+  function drawPortal(x, y, icon, color, label) {
+    if (!visible(x, y)) return;
+    const sx = Math.round(x * TILE - cam.x + TILE / 2);
+    const sy = Math.round(y * TILE - cam.y + TILE / 2);
+    const g = ctx.createRadialGradient(sx, sy, 3, sx, sy, TILE * 1.1);
+    g.addColorStop(0, color + '66');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(sx, sy, TILE * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.font = '30px system-ui';
+    ctx.fillText(icon, sx, sy + 10);
+    if (label) {
+      ctx.font = 'bold 11px system-ui';
+      ctx.fillStyle = color;
+      ctx.fillText(label, sx, sy - 14);
     }
   }
 
   // 1.5 层：地面特效（在实体下面）
   function drawGroundFx() {
+    if (currentRoom) {
+      drawPortal(back.x, back.y, '🕳', '#8ab4ff', '出口');
+    } else {
+      for (const d of doors) drawPortal(d.x, d.y, '🚪', '#ffd166', d.name);
+    }
     if (halfFlash > 0) {
       halfFlash = Math.max(0, halfFlash - 0.06);
       ctx.fillStyle = `rgba(255, 209, 102, ${0.28 * halfFlash})`;
       for (const [hx, hy] of halfFlashCells) {
-        ctx.fillRect(hx * TILE - cam.x, hy * TILE - cam.y, TILE - 1, TILE - 1);
+        ctx.fillRect(Math.round(hx * TILE - cam.x), Math.round(hy * TILE - cam.y), TILE, TILE);
       }
     }
   }
@@ -1294,12 +1353,12 @@
     if (npc && seen.has(key(npc.x, npc.y))) {
       const sx = npc.x * TILE - cam.x + TILE / 2;
       const sy = npc.y * TILE - cam.y + TILE / 2;
-      ctx.font = '24px system-ui';
+      ctx.font = '30px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('🧑‍🌾', sx, sy + 8);
-      ctx.font = '10px system-ui';
+      ctx.fillText('🧑‍🌾', sx, sy + 10);
+      ctx.font = 'bold 10px system-ui';
       ctx.fillStyle = '#ffd166';
-      ctx.fillText('商人', sx, sy - 16);
+      ctx.fillText('商人', sx, sy - 18);
     }
 
     // 敌人
@@ -1309,28 +1368,33 @@
       const sx = e.x * TILE - cam.x + TILE / 2;
       const sy = e.y * TILE - cam.y + TILE / 2;
       ctx.textAlign = 'center';
-      ctx.font = `${e.boss ? 34 : e.elite ? 28 : 24}px system-ui`;
-      ctx.fillText(e.glyph, sx, sy + 8);
+      ctx.font = `${e.boss ? 40 : e.elite ? 34 : 30}px system-ui`;
+      ctx.fillText(e.glyph, sx, sy + 10);
       ctx.font = '10px system-ui';
       ctx.fillStyle = e.boss ? '#ffd166' : 'rgba(220, 228, 245, 0.85)';
-      ctx.fillText(`Lv.${e.lv} ${e.name}`, sx, sy - 24);
-      const w = 26;
+      ctx.fillText(`Lv.${e.lv} ${e.name}`, sx, sy - 22);
+      const w = 28;
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(sx - w / 2, sy - 20, w, 4);
+      ctx.fillRect(sx - w / 2, sy - 18, w, 4);
       ctx.fillStyle = '#e05a5a';
-      ctx.fillRect(sx - w / 2, sy - 20, w * clamp(e.hp / e.maxHp, 0, 1), 4);
+      ctx.fillRect(sx - w / 2, sy - 18, w * clamp(e.hp / e.maxHp, 0, 1), 4);
     }
 
     // 玩家
     const px = P.x * TILE - cam.x + TILE / 2;
     const py = P.y * TILE - cam.y + TILE / 2;
-    ctx.font = '26px system-ui';
+    // 脚下光圈，让主角更显眼
+    ctx.fillStyle = 'rgba(120, 210, 255, 0.16)';
+    ctx.beginPath();
+    ctx.arc(px, py + 4, TILE * 0.72, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = '36px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('🧙', px, py + 8);
+    ctx.fillText('🧙', px, py + 12);
     const [fx, fy] = facingVec();
     ctx.fillStyle = '#ffd166';
     ctx.beginPath();
-    ctx.arc(px + fx * 15, py + fy * 15, 3, 0, Math.PI * 2);
+    ctx.arc(px + fx * 18, py + fy * 18, 3, 0, Math.PI * 2);
     ctx.fill();
   }
 

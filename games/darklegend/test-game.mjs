@@ -261,6 +261,16 @@ try {
   dl.P.cd.half = 0;
   dl.rest();
   ok('学会后可释放半月', dl.halfMoon() === true);
+
+  /* 20. 未鉴定：掉落品不知道属性，鉴定后才可装备 */
+  dl.P.bag = [];
+  const unk = dl.makeEquip('weapon', 5, 'yellow', { identified: false });
+  ok('掉落品默认未鉴定', unk.identified === false);
+  dl.addToBag(unk);
+  ok('未鉴定不自动装备', dl.state().weapon !== unk);
+  ok('未鉴定进背包', dl.P.bag.includes(unk));
+  dl.identifyFromBag(dl.P.bag.indexOf(unk));
+  ok('鉴定后 identified = true', unk.identified === true);
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

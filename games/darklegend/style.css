@@ -486,6 +486,15 @@ canvas {
 }
 .bag-item button.sell { color: var(--gold); }
 .up { color: var(--ok); font-size: 10px; font-weight: 700; }
+
+/* 未鉴定：名字模糊、属性未知 */
+.bag-item.unidentified .name {
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.bag-item.unidentified {
+  border-left-style: dashed;
+}
 .ilvl {
   color: var(--gold);
   font-size: 10px;

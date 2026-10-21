@@ -316,6 +316,7 @@
       def: opts.def ?? Math.round(baseDef * mult),
       hp: opts.hp ?? Math.round(baseHp * mult),
       affix: null,
+      identified: opts.identified !== false,   // 掉落品默认未鉴定
     };
     const affixChance = rarity === 'yellow' ? 1 : rarity === 'blue' ? 0.45 : 0;
     if (Math.random() < affixChance) {
@@ -356,6 +357,14 @@
   }
 
   function addToBag(eq) {
+    // 未鉴定：不知道好坏，先塞背包，不自动换
+    if (!eq.identified) {
+      P.bag.push(eq);
+      trimBag();
+      showLoot(eq, false);
+      log(`获得未鉴定的 ${eq.name}（${RARITY[eq.rarity].name}），已放背包。`);
+      return false;
+    }
     const cur = eq.slot === 'weapon' ? P.weapon : P.armor;
     if (eqScore(eq) > eqScore(cur) + 0.001) {
       if (cur) P.bag.push(cur);
@@ -441,6 +450,13 @@
   }
 
   function bagItemHtml(eq, i) {
+    if (!eq.identified) {
+      return `<div class="bag-item rarity-${eq.rarity} unidentified">
+        <div class="bag-main"><div class="name rarity-${eq.rarity}">未鉴定的 ${eq.name} <span class="ilvl">Lv.${eq.ilvl || 1}</span></div><div class="stats">${RARITY[eq.rarity].name} · 属性未知</div></div>
+        <button data-identify="${i}">鉴定</button>
+        <button class="sell" data-sell="${i}">卖 ${sellPrice(eq)}</button>
+      </div>`;
+    }
     const cur = eq.slot === 'weapon' ? P.weapon : P.armor;
     const up = eqScore(eq) > eqScore(cur) + 0.001;
     return `<div class="bag-item rarity-${eq.rarity}">
@@ -448,6 +464,16 @@
       <button data-equip="${i}">装备</button>
       <button class="sell" data-sell="${i}">卖 ${sellPrice(eq)}</button>
     </div>`;
+  }
+
+  // 鉴定：揭晓属性，进入可装备状态
+  function identifyFromBag(i) {
+    const eq = P.bag[i];
+    if (!eq || eq.identified) return;
+    eq.identified = true;
+    log(`鉴定出 ${eq.name}（${RARITY[eq.rarity].name}）：${eqStatText(eq)}${affixText(eq)}。`, 'good');
+    if (!el.char.hidden) renderChar();
+    save();
   }
 
   function powerOf() {
@@ -678,7 +704,7 @@
   function dropEquip(e, forceRarity) {
     const ilvl = clamp((e.lv || 1) + (e.boss ? 10 : e.elite ? 5 : 0), 1, 30);
     const slot = Math.random() < 0.5 ? 'weapon' : 'armor';
-    const eq = makeEquip(slot, ilvl, forceRarity || rollRarity(ilvl));
+    const eq = makeEquip(slot, ilvl, forceRarity || rollRarity(ilvl), { identified: false });
     giveEquip(eq);
   }
 
@@ -1297,6 +1323,8 @@
       log(P.autoPot ? `自动喝药：血量低于 ${P.autoPot}% 时喝。` : '自动喝药已关闭。');
     });
     el.bagList.addEventListener('click', (e) => {
+      const idBtn = e.target.closest('[data-identify]');
+      if (idBtn) { identifyFromBag(Number(idBtn.dataset.identify)); return; }
       const eqBtn = e.target.closest('[data-equip]');
       if (eqBtn) { equipFromBag(Number(eqBtn.dataset.equip)); return; }
       const sellBtn = e.target.closest('[data-sell]');
@@ -1585,7 +1613,7 @@
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
-      addToBag, equipFromBag, sellFromBag, sellPrice, openChar,
+      addToBag, equipFromBag, sellFromBag, sellPrice, identifyFromBag, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,

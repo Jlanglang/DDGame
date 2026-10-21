@@ -24,6 +24,32 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
+  // 等比缩放：逻辑坐标始终 720×1120；CSS 尺寸按容器等比缩放，缓冲区按 dpr 放大
+  function resizeCanvas() {
+    const stage = document.getElementById('stage');
+    if (!stage) return;
+    let used = 0;
+    for (const c of stage.children) {
+      if (c === canvas || c.hidden) continue;
+      if (c.classList && (c.classList.contains('sheet') || c.classList.contains('over'))) continue;
+      used += c.offsetHeight || 0;
+    }
+    const availW = stage.clientWidth || VIEW_W;
+    const availH = Math.max(240, (stage.clientHeight || VIEW_H) - used);
+    const scale = Math.min(availW / VIEW_W, availH / VIEW_H);
+    canvas.style.width = Math.floor(VIEW_W * scale) + 'px';
+    canvas.style.height = Math.floor(VIEW_H * scale) + 'px';
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(VIEW_W * dpr);
+    const h = Math.round(VIEW_H * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+
   const el = {};
   [
     'lv', 'hpFill', 'hpText', 'mpFill', 'mpText', 'gold', 'exp', 'gear', 'tips', 'log',
@@ -1499,6 +1525,9 @@
     P.hp = Math.max(1, Math.min(P.hp, maxHp()));
     P.mp = Math.min(P.mp, maxMp());
   }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', resizeCanvas);
   bind();
   syncHud();
   draw();

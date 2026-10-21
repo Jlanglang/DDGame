@@ -122,9 +122,9 @@ html, body {
 
 canvas {
   display: block;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
   image-rendering: pixelated;
   touch-action: none;
   cursor: crosshair;

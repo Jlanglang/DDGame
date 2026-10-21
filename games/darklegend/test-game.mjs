@@ -190,7 +190,8 @@ try {
   dl.attack(1, '普攻');
   ok('攻击使怪物掉血', mon.hp < 200, mon.hp);
 
-  /* 12. 技能 MP 与 CD */
+  /* 12. 技能 MP 与 CD（先学会半月） */
+  dl.P.skills.half = true;
   dl.rest();
   const mp0 = dl.state().mp;
   const cd0 = dl.state().cd;
@@ -244,6 +245,21 @@ try {
   ok('pauseAuto 后自动战斗关闭', dl.autoEnabled() === false, dl.autoEnabled());
   dl.resumeAuto();
   ok('resumeAuto 后自动战斗恢复', dl.autoEnabled() === true, dl.autoEnabled());
+
+  /* 19. 技能书：初始只有普攻，半月/烈火要靠技能书 */
+  dl.genHub();
+  dl.P.skills.half = false;
+  dl.P.skills.fire = false;
+  ok('初始未学半月', dl.state().skills.half === false, dl.state().skills);
+  ok('初始未学烈火', dl.state().skills.fire === false, dl.state().skills);
+  dl.rest();
+  const mpBefore = dl.state().mp;
+  ok('未学半月不可释放', dl.halfMoon() === false);
+  ok('未学半月不耗 MP', dl.state().mp === mpBefore, [mpBefore, dl.state().mp]);
+
+  dl.P.skills.half = true;
+  dl.rest();
+  ok('学会后可释放半月', dl.halfMoon() === true);
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

@@ -98,6 +98,7 @@
     lv: 1, exp: 0, hp: 60, mp: 15, gold: 0, potions: 3,
     weapon: null, armor: null, bag: [],
     cd: { half: 0, fire: 0 },
+    skills: { half: false, fire: false },   // 技能书解锁：半月 / 烈火
     autoPot: 50, potionCd: 0,
     kills: 0,
   };
@@ -557,15 +558,16 @@
     el.btnPotion.disabled = over || P.potions <= 0 || P.potionCd > 0;
     el.potionCd.textContent = P.potionCd > 0 ? `⏳${P.potionCd}` : '';
     el.btnShop.disabled = over || !nearShop();
-    setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half);
-    setSkillBtn(el.btnFire, el.fireCd, 12, P.cd.fire);
+    setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half, P.skills.half);
+    setSkillBtn(el.btnFire, el.fireCd, 12, P.cd.fire, P.skills.fire);
     updateTips();
   }
 
-  function setSkillBtn(btn, cdEl, cost, cd) {
-    btn.disabled = over || cd > 0 || P.mp < cost;
+  function setSkillBtn(btn, cdEl, cost, cd, learned) {
+    btn.disabled = over || !learned || cd > 0 || P.mp < cost;
     btn.classList.toggle('cooling', cd > 0);
-    cdEl.textContent = cd > 0 ? `⏳${cd}` : '';
+    btn.classList.toggle('locked', !learned);
+    cdEl.textContent = learned ? (cd > 0 ? `⏳${cd}` : '') : '未学';
   }
 
   /* ---------------- 存档 ---------------- */
@@ -575,6 +577,7 @@
         v: 2, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         potions: P.potions, weapon: P.weapon, armor: P.armor, kills: P.kills,
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot,
+        skills: P.skills,
         rooms: roomClearedAt,
       }));
     } catch { /* 忽略 */ }
@@ -608,6 +611,7 @@
       P.weapon = normalizeEquip(s.weapon, 'weapon');
       P.armor = normalizeEquip(s.armor, 'armor');
       if (s.rooms && typeof s.rooms === 'object') Object.assign(roomClearedAt, s.rooms);
+      P.skills = Object.assign({ half: false, fire: false }, s.skills || {});
       const rawHp = s.hp ?? maxHp();
       P.hp = rawHp <= 0 ? Math.ceil(maxHp() * 0.5) : Math.min(rawHp, maxHp());
       P.mp = Math.max(0, Math.min(s.mp ?? maxMp(), maxMp()));
@@ -649,7 +653,26 @@
       leveledUp = true;
       log(`升级！现在是 Lv.${P.lv}，HP/MP 已回满。`, 'good');
     }
+    tryDropSkill(e);
     if (e.boss) win();
+  }
+
+  // 技能书：精英 40% 掉一本、首领必掉一本；已学完就不掉
+  function tryDropSkill(e) {
+    if (!e.boss && !e.elite) return;
+    if (e.elite && Math.random() > 0.4) return;
+    const canHalf = !P.skills.half;
+    const canFire = !P.skills.fire;
+    if (!canHalf && !canFire) return;
+    const halfFirst = canHalf && (!canFire || Math.random() < 0.6);
+    if (halfFirst) {
+      P.skills.half = true;
+      log('拾得《半月弯刀》技能书，已学会！按 1 释放。', 'good');
+    } else if (canFire) {
+      P.skills.fire = true;
+      log('拾得《烈火剑法》技能书，已学会！按 2 释放。', 'good');
+    }
+    syncHud();
   }
 
   function dropEquip(e, forceRarity) {
@@ -812,10 +835,12 @@
     if (target) {
       faceTo(target.x, target.y);
       const halfHits = halfMoonTargets().length;
-      // 自动战斗优先级：半月打 2 只 > 烈火 > 半月打 1 只 > 普攻
-      if (P.cd.half <= 0 && P.mp >= 6 && halfHits >= 2) act('half');
-      else if (P.cd.fire <= 0 && P.mp >= 12) act('fire');
-      else if (P.cd.half <= 0 && P.mp >= 6 && halfHits >= 1) act('half');
+      const canHalf = P.skills.half && P.cd.half <= 0 && P.mp >= 6;
+      const canFire = P.skills.fire && P.cd.fire <= 0 && P.mp >= 12;
+      // 自动战斗优先级：半月打 2 只 > 烈火 > 半月打 1 只 > 普攻（未学的技能跳过）
+      if (canHalf && halfHits >= 2) act('half');
+      else if (canFire) act('fire');
+      else if (canHalf && halfHits >= 1) act('half');
       else act('attack');
     } else {
       after();
@@ -878,6 +903,7 @@
   }
 
   function halfMoon() {
+    if (!P.skills.half) { log('还没学会半月弯刀——打精英或首领掉技能书。', 'bad'); return false; }
     if (P.cd.half > 0) { log(`半月还在冷却（${P.cd.half} 回合）。`); return false; }
     if (P.mp < 6) { log('MP 不足（需要 6）。', 'bad'); return false; }
     P.mp -= 6;
@@ -891,6 +917,7 @@
   }
 
   function fireSword() {
+    if (!P.skills.fire) { log('还没学会烈火剑法——打精英或首领掉技能书。', 'bad'); return false; }
     if (P.cd.fire > 0) { log(`烈火还在冷却（${P.cd.fire} 回合）。`); return false; }
     if (P.mp < 12) { log('MP 不足（需要 12）。', 'bad'); return false; }
     const t = adjacentTarget();
@@ -1586,7 +1613,8 @@
       state: () => ({
         lv: P.lv, hp: P.hp, mp: P.mp, gold: P.gold, potions: P.potions,
         turn, over, inCave, room: currentRoom, weapon: P.weapon, armor: P.armor,
-        cd: { ...P.cd }, enemyCount: enemies.filter((e) => e.hp > 0).length,
+        cd: { ...P.cd }, skills: { ...P.skills },
+        enemyCount: enemies.filter((e) => e.hp > 0).length,
       }),
     };
   }

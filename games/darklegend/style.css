@@ -220,6 +220,10 @@ canvas {
   vertical-align: 1px;
 }
 .actions button.cooling { opacity: 0.55; }
+.actions button.locked {
+  opacity: 0.42;
+  filter: grayscale(0.7);
+}
 .actions button .cd {
   position: absolute;
   top: 3px;

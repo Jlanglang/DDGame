@@ -150,7 +150,8 @@
 
   const isWall = (x, y) => DL.World.isWall(map, x, y);
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
-  const visible = (x, y) => DL.World.visible(P.x, P.y, x, y, 8);
+  // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
+  const visible = () => true;
   const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden;
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */

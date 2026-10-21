@@ -583,7 +583,7 @@
 
   /* ---------------- 战斗 ---------------- */
   function strike(e, mult, tag) {
-    const dmg = Math.max(1, Math.round(roll(atkMean()) * mult - roll(e.def)));
+    const dmg = DL.Combat.playerDamage(atkMean(), e.def, mult);
     e.hp -= dmg;
     e.aggroOn = true;
     addFloater(e.x, e.y - 0.4, `-${dmg}`, '#ffd166');
@@ -630,18 +630,17 @@
     for (const e of enemies) {
       if (e.hp <= 0) continue;
       const d = dist(e, P);
-      if (d > 14) { e.aggroOn = false; continue; }
-      // 比玩家低 5 级以上的怪不主动；同段位/更高等级照常追（BOSS 永远主动）
-      if (!e.boss && e.lv < P.lv - 5 && !e.aggroOn) continue;
-      if (d === 1) {
-        let dmg = Math.max(1, Math.round(roll(e.atk) - roll(defMean() * 0.9)));
-        dmg = Math.min(dmg, Math.ceil(maxHp() * (e.boss ? 0.5 : 0.35)));
+      const action = DL.Combat.decide(e, P.lv, d);
+      if (action === 'leash') { e.aggroOn = false; continue; }
+      if (action === 'idle') continue;
+      if (action === 'attack') {
+        const dmg = DL.Combat.enemyDamage(e.atk, defMean(), maxHp(), e.boss);
         P.hp -= dmg;
         addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
         hurtFlash();
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
         if (P.hp <= 0) { die(); return; }
-      } else if (e.aggroOn || d <= e.aggro) {
+      } else if (action === 'chase') {
         e.aggroOn = true;
         stepToward(e);
       }
@@ -649,17 +648,9 @@
   }
 
   function stepToward(e) {
-    const dx = Math.sign(P.x - e.x), dy = Math.sign(P.y - e.y);
-    const horizFirst = Math.abs(P.x - e.x) >= Math.abs(P.y - e.y);
-    const steps = horizFirst ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
-    for (const [mx, my] of steps) {
-      if (!mx && !my) continue;
-      const nx = e.x + mx, ny = e.y + my;
-      if (!isWall(nx, ny) && !enemyAt(nx, ny) && !(nx === P.x && ny === P.y)) {
-        e.x = nx; e.y = ny;
-        return;
-      }
-    }
+    const next = DL.Combat.nextStep(e.x, e.y, P.x, P.y,
+      (x, y) => isWall(x, y) || enemyAt(x, y) || (x === P.x && y === P.y));
+    if (next) { e.x = next.x; e.y = next.y; }
   }
 
   function die() {
@@ -824,10 +815,7 @@
   }
 
   function facingVec() {
-    if (P.dir === 'l') return [-1, 0];
-    if (P.dir === 'r') return [1, 0];
-    if (P.dir === 'u') return [0, -1];
-    return [0, 1];
+    return DL.Combat.dirVec(P.dir);
   }
 
   function faceTo(x, y) {
@@ -837,11 +825,7 @@
   }
 
   function adjacentTarget() {
-    const [fx, fy] = facingVec();
-    const front = enemies.find((e) => e.hp > 0 && e.x === P.x + fx && e.y === P.y + fy);
-    if (front) return front;
-    return enemies.filter((e) => e.hp > 0 && dist(e, P) === 1)
-      .sort((a, b) => a.hp - b.hp)[0] || null;
+    return DL.Combat.adjacentTarget(enemies, P.x, P.y, P.dir);
   }
 
   function attack(mult, tag) {
@@ -851,26 +835,13 @@
     return true;
   }
 
-  // 半月：朝向前方的九宫格半边 5 格（正前、前左、前右、正左、正右）
+  // 半月：朝向前方的九宫格半边 5 格（规则见 combat.js）
   function halfMoonCells() {
-    const [fx, fy] = facingVec();
-    const [px, py] = fx !== 0 ? [0, 1] : [1, 0];
-    return [
-      [P.x + fx, P.y + fy],
-      [P.x + fx + px, P.y + fy + py],
-      [P.x + fx - px, P.y + fy - py],
-      [P.x + px, P.y + py],
-      [P.x - px, P.y - py],
-    ];
+    return DL.Combat.halfMoonCells(P.x, P.y, P.dir);
   }
 
   function halfMoonTargets() {
-    const out = [];
-    for (const [x, y] of halfMoonCells()) {
-      const e = enemies.find((en) => en.hp > 0 && en.x === x && en.y === y);
-      if (e) out.push(e);
-    }
-    return out;
+    return DL.Combat.targetsAt(enemies, halfMoonCells());
   }
 
   function halfMoon() {
@@ -968,8 +939,7 @@
     const foes = combatTargets();
     if (!foes.length) { log('没有敌人，不用撤。'); return; }
     const nearest = foes.slice().sort((a, b) => dist(a, P) - dist(b, P))[0];
-    let dmg = Math.max(1, Math.round(roll(nearest.atk) - roll(defMean() * 0.9)));
-    dmg = Math.min(dmg, Math.ceil(maxHp() * (nearest.boss ? 0.5 : 0.35)));
+    const dmg = DL.Combat.enemyDamage(nearest.atk, defMean(), maxHp(), nearest.boss);
     P.hp -= dmg;
     addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
     log(`${nearest.name}趁机咬了你一口，<span class="bad">-${dmg} HP</span>。`, 'bad');

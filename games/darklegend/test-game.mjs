@@ -84,11 +84,13 @@ const code = fs.readFileSync(path.join(ROOT, 'game.js'), 'utf8');
 const dataCode = fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8');
 const coreCode = fs.readFileSync(path.join(ROOT, 'core.js'), 'utf8');
 const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
+const combatCode = fs.readFileSync(path.join(ROOT, 'combat.js'), 'utf8');
 vm.createContext(sandbox);
 try {
   vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
   vm.runInContext(coreCode, sandbox, { filename: 'core.js' });
   vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
+  vm.runInContext(combatCode, sandbox, { filename: 'combat.js' });
   vm.runInContext(code, sandbox, { filename: 'game.js' });
 } catch (err) {
   console.error('加载游戏脚本失败：', err && err.stack ? err.stack : err);
@@ -214,6 +216,15 @@ try {
     minDef8 = Math.min(minDef8, a.def);
   }
   ok('Lv.8 白护甲 ≥ 6 防', minDef8 >= 6, minDef8);
+
+  /* 16. 战斗规则纯函数 */
+  const C = sandbox.window.DL.Combat;
+  ok('半月覆盖 5 格', C.halfMoonCells(5, 5, 'r').length === 5, C.halfMoonCells(5, 5, 'r').length);
+  ok('普攻伤害最低 1', C.playerDamage(1, 9999, 1) >= 1, C.playerDamage(1, 9999, 1));
+  ok('防秒杀上限：普通 ≤35% maxHP', C.enemyDamage(9999, 0, 100, false) <= 35, C.enemyDamage(9999, 0, 100, false));
+  ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 100, true));
+  ok('低 5 级怪不主动', C.decide({ lv: 1, boss: false, aggroOn: false, aggro: 5 }, 10, 3) === 'idle');
+  ok('Boss 相邻必攻击', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 5 }, 10, 1) === 'attack');
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

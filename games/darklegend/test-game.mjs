@@ -141,7 +141,7 @@ try {
   const goldBefore = dl.state().gold;
   const potBefore = dl.state().potions;
   dl.buy('potion');
-  ok('买药扣 50 金', dl.state().gold === goldBefore - 50, [goldBefore, dl.state().gold]);
+  ok('买药扣 25 金', dl.state().gold === goldBefore - 25, [goldBefore, dl.state().gold]);
   ok('买药 +1', dl.state().potions === potBefore + 1, [potBefore, dl.state().potions]);
 
   /* 8. 死亡复活 */
@@ -277,6 +277,12 @@ try {
   let rareHit = 0;
   for (let i = 0; i < 4000; i++) if (dl.rollGrade() === 'rare') rareHit++;
   ok('稀有空率约 1%', rareHit > 15 && rareHit < 85, rareHit);
+
+  /* 21. 碾压：前期差 10 级、30 级后差 5 级 */
+  ok('前期差 10 级碾压', dl.isCrush(11, 1) === true);
+  ok('前期差 9 级不碾压', dl.isCrush(10, 1) === false);
+  ok('30 级后差 5 级碾压', dl.isCrush(35, 30) === true);
+  ok('30 级后差 4 级不碾压', dl.isCrush(34, 30) === false);
 
   /* 20. 未鉴定：掉落品不知道属性，鉴定后才可装备 */
   dl.P.bag = [];

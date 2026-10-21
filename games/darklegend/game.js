@@ -91,6 +91,7 @@
   const MON = D.MON;
   const BOSS = D.BOSS;
   const GRADE = D.GRADE;
+  const CRUSH = D.CRUSH;
   const RARITY = D.RARITY;
   const WEAPON_NAMES = D.WEAPON_NAMES;
   const ARMOR_NAMES = D.ARMOR_NAMES;
@@ -292,6 +293,12 @@
   // 房间内不再野外重生
   function spawnWild() { /* 小世界房间不自动刷怪 */ }
 
+  // 碾压：等级差达到阈值后，怪打玩家无伤；收益大幅衰减（保底保留）
+  function isCrush(playerLv, monLv) {
+    const gap = playerLv >= CRUSH.lateFrom ? CRUSH.lateGap : CRUSH.earlyGap;
+    return playerLv - monLv >= gap;
+  }
+
   // mon：MON / BOSS 表项；gradeKey：normal / elite / rare / boss
   function makeEnemy(mon, gradeKey = 'normal') {
     const g = GRADE[gradeKey] || GRADE.normal;
@@ -314,7 +321,9 @@
       atk: (10 + 4 * lv) * g.atk,
       def: 2 * Math.pow(1.075, lv) * (isBoss ? 1.5 : gradeKey === 'rare' ? 1.4 : gradeKey === 'elite' ? 1.2 : 1),
       exp: Math.round(10 * Math.pow(1.12, lv - 1) * g.exp),
-      gold: isBoss ? randi(80, 120) : randi(2, 4 + lv),
+      gold: isBoss
+        ? randi(200, 300)
+        : Math.round(randi(8 + 2 * lv, 12 + 3 * lv) * (gradeKey === 'elite' ? 3 : gradeKey === 'rare' ? 8 : 1)),
     };
   }
 
@@ -697,29 +706,33 @@
 
   function kill(e) {
     e.hp = 0;
+    const crushed = isCrush(P.lv, e.lv);
+    const goldGain = crushed ? Math.max(1, Math.round(e.gold * CRUSH.goldMul)) : e.gold;
     P.exp += e.exp;
-    P.gold += e.gold;
+    P.gold += goldGain;
     P.kills++;
-    log(`${e.name}倒下了，+${e.exp} 经验、+${e.gold} 金币。`, 'good');
-    if (Math.random() < 0.18) { P.potions++; log('捡到 1 瓶药水。', 'good'); }
+    log(`${e.name}倒下了，+${e.exp} 经验、+${goldGain} 金币。`, 'good');
+    if (Math.random() < (crushed ? 0.03 : 0.18)) { P.potions++; log('捡到 1 瓶药水。', 'good'); }
     // 掉落：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
+    // 碾压时只衰减"额外掉落"，保底照旧
+    const dropMul = crushed ? CRUSH.dropMul : 1;
     if (e.boss) {
       dropEquip(e, 'blue');
       dropEquip(e, 'yellow');
-      if (Math.random() < 0.25) dropEquip(e, 'orange');
+      if (Math.random() < 0.25 * dropMul) dropEquip(e, 'orange');
     } else if (e.rare) {
       dropEquip(e, 'yellow');                              // 保底 A
-      if (Math.random() < 0.10) dropEquip(e, 'orange');    // 10% S
+      if (Math.random() < 0.10 * dropMul) dropEquip(e, 'orange');    // 10% S
     } else if (e.elite) {
       dropEquip(e, 'blue');                                // 保底 B
-      if (Math.random() < 0.10) dropEquip(e, 'yellow');    // 10% A
-      if (Math.random() < 0.01) dropEquip(e, 'orange');    // 1% S
+      if (Math.random() < 0.10 * dropMul) dropEquip(e, 'yellow');    // 10% A
+      if (Math.random() < 0.01 * dropMul) dropEquip(e, 'orange');    // 1% S
     } else {
       const r = Math.random();
-      if (r < 0.001) dropEquip(e, 'orange');               // S 0.1%
-      else if (r < 0.006) dropEquip(e, 'yellow');          // A 0.5%
-      else if (r < 0.026) dropEquip(e, 'blue');            // B 2%
-      else if (r < 0.076) dropEquip(e);                    // C 5%
+      if (r < 0.001 * dropMul) dropEquip(e, 'orange');     // S 0.1%
+      else if (r < 0.006 * dropMul) dropEquip(e, 'yellow'); // A 0.5%
+      else if (r < 0.026 * dropMul) dropEquip(e, 'blue');   // B 2%
+      else if (r < 0.076 * dropMul) dropEquip(e);           // C 5%
     }
     while (P.exp >= needExp()) {
       P.exp -= needExp();
@@ -767,6 +780,7 @@
       if (action === 'leash') { e.aggroOn = false; continue; }
       if (action === 'idle') continue;
       if (action === 'attack') {
+        if (isCrush(P.lv, e.lv)) continue;   // 碾压：怪打不动你
         const dr = defRange(P);
         const dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
         P.hp -= dmg;
@@ -1665,7 +1679,7 @@
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
-      makeEnemy, rollGrade,
+      makeEnemy, rollGrade, isCrush,
       addToBag, equipFromBag, sellFromBag, sellPrice, identifyFromBag, openChar,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,

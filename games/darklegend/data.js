@@ -28,10 +28,19 @@
 
     /* 怪物品级：普通 / 精英 / 稀有（等级 +0/+1/+2，概率 94/5/1） */
     GRADE: {
-      normal: { name: '', hp: 1, atk: 1, lvAdd: 0, p: 0.94, exp: 1 },
-      elite: { name: '精英', hp: 3, atk: 1.4, lvAdd: 1, p: 0.05, exp: 3 },
-      rare: { name: '稀有', hp: 8, atk: 1.8, lvAdd: 2, p: 0.01, exp: 6 },
-      boss: { name: '', hp: 4, atk: 1.0, lvAdd: 0, p: 0, exp: 12 },
+      normal: { name: '', hp: 1, atk: 0.8, lvAdd: 0, p: 0.94, exp: 1 },
+      elite: { name: '精英', hp: 3, atk: 1.2, lvAdd: 1, p: 0.05, exp: 3 },
+      rare: { name: '稀有', hp: 8, atk: 1.6, lvAdd: 2, p: 0.01, exp: 6 },
+      boss: { name: '', hp: 4, atk: 1.4, lvAdd: 0, p: 0, exp: 12 },
+    },
+
+    /* 碾压：高多少级后怪打玩家无伤；收益大幅衰减，但保底保留 */
+    CRUSH: {
+      earlyGap: 10,    // 1–29 级：差 10 级碾压
+      lateGap: 5,      // 30 级起：差 5 级碾压
+      lateFrom: 30,
+      goldMul: 0.1,    // 金币 ×0.1
+      dropMul: 0.1,    // 普通掉落概率 ×0.1（精英/稀有保底不受影响）
     },
 
     /* ---------- 稀有度 ---------- */
@@ -53,7 +62,7 @@
 
     /* ---------- 商店 ---------- */
     SHOP: {
-      potion: { price: 50, label: '药水' },
+      potion: { price: 25, label: '药水' },
       sword: { price: 80, label: '铁剑' },
       armor: { price: 70, label: '皮甲' },
     },

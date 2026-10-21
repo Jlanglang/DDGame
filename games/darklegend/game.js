@@ -372,9 +372,9 @@
     const mult = RARITY[rarity].mult;
     const names = slot === 'weapon' ? WEAPON_NAMES : ARMOR_NAMES;
     const name = names[rarity === 'yellow' ? 2 : rarity === 'blue' ? 1 : 0];
-    const baseAtk = slot === 'weapon' ? randi(2, 3 + Math.ceil(ilvl / 3)) : 0;
-    const baseDef = slot === 'armor' ? randi(1, 2 + Math.ceil(ilvl / 4)) : 0;
-    const baseHp = slot === 'armor' ? randi(8, 10 + ilvl * 2) : 0;
+    const baseAtk = slot === 'weapon' ? randi(3 + Math.ceil(ilvl / 4), 5 + Math.ceil(ilvl / 2)) : 0;
+    const baseDef = slot === 'armor' ? randi(2 + Math.ceil(ilvl / 2), 4 + Math.ceil(ilvl / 2)) : 0;
+    const baseHp = slot === 'armor' ? randi(8 + ilvl, 10 + ilvl * 3) : 0;
     const eq = {
       slot, name, rarity, ilvl,
       atk: opts.atk ?? Math.round(baseAtk * mult),

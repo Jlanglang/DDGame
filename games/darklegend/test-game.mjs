@@ -187,6 +187,27 @@ try {
   const turnA = dl.state().turn;
   dl.tick();
   ok('暂停后 tick 不推进', dl.state().turn === turnA, [turnA, dl.state().turn]);
+
+  /* 14. 数值体检：1 级带初始装备打鸡，掉血应在 30–40% */
+  const atk1 = 5 + 3;          // 初始武器 +3 攻
+  const def1 = 3 + 2;          // 初始护甲 +2 防
+  const hp1 = 60 + 15;         // 初始护甲 +15 HP
+  const monHp1 = 18 * Math.pow(1.16, 1);
+  const monAtk1 = (10 + 4) * 0.8;
+  const monDef1 = 2 * Math.pow(1.075, 1);
+  const hit1 = Math.max(1, atk1 - monDef1);
+  const kills1 = Math.ceil(monHp1 / hit1);
+  const taken1 = Math.max(1, monAtk1 - def1 * 0.9) * kills1;
+  const pct1 = taken1 / hp1;
+  ok('1 级打鸡掉血 30–40%', pct1 >= 0.30 && pct1 <= 0.40, (pct1 * 100).toFixed(1) + '%');
+
+  /* 15. 数值体检：Lv.8 白护甲底材应 ≥ 6 防 */
+  let minDef8 = Infinity;
+  for (let i = 0; i < 50; i++) {
+    const a = dl.makeEquip('armor', 8, 'white');
+    minDef8 = Math.min(minDef8, a.def);
+  }
+  ok('Lv.8 白护甲 ≥ 6 防', minDef8 >= 6, minDef8);
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

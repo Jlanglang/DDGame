@@ -59,7 +59,7 @@
     'eqTip', 'eqTipName', 'eqTipStats', 'eqTipActs', 'eqTipClose',
     'loot', 'lootName', 'lootStats', 'lootAffix',
     'intro', 'introBtn', 'seedText',
-    'doorConfirm', 'doorTitle', 'doorDesc', 'doorYes', 'doorNo',
+    'doorConfirm', 'doorTitle', 'doorDesc', 'doorList', 'doorNo',
     'pStatus',
     'lootPick', 'pickTitle', 'pickHint', 'pickList', 'pickAll', 'pickClose',
   ].forEach((id) => { el[id] = document.getElementById(id); });
@@ -164,10 +164,13 @@
     const amt = potTier(tierId).amount;
     return Math.round(amt * (kind === 'blue' ? (POTIONS.blueMul || 2) : (POTIONS.redMul || 1)));
   }
+  function formatAmount(n) {
+    const v = Math.max(0, Math.round(n || 0));
+    if (v >= 10000) return (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '万';
+    return String(v);
+  }
   function potTotal(kind) {
-    let n = 0;
-    for (const t of POT_TIERS) n += P.pots[kind][t.id] || 0;
-    return n;
+    return Math.max(0, Math.round((P.potPool && P.potPool[kind]) || 0));
   }
   // 优先最低档有货的
   function pickPotTier(kind) {
@@ -182,6 +185,7 @@
     x: 4, y: 24, dir: 'r',
     lv: 1, exp: 0, hp: 60, mp: 15, gold: 0,
     pots: defaultPots(),
+    potPool: { red: 100000, blue: 100000 },
     weapon: null, armor: null,
     glovesL: null, glovesR: null, shoes: null, helmet: null,
     necklace: null, earring: null, ringL: null, ringR: null,
@@ -339,11 +343,9 @@
       if (x === back.x && y === back.y) continue;
       spots.push({ x, y });
     }
-    // 怪池：按房间的 pool 刷（每道门怪不一样）；没配就退回全表
-    let pool = (spec.pool || []).map((id) => MON.find((m) => m.id === id)).filter(Boolean);
-    if (!pool.length) pool = MON.slice();
+    // 怪池：按房间的 pool 刷（每道门怪不一样）；等级按房间 lvMin/lvMax 覆盖
     for (const s of spots) {
-      const mon = pool[randi(0, pool.length - 1)];
+      const mon = poolMon(spec);
       const e = makeEnemy(mon, rollGrade());
       e.x = s.x; e.y = s.y;
       out.push(e);
@@ -357,7 +359,12 @@
         if (d > bd) { bd = d; best = { x, y }; }
       }
       if (best) {
-        const b = makeEnemy(BOSS, 'boss');
+        const bossLv = spec.bossLv || spec.lvMax || BOSS.lv;
+        const b = makeEnemy(Object.assign({}, BOSS, {
+          lv: bossLv,
+          name: spec.bossName || BOSS.name,
+          glyph: spec.bossGlyph || BOSS.glyph,
+        }), 'boss');
         b.x = best.x; b.y = best.y;
         out.push(b);
       }
@@ -439,6 +446,7 @@
   function poolMon(spec) {
     let pool = (spec.pool || []).map((id) => MON.find((m) => m.id === id)).filter(Boolean);
     if (!pool.length) pool = MON.slice();
+    // 普通怪等级固定（鸡 Lv.1）；精英/稀有由 GRADE.lvAdd +1/+2
     return pool[randi(0, pool.length - 1)];
   }
 
@@ -468,7 +476,12 @@
       if (d > bd) { bd = d; best = { x, y }; }
     }
     if (!best) return null;
-    const b = makeEnemy(BOSS, 'boss');
+    const bossLv = spec.bossLv || spec.lvMax || BOSS.lv;
+    const b = makeEnemy(Object.assign({}, BOSS, {
+      lv: bossLv,
+      name: spec.bossName || BOSS.name,
+      glyph: spec.bossGlyph || BOSS.glyph,
+    }), 'boss');
     b.x = best.x;
     b.y = best.y;
     enemies.push(b);
@@ -1146,9 +1159,7 @@
     el.autoPot.value = String(P.autoPot);
     if (el.autoMp) el.autoMp.value = String(P.autoMp);
     if (el.potStock) {
-      el.potStock.innerHTML = POT_TIERS.map((t) =>
-        `<div>🧪${t.name}红 <b>${P.pots.red[t.id] || 0}</b></div><div>💙${t.name}蓝 <b>${P.pots.blue[t.id] || 0}</b></div>`
-      ).join('');
+      el.potStock.innerHTML = `<div>🩸红罐 <b>${formatAmount(P.potPool.red)}</b></div><div>💙蓝罐 <b>${formatAmount(P.potPool.blue)}</b></div>`;
     }
     el.bagCount.textContent = P.bag.length;
     const cells = [];
@@ -1282,11 +1293,11 @@
     if (el.expText) el.expText.textContent = `经验 ${P.exp} / ${need}`;
     el.gold.textContent = `💰 ${P.gold}`;
     el.gear.textContent = gearText();
-    el.potionCount.textContent = potTotal('red');
+    el.potionCount.textContent = formatAmount(potTotal('red'));
     el.btnAtk.disabled = over;
     el.btnPotion.disabled = over || potTotal('red') <= 0 || P.potionCd.red > 0;
     el.potionCd.textContent = P.potionCd.red > 0 ? `⏳${P.potionCd.red}` : '';
-    if (el.mpPotionCount) el.mpPotionCount.textContent = potTotal('blue');
+    if (el.mpPotionCount) el.mpPotionCount.textContent = formatAmount(potTotal('blue'));
     if (el.btnMpPotion) el.btnMpPotion.disabled = over || potTotal('blue') <= 0 || P.potionCd.blue > 0;
     if (el.mpPotionCd) el.mpPotionCd.textContent = P.potionCd.blue > 0 ? `⏳${P.potionCd.blue}` : '';
     setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half, P.skills.half);
@@ -1355,7 +1366,7 @@
       for (const id of SLOT_IDS) gear[id] = P[id];
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         v: 4, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
-        pots: P.pots, ...gear, kills: P.kills,
+        pots: P.pots, potPool: P.potPool, ...gear, kills: P.kills,
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot, autoMp: P.autoMp,
         skills: P.skills,
         rooms: roomClearedAt,
@@ -1384,6 +1395,10 @@
       P.exp = Math.max(0, s.exp || 0);
       P.gold = Math.max(0, s.gold || 0);
       P.pots = normalizePots(s.pots != null ? s.pots : s.potions);
+      P.potPool = {
+        red: s.potPool && Number.isFinite(s.potPool.red) ? s.potPool.red : 100000,
+        blue: s.potPool && Number.isFinite(s.potPool.blue) ? s.potPool.blue : 100000,
+      };
       P.kills = s.kills || 0;
       P.bag = Array.isArray(s.bag) ? s.bag.slice(0, BAG_MAX) : [];
       P.autoPot = Number.isFinite(s.autoPot) ? s.autoPot : 50;
@@ -2176,31 +2191,27 @@
     return true;
   }
 
-  // kind: 'red' | 'blue'；优先喝最低档有货的
+  // kind: 'red' | 'blue'；罐子：喝多少扣多少，直接回满
   function drink(kind) {
     kind = kind === 'blue' ? 'blue' : 'red';
-    const label = kind === 'blue' ? '蓝药' : '红药';
+    const label = kind === 'blue' ? '蓝罐' : '红罐';
     if (P.potionCd[kind] > 0) {
       log(`${label}还在冷却（${P.potionCd[kind]} 回合）。`);
       return false;
     }
-    const tier = pickPotTier(kind);
-    if (!tier) { log(`没有${label}了。`, 'bad'); return false; }
-    P.pots[kind][tier.id]--;
+    const max = kind === 'blue' ? maxMp() : maxHp();
+    const cur = kind === 'blue' ? P.mp : P.hp;
+    const need = Math.max(0, Math.round(max - cur));
+    if (need <= 0) { log(`${label}：已经满了。`); return false; }
+    const pool = P.potPool[kind] || 0;
+    if (pool <= 0) { log(`${label}空了。`, 'bad'); return false; }
+    const got = Math.min(need, pool);
+    P.potPool[kind] = pool - got;
+    if (kind === 'blue') P.mp = Math.min(max, P.mp + got);
+    else P.hp = Math.min(max, P.hp + got);
     P.potionCd[kind] = POTIONS.cd || 3;
-    if (kind === 'blue') {
-      const before = P.mp;
-      P.mp = Math.min(maxMp(), P.mp + tier.amount);
-      const got = Math.round(P.mp - before);
-      addFloater(P.x, P.y - 0.4, `+${got}MP`, '#6ab0ff');
-      log(`喝下${tier.name}蓝药，回复 ${got} MP。`, 'good');
-    } else {
-      const before = P.hp;
-      P.hp = Math.min(maxHp(), P.hp + tier.amount);
-      const got = Math.round(P.hp - before);
-      addFloater(P.x, P.y - 0.4, `+${got}`, '#7ee0a0');
-      log(`喝下${tier.name}红药，回复 ${got} HP。`, 'good');
-    }
+    addFloater(P.x, P.y - 0.4, `+${got}${kind === 'blue' ? 'MP' : ''}`, kind === 'blue' ? '#6ab0ff' : '#7ee0a0');
+    log(`喝下${label} ${got} 点，罐子剩 ${formatAmount(P.potPool[kind])}。`, 'good');
     return true;
   }
 
@@ -2226,34 +2237,49 @@
     else if (kind === 'wait') { log('你按兵不动。'); after(); }
   }
 
-  /* ---------------- 传送门确认 ---------------- */
+  /* ---------------- 传送门 ---------------- */
   let pendingDoor = null;
   let doorReturnPos = null;
+
+  function renderDoorList(d) {
+    const min = d && d.tierMin != null ? d.tierMin : 0;
+    const max = d && d.tierMax != null ? d.tierMax : 999;
+    const list = ROOMS.filter((spec) => spec.lvMin >= min && spec.lvMax <= max);
+    el.doorList.innerHTML = list.length ? list.map((spec) => {
+      const names = (spec.pool || [])
+        .map((id) => (MON.find((m) => m.id === id) || {}).name)
+        .filter(Boolean).join('、');
+      const cd = bossCdOf(spec);
+      const cleared = roomClearedAt[spec.id];
+      const cdLeft = spec.boss && cleared != null && clock - cleared < cd
+        ? Math.ceil(cd - (clock - cleared)) : 0;
+      return `<button type="button" class="door-room" data-room="${spec.id}">
+        <b>${spec.name}</b><span class="door-lv">Lv.${spec.lvMin}–${spec.lvMax}</span>
+        <small>${names || '杂兵'}${spec.boss ? ' + 首领' : ''}${cdLeft ? ` · 首领 ${cdLeft} 分钟后` : ''}</small>
+      </button>`;
+    }).join('') : '<p class="menu-help">这个等级段还没有房间。</p>';
+  }
 
   function promptDoor(d, ox, oy) {
     pendingDoor = d;
     doorReturnPos = { x: ox, y: oy };
-    const spec = roomSpec(d.room) || {};
-    const names = (spec.pool || [])
-      .map((id) => (MON.find((m) => m.id === id) || {}).name)
-      .filter(Boolean).join('、');
-    el.doorTitle.textContent = `进入「${d.name}」？`;
-    const cd = bossCdOf(spec);
-    const tail = spec.boss
-      ? `普通怪死后约 5 秒补一只；首领打倒后 ${cd} 分钟内不刷新（被动，不主动追人）。`
-      : '普通怪死后约 5 秒补一只；可开挂机刷普通/精英。';
-    el.doorDesc.textContent = `Lv.${spec.lvMin ?? d.lv}–${spec.lvMax ?? ''}　怪：${names || '杂兵'}${spec.boss ? ' + 首领' : ''}。${tail}`;
+    el.doorTitle.textContent = `传送门 · ${d.name || ''}`;
+    el.doorDesc.textContent = '选择要去的房间：';
+    renderDoorList(d);
     el.doorConfirm.hidden = false;
     pauseAuto();
   }
 
-  function confirmDoor() {
-    if (!pendingDoor) return;
-    const d = pendingDoor;
+  function closeDoor() {
     pendingDoor = null;
     doorReturnPos = null;
     el.doorConfirm.hidden = true;
-    enterRoom(d.room);
+  }
+
+  function enterRoomFromDoor(roomId) {
+    if (!roomId) return;
+    closeDoor();
+    enterRoom(roomId);
     centerCam();
     syncHud();
     save();
@@ -2261,11 +2287,8 @@
   }
 
   function cancelDoor() {
-    if (!pendingDoor) return;
-    pendingDoor = null;
     if (doorReturnPos) { P.x = doorReturnPos.x; P.y = doorReturnPos.y; }
-    doorReturnPos = null;
-    el.doorConfirm.hidden = true;
+    closeDoor();
     resumeAuto();
   }
 
@@ -2505,6 +2528,7 @@
   let stickPtr = null;           // 轮盘只认第一根手指
   let stickDx = 0, stickDy = 0;
   let stickTimer = null;
+  let keyMoveTimer = null;
 
   function heldMoveDelta() {
     let dx = 0, dy = 0;
@@ -2530,15 +2554,28 @@
     setKnobOffset(dx * r, dy * r, !!(dx || dy));
   }
 
+  function stopKeyMove() {
+    if (keyMoveTimer) { clearInterval(keyMoveTimer); keyMoveTimer = null; }
+  }
+
   function pressMoveKey(k) {
     heldMove.add(k);
     stopWalk();
     const [dx, dy] = heldMoveDelta();
     if (dx || dy) move(dx, dy);
+    if (!keyMoveTimer) {
+      keyMoveTimer = setInterval(() => {
+        if (over || uiOpen()) { stopKeyMove(); return; }
+        const [mx, my] = heldMoveDelta();
+        if (!mx && !my) { stopKeyMove(); return; }
+        if (!move(mx, my)) stopKeyMove();   // 撞墙/被锁：停下，松手再按
+      }, MOVE_MS);
+    }
     syncDpadActive();
   }
   function releaseMoveKey(k) {
     heldMove.delete(k);
+    if (!heldMove.size) stopKeyMove();
     syncDpadActive();
   }
 
@@ -2685,7 +2722,7 @@
         const tag = kind === 'blue' ? '蓝' : '红';
         list.push({
           kind: 'pot', potKind: kind, tierId: t.id,
-          name: `${t.name}${tag}药`, amount: t.amount,
+          name: `${t.name}${tag}罐 +${t.amount}`, amount: t.amount,
           price: potPrice(kind, t.id),
         });
       }
@@ -2749,8 +2786,8 @@
       return false;
     }
     P.gold -= price;
-    P.pots[kind][tier.id] = (P.pots[kind][tier.id] || 0) + 1;
-    log(`买了 1 瓶${tier.name}${kind === 'blue' ? '蓝' : '红'}药。`, 'good');
+    P.potPool[kind] = (P.potPool[kind] || 0) + tier.amount;
+    log(`给${kind === 'blue' ? '蓝' : '红'}罐补了 ${tier.amount} 点。`, 'good');
     syncHud();
     if (!el.shop.hidden) refreshShop();
     save();
@@ -2817,6 +2854,11 @@
   function bind() {
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', () => {
+      heldMove.clear();
+      stopKeyMove();
+      syncDpadActive();
+    });
     canvas.addEventListener('pointerdown', onPointer);
     if (document.addEventListener) {
       document.addEventListener('visibilitychange', () => {
@@ -3013,7 +3055,10 @@
       log(P.autoMp ? `自动蓝药：蓝量低于 ${P.autoMp}% 时喝。` : '自动蓝药已关闭。');
     });
     el.menuRestart.addEventListener('click', restart);
-    el.doorYes.addEventListener('click', confirmDoor);
+    el.doorList.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-room]');
+      if (b) enterRoomFromDoor(b.dataset.room);
+    });
     el.doorNo.addEventListener('click', cancelDoor);
     el.pickAll.addEventListener('click', () => { hideEqTip(); takeAllFromBag(); });
     el.pickClose.addEventListener('click', () => { hideEqTip(); closePick(); });
@@ -3442,6 +3487,7 @@
         lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         potions: potTotal('red'), potsRed: potTotal('red'), potsBlue: potTotal('blue'),
         pots: { red: { ...P.pots.red }, blue: { ...P.pots.blue } },
+        potPool: { ...P.potPool },
         turn, over, inCave, room: currentRoom, weapon: P.weapon, armor: P.armor,
         cd: { ...P.cd }, skills: { ...P.skills },
         enemyCount: enemies.filter((e) => e.hp > 0).length,

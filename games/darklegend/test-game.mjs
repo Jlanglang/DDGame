@@ -138,31 +138,30 @@ try {
   ok('装备有 ilvl', eq && eq.ilvl === 5, eq && eq.ilvl);
   ok('装备可估价（评分派生）', eq && dl.sellPrice(eq) > 0, eq && dl.sellPrice(eq));
 
-  /* 7. 商店 / 三档红蓝药 */
-  ok('红药价=点数', dl.potPrice('red', 'low') === 50 && dl.potPrice('red', 'mid') === 300 && dl.potPrice('red', 'high') === 1000);
-  ok('蓝药价=红×2', dl.potPrice('blue', 'low') === 100 && dl.potPrice('blue', 'mid') === 600 && dl.potPrice('blue', 'high') === 2000);
+  /* 7. 商店 / 红蓝罐 */
+  ok('红罐价=点数', dl.potPrice('red', 'low') === 50 && dl.potPrice('red', 'mid') === 300 && dl.potPrice('red', 'high') === 1000);
+  ok('蓝罐价=红×2', dl.potPrice('blue', 'low') === 100 && dl.potPrice('blue', 'mid') === 600 && dl.potPrice('blue', 'high') === 2000);
   dl.setGold(5000);
   const goldBefore = dl.state().gold;
-  const potBefore = dl.state().potsRed;
-  const blueBefore = dl.state().potsBlue;
+  const potBefore = dl.state().potPool.red;
+  const blueBefore = dl.state().potPool.blue;
   dl.buyPotion('red', 'low');
-  ok('买初级红药扣 50', dl.state().gold === goldBefore - 50, [goldBefore, dl.state().gold]);
-  ok('买初级红药 +1', dl.state().potsRed === potBefore + 1, [potBefore, dl.state().potsRed]);
+  ok('买初级红罐扣 50', dl.state().gold === goldBefore - 50, [goldBefore, dl.state().gold]);
+  ok('红罐 +50 点', dl.state().potPool.red === potBefore + 50, [potBefore, dl.state().potPool.red]);
   dl.buyPotion('blue', 'mid');
-  ok('买中级蓝药扣 600', dl.state().gold === goldBefore - 50 - 600);
-  ok('买中级蓝药 +1', dl.state().potsBlue === blueBefore + 1, [blueBefore, dl.state().potsBlue]);
+  ok('买中级蓝罐扣 600', dl.state().gold === goldBefore - 50 - 600);
+  ok('蓝罐 +300 点', dl.state().potPool.blue === blueBefore + 300, [blueBefore, dl.state().potPool.blue]);
   dl.P.hp = 10;
   dl.P.potionCd.red = 0;
-  dl.P.pots.red.low = 1;
-  dl.P.pots.red.mid = 1;
+  const redPool0 = dl.P.potPool.red;
+  const needRed = dl.maxHp() - 10;
   dl.drink('red');
-  ok('红药回 50 点', dl.P.hp === 60, dl.P.hp);
-  ok('优先消耗初级红', dl.P.pots.red.low === 0 && dl.P.pots.red.mid === 1, dl.P.pots.red);
+  ok('红罐回满', dl.P.hp === dl.maxHp(), [dl.P.hp, dl.maxHp()]);
+  ok('红罐按实际回复扣', dl.P.potPool.red === redPool0 - needRed, [redPool0, dl.P.potPool.red, needRed]);
   dl.P.mp = 0;
   dl.P.potionCd.blue = 0;
-  dl.P.pots.blue.high = 1;
   dl.drink('blue');
-  ok('高级蓝药回满（受上限）', dl.P.mp === dl.maxMp(), [dl.P.mp, dl.maxMp()]);
+  ok('蓝罐回满', dl.P.mp === dl.maxMp(), [dl.P.mp, dl.maxMp()]);
   const mig = dl.normalizePots(5);
   ok('旧药水数迁到初级红', mig.red.low === 5 && mig.blue.low === 0, mig);
 
@@ -310,7 +309,7 @@ try {
   ok('鸡精英 Lv2', e.lv === 2 && e.name.includes('精英'), [e.lv, e.name]);
   ok('鸡稀有 Lv3', r.lv === 3 && r.name.includes('稀有'), [r.lv, r.name]);
   ok('稀有血量 > 精英 > 普通', r.hp > e.hp && e.hp > n.hp, [n.hp, e.hp, r.hp]);
-  ok('图 1 共 4 种怪 + BOSS Lv10', DATA.MON.length === 4 && DATA.BOSS.lv === 10, [DATA.MON.length, DATA.BOSS.lv]);
+  ok('图 1 共 4 种怪 + BOSS Lv10', DATA.MON.filter((m) => m.lv <= 10).length === 4 && DATA.BOSS.lv === 10, [DATA.MON.length, DATA.BOSS.lv]);
 
   let rareHit = 0;
   for (let i = 0; i < 4000; i++) if (dl.rollGrade() === 'rare') rareHit++;
@@ -405,7 +404,7 @@ try {
     const g0 = dl.state().gold;
     dl.P.gold = Math.max(g0, cat[potIdx].price + 10);
     const pots0 = dl.potTotal('red');
-    ok('货架双击买药', dl.buyShopStock(potIdx) === true && dl.potTotal('red') === pots0 + 1, dl.potTotal('red'));
+    ok('货架双击买药', dl.buyShopStock(potIdx) === true && dl.potTotal('red') === pots0 + 50, dl.potTotal('red'));
     const eqIdx = cat.findIndex((x) => x.kind === 'equip' && x.buyId === 'sword');
     const bag0 = dl.P.bag.length;
     dl.P.gold = Math.max(dl.state().gold, cat[eqIdx].price + 10);
@@ -437,6 +436,33 @@ try {
   ok('40 级屠龙', (() => {
     const e = dl.makeEquip('weapon', 40, 'orange');
     return e.name === '屠龙' && e.ilvl === 40;
+  })());
+  ok('12 级怪掉 Lv.11 玄铁剑', (() => {
+    const e = dl.makeEquip('weapon', 12, 'white');
+    return e.ilvl === 11 && e.name === '玄铁剑';
+  })());
+  ok('20 级怪掉 Lv.20 赤血剑', (() => {
+    const e = dl.makeEquip('weapon', 20, 'white');
+    return e.ilvl === 20 && e.name === '赤血剑';
+  })());
+  ok('25 级怪掉 Lv.25 血饮', (() => {
+    const e = dl.makeEquip('weapon', 25, 'white');
+    return e.ilvl === 25 && e.name === '血饮';
+  })());
+  ok('1–30 级共 14 张单怪地图', DATA.ROOMS.length === 14, DATA.ROOMS.length);
+  ok('每房只刷一种怪', DATA.ROOMS.every((r) => (r.pool || []).length === 1),
+    DATA.ROOMS.filter((r) => (r.pool || []).length !== 1).map((r) => r.id));
+  ok('主城 3 个等级段传送门', dl.doors().length === 3
+    && dl.doors().map((d) => d.tierMin).join(',') === '1,10,20',
+    dl.doors().map((d) => d.name));
+  ok('房间等级覆盖到 30', DATA.ROOMS.some((r) => r.lvMax >= 30));
+  ok('古墓首领 Lv.25', (() => {
+    const r = DATA.ROOMS.find((x) => x.id === 'cave2');
+    return r && r.bossLv === 25 && r.bossName === '古墓尸王';
+  })());
+  ok('10–20 有山大王首领', (() => {
+    const r = DATA.ROOMS.find((x) => x.id === 'cave3');
+    return r && r.boss === true && r.bossLv === 20 && r.bossName === '山大王';
   })());
 
   /* 槽位等级解锁 + 掉落部位（R7.1b） */
@@ -630,26 +656,27 @@ try {
   ok('makeEnemy 带上 ai 和 statuses',
     madeChicken.ai === 'passive' && !!madeChicken.statuses, [madeChicken.ai, !!madeChicken.statuses]);
 
-  /* ============ 门与怪池：一道门一种怪 ============ */
+  /* ============ 房间与怪池：一张地图一种怪（BOSS 房除外） ============ */
   const ROOMS = DATA.ROOMS;
   const poolIds = (r) => (r.pool || []).slice().sort().join(',');
-  ok('门 1：鸡 + 稻草人', poolIds(ROOMS[0]) === 'chicken,scarecrow', poolIds(ROOMS[0]));
-  ok('门 2：稻草人 + 野狗', poolIds(ROOMS[1]) === 'dog,scarecrow', poolIds(ROOMS[1]));
-  ok('门 3：野猪 + 首领', poolIds(ROOMS[2]) === 'boar' && ROOMS[2].boss === true, [poolIds(ROOMS[2]), ROOMS[2].boss]);
+  ok('鸡房只刷鸡', poolIds(ROOMS.find((r) => r.id === 'field1')) === 'chicken');
+  ok('稻草人房只刷稻草人', poolIds(ROOMS.find((r) => r.id === 'field2')) === 'scarecrow');
+  ok('野狗房只刷野狗', poolIds(ROOMS.find((r) => r.id === 'field2b')) === 'dog');
+  ok('野猪洞有首领', poolIds(ROOMS.find((r) => r.id === 'cave1')) === 'boar' && ROOMS.find((r) => r.id === 'cave1').boss === true);
+  ok('每张地图只有一种怪', ROOMS.every((r) => (r.pool || []).length === 1));
 
   dl.setSeed(2468);
   dl.enterRoom('field1');
   const f1 = dl.enemies();
-  ok('门 1 只刷鸡/稻草人', f1.length > 0 && f1.every((e) => e.id === 'chicken' || e.id === 'scarecrow'),
+  ok('鸡房实际只刷鸡', f1.length > 0 && f1.every((e) => e.id === 'chicken'),
     f1.map((e) => e.id).join(','));
-  dl.enterRoom('field2');
+  dl.enterRoom('field2b');
   const f2 = dl.enemies();
-  ok('门 2 只刷稻草人/野狗', f2.length > 0 && f2.every((e) => e.id === 'scarecrow' || e.id === 'dog'),
+  ok('野狗房实际只刷野狗', f2.length > 0 && f2.every((e) => e.id === 'dog'),
     f2.map((e) => e.id).join(','));
-  ok('门 2 有野狗', f2.some((e) => e.id === 'dog'), f2.map((e) => e.id).join(','));
   dl.enterRoom('cave1');
   const f3 = dl.enemies();
-  ok('门 3 是野猪 + 首领', f3.some((e) => e.id === 'boar') && f3.some((e) => e.boss),
+  ok('野猪洞是野猪 + 首领', f3.some((e) => e.id === 'boar') && f3.some((e) => e.boss),
     f3.map((e) => e.id).join(','));
 
   /* ============ 等级差经验（R2.2c）：能刷鸡到 5 级，之后白打 ============ */

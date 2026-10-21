@@ -88,7 +88,7 @@
   }
 
   /* ---------- 主城 ---------- */
-  // 24×24 小村庄：左出生、右三个传送门、中间商人
+  // 24×24 小村庄：左出生、右侧一个传送门（进去后选房间）、中间商人
   function genHub(rooms) {
     const size = 24;
     const m = blank(size, size);
@@ -99,14 +99,18 @@
     // 中间一条石板路（视觉用，不挡路）
     for (let x = 2; x < size - 2; x++) m[12][x] = 0;
 
-    // 传送门：右侧竖排三个，按 rooms 顺序
-    const doors = [];
+    // 三个等级段的传送门：1–10 / 10–20 / 20–30，走上去选该段的房间
+    const tiers = [
+      { min: 1, max: 10, name: '1–10 级' },
+      { min: 10, max: 20, name: '10–20 级' },
+      { min: 20, max: 30, name: '20–30 级' },
+    ];
     const ys = [6, 12, 18];
-    for (let i = 0; i < Math.min(rooms.length, ys.length); i++) {
-      const d = { x: size - 2, y: ys[i], room: rooms[i].id, name: rooms[i].name, lv: rooms[i].lvMin };
+    const doors = tiers.map((t, i) => {
+      const d = { x: size - 2, y: ys[i], room: 'portal', name: t.name, tierMin: t.min, tierMax: t.max, lv: t.min };
       m[d.y][d.x] = 2;
-      doors.push(d);
-    }
+      return d;
+    });
 
     const npc = { x: 12, y: 12 };
     const spawn = { x: 3, y: 12 };

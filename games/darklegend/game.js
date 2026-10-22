@@ -3049,7 +3049,14 @@
     // 手机：捕获阶段持续尝试 resume，直到 running（只绑一次监听不够）
     if (typeof Sfx.bindAutoUnlock === 'function') Sfx.bindAutoUnlock(document);
     if (el.introBtn) {
-      el.introBtn.addEventListener('click', () => { Sfx.unlock(); Sfx.play('ui'); });
+      el.introBtn.addEventListener('click', () => { Sfx.unlock(); Sfx.play('test'); });
+    }
+    // 长按喇叭：未静音时也试听一声，方便排查手机无声
+    if (el.btnMute) {
+      el.btnMute.addEventListener('pointerdown', (e) => {
+        if (e.button && e.button !== 0) return;
+        Sfx.unlock();
+      });
     }
 
     el.btnMenu.addEventListener('click', () => {

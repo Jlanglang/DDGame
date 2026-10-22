@@ -1,157 +1,246 @@
-/* 豆豆暗黑传奇 · 音效（WebAudio 合成，零外部资源）
-   R15.6：掉落白嗒 / 蓝叮 / 黄叮— / 橙嗡—
-   静音键：localStorage darklegend-sfx-mute
-   手机：必须在用户手势里 resume；每次播前再补一次，避免 iOS 一直 suspended。
+/* 豆豆暗黑传奇 · 音效
+   主路径：合成短 WAV → HTMLAudioElement.play（手机/微信更稳）
+   辅：手势里顺带 resume WebAudio
+   R15.6 掉落分档；静音键 localStorage darklegend-sfx-mute
 */
 (function (global) {
   'use strict';
   const DL = (global.DL = global.DL || {});
   const MUTE_KEY = 'darklegend-sfx-mute';
+  const hasAudio = typeof global.Audio === 'function';
 
-  let AC = null;
-  let unlocked = false;
   let muted = false;
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* 隐私模式 */ }
 
-  // 手机外放偏小，整体略抬一档（仍远低于刺耳）
-  const VOL = 1.8;
+  let unlocked = false;
+  let AC = null;
+  const cache = Object.create(null);
+  const pool = [];
 
-  function ac() {
-    if (!AC) {
-      try {
-        const Ctx = global.AudioContext || global.webkitAudioContext;
-        if (!Ctx) return null;
-        AC = new Ctx();
-      } catch {
-        AC = null;
+  /* ---------- WAV 编码 ---------- */
+  function encodeWav(samples, sr) {
+    const n = samples.length;
+    const buf = new ArrayBuffer(44 + n * 2);
+    const v = new DataView(buf);
+    const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    wstr(0, 'RIFF');
+    v.setUint32(4, 36 + n * 2, true);
+    wstr(8, 'WAVE');
+    wstr(12, 'fmt ');
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true);
+    v.setUint32(28, sr * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    wstr(36, 'data');
+    v.setUint32(40, n * 2, true);
+    let o = 44;
+    for (let i = 0; i < n; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      o += 2;
+    }
+    const bytes = new Uint8Array(buf);
+    let b64;
+    if (typeof btoa === 'function') {
+      let bin = '';
+      const step = 0x8000;
+      for (let i = 0; i < bytes.length; i += step) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + step, bytes.length)));
       }
+      b64 = btoa(bin);
+    } else if (typeof Buffer !== 'undefined') {
+      b64 = Buffer.from(bytes).toString('base64');
+    } else {
+      b64 = '';
     }
-    return AC;
+    return 'data:audio/wav;base64,' + b64;
   }
 
-  function kickSilent(a) {
-    if (!a) return;
-    try {
-      // 短缓冲比 oscillator 在 iOS 上更稳
-      const n = Math.max(1, Math.floor(a.sampleRate * 0.04));
-      const buf = a.createBuffer(1, n, a.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < n; i++) data[i] = (i < 8 ? 0.001 : 0);
-      const src = a.createBufferSource();
-      const g = a.createGain();
-      g.gain.value = 0.001;
-      src.buffer = buf;
-      src.connect(g).connect(a.destination);
-      src.start(0);
-    } catch {
-      try {
-        const o = a.createOscillator();
-        const g = a.createGain();
-        g.gain.value = 0.001;
-        o.connect(g).connect(a.destination);
-        o.start();
-        o.stop(a.currentTime + 0.04);
-      } catch { /* 忽略 */ }
+  function synth(freq, dur, type, vol, slide) {
+    const sr = 22050;
+    const n = Math.max(1, Math.floor(sr * dur));
+    const out = new Float32Array(n);
+    vol = vol == null ? 0.35 : vol;
+    slide = slide || 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      const f = Math.max(40, freq + slide * (i / n));
+      const ph = 2 * Math.PI * f * t;
+      let s;
+      if (type === 'square') s = Math.sin(ph) > 0 ? 1 : -1;
+      else if (type === 'sawtooth') s = 2 * ((f * t) % 1) - 1;
+      else if (type === 'triangle') s = 1 - 4 * Math.abs(((f * t) % 1) - 0.5);
+      else s = Math.sin(ph);
+      const attack = Math.min(1, i / (sr * 0.008));
+      const release = Math.exp(-3.2 * t / Math.max(0.02, dur));
+      out[i] = s * vol * attack * release;
     }
+    return encodeWav(out, sr);
   }
 
-  function unlock() {
-    const a = ac();
-    if (!a) return false;
-    const done = () => {
-      kickSilent(a);
-      unlocked = a.state === 'running';
-    };
-    if (a.state === 'suspended') {
-      a.resume().then(done).catch(() => {});
-      // 手势同步窗口内再 kick 一次（部分 WebView resume 后仍要即时出声）
-      kickSilent(a);
-      return true;
-    }
-    done();
-    return unlocked;
+  function uriOf(freq, dur, type, vol, slide) {
+    const key = [freq, dur, type || 'sine', vol || 0, slide || 0].join('|');
+    if (!cache[key]) cache[key] = synth(freq, dur, type, vol, slide);
+    return cache[key];
   }
 
-  function ensureRunning() {
-    const a = ac();
-    if (!a) return null;
-    if (a.state === 'suspended') {
-      a.resume().catch(() => {});
-      kickSilent(a);
+  /* ---------- HTMLAudio ---------- */
+  function getAudio() {
+    if (!hasAudio) return null;
+    let a = pool.find((x) => x.paused || x.ended);
+    if (!a) {
+      a = new Audio();
+      a.preload = 'auto';
+      a.setAttribute('playsinline', 'true');
+      a.setAttribute('webkit-playsinline', 'true');
+      pool.push(a);
+      if (pool.length > 8) pool.shift();
     }
     return a;
   }
 
-  function tone(freq, dur, type, vol, slide, delay) {
-    if (muted) return;
-    const a = ensureRunning();
-    if (!a) return;
-    type = type || 'square';
-    vol = (vol == null ? 0.05 : vol) * VOL;
-    slide = slide || 0;
-    delay = delay || 0;
+  function playUri(uri, vol) {
+    if (muted || !uri || !hasAudio) return;
     try {
-      const t0 = a.currentTime + delay;
-      const o = a.createOscillator();
-      const g = a.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(Math.max(40, freq), t0);
-      if (slide) {
-        o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
+      const a = getAudio();
+      if (!a) return;
+      a.volume = Math.max(0, Math.min(1, vol == null ? 0.85 : vol));
+      a.src = uri;
+      const p = a.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => { unlocked = true; }).catch(() => {});
+      } else {
+        unlocked = true;
       }
-      g.gain.setValueAtTime(Math.max(0.0001, vol), t0);
-      g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur);
-      o.connect(g).connect(a.destination);
-      o.start(t0);
-      o.stop(t0 + dur + 0.02);
-    } catch { /* 忽略音频错误 */ }
+    } catch { /* 忽略 */ }
   }
 
-  /* ---- 具体音色 ---- */
+  function playTone(freq, dur, type, vol, slide) {
+    playUri(uriOf(freq, dur, type, vol, slide), 0.9);
+  }
+
+  function playSeq(steps) {
+    for (const s of steps) {
+      const delay = Math.round((s.delay || 0) * 1000);
+      const run = () => playTone(s.f, s.d, s.type, s.vol, s.slide);
+      if (delay <= 0) run();
+      else setTimeout(run, delay);
+    }
+  }
+
+  /* ---------- 解锁（静音 WAV + WebAudio resume） ---------- */
+  let silentUri = null;
+
+  function unlockWeb() {
+    try {
+      if (!AC) {
+        const Ctx = global.AudioContext || global.webkitAudioContext;
+        if (Ctx) AC = new Ctx();
+      }
+      if (!AC) return;
+      if (AC.state === 'suspended') AC.resume().catch(() => {});
+      const n = Math.max(1, Math.floor(AC.sampleRate * 0.02));
+      const buf = AC.createBuffer(1, n, AC.sampleRate);
+      const src = AC.createBufferSource();
+      src.buffer = buf;
+      src.connect(AC.destination);
+      src.start(0);
+    } catch { /* 忽略 */ }
+  }
+
+  function unlock() {
+    unlockWeb();
+    if (!hasAudio) return unlocked;
+    if (!silentUri) {
+      const sr = 22050;
+      const n = Math.floor(sr * 0.05);
+      const z = new Float32Array(n);
+      for (let i = 0; i < 16 && i < n; i++) z[i] = 0.001;
+      silentUri = encodeWav(z, sr);
+    }
+    try {
+      const a = getAudio();
+      if (!a) return unlocked;
+      a.volume = 0.02;
+      a.src = silentUri;
+      const p = a.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => { unlocked = true; }).catch(() => {});
+      } else {
+        unlocked = true;
+      }
+    } catch { /* 忽略 */ }
+    return unlocked;
+  }
+
+  /* ---------- 音色 ---------- */
   const SFX = {
-    dropWhite() { tone(180, 0.05, 'square', 0.04, -40); },
-    dropBlue() { tone(880, 0.09, 'sine', 0.055, -200); },
+    dropWhite() { playTone(200, 0.06, 'square', 0.5, -40); },
+    dropBlue() { playTone(900, 0.1, 'sine', 0.55, -220); },
     dropYellow() {
-      tone(988, 0.12, 'sine', 0.06, -120);
-      tone(1319, 0.18, 'sine', 0.05, -80, 0.06);
+      playSeq([
+        { f: 988, d: 0.12, type: 'sine', vol: 0.55 },
+        { f: 1319, d: 0.16, type: 'sine', vol: 0.5, delay: 0.07 },
+      ]);
     },
     dropOrange() {
-      tone(110, 0.45, 'sawtooth', 0.08, -30);
-      tone(220, 0.35, 'triangle', 0.055, 40, 0.08);
-      tone(330, 0.25, 'sine', 0.045, 0, 0.18);
+      playSeq([
+        { f: 120, d: 0.4, type: 'sawtooth', vol: 0.6 },
+        { f: 240, d: 0.3, type: 'triangle', vol: 0.45, delay: 0.08 },
+        { f: 360, d: 0.22, type: 'sine', vol: 0.4, delay: 0.16 },
+      ]);
     },
-
-    hit() { tone(210, 0.06, 'sawtooth', 0.04, -100); },
-    kill() { tone(160, 0.11, 'square', 0.05, -90); },
-    hurt() { tone(130, 0.15, 'sawtooth', 0.06, -50); },
-    die() { tone(90, 0.55, 'sawtooth', 0.08, -50); },
+    hit() { playTone(220, 0.07, 'sawtooth', 0.48, -100); },
+    kill() { playTone(170, 0.12, 'square', 0.55, -90); },
+    hurt() { playTone(140, 0.16, 'sawtooth', 0.55, -50); },
+    die() { playTone(95, 0.5, 'sawtooth', 0.6, -45); },
     level() {
-      tone(523, 0.1, 'triangle', 0.065);
-      tone(659, 0.1, 'triangle', 0.065, 0, 0.09);
-      tone(784, 0.18, 'triangle', 0.065, 0, 0.18);
+      playSeq([
+        { f: 523, d: 0.1, type: 'triangle', vol: 0.55 },
+        { f: 659, d: 0.1, type: 'triangle', vol: 0.55, delay: 0.09 },
+        { f: 784, d: 0.16, type: 'triangle', vol: 0.55, delay: 0.18 },
+      ]);
     },
-    potion() { tone(420, 0.09, 'sine', 0.05, 180); },
-    gold() { tone(1200, 0.06, 'sine', 0.04, -400); },
-    skill() { tone(260, 0.22, 'sawtooth', 0.05, 480); },
+    potion() { playTone(440, 0.1, 'sine', 0.5, 180); },
+    gold() { playTone(1200, 0.07, 'sine', 0.45, -400); },
+    skill() { playTone(280, 0.22, 'sawtooth', 0.5, 450); },
     fire() {
-      tone(180, 0.12, 'sawtooth', 0.055, 200);
-      tone(320, 0.2, 'sawtooth', 0.04, 100, 0.08);
+      playSeq([
+        { f: 190, d: 0.12, type: 'sawtooth', vol: 0.55 },
+        { f: 320, d: 0.18, type: 'sawtooth', vol: 0.45, delay: 0.08 },
+      ]);
     },
     elite() {
-      tone(440, 0.1, 'triangle', 0.06);
-      tone(554, 0.14, 'triangle', 0.055, 0, 0.08);
+      playSeq([
+        { f: 440, d: 0.1, type: 'triangle', vol: 0.55 },
+        { f: 554, d: 0.12, type: 'triangle', vol: 0.5, delay: 0.08 },
+      ]);
     },
     rare() {
-      tone(523, 0.12, 'sine', 0.065);
-      tone(784, 0.16, 'sine', 0.06, 0, 0.1);
-      tone(1047, 0.2, 'sine', 0.055, 0, 0.2);
+      playSeq([
+        { f: 523, d: 0.12, type: 'sine', vol: 0.55 },
+        { f: 784, d: 0.14, type: 'sine', vol: 0.52, delay: 0.1 },
+        { f: 1047, d: 0.18, type: 'sine', vol: 0.5, delay: 0.2 },
+      ]);
     },
     boss() {
-      tone(70, 0.4, 'sawtooth', 0.09, -15);
-      tone(110, 0.28, 'square', 0.055, 0, 0.12);
+      playSeq([
+        { f: 80, d: 0.4, type: 'sawtooth', vol: 0.65 },
+        { f: 120, d: 0.28, type: 'square', vol: 0.5, delay: 0.12 },
+      ]);
     },
-    ui() { tone(600, 0.04, 'sine', 0.03); },
-    pickup() { tone(700, 0.07, 'triangle', 0.045, 200); },
+    ui() { playTone(660, 0.09, 'sine', 0.55); },
+    pickup() { playTone(720, 0.08, 'triangle', 0.5, 200); },
+    test() {
+      playSeq([
+        { f: 523, d: 0.16, type: 'sine', vol: 0.7 },
+        { f: 659, d: 0.16, type: 'sine', vol: 0.7, delay: 0.12 },
+        { f: 784, d: 0.22, type: 'sine', vol: 0.7, delay: 0.24 },
+      ]);
+    },
   };
 
   const DROP_BY_RARITY = {
@@ -162,6 +251,7 @@
   };
 
   function play(name) {
+    if (muted) return;
     if (!unlocked) unlock();
     const fn = SFX[name];
     if (typeof fn === 'function') fn();
@@ -175,9 +265,15 @@
   function isUnlocked() { return unlocked; }
 
   function setMuted(v) {
+    const was = muted;
     muted = !!v;
     try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* 忽略 */ }
-    if (!muted) unlock();
+    if (was && !muted) {
+      unlock();
+      // 打开音效时强制试听，方便确认手机能响
+      const fn = SFX.test;
+      if (fn) fn();
+    }
     return muted;
   }
 
@@ -185,7 +281,6 @@
     return setMuted(!muted);
   }
 
-  // 绑在捕获阶段：任何触摸/点击都尝试解锁（直到 running）
   function bindAutoUnlock(target) {
     if (!target || typeof target.addEventListener !== 'function') return;
     const tryUnlock = () => {
@@ -207,6 +302,20 @@
       });
     }
   }
+
+  // 预热常用 cache（不播）
+  try {
+    [
+      [220, 0.07, 'sawtooth', 0.48, -100],
+      [170, 0.12, 'square', 0.55, -90],
+      [660, 0.09, 'sine', 0.55, 0],
+      [200, 0.06, 'square', 0.5, -40],
+      [900, 0.1, 'sine', 0.55, -220],
+      [1200, 0.07, 'sine', 0.45, -400],
+      [440, 0.1, 'sine', 0.5, 180],
+      [523, 0.16, 'sine', 0.7, 0],
+    ].forEach((s) => { uriOf(s[0], s[1], s[2], s[3], s[4]); });
+  } catch { /* 忽略 */ }
 
   DL.Sfx = {
     unlock, play, drop, isMuted, isUnlocked, setMuted, toggleMute, bindAutoUnlock,

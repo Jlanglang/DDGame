@@ -513,7 +513,6 @@
     b.x = best.x;
     b.y = best.y;
     enemies.push(b);
-    Sfx.play('boss');
     log('👹 首领刷新了！不主动追人——去手打换装，再开挂机升级。', 'bad');
     syncHud();
     return b;
@@ -559,7 +558,6 @@
 
   // 稀有刷出：只提示，不关挂机（玩家自己关再去手打）
   function onRareSpawned(e) {
-    Sfx.play('rare');
     log(`★ 稀有的${e.name}出现了！挂机不会打它——关掉「挂机」再去手打拿 A 装。`, 'good');
     syncHud();
   }
@@ -606,7 +604,6 @@
     if (e) {
       // 先重掷保底，再提示（还差 = 新阈值）
       rollEliteThreshold();
-      Sfx.play('elite');
       log(`精英${e.name}加入战场（阈值 ${prevNeed}）· 保底已重置，还差 ${eliteLeft()}。`, 'good');
       syncHud();
     } else {
@@ -890,6 +887,7 @@
     if (cur) P.bag.push(cur);
     setWorn(eq.slot, eq);
     P.hp = Math.min(P.hp, maxHp());
+    Sfx.play('equip');
     log(`装备 ${eq.name}（${(RARITY[eq.rarity] || RARITY.white).name}）。`, 'good');
     if (!el.char.hidden) renderChar();
     syncHud();
@@ -1491,7 +1489,6 @@
     e.hp -= dmg;
     engage(e);
     S.onHit(e);                 // R5.8：眩晕受击解除
-    Sfx.play(e.hp <= 0 ? 'kill' : 'hit');
     addFloater(e.x, e.y - 0.4, `-${dmg}`, '#ffd166');
     log(`${tag}对${e.name}造成 <b>${dmg}</b> 伤害，剩余 ${Math.max(0, Math.ceil(e.hp))}。`);
     if (e.hp <= 0) kill(e);
@@ -1517,7 +1514,6 @@
     P.exp += expGain;
     P.gold += goldGain;
     P.kills++;
-    if (goldGain > 0) Sfx.play('gold');
     let gapTip = '';
     if (isNormal && gap >= 10) gapTip = '（高 10 级：普通怪无金币）';
     else if (isNormal && gap >= 5) gapTip = '（高 5 级：普通怪金币减半）';
@@ -1535,6 +1531,7 @@
       queueNormalRespawn();
     }
     if (e.boss && currentRoom) roomClearedAt[currentRoom] = clock;
+    Sfx.play('kill');
 
     // 装备掉落：见 rollKillEquipDrops；掉出来的进地面袋，不直接进包。
     const drops = rollKillEquipDrops(e, crushed);
@@ -1550,7 +1547,6 @@
       P.hp = maxHp();
       P.mp = maxMp();
       leveledUp = true;
-      Sfx.play('level');
       log(`升级！现在是 Lv.${P.lv}，HP/MP 已回满。`, 'good');
     }
     if (e.boss) win();
@@ -1588,7 +1584,6 @@
         log('已经学会半月弯刀了，书页化作飞灰。');
       } else {
         P.skills.half = true;
-        Sfx.play('level');
         log('学会了《半月弯刀》！按 1 释放。', 'good');
       }
     } else {
@@ -1596,7 +1591,6 @@
         log('已经学会烈火剑法了，书页化作飞灰。');
       } else {
         P.skills.fire = true;
-        Sfx.play('level');
         log('学会了《烈火剑法》！按 2 释放。', 'good');
       }
     }
@@ -1705,7 +1699,6 @@
         log('地上旧的袋子散落了。');
       }
     }
-    if (!opts.silent) Sfx.drop(bagBestRarityKey(bag));
     return bag;
   }
 
@@ -1717,7 +1710,6 @@
     pickBag = bag;
     renderPick();
     el.lootPick.hidden = false;
-    Sfx.play('pickup');
     log(`打开地上的${bag.relic ? '遗物袋' : '钱袋'}：${bag.items.length} 件装备，挑一挑。`, 'good');
     syncHud();
     save();
@@ -1912,7 +1904,6 @@
         }
         P.hp -= dmg;
         S.onHit(P);                                                   // R5.8：眩晕受击解除
-        Sfx.play('hurt');
         addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
         hurtFlash();
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
@@ -1973,7 +1964,6 @@
   function die() {
     over = true;
     P.hp = 0;
-    Sfx.play('die');
     P.exp = Math.floor(P.exp * (1 - (DEATH.expLoss || 0.05)));
     // R3.19：按概率掉一件身上穿的装备，留在倒下的地方；回去能捡回来
     let lost = null;
@@ -2316,7 +2306,6 @@
     P.cd.half = 2;
     halfFlash = 1;
     halfFlashCells = halfMoonCells();
-    Sfx.play('skill');
     const targets = halfMoonTargets();
     for (const e of targets) strike(e, 1.1, '半月');
     if (!targets.length) log('半月劈在空气里。');
@@ -2331,7 +2320,6 @@
     if (!t) { log('身边没有敌人。'); return false; }
     P.mp -= 12;
     P.cd.fire = 3;
-    Sfx.play('fire');
     strike(t, 2.2, '烈火');
     // R4.1：烈火剑法 = 单体 ×2.2 + 灼烧 3 回合（R3.12 灼烧 = 攻击 ×15% × 层数）
     if (t.hp > 0) {
@@ -2360,7 +2348,6 @@
     if (kind === 'blue') P.mp = Math.min(max, P.mp + got);
     else P.hp = Math.min(max, P.hp + got);
     P.potionCd[kind] = POTIONS.cd || 3;
-    Sfx.play('potion');
     addFloater(P.x, P.y - 0.4, `+${got}${kind === 'blue' ? 'MP' : ''}`, kind === 'blue' ? '#6ab0ff' : '#7ee0a0');
     log(`喝下${label} ${got} 点，罐子剩 ${formatAmount(P.potPool[kind])}。`, 'good');
     return true;
@@ -3088,7 +3075,6 @@
     if (el.introBtn) {
       el.introBtn.addEventListener('click', () => {
         if (!Sfx.isUnlocked()) Sfx.enable();
-        else Sfx.play('ui');
       });
     }
 

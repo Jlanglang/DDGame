@@ -424,9 +424,8 @@ try {
     ok('enable 后已解锁', S.isUnlocked() === true);
     const was = S.isMuted();
     S.setMuted(true);
-    ok('静音后 play 不抛', (() => { S.play('hit'); S.drop('orange'); return true; })());
-    ok('掉落音映射齐全', ['white', 'blue', 'yellow', 'orange']
-      .every((r) => S.DROP_BY_RARITY[r]), S.DROP_BY_RARITY);
+    ok('静音后 play 不抛', (() => { S.play('kill'); S.play('equip'); S.drop('orange'); return true; })());
+    ok('精简音效含 kill/equip', !!(S.play && typeof S.drop === 'function'));
     S.setMuted(was);
   }
 

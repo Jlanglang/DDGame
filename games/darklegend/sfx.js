@@ -164,11 +164,11 @@
       const o = AC.createOscillator();
       const g = AC.createGain();
       o.type = 'sine';
-      o.frequency.setValueAtTime(392, t0);
-      o.frequency.exponentialRampToValueAtTime(330, t0 + 0.22);
+      o.frequency.setValueAtTime(660, t0);
+      o.frequency.exponentialRampToValueAtTime(520, t0 + 0.18);
       g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
       o.connect(g).connect(AC.destination);
       o.start(t0);
       o.stop(t0 + 0.3);
@@ -188,7 +188,7 @@
     // HTMLAudio 同步播一声（Blob）
     if (hasAudio && audible) {
       try {
-        const url = blobUrlOf(392, 0.2, 'sine', 0.35, -40);
+        const url = blobUrlOf(660, 0.16, 'sine', 0.3, -50);
         const a = new Audio();
         a.playsInline = true;
         a.setAttribute('playsinline', 'true');
@@ -223,70 +223,28 @@
     return unlocked;
   }
 
-  // 音色：多用 sine/triangle，少方波锯齿；音高偏低，听感柔一点
+  /* 精简音效（偏女声、柔和）：
+     kill = 怪倒下短吟；equip = 换装轻叮；test = 开声音确认 */
   const SFX = {
-    dropWhite() { playTone(220, 0.06, 'sine', 0.35, -30); },
-    dropBlue() { playTone(523, 0.1, 'sine', 0.4, -80); },
-    dropYellow() {
+    // 怪死亡：偏高、短、软，像轻轻「呀」一下
+    kill() {
       playSeq([
-        { f: 587, d: 0.1, type: 'sine', vol: 0.4 },
-        { f: 740, d: 0.12, type: 'sine', vol: 0.35, delay: 0.07 },
+        { f: 720, d: 0.07, type: 'sine', vol: 0.28, slide: -80 },
+        { f: 540, d: 0.1, type: 'sine', vol: 0.22, slide: -60, delay: 0.05 },
       ]);
     },
-    dropOrange() {
+    // 换装：轻柔两音，像收拾衣甲
+    equip() {
       playSeq([
-        { f: 196, d: 0.28, type: 'triangle', vol: 0.45 },
-        { f: 247, d: 0.2, type: 'sine', vol: 0.35, delay: 0.1 },
+        { f: 620, d: 0.06, type: 'sine', vol: 0.26 },
+        { f: 780, d: 0.09, type: 'sine', vol: 0.24, delay: 0.05 },
       ]);
     },
-    hit() { playTone(180, 0.06, 'triangle', 0.32, -60); },
-    kill() { playTone(160, 0.1, 'sine', 0.38, -50); },
-    hurt() { playTone(150, 0.12, 'triangle', 0.36, -40); },
-    die() { playTone(110, 0.35, 'sine', 0.4, -30); },
-    level() {
-      playSeq([
-        { f: 392, d: 0.09, type: 'sine', vol: 0.38 },
-        { f: 494, d: 0.09, type: 'sine', vol: 0.38, delay: 0.09 },
-        { f: 587, d: 0.14, type: 'sine', vol: 0.36, delay: 0.18 },
-      ]);
-    },
-    potion() { playTone(349, 0.1, 'sine', 0.36, 60); },
-    gold() { playTone(660, 0.07, 'sine', 0.32, -120); },
-    skill() { playTone(262, 0.16, 'triangle', 0.36, 120); },
-    fire() {
-      playSeq([
-        { f: 196, d: 0.1, type: 'triangle', vol: 0.38 },
-        { f: 247, d: 0.12, type: 'sine', vol: 0.32, delay: 0.07 },
-      ]);
-    },
-    elite() {
-      playSeq([
-        { f: 349, d: 0.09, type: 'sine', vol: 0.38 },
-        { f: 440, d: 0.1, type: 'sine', vol: 0.34, delay: 0.08 },
-      ]);
-    },
-    rare() {
-      playSeq([
-        { f: 392, d: 0.1, type: 'sine', vol: 0.4 },
-        { f: 523, d: 0.12, type: 'sine', vol: 0.36, delay: 0.09 },
-      ]);
-    },
-    boss() {
-      playSeq([
-        { f: 98, d: 0.28, type: 'triangle', vol: 0.42 },
-        { f: 123, d: 0.2, type: 'sine', vol: 0.34, delay: 0.1 },
-      ]);
-    },
-    ui() { playTone(440, 0.08, 'sine', 0.32); },
-    pickup() { playTone(523, 0.08, 'sine', 0.34, 80); },
-    test() { playTone(392, 0.18, 'sine', 0.4); },
+    test() { playTone(660, 0.14, 'sine', 0.3, -40); },
   };
 
   const DROP_BY_RARITY = {
-    white: 'dropWhite',
-    blue: 'dropBlue',
-    yellow: 'dropYellow',
-    orange: 'dropOrange',
+    white: 'test', blue: 'test', yellow: 'test', orange: 'test',
   };
 
   function play(name) {
@@ -295,9 +253,8 @@
     if (typeof fn === 'function') fn();
   }
 
-  function drop(rarity) {
-    play(DROP_BY_RARITY[rarity] || 'dropWhite');
-  }
+  // 掉落音已停用；保留 API 以免旧调用报错
+  function drop() { /* no-op */ }
 
   function isMuted() { return muted; }
   function isUnlocked() { return unlocked; }

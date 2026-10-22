@@ -111,6 +111,40 @@
     </div>
   </div>
 
+  <div class="sheet" id="bookShop" hidden>
+    <div class="sheet-card">
+      <div class="sheet-head"><h3>技能书商人</h3><span class="sheet-gold" id="bookShopGold">0</span></div>
+      <p class="menu-help">半月弯刀 3 万，烈火剑法 10 万；已学会不再出售。</p>
+      <div class="book-shop-list" id="bookShopList"></div>
+      <button type="button" class="ghost" id="bookShopClose">离开</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="trial" hidden>
+    <div class="sheet-card">
+      <div class="sheet-head"><h3>村长</h3><span id="trialRound">第 1 轮</span></div>
+      <div class="trial-mode" id="trialModePick">
+        <button type="button" data-trial-mode="gear">我想要装备</button>
+        <button type="button" data-trial-mode="exp">我想要经验</button>
+      </div>
+      <p class="menu-help" id="trialDesc">暂无任务</p>
+      <p class="menu-help" id="trialProg">进度 0/0</p>
+      <p class="menu-help" id="trialReward">奖励：</p>
+      <div class="trial-actions">
+        <button type="button" id="trialTurnIn">交任务</button>
+        <button type="button" class="ghost" id="trialAbandon">放弃</button>
+      </div>
+      <div class="trial-orbs">
+        <span id="trialExpOrbs">经验球 ×0</span>
+        <button type="button" id="trialUseOrb">使用</button>
+      </div>
+      <p class="menu-help" id="trialMats">暂无材料</p>
+      <button type="button" class="ghost" id="trialSellMats">卖出材料</button>
+      <button type="button" class="ghost" id="trialSwitch" hidden>换奖励</button>
+      <button type="button" class="ghost" id="trialClose">离开</button>
+    </div>
+  </div>
+
   <div class="sheet" id="lootPick" hidden>
     <div class="sheet-card">
       <h3 id="pickTitle">地上的钱袋</h3>

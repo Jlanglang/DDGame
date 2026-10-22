@@ -114,8 +114,10 @@
     });
 
     const npc = { x: 12, y: 12 };
+    const bookNpc = { x: 8, y: 8 };
+    const trialNpc = { x: 16, y: 8 };
     const spawn = { x: 3, y: 12 };
-    return { map: m, doors, npc, spawn };
+    return { map: m, doors, npc, bookNpc, trialNpc, spawn };
   }
 
   /* ---------- 小世界房间 ---------- */

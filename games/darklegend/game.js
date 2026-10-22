@@ -58,6 +58,8 @@
     'logWrap', 'logToggle', 'dpad', 'stickBase', 'stickKnob',
     'over', 'overK', 'overT', 'overS', 'overBtn', 'overAlt',
     'shop', 'shopGold', 'shopClose', 'shopStock', 'shopBag',
+    'bookShop', 'bookShopGold', 'bookShopList', 'bookShopClose',
+    'trial', 'trialRound', 'trialDesc', 'trialProg', 'trialReward', 'trialTurnIn', 'trialAbandon', 'trialClose', 'trialExpOrbs', 'trialUseOrb', 'trialMats', 'trialSellMats', 'trialModePick', 'trialSwitch',
     'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
     'btnChar', 'char', 'charLv', 'charExpFill', 'charExpText', 'charPower', 'charGold',
     'charTabs', 'paneGear', 'paneBag',
@@ -69,6 +71,8 @@
     'pStatus',
     'lootPick', 'pickTitle', 'pickHint', 'pickList', 'pickAll', 'pickClose',
   ].forEach((id) => { el[id] = document.getElementById(id); });
+  if (el.bookShop) el.bookShop.hidden = true;
+  if (el.trial) el.trial.hidden = true;
 
   const {
     rand, randi, clamp, roll, key, dist, mulberry32, randomSeed,
@@ -116,6 +120,10 @@
   const WEAPON_NAMES = D.WEAPON_NAMES;
   const ARMOR_NAMES = D.ARMOR_NAMES;
   const SHOP = D.SHOP;
+  const BOOK_SHOP = D.BOOK_SHOP || {};
+  const MATS = D.MATS || {};
+  const MAT_DROP_P = D.MAT_DROP_P != null ? D.MAT_DROP_P : 0.1;
+  const TRIAL = D.TRIAL || {};
   const SLOT_IDS = EQUIP_SLOTS.map((s) => s.id);
   const slotMeta = (id) => EQUIP_SLOTS.find((s) => s.id === id) || { id, name: id, group: 'armor', unlock: 0, ico: '?' };
   const slotUnlocked = (id, lv) => (lv != null ? lv : P.lv) >= (slotMeta(id).unlock || 0);
@@ -209,6 +217,12 @@
     townScrolls: 0,
     potionCd: { red: 0, blue: 0 },
     kills: 0,
+    mats: {},                               // 材料 id -> 数量（堆叠）
+    expOrbs: 0,                             // 经验球（30 级前使用升 1 级）
+    trial: null,                            // 当前试炼任务
+    trialMode: null,                        // 'gear' 要装备 / 'exp' 要经验
+    trialRound: 1,                          // 试炼轮次
+    trialStage: 0,                          // 本轮已完成次数 0-2
     statuses: {},                           // R5：中毒 / 灼烧 / 眩晕 / 麻痹（见 status.js）
   };
 
@@ -227,6 +241,8 @@
   let seen = new Set();
   let enemies = [];
   let npc = null;
+  let bookNpc = null;
+  let trialNpc = null;
   let inCave = false;
   let turn = 0;
   let over = false;
@@ -279,7 +295,7 @@
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
   // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
   const visible = () => true;
-  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden);
+  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden) || (el.bookShop && el.bookShop.hidden === false) || (el.trial && el.trial.hidden === false);
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
@@ -328,6 +344,8 @@
     over = false;
     villagePos = { x: h.spawn.x, y: h.spawn.y };
     npc = h.npc;
+    bookNpc = h.bookNpc;
+    trialNpc = h.trialNpc;
     doors = h.doors;
     door = doors[0] || { x: 0, y: 0 };
     let placed = false;
@@ -424,6 +442,8 @@
     currentRoom = roomId;
     over = false;
     npc = null;
+    bookNpc = null;
+    trialNpc = null;
     P.x = r.spawn.x;
     P.y = r.spawn.y;
     back = r.exit;
@@ -828,7 +848,8 @@
   // 怪等级开放可掉部位；权重 武器 < 首饰 < 防具
   function rollDropSlot(monsterLv) {
     const lv = Math.max(1, monsterLv | 0);
-    const pool = EQUIP_SLOTS.filter((s) => lv >= (s.unlock || 0));
+    // 掉落解锁看 dropAt（如项链/耳环 25 级怪就掉，但玩家 30 级才能穿）
+    const pool = EQUIP_SLOTS.filter((s) => lv >= (s.dropAt != null ? s.dropAt : (s.unlock || 0)));
     if (!pool.length) return 'weapon';
     let total = 0;
     const weights = pool.map((s) => {
@@ -1500,11 +1521,16 @@
   function nearShop() {
     return !!npc && dist(npc, P) <= 1;
   }
+  function nearBookShop() {
+    return !!bookNpc && dist(bookNpc, P) <= 1;
+  }
 
-  // 可交互目标：目前主城商人；以后门卫等可扩
+  // 可交互目标：商人 / 技能书商人
   function interactTarget() {
     if (over || uiOpen()) return null;
     if (nearShop()) return { kind: 'shop', name: '商人' };
+    if (nearBookShop()) return { kind: 'bookShop', name: '技能书商人' };
+    if (nearTrial()) return { kind: 'trial', name: '村长' };
     return null;
   }
 
@@ -1525,6 +1551,14 @@
     }
     if (t.kind === 'shop') {
       openShop();
+      return true;
+    }
+    if (t.kind === 'bookShop') {
+      openBookShop();
+      return true;
+    }
+    if (t.kind === 'trial') {
+      openTrial();
       return true;
     }
     return false;
@@ -1556,6 +1590,7 @@
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         v: 4, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         pots: P.pots, potPool: P.potPool, ...gear, kills: P.kills,
+        mats: P.mats, expOrbs: P.expOrbs, trial: P.trial, trialMode: P.trialMode, trialRound: P.trialRound, trialStage: P.trialStage,
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot, autoMp: P.autoMp,
         autoTown: P.autoTown, townScrolls: P.townScrolls,
         skills: P.skills,
@@ -1585,6 +1620,12 @@
       P.exp = Math.max(0, s.exp || 0);
       P.gold = Math.max(0, s.gold || 0);
       P.pots = normalizePots(s.pots != null ? s.pots : s.potions);
+      P.mats = (s.mats && typeof s.mats === 'object') ? s.mats : {};
+      P.expOrbs = Number.isFinite(s.expOrbs) ? s.expOrbs : 0;
+      P.trial = s.trial || null;
+      P.trialMode = s.trialMode === 'gear' || s.trialMode === 'exp' ? s.trialMode : null;
+      P.trialRound = Number.isFinite(s.trialRound) ? s.trialRound : 1;
+      P.trialStage = Number.isFinite(s.trialStage) ? s.trialStage : 0;
       P.potPool = {
         red: s.potPool && Number.isFinite(s.potPool.red) ? s.potPool.red : 100000,
         blue: s.potPool && Number.isFinite(s.potPool.blue) ? s.potPool.blue : 100000,
@@ -1673,6 +1714,13 @@
       P.potPool[kind] = (P.potPool[kind] || 0) + amt;
       log(`罐子补了 ${amt} 点${blue ? '蓝' : '红'}（剩 ${formatAmount(P.potPool[kind])}）。`, 'good');
     }
+    // 材料：10% 自动拾取、堆叠
+    if (e.mat && Math.random() < MAT_DROP_P) {
+      P.mats[e.mat] = (P.mats[e.mat] || 0) + 1;
+      const mn = (MATS[e.mat] && MATS[e.mat].name) || e.mat;
+      log(`自动拾取 ${mn} ×1（共 ${P.mats[e.mat]}）。`, 'good');
+    }
+    onTrialKill(e);
     if (!e.boss && !e.elite && !e.rare) {
       onNormalKillProgress();
       queueNormalRespawn();
@@ -1699,6 +1747,241 @@
     if (e.boss) win();
   }
 
+  /* ---------------- 村长 ---------------- */
+  function onTrialKill(e) {
+    const t = P.trial;
+    if (!t) return;
+    if (t.type === 'kill' && e.id === t.target) t.prog = (t.prog || 0) + 1;
+    else if (t.type === 'boss' && e.boss && String(e.lv) === String(t.target)) t.prog = (t.prog || 0) + 1;
+  }
+
+  function trialDone() {
+    const t = P.trial;
+    if (!t) return false;
+    if (t.type === 'collect') return (P.mats[t.target] || 0) >= t.need;
+    return (t.prog || 0) >= t.need;
+  }
+
+  function trialProgress() {
+    const t = P.trial;
+    if (!t) return 0;
+    if (t.type === 'collect') return Math.min(t.need, P.mats[t.target] || 0);
+    return Math.min(t.need, t.prog || 0);
+  }
+
+  function trialDesc() {
+    const t = P.trial;
+    if (!t) return '村长正在准备任务。';
+    if (t.type === 'collect') return `收集 ${(MATS[t.target] && MATS[t.target].name) || t.target} ×${t.need}`;
+    if (t.type === 'boss') return `击败 ${t.name} ×${t.need}`;
+    return `击杀 ${t.name} ×${t.need}`;
+  }
+
+  function trialMode() {
+    return P.trialMode === 'gear' ? 'gear' : 'exp';
+  }
+
+  function chooseTrialMode(mode) {
+    P.trialMode = mode === 'gear' ? 'gear' : 'exp';
+    P.trial = null;
+    rollTrialTask();
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+  }
+
+  function resetTrialMode() {
+    P.trialMode = null;
+    P.trial = null;
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+  }
+
+  function rollTrialTask() {
+    const stage = Math.min(TRIAL.stages || 3, (P.trialStage || 0) + 1);
+    const mode = trialMode();
+    // 装备路线：怪比玩家低（难度低）；经验路线：怪在当前等级附近
+    let pool;
+    if (mode === 'gear') {
+      pool = MON.filter((m) => m.mat
+        && m.lv <= Math.max(1, P.lv - 1) && m.lv >= Math.max(1, P.lv - 8));
+    } else {
+      pool = MON.filter((m) => m.mat
+        && m.lv >= Math.max(1, P.lv - 1) && m.lv <= P.lv + 2);
+    }
+    const list = pool.length ? pool : MON.filter((m) => m.mat);
+    const mon = list[randi(0, list.length - 1)];
+    if (mode === 'exp' && stage === 3 && P.lv >= 10 && Math.random() < 0.35) {
+      const bosses = (D.ROOMS || []).filter((r) => r.boss
+        && r.bossLv <= P.lv + 5 && r.bossLv >= Math.max(1, P.lv - 10));
+      if (bosses.length) {
+        const b = bosses[randi(0, bosses.length - 1)];
+        P.trial = { type: 'boss', target: String(b.bossLv), need: 1, prog: 0, stage, name: b.bossName || '首领' };
+        return P.trial;
+      }
+    }
+    const type = Math.random() < 0.5 ? 'collect' : 'kill';
+    const need = type === 'collect'
+      ? (TRIAL.collectNeed || [3, 6, 10])[stage - 1]
+      : (TRIAL.killNeed || [5, 10, 15])[stage - 1];
+    P.trial = { type, target: mon.id, need, prog: 0, stage, name: mon.name };
+    return P.trial;
+  }
+
+  function trialReward() {
+    const stage = (P.trial && P.trial.stage) || 1;
+    const pct = (TRIAL.rewardPct || [0.04, 0.06, 0.09])[stage - 1] || 0.04;
+    const gold = (TRIAL.goldBase || 100) + P.lv * (TRIAL.goldPerLv || 20);
+    return {
+      exp: trialMode() === 'exp' ? Math.round(needExp() * pct) : 0,
+      gold: trialMode() === 'gear'
+        ? Math.round(gold * (TRIAL.gearGoldMul != null ? TRIAL.gearGoldMul : 0.5))
+        : gold,
+    };
+  }
+
+  function turnInTrial() {
+    const t = P.trial;
+    if (!t) { rollTrialTask(); return false; }
+    if (!trialDone()) { log('任务还没完成。', 'bad'); return false; }
+    if (t.type === 'collect') {
+      P.mats[t.target] = (P.mats[t.target] || 0) - t.need;
+      if (P.mats[t.target] <= 0) delete P.mats[t.target];
+    }
+    const mode = trialMode();
+    const r = trialReward();
+    P.gold += r.gold;
+    if (mode === 'gear') {
+      if (t.stage === 3) {
+        const rarity = Math.random() < 0.5 ? 'yellow' : 'blue';
+        const eq = makeEquip(rollDropSlot(P.lv), P.lv, rarity);
+        addToBag(eq);
+        log(`试炼完成：获得${rarity === 'yellow' ? '黄装' : '蓝装'}「${eq.name}」，金币 +${r.gold}。`, 'good');
+      } else {
+        log(`试炼完成：金币 +${r.gold}。`, 'good');
+      }
+    } else {
+      P.exp += r.exp;
+      while (P.exp >= needExp()) {
+        P.exp -= needExp();
+        P.lv++;
+        P.hp = maxHp();
+        P.mp = maxMp();
+        leveledUp = true;
+      }
+      log(`试炼完成：+${r.exp} 经验、+${r.gold} 金币。`, 'good');
+    }
+    P.trialStage = (P.trialStage || 0) + 1;
+    if (P.trialStage >= (TRIAL.stages || 3)) {
+      P.trialStage = 0;
+      P.trialRound = (P.trialRound || 1) + 1;
+      if (mode === 'exp') {
+        P.expOrbs = (P.expOrbs || 0) + 1;
+        log(`第 ${P.trialRound - 1} 轮试炼完成，获得 1 个经验球。`, 'good');
+      }
+    }
+    rollTrialTask();
+    syncHud();
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+    return true;
+  }
+
+  function abandonTrial() {
+    rollTrialTask();
+    log('放弃任务，村长换了一个新的。');
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+  }
+
+  function useExpOrb() {
+    if (P.lv >= 30) { log('30 级后经验球不能再用。', 'bad'); return false; }
+    if ((P.expOrbs || 0) <= 0) { log('没有经验球。', 'bad'); return false; }
+    P.expOrbs--;
+    const gain = Math.round(needExp() * (TRIAL.orbPct != null ? TRIAL.orbPct : 0.5));
+    P.exp += gain;
+    while (P.exp >= needExp()) {
+      P.exp -= needExp();
+      P.lv++;
+      P.hp = maxHp();
+      P.mp = maxMp();
+      leveledUp = true;
+    }
+    log(`使用经验球，获得 ${gain} 经验。`, 'good');
+    syncHud();
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+    return true;
+  }
+
+  function sellAllMats() {
+    let total = 0;
+    for (const [id, n] of Object.entries(P.mats || {})) {
+      if (!n) continue;
+      total += ((MATS[id] && MATS[id].price) || 1) * n;
+      P.mats[id] = 0;
+    }
+    P.mats = Object.fromEntries(Object.entries(P.mats || {}).filter(([, n]) => n > 0));
+    if (!total) { log('没有材料可卖。'); return false; }
+    P.gold += total;
+    log(`卖出材料，获得 ${total} 金币。`, 'good');
+    syncHud();
+    save();
+    if (el.trial && !el.trial.hidden) renderTrial();
+    return true;
+  }
+
+  function nearTrial() {
+    return !!trialNpc && dist(trialNpc, P) <= 1;
+  }
+
+  function openTrial() {
+    if (over) return;
+    if (!nearTrial()) { log('村长不在附近。', 'bad'); return; }
+    if (!P.trial) rollTrialTask();
+    el.trial.hidden = false;
+    renderTrial();
+  }
+
+  function renderTrial() {
+    if (!el.trialDesc) return;
+    const mode = P.trialMode;
+    if (!mode) {
+      if (el.trialModePick) el.trialModePick.hidden = false;
+      if (el.trialSwitch) el.trialSwitch.hidden = true;
+      el.trialRound.textContent = `第 ${P.trialRound || 1} 轮`;
+      el.trialDesc.textContent = '这次想要什么奖励？';
+      el.trialProg.textContent = '';
+      el.trialReward.textContent = '装备路线：不给经验、怪更弱；经验路线：不给装备、怪同级。';
+      el.trialTurnIn.disabled = true;
+      el.trialAbandon.disabled = true;
+      el.trialExpOrbs.textContent = `经验球 ×${P.expOrbs || 0}`;
+      el.trialUseOrb.disabled = (P.expOrbs || 0) <= 0 || P.lv >= 30;
+      return;
+    }
+    if (el.trialModePick) el.trialModePick.hidden = true;
+    if (el.trialSwitch) el.trialSwitch.hidden = false;
+    const t = P.trial;
+    const prog = trialProgress();
+    el.trialRound.textContent = `第 ${P.trialRound || 1} 轮 · ${(P.trialStage || 0) + (trialDone() ? 1 : 0)}/3`;
+    el.trialDesc.textContent = trialDesc();
+    el.trialProg.textContent = `进度 ${prog}/${t ? t.need : 0}`;
+    const r = trialReward();
+    if (mode === 'gear') {
+      el.trialReward.textContent = `奖励：${t && t.stage === 3 ? '黄装' : '蓝装'} + ${r.gold} 金币`;
+    } else {
+      el.trialReward.textContent = `奖励：${r.exp} 经验 + ${r.gold} 金币${(t && t.stage === 3) ? ' · 经验球 ×1' : ''}`;
+    }
+    el.trialTurnIn.disabled = !trialDone();
+    el.trialAbandon.disabled = false;
+    el.trialExpOrbs.textContent = `经验球 ×${P.expOrbs || 0}`;
+    el.trialUseOrb.disabled = (P.expOrbs || 0) <= 0 || P.lv >= 30;
+    const mats = Object.entries(P.mats || {}).filter(([, n]) => n > 0);
+    el.trialMats.textContent = mats.length
+      ? mats.map(([id, n]) => `${(MATS[id] && MATS[id].name) || id}×${n}`).join('　')
+      : '暂无材料';
+    if (el.trialSellMats) el.trialSellMats.disabled = mats.length === 0;
+  }
+
   function isSkillBook(it) {
     return !!(it && it.kind === 'skillbook');
   }
@@ -1713,7 +1996,7 @@
     };
   }
 
-  // 仅 20 级 BOSS → 半月、30 级 BOSS → 烈火；已学会则不再掉
+  // 仅 20 级 BOSS → 半月、30 级 BOSS → 烈火；10% 概率；已学会则不再掉
   function rollSkillBookDrop(e) {
     if (!e || !e.boss) return null;
     const map = (D.SKILL_BOOK && D.SKILL_BOOK.byBossLv) || {};
@@ -1721,6 +2004,8 @@
     if (skill !== 'half' && skill !== 'fire') return null;
     if (skill === 'half' && P.skills.half) return null;
     if (skill === 'fire' && P.skills.fire) return null;
+    const chance = D.SKILL_BOOK && D.SKILL_BOOK.chance != null ? D.SKILL_BOOK.chance : 0.1;
+    if (Math.random() >= chance) return null;
     return makeSkillBook(skill);
   }
 
@@ -2828,6 +3113,26 @@
       walk(path);
       return;
     }
+    if (bookNpc && wx === bookNpc.x && wy === bookNpc.y) {
+      if (nearBookShop()) { tryInteract(); return; }
+      const goal = bestAdjacent(wx, wy);
+      if (!goal) return;
+      const path = bfs(P.x, P.y, goal.x, goal.y);
+      if (!path) { log('过不去。'); return; }
+      pendingTarget = null;
+      walk(path);
+      return;
+    }
+    if (trialNpc && wx === trialNpc.x && wy === trialNpc.y) {
+      if (nearTrial()) { tryInteract(); return; }
+      const goal = bestAdjacent(wx, wy);
+      if (!goal) return;
+      const path = bfs(P.x, P.y, goal.x, goal.y);
+      if (!path) { log('过不去。'); return; }
+      pendingTarget = null;
+      walk(path);
+      return;
+    }
     const path = bfs(P.x, P.y, wx, wy);
     if (!path) { log('走不过去。'); return; }
     pendingTarget = null;
@@ -3067,6 +3372,41 @@
     refreshShop();
   }
 
+  function openBookShop() {
+    if (over) return;
+    if (!nearBookShop()) { log('技能书商人不在附近。', 'bad'); return; }
+    hideEqTip();
+    el.bookShop.hidden = false;
+    renderBookShop();
+  }
+
+  function renderBookShop() {
+    if (!el.bookShopGold) return;
+    el.bookShopGold.textContent = P.gold;
+    el.bookShopList.innerHTML = Object.entries(BOOK_SHOP).map(([id, b]) => {
+      const learned = !!P.skills[id];
+      const afford = P.gold >= b.price;
+      return `<div class="book-row">
+        <div><b>${b.name}</b><small>${learned ? '已学会' : `售价 ${b.price} 金`}</small></div>
+        <button type="button" data-book="${id}" ${learned || !afford ? 'disabled' : ''}>${learned ? '已学会' : afford ? '购买' : '金币不足'}</button>
+      </div>`;
+    }).join('');
+  }
+
+  function buyBook(id) {
+    const b = BOOK_SHOP[id];
+    if (!b) return false;
+    if (P.skills[id]) { log('已经学会了。'); return false; }
+    if (P.gold < b.price) { log(`金币不够，还差 ${b.price - P.gold}。`, 'bad'); return false; }
+    P.gold -= b.price;
+    P.skills[id] = true;
+    log(`买下《${b.name}》，已学会！`, 'good');
+    syncHud();
+    save();
+    renderBookShop();
+    return true;
+  }
+
   function refreshShop() {
     if (!el.shopGold) return;
     el.shopGold.textContent = P.gold;
@@ -3188,6 +3528,8 @@
 
   function closeAll() {
     el.shop.hidden = true;
+    if (el.bookShop) el.bookShop.hidden = true;
+    if (el.trial) el.trial.hidden = true;
     el.menu.hidden = true;
     el.char.hidden = true;
     el.lootPick.hidden = true;
@@ -3307,6 +3649,23 @@
     bindBackdropClose(el.menu, () => { el.menu.hidden = true; });
     bindBackdropClose(el.lootPick, () => { hideEqTip(); closePick(); });
     if (el.shopClose) el.shopClose.addEventListener('click', () => { hideEqTip(); el.shop.hidden = true; });
+    if (el.bookShopClose) el.bookShopClose.addEventListener('click', () => { el.bookShop.hidden = true; });
+    if (el.bookShopList) el.bookShopList.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-book]');
+      if (b) buyBook(b.dataset.book);
+    });
+    bindBackdropClose(el.bookShop, () => { el.bookShop.hidden = true; });
+    if (el.trialClose) el.trialClose.addEventListener('click', () => { el.trial.hidden = true; });
+    if (el.trialTurnIn) el.trialTurnIn.addEventListener('click', turnInTrial);
+    if (el.trialAbandon) el.trialAbandon.addEventListener('click', abandonTrial);
+    if (el.trialUseOrb) el.trialUseOrb.addEventListener('click', useExpOrb);
+    if (el.trialSellMats) el.trialSellMats.addEventListener('click', sellAllMats);
+    if (el.trialModePick) el.trialModePick.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-trial-mode]');
+      if (b) chooseTrialMode(b.dataset.trialMode);
+    });
+    if (el.trialSwitch) el.trialSwitch.addEventListener('click', resetTrialMode);
+    bindBackdropClose(el.trial, () => { el.trial.hidden = true; });
     // 商店左右窗：货架买 / 背包卖（悬停·点击详情，双击成交，右键卖）
     const bindShopGrid = (root, mode) => {
       if (!root) return;
@@ -3687,6 +4046,30 @@
       ctx.fillText('商人', sx, sy - 18);
     }
 
+    // 技能书商人
+    if (bookNpc) {
+      const sx = bookNpc.x * TILE - cam.x + TILE / 2;
+      const sy = bookNpc.y * TILE - cam.y + TILE / 2;
+      ctx.font = '30px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('📖', sx, sy + 10);
+      ctx.font = 'bold 10px system-ui';
+      ctx.fillStyle = '#7ee0a0';
+      ctx.fillText('技能书', sx, sy - 18);
+    }
+
+    // 村长
+    if (trialNpc) {
+      const sx = trialNpc.x * TILE - cam.x + TILE / 2;
+      const sy = trialNpc.y * TILE - cam.y + TILE / 2;
+      ctx.font = '30px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('📜', sx, sy + 10);
+      ctx.font = 'bold 10px system-ui';
+      ctx.fillStyle = '#ffb74d';
+      ctx.fillText('村长', sx, sy - 18);
+    }
+
     // 敌人
     for (const e of enemies) {
       if (e.hp <= 0) continue;
@@ -3823,6 +4206,14 @@
       ctx.fillStyle = '#ffd166';
       ctx.fillRect(ox + npc.x * s - 1, oy + npc.y * s - 1, 3, 3);
     }
+    if (bookNpc && seen.has(key(bookNpc.x, bookNpc.y))) {
+      ctx.fillStyle = '#7ee0a0';
+      ctx.fillRect(ox + bookNpc.x * s - 1, oy + bookNpc.y * s - 1, 3, 3);
+    }
+    if (trialNpc && seen.has(key(trialNpc.x, trialNpc.y))) {
+      ctx.fillStyle = '#ffb74d';
+      ctx.fillRect(ox + trialNpc.x * s - 1, oy + trialNpc.y * s - 1, 3, 3);
+    }
     for (const b of activeBags) {
       ctx.fillStyle = (b.relic ? RARITY.yellow : bestRarityOf(b.items)).color;
       ctx.fillRect(ox + b.x * s - 1.5, oy + b.y * s - 1.5, 3, 3);
@@ -3876,7 +4267,9 @@
   if (location.search.includes('debug')) {
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy, buyPotion, buyShopStock,
-      Sfx, openShop, refreshShop, ensureShopCatalog,
+      Sfx, openShop, refreshShop, ensureShopCatalog, tryInteract,
+      openBookShop, renderBookShop, buyBook, BOOK_SHOP,
+      rollTrialTask, turnInTrial, abandonTrial, useExpOrb, trialDone, trialProgress, openTrial, MATS, TRIAL, sellAllMats, chooseTrialMode, resetTrialMode, trialMode,
       buyTownScroll, useTownScroll, tryAutoTown,
       potTotal, potPrice, pickPotTier, normalizePots, formatAmount,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
@@ -3897,6 +4290,8 @@
       hubReturnDoor: () => hubReturnDoor,
       setHubReturnDoor: (v) => { hubReturnDoor = v; },
       roomSpec,
+      bookNpc: () => bookNpc,
+      trialNpc: () => trialNpc,
       roomClearedAt: () => ({ ...roomClearedAt }),
       zoneLevel, zoneName, zoneRange,
       setSeed: (n) => { worldSeed = n >>> 0; },

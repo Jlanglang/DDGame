@@ -458,6 +458,38 @@ canvas {
 .sheet-card h3 { margin: 0 0 12px; font-size: 16px; }
 .sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
 .sheet-gold { color: var(--gold); font-size: 13px; }
+.book-shop-list { display: grid; gap: 8px; margin: 10px 0; }
+.book-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #16203a;
+}
+.book-row b { display: block; font-size: 14px; color: var(--gold); }
+.book-row small { color: var(--muted); font-size: 11px; }
+.book-row button { width: auto; margin: 0; padding: 6px 12px; }
+.book-row button:disabled { opacity: 0.5; }
+.trial-actions { display: flex; gap: 8px; margin: 8px 0; }
+.trial-actions button { flex: 1; }
+.trial-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.trial-mode button { margin: 0; }
+.trial-orbs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #16203a;
+}
+.trial-orbs button { width: auto; margin: 0; padding: 4px 10px; }
+.trial-orbs button:disabled { opacity: 0.5; }
 .door-list { display: grid; gap: 6px; margin: 8px 0; }
 .sheet-card .door-room {
   width: 100%;

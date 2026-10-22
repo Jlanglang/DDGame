@@ -309,9 +309,15 @@ try {
     const b20 = { boss: true, lv: 20, name: '山大王' };
     const b25 = { boss: true, lv: 25, name: '古墓尸王' };
     const b30 = { boss: true, lv: 30, name: '血月怨主' };
+    const SB = sandbox.window.DL.DATA.SKILL_BOOK;
+    ok('技能书掉率 10%', SB.chance === 0.1, SB.chance);
+    const bookChance = SB.chance;
     ok('精英不掉技能书', dl.rollSkillBookDrop(elite) == null);
     ok('10 级首领不掉技能书', dl.rollSkillBookDrop(b10) == null);
     ok('25 级首领不掉技能书', dl.rollSkillBookDrop(b25) == null);
+    SB.chance = 0;
+    ok('0% 概率不掉半月', dl.rollSkillBookDrop(b20) == null);
+    SB.chance = 1;
     const halfBook = dl.rollSkillBookDrop(b20);
     ok('20 级首领掉半月书', halfBook && halfBook.skill === 'half', halfBook);
     ok('捡半月书才学会', dl.state().skills.half === false);
@@ -320,7 +326,89 @@ try {
     const fireBook = dl.rollSkillBookDrop(b30);
     ok('30 级首领掉烈火书', fireBook && fireBook.skill === 'fire', fireBook);
     ok('学习烈火书', dl.learnSkillBook(fireBook) === true && dl.state().skills.fire === true);
+    SB.chance = bookChance;
   }
+  /* 19b. 技能书商人：半月 3 万 / 烈火 10 万 */
+  dl.P.skills.half = false;
+  dl.P.skills.fire = false;
+  dl.setGold(30000);
+  ok('买半月 3 万', dl.buyBook('half') === true && dl.state().skills.half === true);
+  ok('买后金币 0', dl.state().gold === 0, dl.state().gold);
+  ok('已学会不再卖', dl.buyBook('half') === false);
+  dl.setGold(9999);
+  ok('金币不够烈火', dl.buyBook('fire') === false && dl.state().gold === 9999);
+  dl.setGold(100000);
+  ok('买烈火 10 万', dl.buyBook('fire') === true && dl.state().skills.fire === true);
+  ok('买烈火后金币 0', dl.state().gold === 0, dl.state().gold);
+
+  /* 19c. 试炼官：3 次 1 轮，第 3 次给经验球 */
+  {
+    dl.P.lv = 1;
+    dl.P.exp = 0;
+    dl.P.trialStage = 0;
+    dl.P.trialRound = 1;
+    dl.P.expOrbs = 0;
+    dl.P.mats = {};
+    dl.rollTrialTask();
+    ok('试炼任务有目标', !!dl.P.trial && dl.P.trial.need > 0, dl.P.trial);
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 1, name: '鸡' };
+    const gold0 = dl.P.gold;
+    ok('交第 1 次给经验金币', dl.turnInTrial() === true && dl.P.trialStage === 1 && dl.P.gold > gold0);
+    const bag0 = dl.P.bag.length;
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 2, name: '鸡' };
+    dl.turnInTrial();
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 3, name: '鸡' };
+    dl.turnInTrial();
+    ok('完成 1 轮给蓝装或经验球', (dl.P.expOrbs >= 1 || dl.P.bag.length > bag0)
+      && dl.P.trialRound === 2, [dl.P.expOrbs, dl.P.bag.length - bag0]);
+    dl.P.lv = 10;
+    dl.P.exp = 0;
+    dl.P.expOrbs = 1;
+    ok('经验球给 20% 经验', dl.useExpOrb() === true && dl.P.lv === 10 && dl.P.exp === 186, [dl.P.lv, dl.P.exp]);
+    dl.P.lv = 30;
+    dl.P.expOrbs = 1;
+    ok('30 级后经验球不能再用', dl.useExpOrb() === false);
+    ok('材料表有鸡肉', !!dl.MATS.meat && dl.MATS.meat.name === '鸡肉');
+    dl.P.lv = 1;
+    dl.P.exp = 0;
+    dl.P.trial = { type: 'collect', target: 'meat', need: 3, prog: 0, stage: 1, name: '鸡肉' };
+    dl.P.mats.meat = 3;
+    ok('收集任务交材料', dl.turnInTrial() === true && (dl.P.mats.meat || 0) === 0);
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 5, prog: 1, stage: 1, name: '鸡' };
+    const before = dl.P.trial;
+    dl.abandonTrial();
+    ok('放弃后换新任务', dl.P.trial !== before && !!dl.P.trial);
+    dl.P.mats = { meat: 2 };
+    dl.setGold(0);
+    ok('卖材料给金币', dl.sellAllMats() === true && dl.P.gold === 4 && !dl.P.mats.meat, [dl.P.gold, dl.P.mats]);
+
+    const MON = sandbox.window.DL.DATA.MON;
+    dl.P.lv = 10;
+    dl.P.exp = 0;
+    dl.chooseTrialMode('gear');
+    ok('装备路线怪更低', dl.P.trial && MON.find((m) => m.id === dl.P.trial.target).lv <= 9, dl.P.trial);
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 1, name: '鸡' };
+    const exp0 = dl.P.exp;
+    const bagMode0 = dl.P.bag.length;
+    const goldMode0 = dl.P.gold;
+    dl.turnInTrial();
+    ok('装备路线前两次只给金币', dl.P.exp === exp0 && dl.P.bag.length === bagMode0 && dl.P.gold > goldMode0,
+      [dl.P.exp - exp0, dl.P.bag.length - bagMode0, dl.P.gold - goldMode0]);
+    ok('装备路线金币减半', dl.P.gold - goldMode0 === 150, dl.P.gold - goldMode0);
+    dl.chooseTrialMode('exp');
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 1, name: '鸡' };
+    const exp1 = dl.P.exp;
+    const bagMode1 = dl.P.bag.length;
+    dl.turnInTrial();
+    ok('经验路线给经验不给装备', dl.P.exp > exp1 && dl.P.bag.length === bagMode1, [dl.P.exp - exp1, dl.P.bag.length - bagMode1]);
+    dl.chooseTrialMode('gear');
+    dl.P.trial = { type: 'kill', target: 'chicken', need: 1, prog: 1, stage: 3, name: '鸡' };
+    const bagThird = dl.P.bag.length;
+    dl.turnInTrial();
+    const third = dl.P.bag.slice(bagThird);
+    ok('装备路线第 3 次蓝/黄', third.length > 0 && third.every((e) => e.rarity === 'blue' || e.rarity === 'yellow'), third.map((e) => e.rarity));
+  }
+
   dl.P.skills.half = true;
   dl.P.cd.half = 0;
   dl.rest();
@@ -648,6 +736,13 @@ try {
   ok('20 级可穿头盔', dl.slotUnlocked('helmet', 20) === true);
   ok('30 级可穿项链耳环', dl.slotUnlocked('necklace', 30) && dl.slotUnlocked('earring', 30));
   ok('40 级可穿双戒', dl.slotUnlocked('ringL', 40) && dl.slotUnlocked('ringR', 40));
+  ok('项链/耳环 25 级起掉', dl.slotMeta('necklace').dropAt === 25 && dl.slotMeta('earring').dropAt === 25);
+  ok('项链 30 级才穿', dl.slotUnlocked('necklace', 29) === false && dl.slotUnlocked('necklace', 30) === true);
+  ok('25 级怪可掉项链/耳环', (() => {
+    const set = new Set();
+    for (let i = 0; i < 400; i++) set.add(dl.rollDropSlot(25));
+    return set.has('necklace') || set.has('earring');
+  })());
   ok('低级怪不掉手套', (() => {
     const set = new Set();
     for (let i = 0; i < 80; i++) set.add(dl.rollDropSlot(5));
@@ -1133,7 +1228,7 @@ try {
   ok('怪追击间隔 1 秒', DATA.ENEMY_ACT_MS === 1000, DATA.ENEMY_ACT_MS);
   // 挂机关：远处有怪时警戒推进回合，主动怪会追
   {
-    ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {
+    ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick', 'bookShop'].forEach((id) => {
       sandbox.document.getElementById(id).hidden = true;
     });
     if (!dl.currentRoom()) dl.enterRoom('field1');

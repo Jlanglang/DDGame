@@ -28,12 +28,19 @@
     },
 
     /* ---------- 技能书 ---------- */
-    /* 仅指定首领必掉对应书；掉进地面袋，捡起才学会；书是 S，挂机不捡 */
+    /* 指定首领 10% 掉对应书；掉进地面袋，捡起才学会；书是 S，挂机不捡 */
     SKILL_BOOK: {
+      chance: 0.10, // 每次击杀对应首领的掉书概率
       byBossLv: {
         20: 'half',  // 山大王 → 半月弯刀
         30: 'fire',  // 血月怨主 → 烈火剑法
       },
+    },
+
+    /* ---------- 技能书商人（M1.47）：城东书商，只卖两本技能书 ---------- */
+    BOOK_SHOP: {
+      half: { name: '半月弯刀', price: 30000 },
+      fire: { name: '烈火剑法', price: 100000 },
     },
 
     /* ---------- 房内刷新（R11.7） ---------- */
@@ -54,21 +61,52 @@
     /* atkMin/atkMax：固定攻击区间（鸡啄 1–3，不走通用公式） */
     /* gold/goldP：单独定金币区间与掉落概率（不写就按等级通用公式、必掉） */
     MON: [
-      { id: 'chicken', name: '鸡', glyph: '🐔', lv: 1, aggro: 0, ai: 'passive', atkMin: 1, atkMax: 3, gold: [1, 5], goldP: 0.6 },
-      { id: 'scarecrow', name: '稻草人', glyph: '🎃', lv: 3, aggro: 0, ai: 'passive' },
-      { id: 'dog', name: '野狗', glyph: '🐕', lv: 5, aggro: 5, ai: 'active' },
-      { id: 'boar', name: '野猪', glyph: '🐗', lv: 7, aggro: 5, ai: 'active' },
-      { id: 'wolf', name: '野狼', glyph: '🐺', lv: 11, aggro: 6, ai: 'active' },
-      { id: 'stone', name: '石魔', glyph: '🗿', lv: 15, aggro: 4, ai: 'active' },
-      { id: 'ghoul', name: '尸鬼', glyph: '🧟', lv: 21, aggro: 5, ai: 'active' },
-      { id: 'bat', name: '血蝠', glyph: '🦇', lv: 25, aggro: 6, ai: 'active' },
-      { id: 'wraith', name: '怨灵', glyph: '👻', lv: 29, aggro: 5, ai: 'active' },
-      { id: 'spider', name: '蜘蛛', glyph: '🕷️', lv: 13, aggro: 5, ai: 'active' },
-      { id: 'bandit', name: '山贼', glyph: '🥷', lv: 18, aggro: 6, ai: 'active' },
-      { id: 'mummy', name: '木乃伊', glyph: '🪦', lv: 24, aggro: 5, ai: 'active' },
-      { id: 'demon', name: '恶魔', glyph: '😈', lv: 27, aggro: 6, ai: 'active' },
+      { id: 'chicken', name: '鸡', glyph: '🐔', lv: 1, aggro: 0, ai: 'passive', atkMin: 1, atkMax: 3, gold: [1, 5], goldP: 0.6, mat: 'meat' },
+      { id: 'scarecrow', name: '稻草人', glyph: '🎃', lv: 3, aggro: 0, ai: 'passive', mat: 'straw' },
+      { id: 'dog', name: '野狗', glyph: '🐕', lv: 5, aggro: 5, ai: 'active', mat: 'fur' },
+      { id: 'boar', name: '野猪', glyph: '🐗', lv: 7, aggro: 5, ai: 'active', mat: 'hide' },
+      { id: 'wolf', name: '野狼', glyph: '🐺', lv: 11, aggro: 6, ai: 'active', mat: 'fang' },
+      { id: 'stone', name: '石魔', glyph: '🗿', lv: 15, aggro: 4, ai: 'active', mat: 'stone' },
+      { id: 'ghoul', name: '尸鬼', glyph: '🧟', lv: 21, aggro: 5, ai: 'active', mat: 'bone' },
+      { id: 'bat', name: '血蝠', glyph: '🦇', lv: 25, aggro: 6, ai: 'active', mat: 'wing' },
+      { id: 'wraith', name: '怨灵', glyph: '👻', lv: 29, aggro: 5, ai: 'active', mat: 'essence' },
+      { id: 'spider', name: '蜘蛛', glyph: '🕷️', lv: 13, aggro: 5, ai: 'active', mat: 'silk' },
+      { id: 'bandit', name: '山贼', glyph: '🥷', lv: 18, aggro: 6, ai: 'active', mat: 'rag' },
+      { id: 'mummy', name: '木乃伊', glyph: '🪦', lv: 24, aggro: 5, ai: 'active', mat: 'bandage' },
+      { id: 'demon', name: '恶魔', glyph: '😈', lv: 27, aggro: 6, ai: 'active', mat: 'horn' },
     ],
     BOSS: { id: 'boss', name: '巨型稻草人', glyph: '👹', lv: 10, aggro: 0, ai: 'passive' },
+
+    /* ---------- 材料（怪物特色掉落：10% 自动拾取、可堆叠、可出售） ---------- */
+    MATS: {
+      meat: { name: '鸡肉', price: 2 },
+      straw: { name: '稻草', price: 3 },
+      fur: { name: '狗毛', price: 5 },
+      hide: { name: '猪皮', price: 7 },
+      fang: { name: '狼牙', price: 11 },
+      silk: { name: '蛛丝', price: 13 },
+      stone: { name: '石块', price: 15 },
+      rag: { name: '破布', price: 18 },
+      bone: { name: '腐骨', price: 21 },
+      bandage: { name: '绷带', price: 24 },
+      wing: { name: '蝠翼', price: 25 },
+      horn: { name: '魔角', price: 27 },
+      essence: { name: '怨气', price: 29 },
+    },
+    MAT_DROP_P: 0.10,
+
+    /* ---------- 试炼官任务（M1.61）：3 次 1 轮，难度递增，第 3 次给经验球 ---------- */
+    TRIAL: {
+      stages: 3,
+      rewardPct: [0.04, 0.06, 0.09], // 试炼是调剂：经验只占小头
+      goldBase: 100,
+      goldPerLv: 20,
+      collectNeed: [3, 6, 10],
+      killNeed: [5, 10, 15],
+      orbPct: 0.2,      // 经验球：当前等级 20% 经验
+      orbBlueP: 0.5,    // 每轮最后：50% 蓝装 / 50% 经验球
+      gearGoldMul: 0.5, // 装备路线金币减半
+    },
 
     /* 怪物 AI 与 BOSS 出招（数值可调） */
     AI: {
@@ -153,8 +191,8 @@
       { id: 'glovesR', name: '手套·右', group: 'armor', unlock: 10, ico: '🧤' },
       { id: 'shoes', name: '鞋子', group: 'armor', unlock: 10, ico: '👢' },
       { id: 'helmet', name: '头盔', group: 'armor', unlock: 20, ico: '⛑' },
-      { id: 'necklace', name: '项链', group: 'jewelry', unlock: 30, ico: '📿' },
-      { id: 'earring', name: '耳环', group: 'jewelry', unlock: 30, ico: '✦' },
+      { id: 'necklace', name: '项链', group: 'jewelry', unlock: 30, dropAt: 25, ico: '📿' },
+      { id: 'earring', name: '耳环', group: 'jewelry', unlock: 30, dropAt: 25, ico: '✦' },
       { id: 'ringL', name: '戒指·左', group: 'jewelry', unlock: 40, ico: '💍' },
       { id: 'ringR', name: '戒指·右', group: 'jewelry', unlock: 40, ico: '💍' },
     ],

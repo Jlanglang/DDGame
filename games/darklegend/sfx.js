@@ -1,14 +1,11 @@
-/* 豆豆暗黑传奇 · 音效
-   手机策略：
-   1) 必须在用户点击里同步 create/resume AudioContext 并出声
-   2) WAV 用 Blob URL（部分机 data: URI 播不了）
-   3) 首次未解锁前游戏音效不播，等点「开启音效」
+/* 豆豆暗黑传奇 · 音效（精简）
+   仅：kill（怪死）/ equip（换装）/ test（开声确认）
+   解锁后优先 WebAudio（可挂机时播）；HTMLAudio 兜底
 */
 (function (global) {
   'use strict';
   const DL = (global.DL = global.DL || {});
   const MUTE_KEY = 'darklegend-sfx-mute';
-  const UNLOCK_KEY = 'darklegend-sfx-unlocked';
   const hasAudio = typeof global.Audio === 'function';
 
   let muted = false;
@@ -17,7 +14,7 @@
   let unlocked = false;
   let lastError = '';
   let AC = null;
-  const wavCache = Object.create(null); // key -> blobUrl
+  const wavCache = Object.create(null);
   const pool = [];
   const listeners = [];
 
@@ -35,7 +32,47 @@
     if (typeof fn === 'function') listeners.push(fn);
   }
 
-  /* ---------- 原始 WAV bytes → Blob URL ---------- */
+  function ensureAC() {
+    try {
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!AC || AC.state === 'closed') AC = new Ctx();
+      if (AC.state === 'suspended') AC.resume().catch(() => {});
+      return AC;
+    } catch (e) {
+      setErr(e);
+      return null;
+    }
+  }
+
+  /* ---------- WebAudio：时间轴上排音，不依赖 setTimeout ---------- */
+  function toneWA(freq, dur, vol, slide, when) {
+    const a = ensureAC();
+    if (!a) return false;
+    try {
+      const t0 = Math.max(a.currentTime, when || a.currentTime);
+      const o = a.createOscillator();
+      const g = a.createGain();
+      o.type = 'sine';
+      const f0 = Math.max(40, freq);
+      const f1 = Math.max(40, freq + (slide || 0));
+      o.frequency.setValueAtTime(f0, t0);
+      if (slide) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+      const peak = Math.max(0.0001, vol == null ? 0.2 : vol);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g).connect(a.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+      return true;
+    } catch (e) {
+      setErr(e);
+      return false;
+    }
+  }
+
+  /* ---------- HTMLAudio 兜底 ---------- */
   function makeWavBytes(samples, sr) {
     const n = samples.length;
     const buf = new ArrayBuffer(44 + n * 2);
@@ -63,115 +100,48 @@
     return buf;
   }
 
-  function synthSamples(freq, dur, type, vol, slide) {
+  function blobUrlOf(freq, dur, vol, slide) {
+    const key = [freq, dur, vol || 0, slide || 0].join('|');
+    if (wavCache[key]) return wavCache[key];
     const sr = 22050;
     const n = Math.max(1, Math.floor(sr * dur));
     const out = new Float32Array(n);
-    vol = vol == null ? 0.4 : vol;
+    vol = vol == null ? 0.35 : vol;
     slide = slide || 0;
     for (let i = 0; i < n; i++) {
       const t = i / sr;
       const f = Math.max(40, freq + slide * (i / n));
-      const ph = 2 * Math.PI * f * t;
-      let s;
-      if (type === 'square') s = Math.sin(ph) > 0 ? 1 : -1;
-      else if (type === 'sawtooth') s = 2 * ((f * t) % 1) - 1;
-      else if (type === 'triangle') s = 1 - 4 * Math.abs(((f * t) % 1) - 0.5);
-      else s = Math.sin(ph);
-      const attack = Math.min(1, i / (sr * 0.01));
-      const release = Math.exp(-2.8 * t / Math.max(0.02, dur));
-      out[i] = s * vol * attack * release;
+      const env = Math.min(1, i / (sr * 0.01)) * Math.exp(-2.8 * t / Math.max(0.02, dur));
+      out[i] = Math.sin(2 * Math.PI * f * t) * vol * env;
     }
-    return { samples: out, sr };
-  }
-
-  function blobUrlOf(freq, dur, type, vol, slide) {
-    const key = [freq, dur, type || 'sine', vol || 0, slide || 0].join('|');
-    if (wavCache[key]) return wavCache[key];
-    const { samples, sr } = synthSamples(freq, dur, type, vol, slide);
-    const bytes = makeWavBytes(samples, sr);
     const url = (typeof URL !== 'undefined' && URL.createObjectURL)
-      ? URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }))
+      ? URL.createObjectURL(new Blob([makeWavBytes(out, sr)], { type: 'audio/wav' }))
       : '';
     wavCache[key] = url;
     return url;
   }
 
-  function getAudio() {
-    if (!hasAudio) return null;
-    let a = pool.find((x) => x.paused || x.ended);
-    if (!a) {
-      a = new Audio();
-      a.preload = 'auto';
-      a.playsInline = true;
-      a.setAttribute('playsinline', 'true');
-      a.setAttribute('webkit-playsinline', 'true');
-      pool.push(a);
-      if (pool.length > 6) pool.shift();
-    }
-    return a;
-  }
-
-  function playBlob(url, vol) {
-    if (muted || !url || !hasAudio) return Promise.resolve(false);
+  function playHtml(freq, dur, vol, slide) {
+    if (!hasAudio) return false;
     try {
-      const a = getAudio();
-      if (!a) return Promise.resolve(false);
-      a.volume = Math.max(0, Math.min(1, vol == null ? 1 : vol));
+      const url = blobUrlOf(freq, dur, vol, slide);
+      let a = pool.find((x) => x.paused || x.ended);
+      if (!a) {
+        a = new Audio();
+        a.playsInline = true;
+        a.setAttribute('playsinline', 'true');
+        pool.push(a);
+        if (pool.length > 4) pool.shift();
+      }
+      a.volume = Math.min(1, Math.max(0.2, vol == null ? 0.45 : vol + 0.15));
       if (a.src !== url) {
         a.src = url;
         try { a.load(); } catch { /* 忽略 */ }
+      } else {
+        try { a.currentTime = 0; } catch { /* 忽略 */ }
       }
       const p = a.play();
-      if (p && typeof p.then === 'function') {
-        return p.then(() => true).catch((e) => { setErr(e); return false; });
-      }
-      return Promise.resolve(true);
-    } catch (e) {
-      setErr(e);
-      return Promise.resolve(false);
-    }
-  }
-
-  // 总音量：偏柔，避免手机外放刺耳
-  const MASTER = 0.38;
-
-  function playTone(freq, dur, type, vol, slide) {
-    if (!unlocked || muted) return;
-    const url = blobUrlOf(freq, dur, type, vol, slide);
-    playBlob(url, MASTER);
-  }
-
-  function playSeq(steps) {
-    if (!unlocked || muted) return;
-    for (const s of steps) {
-      const delay = Math.round((s.delay || 0) * 1000);
-      const run = () => playTone(s.f, s.d, s.type, s.vol, s.slide);
-      if (delay <= 0) run();
-      else setTimeout(run, delay);
-    }
-  }
-
-  /* ---------- 手势内同步解锁：柔和「咚」+ HTMLAudio ---------- */
-  function beepWebSync() {
-    try {
-      const Ctx = global.AudioContext || global.webkitAudioContext;
-      if (!Ctx) return false;
-      // 必须在手势栈里 new，不能复用页加载时建的
-      if (!AC || AC.state === 'closed') AC = new Ctx();
-      if (AC.state === 'suspended') AC.resume();
-      const t0 = AC.currentTime;
-      const o = AC.createOscillator();
-      const g = AC.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(660, t0);
-      o.frequency.exponentialRampToValueAtTime(520, t0 + 0.18);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.1, t0 + 0.025);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
-      o.connect(g).connect(AC.destination);
-      o.start(t0);
-      o.stop(t0 + 0.3);
+      if (p && p.catch) p.catch((e) => setErr(e));
       return true;
     } catch (e) {
       setErr(e);
@@ -179,42 +149,32 @@
     }
   }
 
+  /** 播一声：先 WebAudio，失败再 HTML */
+  function beep(freq, dur, vol, slide, delay) {
+    if (muted || !unlocked) return;
+    const a = ensureAC();
+    const when = a ? a.currentTime + (delay || 0) : 0;
+    if (toneWA(freq, dur, vol, slide, when)) return;
+    if ((delay || 0) <= 0) playHtml(freq, dur, vol, slide);
+    else setTimeout(() => playHtml(freq, dur, vol, slide), Math.round(delay * 1000));
+  }
+
   function unlock(opts) {
     opts = opts || {};
     const audible = opts.audible !== false;
-    let ok = false;
-    if (audible) ok = beepWebSync() || ok;
-
-    // HTMLAudio 同步播一声（Blob）
-    if (hasAudio && audible) {
-      try {
-        const url = blobUrlOf(660, 0.16, 'sine', 0.3, -50);
-        const a = new Audio();
-        a.playsInline = true;
-        a.setAttribute('playsinline', 'true');
-        a.volume = MASTER;
-        a.src = url;
-        try { a.load(); } catch { /* 忽略 */ }
-        const p = a.play();
-        if (p && typeof p.then === 'function') {
-          p.then(() => {
-            unlocked = true;
-            try { localStorage.setItem(UNLOCK_KEY, '1'); } catch { /* 忽略 */ }
-            notify();
-          }).catch((e) => setErr(e));
-        } else {
-          ok = true;
-        }
-      } catch (e) {
-        setErr(e);
+    ensureAC();
+    if (audible) {
+      // 手势里立刻出一声（偏女声柔和）
+      const a = ensureAC();
+      if (a) {
+        try {
+          if (a.state === 'suspended') a.resume();
+          toneWA(660, 0.16, 0.18, -80, a.currentTime);
+        } catch (e) { setErr(e); }
       }
+      playHtml(660, 0.16, 0.4, -50);
     }
-
-    if (ok || audible) {
-      unlocked = true;
-      try { localStorage.setItem(UNLOCK_KEY, '1'); } catch { /* 忽略 */ }
-    }
-    // 若用户之前静音，开启流程里可强制取消静音
+    unlocked = true;
     if (opts.forceUnmute) {
       muted = false;
       try { localStorage.setItem(MUTE_KEY, '0'); } catch { /* 忽略 */ }
@@ -223,38 +183,25 @@
     return unlocked;
   }
 
-  /* 精简音效（偏女声、柔和）：
-     kill = 怪倒下短吟；equip = 换装轻叮；test = 开声音确认 */
   const SFX = {
-    // 怪死亡：偏高、短、软，像轻轻「呀」一下
-    kill() {
-      playSeq([
-        { f: 720, d: 0.07, type: 'sine', vol: 0.28, slide: -80 },
-        { f: 540, d: 0.1, type: 'sine', vol: 0.22, slide: -60, delay: 0.05 },
-      ]);
-    },
-    // 换装：轻柔两音，像收拾衣甲
+    // 怪死：一声软「呀」感（单音，可靠）
+    kill() { beep(700, 0.11, 0.22, -120, 0); },
+    // 换装：两声轻叮排在 AudioContext 时间轴上（不用 setTimeout）
     equip() {
-      playSeq([
-        { f: 620, d: 0.06, type: 'sine', vol: 0.26 },
-        { f: 780, d: 0.09, type: 'sine', vol: 0.24, delay: 0.05 },
-      ]);
+      beep(620, 0.07, 0.2, 0, 0);
+      beep(820, 0.1, 0.18, -40, 0.06);
     },
-    test() { playTone(660, 0.14, 'sine', 0.3, -40); },
-  };
-
-  const DROP_BY_RARITY = {
-    white: 'test', blue: 'test', yellow: 'test', orange: 'test',
+    test() { beep(660, 0.14, 0.2, -40, 0); },
   };
 
   function play(name) {
     if (muted || !unlocked) return;
+    ensureAC();
     const fn = SFX[name];
     if (typeof fn === 'function') fn();
   }
 
-  // 掉落音已停用；保留 API 以免旧调用报错
-  function drop() { /* no-op */ }
+  function drop() { /* 停用 */ }
 
   function isMuted() { return muted; }
   function isUnlocked() { return unlocked; }
@@ -268,20 +215,13 @@
     return muted;
   }
 
-  function toggleMute() {
-    return setMuted(!muted);
-  }
-
-  // 兼容旧 API：不再静默解锁，改为需要 enable()
-  function bindAutoUnlock() { /* 改由显式按钮 enable */ }
-
-  function enable() {
-    return unlock({ audible: true, forceUnmute: true });
-  }
+  function toggleMute() { return setMuted(!muted); }
+  function bindAutoUnlock() { /* 显式 enable */ }
+  function enable() { return unlock({ audible: true, forceUnmute: true }); }
 
   DL.Sfx = {
     unlock, enable, play, drop, isMuted, isUnlocked, setMuted, toggleMute,
     bindAutoUnlock, onChange, getLastError,
-    MUTE_KEY, DROP_BY_RARITY,
+    MUTE_KEY, DROP_BY_RARITY: {},
   };
 })(typeof window !== 'undefined' ? window : globalThis);

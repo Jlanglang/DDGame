@@ -201,7 +201,8 @@
   </div>
 
   <div class="sfx-gate" id="sfxGate">
-    <button type="button" id="sfxEnable" class="sfx-enable">🔊 点击开启音效</button>
+    <button type="button" id="sfxEnable" class="sfx-enable"
+      onclick="try{var S=window.DL&&DL.Sfx;if(S){S.enable();}var g=document.getElementById('sfxGate');if(g)g.hidden=true;}catch(e){var g2=document.getElementById('sfxGate');if(g2)g2.hidden=true;}">🔊 点击开启音效</button>
     <p class="sfx-gate-hint">手机浏览器必须点一下才有声；侧边静音键也要拨开</p>
   </div>
 
@@ -225,12 +226,12 @@
     </div>
   </div>
 </div>
-<script src="data.js"></script>
-<script src="core.js"></script>
-<script src="world.js"></script>
-<script src="combat.js"></script>
-<script src="status.js"></script>
-<script src="sfx.js"></script>
-<script src="game.js"></script>
+<script src="data.js?v=1563"></script>
+<script src="core.js?v=1563"></script>
+<script src="world.js?v=1563"></script>
+<script src="combat.js?v=1563"></script>
+<script src="status.js?v=1563"></script>
+<script src="sfx.js?v=1563"></script>
+<script src="game.js?v=1563"></script>
 </body>
 </html>

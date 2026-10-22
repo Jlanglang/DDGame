@@ -15,8 +15,10 @@
   const D = (window.DL && window.DL.DATA) || {};
   if (!D.TILE) throw new Error('data.js 未加载');
   const Sfx = (window.DL && window.DL.Sfx) || {
-    unlock() {}, play() {}, drop() {}, isMuted() { return true; },
-    setMuted() { return true; }, toggleMute() { return true; },
+    unlock() {}, enable() {}, play() {}, drop() {},
+    isMuted() { return false; }, isUnlocked() { return true; },
+    setMuted() { return false; }, toggleMute() { return false; },
+    onChange() {}, getLastError() { return ''; },
   };
   const TILE = D.TILE;
   const VIEW_W = D.VIEW_W;
@@ -3063,15 +3065,25 @@
     if (el.btnMute) el.btnMute.addEventListener('click', onMuteToggle);
     if (el.menuMute) el.menuMute.addEventListener('click', onMuteToggle);
     // 手机必须点显式按钮：在手势里同步建 AudioContext 并出声
-    const onSfxEnable = (e) => {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      Sfx.enable();
+    // 注意：不要在 pointerdown 里 preventDefault，部分手机点了会没反应
+    const onSfxEnable = () => {
+      try { Sfx.enable(); } catch (err) { console.warn('sfx enable', err); }
+      // 无论如何关掉遮罩，避免卡死
+      if (el.sfxGate) el.sfxGate.hidden = true;
       syncMuteUi();
       syncSfxGate();
     };
     if (el.sfxEnable) {
-      el.sfxEnable.addEventListener('pointerdown', onSfxEnable);
       el.sfxEnable.addEventListener('click', onSfxEnable);
+      el.sfxEnable.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        onSfxEnable();
+      }, { passive: false });
+    }
+    if (el.sfxGate) {
+      el.sfxGate.addEventListener('click', (e) => {
+        if (e.target === el.sfxGate) onSfxEnable();
+      });
     }
     if (el.introBtn) {
       el.introBtn.addEventListener('click', () => {

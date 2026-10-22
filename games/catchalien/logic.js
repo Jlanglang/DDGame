@@ -17,25 +17,26 @@
       sizes: [[3, 3], [3, 4], [4, 3]],
       aliens: [1, 1, 1, 2],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
-      roles: ['neighbor', 'neighbor', 'classmate', 'passer'],
+      roles: ['classmate', 'classmate', 'classmate', 'passer'],
     },
     normal: {
       label: '普通',
       sizes: [[4, 4], [4, 5], [3, 5]],
       aliens: [2, 2, 2, 3],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
-      roles: ['neighbor', 'neighbor', 'classmate', 'passer'],
+      roles: ['classmate', 'classmate', 'classmate', 'passer'],
     },
     hard: {
       label: '难',
       sizes: [[4, 5], [4, 6], [5, 5]],
       aliens: [2, 2, 3],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
-      roles: ['neighbor', 'neighbor', 'neighbor', 'classmate', 'passer'],
+      roles: ['classmate', 'classmate', 'classmate', 'classmate', 'passer'],
     },
   };
 
   const NAMES = ['小海', '阿青', '林子', '周周', '陈一', '苏苏', '老周', '阿宁', '小北', '江江', '许安', '罗罗', '宋晚', '何何', '小马', '顾清', '唐糖', '沈一', '韩韩', '叶叶', '方知', '程程', '曹曹', '丁一', '潘潘', '任清', '姚姚', '魏薇', '乔乔', '冯晚', '然然', '坨坨'];
+  const FRIEND_NAMES = ['然然', '坨坨'];
 
   const DIR = {
     up: [0, 1],
@@ -49,8 +50,8 @@
   const ROLE_LABEL = {
     doudou: '豆豆',
     classmate: '同学',
-    neighbor: '邻居',
     passer: '路人',
+    friend: '朋友',
     alien: '外星人',
   };
 
@@ -387,7 +388,7 @@
   function allowedAtoms(draft, cell) {
     const atoms = [];
     const role = cell.role;
-    if (role === 'doudou' || role === 'neighbor') {
+    if (role === 'doudou') {
       const dirs = ['up', 'down', 'left', 'right'];
       for (let i = 0; i < dirs.length; i++) {
         const id = dest(cell.unit, cell.floor, dirs[i], draft.units, draft.floors);
@@ -492,12 +493,8 @@
       return ['我和' + atom.name + '昨天一起去吃了好吃的。', '我和' + atom.name + '昨天一起去吃了好吃的，' + atom.name + '是好人。'];
     }
     if (atom.kind === 'role') {
-      if (atom.role === 'classmate') {
-        if (atom.n === 0) return ['同学里面没有外星人。', '同学都是好人。'];
-        return ['同学里面有 ' + atom.n + ' 个外星人。', '同学里有 ' + atom.n + ' 个是假扮的。'];
-      }
-      if (atom.n === 0) return ['邻居没有被外星人替代。', '邻居都是好人。'];
-      return ['邻居有 ' + atom.n + ' 个被外星人替代了。', '邻居里有 ' + atom.n + ' 个是假扮的。'];
+      if (atom.n === 0) return ['同学里面没有外星人。', '同学都是好人。'];
+      return ['同学里面有 ' + atom.n + ' 个外星人。', '同学里有 ' + atom.n + ' 个是假扮的。'];
     }
     if (atom.kind === 'dir') {
       const who = DIR_WORD[atom.dir] + '那户';
@@ -544,13 +541,13 @@
 
   const CHATTER = {
     classmate: ['作业还没写完。', '书包太重了。', '明天有测验，我在看书。', '笔没带，你有多余的吗。', '我先回屋写作业。'],
-    neighbor: ['菜在锅里，我先看着火。', '楼道的灯又坏了。', '快递不是我的。', '小孩刚睡着。', '我正拖地。', '今天风大，窗户关好。'],
     passer: ['我就是来送个东西。', '这地方有点难找。', '我马上走，不打扰。', '手机快没电了。', '路上下雨，鞋湿了。'],
+    friend: ['我跟豆豆很熟。', '豆豆让我来串门。', '我是来找豆豆的。', '豆豆的零食还在我这。'],
     doudou: ['你来啦，先喝口水。', '我在找袜子。', '冰箱里还有饭。'],
   };
 
   function renderChatter(role, rng, used) {
-    const lines = CHATTER[role] || CHATTER.neighbor;
+    const lines = CHATTER[role] || CHATTER.passer;
     const choices = shuffle(rng, lines);
     let clue = choices[0];
     for (let i = 0; i < choices.length; i++) {
@@ -572,8 +569,8 @@
     const beat = {
       doudou: '豆豆拉住你',
       classmate: '同学把书包往上托了托',
-      neighbor: '邻居从门里探出头',
       passer: '路人停了一下',
+      friend: '朋友挥了挥手',
     }[role] || '门开了';
     return { scene: beat + '，' + scene, clue: clue, atom: null };
   }
@@ -600,8 +597,8 @@
     const beat = {
       doudou: '豆豆拉住你',
       classmate: '同学把书包往上托了托',
-      neighbor: '邻居从门里探出头',
       passer: '路人停了一下',
+      friend: '朋友挥了挥手',
     }[role] || '门开了';
     return { scene: beat + '，' + scene, clue: clue, atom: atom };
   }
@@ -810,7 +807,7 @@
         pairs++;
       }
     }
-    const roles = ['classmate', 'neighbor'];
+    const roles = ['classmate'];
     for (let r = 0; r < roles.length; r++) {
       const role = roles[r];
       let len = 0;
@@ -926,7 +923,10 @@
     for (let i = 0; i < draft.cells.length; i++) {
       const cell = draft.cells[i];
       if (cell.role === 'doudou') cell.name = '豆豆';
-      else cell.name = pool[n++];
+      else {
+        cell.name = pool[n++];
+        if (FRIEND_NAMES.indexOf(cell.name) >= 0) cell.role = 'friend';
+      }
     }
   }
 
@@ -989,34 +989,6 @@
     return list;
   }
 
-  function quotePointsAt(level, clues, id, quoted) {
-    for (let i = 0; i < clues.length; i++) {
-      const wrapped = '「' + clues[i].clue + '」';
-      if (quoted.indexOf(wrapped) < 0) continue;
-      const atom = clues[i].atom;
-      if (atom.kind === 'door' && key(atom.unit, atom.floor) === id) return true;
-      if (atom.kind === 'dir' && dest(atom.unit, atom.floor, atom.dir, level.units, level.floors) === id) return true;
-      if (atom.kind === 'meal' && atom.who === id) return true;
-      if (atom.kind === 'pair' && (atom.who[0] === id || atom.who[1] === id)) return true;
-    }
-    return false;
-  }
-
-  function quoteFor(level, opened, killed, id, want) {
-    const clues = heard(level, opened);
-    const full = deduce(level, new Set(opened), new Set(killed), clues);
-    if (full.contradiction || full.status.get(id) !== want) return '';
-    const needed = [];
-    for (let i = 0; i < clues.length; i++) {
-      const without = clues.filter(function (_, j) { return j !== i; });
-      const d = deduce(level, new Set(opened), new Set(killed), without);
-      if (d.contradiction || d.status.get(id) !== want) needed.push(clues[i]);
-    }
-    if (!needed.length) return '';
-    if (needed.length === 1) return '「' + needed[0].clue + '」';
-    return '「' + needed[0].clue + '」和「' + needed[1].clue + '」交叉在这户';
-  }
-
   function assess(level, state, action) {
     const opened = state.opened || [];
     const killed = state.killed || [];
@@ -1039,12 +1011,7 @@
     }
     if (action.type === 'kill') {
       if (mark === 'alien') return { ok: true };
-      if (mark === 'good' || id === level.doudouKey) {
-        const q = quoteFor(level, opened, killed, id, 'good');
-        const direct = q && quotePointsAt(level, heard(level, opened), id, q);
-        const lead = direct ? '这句说的就是这户，是好人。' : '外星人已经被钉在别的门，这户是好人。';
-        return { ok: false, message: q ? (lead + q) : '这户已经能确定是好人。' };
-      }
+      if (mark === 'good' || id === level.doudouKey) return { ok: false, lose: true, wrong: true, message: '这户是好人。' };
       return { ok: false, message: '还没有听到能证明这户是外星人的话。' };
     }
     return { ok: false, message: '没有这个动作。' };
@@ -1065,6 +1032,7 @@
     PATTERN: PATTERN,
     BANDS: BANDS,
     ROLE_LABEL: ROLE_LABEL,
+    FRIEND_NAMES: FRIEND_NAMES,
     DIR_WORD: DIR_WORD,
     bandFor: bandFor,
     generateLevel: generateLevel,

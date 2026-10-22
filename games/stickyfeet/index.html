@@ -22,7 +22,7 @@
     #hud {
       position: fixed;
       left: 12px;
-      right: 12px;
+      right: 120px;
       bottom: 12px;
       display: flex;
       flex-direction: column;
@@ -74,21 +74,121 @@
       background: #e07a4c;
       color: #fff;
     }
+    #jumpBtn {
+      min-width: 64px;
+      background: #e07a4c;
+      color: #fff;
+    }
+    #quest {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      max-width: 280px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.82);
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: #4a382c;
+      pointer-events: none;
+    }
+    #quest b, #quest p { margin: 0; }
+    #quest p { margin-top: 4px; font-size: 14px; line-height: 1.4; }
+    #buildBtn { pointer-events: auto; margin-top: 8px; }
+    #buildBtn:disabled { opacity: 0.45; }
+    #actions {
+      position: fixed;
+      right: max(14px, env(safe-area-inset-right));
+      bottom: max(14px, env(safe-area-inset-bottom));
+      z-index: 3;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    #actions button {
+      width: 64px;
+      height: 64px;
+      min-height: 64px;
+      padding: 0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(74, 56, 44, 0.16);
+      touch-action: none;
+    }
+    #actions #dropBtn {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    #actions #dropBtn:disabled { opacity: 0.38; }
+    #actions #actBtn {
+      width: 84px;
+      height: 84px;
+      min-height: 84px;
+      background: #e07a4c;
+      color: #fff;
+    }
+    #actions #actBtn.chop { background: #c45a32; }
+    #actions #actBtn svg { display: none; width: 46px; height: 46px; }
+    #actions #actBtn.take #iconTake,
+    #actions #actBtn.chop #iconChop { display: block; }
+    #actions #actBtn:active, #actions #dropBtn:not(:disabled):active { transform: scale(0.94); }
+    @media (max-width: 760px) {
+      #hud { right: 12px; }
+      #actions { bottom: 312px; }
+    }
   </style>
 </head>
 <body>
+  <div id="quest">
+    <b>任务 · 盖一间房子</b>
+    <p id="questStep">先捡起斧子</p>
+    <button type="button" id="buildBtn" disabled>建房子</button>
+  </div>
   <div id="hud">
-    <p id="tip">点小岛走路，或按 WASD。1 / 2 / 3 切换抬脚早晚。</p>
+    <p id="tip">右下角先拿斧子再砍树。走近木头会捡起。丢可以把斧子放下。</p>
     <p id="stretch">后腿还没拉开</p>
     <div id="bar"><div id="barFill"></div></div>
     <div class="row">
       <button type="button" id="p0">普通</button>
       <button type="button" id="p1">黏脚</button>
       <button type="button" id="p2">太黏</button>
+      <button type="button" id="jumpBtn">跳</button>
     </div>
+    <div class="row">
+      <button type="button" id="camL">左转</button>
+      <button type="button" id="camR">右转</button>
+      <button type="button" id="camUp">抬高</button>
+      <button type="button" id="camDown">放低</button>
+      <button type="button" id="camIn">拉近</button>
+      <button type="button" id="camOut">拉远</button>
+    </div>
+  </div>
+  <div id="actions">
+    <button type="button" id="dropBtn" disabled title="丢">丢</button>
+    <button type="button" id="actBtn" class="take" aria-label="拿" title="拿">
+      <svg id="iconTake" viewBox="0 0 64 64" aria-hidden="true">
+        <g fill="currentColor">
+          <rect x="17" y="16" width="8" height="20" rx="4"/>
+          <rect x="28" y="10" width="8" height="26" rx="4"/>
+          <rect x="39" y="16" width="8" height="20" rx="4"/>
+          <path d="M15 32h36v7c0 10-7 17-17 17H30C20 56 13 49 13 39v-3c0-2 1-4 2-4z"/>
+          <path d="M48 30c5 2 9 6 9 11 0 3-1.4 5.2-3.4 6.4-1.2-3.4-2.6-8.2-5.6-12.2V30z"/>
+        </g>
+      </svg>
+      <svg id="iconChop" viewBox="0 0 64 64" aria-hidden="true">
+        <g fill="currentColor">
+          <path d="M28 24h8v30c0 2.4-1.6 4-4 4s-4-1.6-4-4V24z"/>
+          <path d="M8 12c10 0 18 3 20 7v12c-2 4-10 7-20 7-4-6-4-20 0-26z"/>
+          <path d="M36 16h12c7 2 12 6 12 10s-5 8-12 10H36V16z"/>
+        </g>
+      </svg>
+    </button>
   </div>
   <!-- three.js r160.1 MIT -->
   <script src="vendor/three.min.js"></script>
-  <script src="main.js?v=2"></script>
+  <script src="main.js?v=21"></script>
 </body>
 </html>

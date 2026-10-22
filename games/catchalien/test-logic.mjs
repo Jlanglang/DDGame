@@ -74,6 +74,15 @@ for (let b = 0; b < bands.length; b++) {
       if (cell.role !== 'doudou' && (cell.name === '豆豆' || cell.name === '同学' || cell.name === '邻居' || cell.name === '路人' || cell.name === '外星人')) {
         nameOk = false;
       }
+      if (cell.role === 'neighbor') nameOk = false;
+      if (cell.speech && ((cell.speech.clue || '').indexOf('邻居') >= 0 || (cell.speech.scene || '').indexOf('邻居') >= 0)) nameOk = false;
+      if ((cell.name === '然然' || cell.name === '坨坨') && cell.role !== 'friend') nameOk = false;
+      if (cell.role === 'friend' && cell.name !== '然然' && cell.name !== '坨坨') nameOk = false;
+      if (cell.role === 'friend') {
+        if (!globalThis.__friendLevels) globalThis.__friendLevels = {};
+        globalThis.__friendLevels[band + ':' + seed] = true;
+        if (cell.alien) globalThis.__friendAlien = (globalThis.__friendAlien || 0) + 1;
+      }
       if (!cell.alien && cell.speech && cell.speech.atom && !CA.atomHolds(level, cell.speech.atom)) nameOk = false;
       const near = cell.speech && cell.speech.atom;
       if (near && near.kind === 'around' && near.n === 0) {
@@ -121,6 +130,14 @@ for (let b = 0; b < bands.length; b++) {
       globalThis.__diag[1]++;
       if (level.chainKinds[k] === 'diag') globalThis.__diag[0]++;
     }
+    const openedChain = level.chainKeys.slice();
+    const quietGood = level.cells.filter(function (c) {
+      return !c.alien && c.key !== level.doudouKey && openedChain.indexOf(c.key) < 0;
+    })[0];
+    if (quietGood) {
+      const quiet = CA.assess(level, { opened: openedChain, killed: [] }, { type: 'kill', key: quietGood.key });
+      check(band + ' seed ' + seed + ' wrong catch ends the round', quiet.ok === false && quiet.lose === true && quiet.wrong === true && quiet.message === '这户是好人。');
+    }
     check(band + ' seed ' + seed + ' names and truths', nameOk && names['豆豆']);
     const again = CA.generateLevel(band, seed * 17 + b * 1000);
     check(band + ' seed ' + seed + ' stable', again.doudouKey === level.doudouKey && again.alienKeys.join() === level.alienKeys.join() && again.cells.map(function (c) { return c.name; }).join() === level.cells.map(function (c) { return c.name; }).join());
@@ -144,6 +161,10 @@ for (let n = 1; n <= 8; n++) {
   const expect = CA.PATTERN[(n - 1) % CA.PATTERN.length];
   check('band ' + n, CA.bandFor(n) === expect);
 }
+
+const friendBoards = Object.keys(globalThis.__friendLevels || {}).length;
+check('friends are not in every building', friendBoards > 0 && friendBoards < 24 * 3);
+check('a friend tag can be an alien', (globalThis.__friendAlien || 0) > 0);
 
 const heardKinds = globalThis.__kinds || {};
 const strategic = ['rows', 'cols', 'pair', 'meal', 'role'].filter(function (k) { return heardKinds[k]; });

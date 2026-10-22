@@ -11,7 +11,7 @@
     TILE: 32,
     VIEW_W: 720,
     VIEW_H: 1120,
-    BAG_MAX: 24,
+    BAG_MAX: 40,
     SAVE_KEY: 'darklegend-save-v2',
     LEGACY_KEY: 'darklegend-save-v1',
     /* 战斗回合节奏 vs 移动节奏（移动不应跟砍怪一样慢） */
@@ -285,6 +285,7 @@
     SHOP: {
       sword: { price: 80, label: '铁剑' },
       armor: { price: 70, label: '皮甲' },
+      townScroll: { price: 100, label: '回城卷' },
     },
 
     /* ---------- 小世界房间（从主城传送门进入） ---------- */

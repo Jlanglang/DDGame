@@ -136,15 +136,13 @@
     if (kind === 'doudou') {
       front = '<circle cx="24" cy="50" r="3.4" fill="#ff9ec4" opacity="0.9"/>' +
         '<circle cx="56" cy="50" r="3.4" fill="#ff9ec4" opacity="0.9"/>';
-    } else if (kind === 'neighbor') {
-      front = '<rect x="20" y="40" width="15" height="10" rx="3" fill="none" stroke="#243044" stroke-width="1.8"/>' +
-        '<rect x="45" y="40" width="15" height="10" rx="3" fill="none" stroke="#243044" stroke-width="1.8"/>' +
-        '<line x1="35" y1="45" x2="45" y2="45" stroke="#243044" stroke-width="1.8"/>';
     } else if (kind === 'passer') {
       front = '<path d="M16 32c3-16 12-20 24-20s21 4 24 20" fill="#3d4d66"/>' +
         '<rect x="12" y="30" width="56" height="6" rx="3" fill="#3d4d66"/>';
     } else if (kind === 'classmate') {
       front = '<path d="M22 62h36l-6 14H28z" fill="#d5e4ff"/>';
+    } else if (kind === 'friend') {
+      front = '<path d="M40 60c-5-3.2-8-.6-8 2.6 0 3.2 8 7.4 8 7.4s8-4.2 8-7.4c0-3.2-3-5.8-8-2.6z" fill="#ff8eb8"/>';
     }
     var buns = kind === 'doudou'
       ? '<circle cx="10" cy="34" r="10" fill="#f2b3c8"/><circle cx="70" cy="34" r="10" fill="#f2b3c8"/>'
@@ -186,9 +184,10 @@
     var face = killed ? stampSvg() : avatarSvg(faceKind, cell.name);
     var label = killed ? '捉住了' : (opened && cell.alien ? '外星人' : cell.name);
     var roleText = cell.role && cell.role !== 'doudou' ? (CA.ROLE_LABEL[cell.role] || '') : '';
+    var roleCls = roleText ? ' role role-' + cell.role : '';
     return '<button type="button" class="' + cls + '" data-key="' + cell.key + '">' +
       '<span class="room">' + roomNo(cell) + '</span>' +
-      (roleText ? '<span class="role">' + esc(roleText) + '</span>' : '') +
+      (roleText ? '<span class="' + roleCls.trim() + '">' + esc(roleText) + '</span>' : '') +
       '<span class="avatar">' + face + '</span>' +
       '<span class="name">' + esc(label) + '</span>' +
       bubbleHtml(cell, opened, killed) + '</button>';
@@ -204,6 +203,8 @@
     if (state.mode === 'visit' && state.opened.indexOf(key) >= 0) return;
     var result = CA.assess(state.level, state, { type: state.mode, key: key });
     if (result.lose) {
+      document.getElementById('lose-k').textContent = result.wrong ? '抓错了' : '撞见了';
+      document.getElementById('lose-title').textContent = result.wrong ? '这户是好人' : '这户是外星人';
       state.opened.push(key);
       render();
       focusDoor(key);
@@ -211,7 +212,7 @@
       return;
     }
     if (!result.ok) {
-      showToast(result.message);
+      if (result.message) showToast(result.message);
       return;
     }
     var cell = state.level.byKey[key];

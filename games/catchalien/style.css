@@ -173,13 +173,17 @@ body {
   top: 3px;
   right: 3px;
   z-index: 2;
-  padding: 1px 3px;
+  padding: 1px 4px;
   border-radius: 4px;
-  background: rgba(8, 12, 20, 0.55);
-  font-size: calc(10px * var(--fit));
-  line-height: 1.1;
-  color: #d5deef;
+  background: rgba(8, 12, 20, 0.86);
+  font-size: calc(11px * var(--fit));
+  font-weight: 700;
+  line-height: 1.15;
 }
+
+.door .role-classmate { color: #ffe14a; }
+.door .role-passer { color: #ff8eb8; }
+.door .role-friend { color: #ff7a3c; }
 
 .door .avatar {
   position: absolute;

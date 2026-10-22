@@ -367,6 +367,24 @@ try {
   dl.setHp(10);
   ok('房间里不回血', dl.hubRegen() === false && dl.state().hp === 10, dl.state().hp);
 
+  /* 22b. 自动回城 + 回城卷（R10.12） */
+  {
+    dl.enterRoom('field1');
+    dl.P.autoTown = 30;
+    dl.P.townScrolls = 0;
+    dl.setHp(Math.max(1, Math.floor(dl.maxHp() * 0.2)));
+    ok('无卷不自动回城', dl.tryAutoTown() === false && !!dl.currentRoom());
+    dl.P.townScrolls = 2;
+    ok('有卷自动回城', dl.tryAutoTown() === true && !dl.currentRoom() && dl.P.townScrolls === 1,
+      [dl.currentRoom(), dl.P.townScrolls]);
+    dl.P.autoTown = 0;
+    dl.enterRoom('field1');
+    dl.P.townScrolls = 1;
+    dl.setHp(1);
+    ok('配置关不回城', dl.tryAutoTown() === false && !!dl.currentRoom());
+    ok('手动用回城卷', dl.useTownScroll() === true && !dl.currentRoom() && dl.P.townScrolls === 0);
+  }
+
   /* 20. 装备品级：生成时就定好、界面直接显示（没有"未鉴定"这回事） */
   dl.P.bag = [];
   dl.P.weapon = null;
@@ -483,11 +501,24 @@ try {
       && !dl.P.bag.find((e) => e.rarity === 'white').locked);
   }
 
+  ok('背包上限 40', dl.BAG_MAX === 40 && DATA.BAG_MAX === 40, [dl.BAG_MAX, DATA.BAG_MAX]);
+
   /* 商店左右窗：货架目录 + 双击购买入口 */
   {
     const cat = dl.ensureShopCatalog();
     ok('货架含药水与装备', Array.isArray(cat) && cat.length >= 8
       && cat.some((x) => x.kind === 'pot') && cat.some((x) => x.kind === 'equip'), cat && cat.length);
+    ok('货架含回城卷', cat.some((x) => x.kind === 'scroll' && x.price === 100),
+      cat.filter((x) => x.kind === 'scroll').map((x) => x.price));
+    const scrollIdx = cat.findIndex((x) => x.kind === 'scroll');
+    const scrolls0 = dl.P.townScrolls | 0;
+    dl.P.gold = Math.max(dl.state().gold, 1000);
+    ok('批量买回城卷×5', dl.buyShopStock(scrollIdx, 5) === true
+      && (dl.P.townScrolls | 0) === scrolls0 + 5, dl.P.townScrolls);
+    const potIdxBulk = cat.findIndex((x) => x.kind === 'pot' && x.potKind === 'red' && x.tierId === 'low');
+    const pool0 = dl.P.potPool.red;
+    ok('批量买红罐×3', dl.buyShopStock(potIdxBulk, 3) === true
+      && dl.P.potPool.red === pool0 + 150, [pool0, dl.P.potPool.red]);
     const potIdx = cat.findIndex((x) => x.kind === 'pot' && x.potKind === 'red' && x.tierId === 'low');
     const g0 = dl.state().gold;
     dl.P.gold = Math.max(g0, cat[potIdx].price + 10);

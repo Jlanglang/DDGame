@@ -27,11 +27,14 @@
 
   let presetIndex = 1;
   let autoDir = 1;
+  let demoWalk = autowalk;
   let yaw = 0;
   let hipShown = BASE_HIP;
   let land = 0;
   let velx = 0;
   let velz = 0;
+  const hop = { y: 0, vy: 0, grounded: true };
+  let jumpEdge = false;
   const ctrl = new THREE.Vector3();
   const goal = new THREE.Vector3();
   let hasGoal = false;
@@ -113,22 +116,60 @@
     scene.add(mesh);
   });
 
-  function tree(x, z, scale) {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.48, 8), barkMat);
-    trunk.position.set(x, 0.24, z);
+  const trees = [];
+  const pickList = [];
+  function makeTree(x, z, scale) {
+    const group = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 1.05, 8), barkMat);
+    trunk.position.y = 0.52;
     trunk.castShadow = true;
-    const top = new THREE.Mesh(new THREE.SphereGeometry(0.42 * scale, 16, 12), leafMat);
-    top.position.set(x, 0.62 + scale * 0.15, z);
-    top.scale.y = 0.82;
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.5 * scale, 16, 12), leafMat);
+    top.position.y = 1.18;
+    top.scale.y = 0.78;
     top.castShadow = true;
-    scene.add(trunk, top);
+    group.add(trunk, top);
+    group.position.set(x, 0, z);
+    scene.add(group);
+    const rec = { kind: 'tree', hp: 2, x: x, z: z, group: group, alive: true, shake: 0, fall: 0 };
+    trunk.userData.ref = rec;
+    top.userData.ref = rec;
+    trees.push(rec);
+    pickList.push(trunk, top);
   }
-  tree(6.2, 2.1, 1.1);
-  tree(-5.4, 3.6, 1.25);
-  tree(3.4, -6.1, 1);
-  tree(-6.3, -2.6, 1.15);
-  tree(6.8, -2.4, 0.9);
-  tree(-1.8, 6.6, 1.05);
+  makeTree(3.5, 2.4, 1.05);
+  makeTree(4.8, 0.3, 1.15);
+  makeTree(2.8, -1.8, 0.95);
+  makeTree(-5.6, -3.2, 1.1);
+
+  const PAD_X = -2.5;
+  const PAD_Z = 1.7;
+  const padRec = { kind: 'pad', x: PAD_X, z: PAD_Z };
+  const padMat = new THREE.MeshLambertMaterial({ color: 0xd8b57a });
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(1.15, 28), padMat);
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(PAD_X, 0.03, PAD_Z);
+  pad.receiveShadow = true;
+  pad.userData.ref = padRec;
+  scene.add(pad);
+  pickList.push(pad);
+  const postMat = new THREE.MeshLambertMaterial({ color: 0xc4956a });
+  [[-0.7, -0.45], [0.7, -0.45], [-0.7, 0.45], [0.7, 0.45]].forEach(function (p) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.55, 8), postMat);
+    post.position.set(PAD_X + p[0], 0.28, PAD_Z + p[1]);
+    post.castShadow = true;
+    post.userData.ref = padRec;
+    scene.add(post);
+    pickList.push(post);
+    padRec.posts = padRec.posts || [];
+    padRec.posts.push(post);
+  });
+
+  const WOOD_NEED = 6;
+  const quest = { wood: 0, built: false };
+  const logs = [];
+  let job = null;
+  let chopT = 0;
+  let house = null;
 
   function veggie(x, z, color) {
     const body = new THREE.Mesh(
@@ -228,16 +269,174 @@
 
   function makeArm(side) {
     const arm = new THREE.Group();
-    const upper = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), skin);
-    const lower = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), skin);
-    lower.position.y = -0.14;
-    arm.add(upper, lower);
-    arm.rotation.z = side * -0.55;
+    const handMat = footMat.clone();
+    arm.userData.side = side;
+    arm.userData.restX = -1.05;
+    function part(parent, radius, x, y, z, sx, sy, sz, mat) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 14, 12), mat || skin);
+      mesh.position.set(x, y, z);
+      mesh.scale.set(sx, sy, sz);
+      mesh.castShadow = true;
+      parent.add(mesh);
+    }
+    part(arm, 0.075, 0, 0, 0, 1, 0.85, 1);
+    part(arm, 0.05, 0, -0.13, 0.02, 0.85, 1.3, 0.85);
+    const hand = new THREE.Group();
+    hand.position.set(0, -0.22, 0.02);
+    part(hand, 0.058, 0, 0, 0.01, 0.85, 0.75, 1.05, handMat);
+    part(hand, 0.026, side * 0.01, 0.02, 0.055, 0.9, 1.1, 1, handMat);
+    part(hand, 0.02, side * -0.012, -0.055, 0.02, 0.85, 1.3, 0.85, handMat);
+    part(hand, 0.018, side * 0.024, -0.05, 0.025, 0.85, 1.2, 0.85, handMat);
+    arm.add(hand);
+    arm.userData.hand = hand;
+    arm.rotation.z = side * 0.18;
+    arm.rotation.x = arm.userData.restX;
     bob.add(arm);
     return arm;
   }
   const armL = makeArm(-1);
   const armR = makeArm(1);
+
+  let held = null;
+  let axeX = -1.2;
+  let axeZ = 0.45;
+  const axeRec = { kind: 'axe' };
+  const axePickables = [];
+  function makeAxeGroup() {
+    const group = new THREE.Group();
+    const handleMat = new THREE.MeshLambertMaterial({ color: 0x8d5a34 });
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xd7dee8 });
+    const edgeMat = new THREE.MeshLambertMaterial({ color: 0xfff8ef });
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.48, 8), handleMat);
+    handle.castShadow = true;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.085, 0.048), headMat);
+    head.position.y = 0.2;
+    head.castShadow = true;
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.15, 4), edgeMat);
+    blade.rotation.z = Math.PI / 2;
+    blade.position.set(0.14, 0.2, 0);
+    blade.castShadow = true;
+    group.add(handle, head, blade);
+    return group;
+  }
+  const axe = makeAxeGroup();
+  const axeRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.22, 0.38, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff1c4,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  axeRing.rotation.x = -Math.PI / 2;
+  scene.add(axe);
+  scene.add(axeRing);
+  axe.traverse(function (obj) {
+    if (!obj.isMesh) return;
+    obj.userData.ref = axeRec;
+    axePickables.push(obj);
+  });
+  axeRing.userData.ref = axeRec;
+  axePickables.push(axeRing);
+  function setAxePickable(on) {
+    axePickables.forEach(function (mesh) {
+      const index = pickList.indexOf(mesh);
+      if (on && index < 0) pickList.push(mesh);
+      if (!on && index >= 0) pickList.splice(index, 1);
+    });
+  }
+  function layAxe() {
+    axe.rotation.set(0.15, 0.4, Math.PI / 2);
+    axe.position.set(axeX, 0.11, axeZ);
+    axeRing.position.set(axeX, 0.032, axeZ);
+    axeRing.visible = true;
+  }
+  const axeAim = new THREE.Vector3();
+  const axeUp = new THREE.Vector3(0, 1, 0);
+  function placeHeldAxe() {
+    const rx = Math.cos(yaw);
+    const rz = -Math.sin(yaw);
+    axeAim.set(rx, -1.15, rz).normalize();
+    axe.position.set(ctrl.x + rx * 0.46, 0.62, ctrl.z + rz * 0.02);
+    axe.quaternion.setFromUnitVectors(axeUp, axeAim);
+  }
+  function gripAxe() {
+    if (held === 'axe') return;
+    held = 'axe';
+    setAxePickable(false);
+    axeRing.visible = false;
+    if (axe.parent && axe.parent !== scene) axe.parent.remove(axe);
+    scene.add(axe);
+    axe.scale.setScalar(1.3);
+    placeHeldAxe();
+    burst(ctrl.x, ctrl.z);
+  }
+  function releaseAxe() {
+    if (held !== 'axe') return;
+    held = null;
+    if (job && job.type === 'chop') {
+      job = null;
+      hasGoal = false;
+    }
+    const ahead = 0.72;
+    axeX = ctrl.x + Math.sin(yaw) * ahead;
+    axeZ = ctrl.z + Math.cos(yaw) * ahead;
+    const rad = Math.hypot(axeX, axeZ);
+    if (rad > LIMIT - 0.3) {
+      const k = (LIMIT - 0.3) / rad;
+      axeX *= k;
+      axeZ *= k;
+    }
+    if (axe.parent && axe.parent !== scene) axe.parent.remove(axe);
+    axe.scale.setScalar(1);
+    scene.add(axe);
+    layAxe();
+    setAxePickable(true);
+    burst(axeX, axeZ);
+  }
+  function updateAxe() {
+    if (held === 'axe') {
+      placeHeldAxe();
+      return;
+    }
+    axe.position.x = axeX;
+    axe.position.z = axeZ;
+    axe.position.y = 0.11 + Math.sin(clock.elapsedTime * 2.6) * 0.035;
+    axeRing.visible = true;
+    axeRing.position.set(axeX, 0.032, axeZ);
+  }
+  function nearestTree() {
+    let best = null;
+    let bestD = Infinity;
+    trees.forEach(function (tree) {
+      if (!tree.alive) return;
+      const dist = Math.hypot(ctrl.x - tree.x, ctrl.z - tree.z);
+      if (dist < bestD) {
+        bestD = dist;
+        best = tree;
+      }
+    });
+    return best;
+  }
+  function pressAct() {
+    demoWalk = false;
+    if (held !== 'axe') {
+      job = { type: 'take' };
+      return;
+    }
+    const tree = nearestTree();
+    if (!tree) return;
+    job = { type: 'chop', tree: tree };
+  }
+  function pressDrop() {
+    if (held !== 'axe') return;
+    demoWalk = false;
+    releaseAxe();
+  }
+  layAxe();
+  setAxePickable(true);
 
   function createRope() {
     const geo = new THREE.BufferGeometry();
@@ -308,7 +507,11 @@
   const _alt = new THREE.Vector3(1, 0, 0);
   const knee = new THREE.Vector3();
   const ankle = new THREE.Vector3();
+  const hover = new THREE.Vector3();
   const camDesired = new THREE.Vector3();
+  const cam = { yaw: Math.PI, pitch: 0.42, dist: 3.6 };
+  const camHold = { l: 0, r: 0, up: 0, down: 0, inn: 0, out: 0 };
+  let orbitDrag = null;
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -327,6 +530,11 @@
     out.x = ctrl.x + lx * c + lz * s;
     out.y = ly;
     out.z = ctrl.z - lx * s + lz * c;
+    return out;
+  }
+
+  function socketAt(foot, out) {
+    localToWorld(foot.side * 0.16, hipShown - SOCKET_DROP + hop.y, 0, out);
     return out;
   }
 
@@ -431,6 +639,24 @@
     }
   }
   setPreset(1);
+  document.getElementById('jumpBtn').addEventListener('pointerdown', function (event) {
+    event.preventDefault();
+    jumpEdge = true;
+  });
+  document.getElementById('actBtn').addEventListener('pointerdown', function (event) {
+    event.preventDefault();
+    pressAct();
+  });
+  document.getElementById('dropBtn').addEventListener('pointerdown', function (event) {
+    event.preventDefault();
+    pressDrop();
+  });
+  document.getElementById('buildBtn').addEventListener('pointerdown', function (event) {
+    event.preventDefault();
+    if (quest.built || quest.wood < WOOD_NEED) return;
+    demoWalk = false;
+    job = { type: 'build' };
+  });
   for (let i = 0; i < 3; i++) {
     document.getElementById('p' + i).addEventListener('click', function () {
       setPreset(Number(this.id.slice(1)));
@@ -452,33 +678,131 @@
     feet[1].pos.z -= Math.cos(yaw) * 0.55;
   }
 
-  function aim(event) {
+  function pointerNDC(event) {
     const rect = canvas.getBoundingClientRect();
     ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
+  }
+
+  function interactHit() {
+    if (!pickList.length) return null;
+    const hits = raycaster.intersectObjects(pickList, false);
+    if (!hits.length) return null;
+    return hits[0].object.userData.ref || null;
+  }
+
+  function aim(event) {
+    pointerNDC(event);
+    job = null;
     const hit = raycaster.ray.intersectPlane(ground, hitPoint);
     if (!hit) return;
     goal.copy(hitPoint);
     hasGoal = true;
+    demoWalk = false;
   }
 
+  function clampCam() {
+    cam.pitch = Math.max(0.12, Math.min(1.35, cam.pitch));
+    cam.dist = Math.max(1.7, Math.min(9, cam.dist));
+  }
+
+  function nudgeCam(key) {
+    if (key === 'l') cam.yaw += 0.38;
+    if (key === 'r') cam.yaw -= 0.38;
+    if (key === 'up') cam.pitch += 0.14;
+    if (key === 'down') cam.pitch -= 0.14;
+    if (key === 'inn') cam.dist -= 0.45;
+    if (key === 'out') cam.dist += 0.45;
+    clampCam();
+  }
+
+  function bindCamHold(id, key) {
+    const el = document.getElementById(id);
+    function down(event) {
+      event.preventDefault();
+      camHold[key] = 1;
+      nudgeCam(key);
+      try { el.setPointerCapture(event.pointerId); } catch (err) { /* 合成事件没有捕获 */ }
+    }
+    function up(event) {
+      if (event && event.pointerId != null) {
+        try {
+          if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
+        } catch (err) { /* 已经松开 */ }
+      }
+      camHold[key] = 0;
+    }
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+  }
+  bindCamHold('camL', 'l');
+  bindCamHold('camR', 'r');
+  bindCamHold('camUp', 'up');
+  bindCamHold('camDown', 'down');
+  bindCamHold('camIn', 'inn');
+  bindCamHold('camOut', 'out');
+
   canvas.addEventListener('pointerdown', function (event) {
-    if (pointerId !== null) return;
+    const orbiting = event.button === 2 || event.button === 1 || event.altKey;
+    if (orbiting) {
+      if (orbitDrag) return;
+      orbitDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      canvas.focus();
+      event.preventDefault();
+      try { canvas.setPointerCapture(event.pointerId); } catch (err) { /* 合成事件没有捕获 */ }
+      return;
+    }
+    if (event.button !== 0 || pointerId !== null) return;
+    pointerNDC(event);
+    const ref = interactHit();
+    if (ref && ref.kind === 'axe' && held !== 'axe') {
+      demoWalk = false;
+      job = { type: 'take' };
+      canvas.focus();
+      event.preventDefault();
+      return;
+    }
+    if (ref && ((ref.kind === 'tree' && ref.alive) || (ref.kind === 'pad' && !quest.built))) {
+      demoWalk = false;
+      if (ref.kind === 'tree' && held !== 'axe') job = { type: 'take' };
+      else job = ref.kind === 'tree' ? { type: 'chop', tree: ref } : { type: 'build' };
+      canvas.focus();
+      event.preventDefault();
+      return;
+    }
     pointerId = event.pointerId;
-    canvas.setPointerCapture(event.pointerId);
+    try { canvas.setPointerCapture(event.pointerId); } catch (err) { /* 合成事件没有捕获 */ }
     canvas.focus();
     event.preventDefault();
     aim(event);
   });
   canvas.addEventListener('pointermove', function (event) {
+    if (orbitDrag && event.pointerId === orbitDrag.id) {
+      const dx = event.clientX - orbitDrag.x;
+      const dy = event.clientY - orbitDrag.y;
+      orbitDrag.x = event.clientX;
+      orbitDrag.y = event.clientY;
+      cam.yaw -= dx * 0.008;
+      cam.pitch += dy * 0.005;
+      clampCam();
+      return;
+    }
     if (event.pointerId !== pointerId) return;
     aim(event);
   });
   function endPointer(event) {
+    if (orbitDrag && event.pointerId === orbitDrag.id) orbitDrag = null;
     if (event.pointerId !== pointerId) return;
     pointerId = null;
   }
+  canvas.addEventListener('wheel', function (event) {
+    event.preventDefault();
+    cam.dist += Math.sign(event.deltaY) * 0.38;
+    clampCam();
+  }, { passive: false });
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
   canvas.addEventListener('lostpointercapture', endPointer);
@@ -491,7 +815,11 @@
     if (event.code === 'Digit1' || event.code === 'Numpad1') setPreset(0);
     if (event.code === 'Digit2' || event.code === 'Numpad2') setPreset(1);
     if (event.code === 'Digit3' || event.code === 'Numpad3') setPreset(2);
-    if (/^(Key[WASD]|Arrow)/.test(event.code)) event.preventDefault();
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (!event.repeat) jumpEdge = true;
+    }
+    if (/^(Key[WASDQERF]|Arrow|Space)/.test(event.code)) event.preventDefault();
   });
   window.addEventListener('keyup', function (event) {
     keys.delete(event.code);
@@ -519,15 +847,235 @@
   const prev = new THREE.Vector3();
   prev.copy(ctrl);
 
+  function approach(x, z, dist) {
+    const dx = ctrl.x - x;
+    const dz = ctrl.z - z;
+    const len = Math.hypot(dx, dz) || 1;
+    goal.set(x + (dx / len) * dist, 0, z + (dz / len) * dist);
+    hasGoal = true;
+  }
+
+  function spawnLog(x, z) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.28, 8), barkMat);
+    log.castShadow = true;
+    const dx = ctrl.x - x;
+    const dz = ctrl.z - z;
+    const len = Math.hypot(dx, dz) || 1;
+    const ang = Math.atan2(dz, dx) + (Math.random() - 0.5) * 0.7;
+    log.position.set(x + Math.cos(ang) * 0.2, 0.45, z + Math.sin(ang) * 0.2);
+    log.userData.vx = Math.cos(ang) * 0.65;
+    log.userData.vz = Math.sin(ang) * 0.65;
+    log.userData.vy = 2.1;
+    log.userData.settled = false;
+    scene.add(log);
+    logs.push(log);
+  }
+
+  function strike(tree) {
+    chopT = 0.36;
+    tree.hp -= 1;
+    tree.shake = 0.34;
+    spawnLog(tree.x, tree.z);
+    if (tree.hp > 0) return;
+    tree.alive = false;
+    tree.group.children.forEach(function (child) {
+      const index = pickList.indexOf(child);
+      if (index >= 0) pickList.splice(index, 1);
+    });
+    if (job && job.tree === tree) {
+      job = null;
+      hasGoal = false;
+    }
+  }
+
+  function placeHouse() {
+    if (quest.built || quest.wood < WOOD_NEED) return;
+    quest.wood -= WOOD_NEED;
+    quest.built = true;
+    const group = new THREE.Group();
+    const wall = new THREE.MeshLambertMaterial({ color: 0xf4e4c4 });
+    const roofMat = new THREE.MeshLambertMaterial({ color: 0xd4654a });
+    const doorMat = new THREE.MeshLambertMaterial({ color: 0x8a5a3b });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.15, 1.35), wall);
+    body.position.y = 0.58;
+    body.castShadow = true;
+    body.receiveShadow = true;
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.28, 0.72, 4), roofMat);
+    roof.position.y = 1.48;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.64, 0.08), doorMat);
+    door.position.set(0, 0.34, 0.68);
+    group.add(body, roof, door);
+    group.position.set(PAD_X, 0, PAD_Z);
+    group.userData.grow = 0;
+    scene.add(group);
+    house = group;
+    if (padRec.posts) {
+      padRec.posts.forEach(function (post) {
+        scene.remove(post);
+        const index = pickList.indexOf(post);
+        if (index >= 0) pickList.splice(index, 1);
+      });
+    }
+    scene.remove(pad);
+    const padIndex = pickList.indexOf(pad);
+    if (padIndex >= 0) pickList.splice(padIndex, 1);
+    burst(PAD_X, PAD_Z);
+  }
+
+  function updateJob(dt) {
+    if (!job) return;
+    if (job.type === 'take') {
+      if (held === 'axe') {
+        job = null;
+        return;
+      }
+      const dist = Math.hypot(ctrl.x - axeX, ctrl.z - axeZ);
+      if (dist > 0.95) {
+        approach(axeX, axeZ, 0.5);
+        return;
+      }
+      hasGoal = false;
+      gripAxe();
+      job = null;
+      return;
+    }
+    if (job.type === 'chop') {
+      if (held !== 'axe') {
+        job = { type: 'take' };
+        return;
+      }
+      const tree = job.tree;
+      if (!tree.alive) {
+        job = null;
+        return;
+      }
+      const dist = Math.hypot(ctrl.x - tree.x, ctrl.z - tree.z);
+      if (dist > 1.2) {
+        approach(tree.x, tree.z, 0.95);
+        return;
+      }
+      hasGoal = false;
+      yaw = dampAngle(yaw, Math.atan2(tree.x - ctrl.x, tree.z - ctrl.z), 14, dt);
+      if (chopT <= 0) strike(tree);
+      return;
+    }
+    const dist = Math.hypot(ctrl.x - PAD_X, ctrl.z - PAD_Z);
+    if (quest.built) {
+      job = null;
+      return;
+    }
+    if (dist > 1.35) {
+      approach(PAD_X, PAD_Z, 1.05);
+      return;
+    }
+    hasGoal = false;
+    if (quest.wood >= WOOD_NEED) placeHouse();
+  }
+
+  function updateLogs(dt) {
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const log = logs[i];
+      const data = log.userData;
+      if (!data.settled) {
+        data.vy -= 9 * dt;
+        log.position.y += data.vy * dt;
+        log.position.x += data.vx * dt;
+        log.position.z += data.vz * dt;
+        log.rotation.z += dt * 5;
+        if (log.position.y <= 0.1) {
+          log.position.y = 0.1;
+          log.rotation.z = Math.PI / 2;
+          data.settled = true;
+        }
+      }
+      const dist = Math.hypot(log.position.x - ctrl.x, log.position.z - ctrl.z);
+      if (data.settled && dist < 1.15) {
+        scene.remove(log);
+        logs.splice(i, 1);
+        quest.wood += 1;
+        burst(ctrl.x, ctrl.z);
+      }
+    }
+  }
+
+  function updateTrees(dt) {
+    trees.forEach(function (tree) {
+      if (tree.shake > 0) {
+        tree.shake = Math.max(0, tree.shake - dt);
+        tree.group.rotation.z = Math.sin(tree.shake * 46) * tree.shake * 0.8;
+      }
+      if (!tree.alive) {
+        tree.fall = Math.min(1.2, tree.fall + dt * 1.8);
+        tree.group.rotation.z = tree.fall;
+        tree.group.position.y = -Math.min(tree.fall, 0.35) * 0.2;
+      }
+    });
+    if (house && house.userData.grow < 1) {
+      house.userData.grow = Math.min(1, house.userData.grow + dt * 1.8);
+      const scale = 1 - Math.pow(1 - house.userData.grow, 3);
+      house.scale.setScalar(Math.max(0.02, scale));
+    }
+  }
+
+  function refreshActions() {
+    const drop = document.getElementById('dropBtn');
+    const act = document.getElementById('actBtn');
+    const has = held === 'axe';
+    drop.disabled = !has;
+    act.classList.toggle('take', !has);
+    act.classList.toggle('chop', has);
+    const label = has ? '砍' : '拿';
+    act.setAttribute('aria-label', label);
+    act.title = label;
+  }
+
+  function refreshQuest() {
+    refreshActions();
+    const step = document.getElementById('questStep');
+    const button = document.getElementById('buildBtn');
+    if (quest.built) {
+      step.textContent = '房子盖好了';
+      button.disabled = true;
+      button.textContent = '已建成';
+      return;
+    }
+    if (quest.wood >= WOOD_NEED) {
+      step.textContent = '木头 ' + quest.wood + '/6，去左边木桩建房子';
+      button.disabled = false;
+      button.textContent = '建房子';
+      return;
+    }
+    if (held !== 'axe') {
+      step.textContent = quest.wood > 0
+        ? '捡起斧子再砍 ' + quest.wood + '/6'
+        : '先捡起斧子';
+      button.disabled = true;
+      button.textContent = '建房子';
+      return;
+    }
+    const nearPad = Math.hypot(ctrl.x - PAD_X, ctrl.z - PAD_Z) < 1.5;
+    step.textContent = nearPad
+      ? '木头还不够，先去砍树 ' + quest.wood + '/6'
+      : '砍树并捡起木头 ' + quest.wood + '/6';
+    button.disabled = true;
+    button.textContent = '建房子';
+  }
+
   function frame() {
     const dt = Math.min(clock.getDelta() || 0.016, 0.033);
+    if (chopT > 0) chopT -= dt;
     const preset = PRESETS[presetIndex];
     const key = keyAxis();
+    if (key.on) job = null;
+    else updateJob(dt);
     let wishx = 0;
     let wishz = 0;
 
     if (key.on) {
       hasGoal = false;
+      demoWalk = false;
       const fx = ctrl.x - camera.position.x;
       const fz = ctrl.z - camera.position.z;
       const fl = Math.hypot(fx, fz) || 1;
@@ -552,7 +1100,7 @@
         wishx /= wl;
         wishz /= wl;
       }
-    } else if (autowalk) {
+    } else if (demoWalk) {
       if (ctrl.x > 3.3) autoDir = -1;
       if (ctrl.x < -3.3) autoDir = 1;
       wishx = autoDir;
@@ -586,9 +1134,52 @@
     velx = dt > 0 ? movedX / dt : 0;
     velz = dt > 0 ? movedZ / dt : 0;
 
+    if (jumpEdge) {
+      jumpEdge = false;
+      if (hop.grounded) {
+        hop.grounded = false;
+        hop.vy = 5.6;
+      }
+    }
+    if (!hop.grounded) {
+      hop.vy -= 16 * dt;
+      hop.y += hop.vy * dt;
+      if (hop.y <= 0) {
+        hop.y = 0;
+        hop.vy = 0;
+        hop.grounded = true;
+        land = 1.35;
+        burst(ctrl.x, ctrl.z);
+        feet.forEach(function (foot) {
+          if (foot.planted) return;
+          placeFootTarget(foot, foot.pos, 0.02);
+          foot.planted = true;
+          foot.swing = 1;
+          foot.pos.y = FOOT_Y;
+          foot.pop = 1;
+        });
+      }
+    }
+
     feet.forEach(function (foot, index) {
       const other = feet[1 - index];
-      localToWorld(foot.side * 0.16, hipShown - SOCKET_DROP, 0, foot.sock);
+      socketAt(foot, foot.sock);
+      if (!hop.grounded) {
+        const dist = foot.sock.distanceTo(foot.pos);
+        if (foot.planted && dist > preset.release) foot.planted = false;
+        if (foot.planted) {
+          foot.pos.y = FOOT_Y;
+          return;
+        }
+        localToWorld(foot.side * 0.14, Math.max(FOOT_Y, hop.y + 0.1), 0.04, hover);
+        const k = 1 - Math.exp(-9 * dt);
+        foot.pos.x += (hover.x - foot.pos.x) * k;
+        foot.pos.y += (hover.y - foot.pos.y) * k;
+        foot.pos.z += (hover.z - foot.pos.z) * k;
+        if (foot.pos.y < FOOT_Y) foot.pos.y = FOOT_Y;
+        foot.yaw = dampAngle(foot.yaw, yaw, 10, dt);
+        return;
+      }
       if (!foot.planted) {
         foot.swing += dt / foot.dur;
         const t = Math.min(foot.swing, 1);
@@ -626,11 +1217,11 @@
     let maxDist = REST;
     feet.forEach(function (foot) {
       if (!foot.planted) return;
-      localToWorld(foot.side * 0.16, hipShown - SOCKET_DROP, 0, foot.sock);
+      socketAt(foot, foot.sock);
       maxDist = Math.max(maxDist, foot.sock.distanceTo(foot.pos));
     });
     lastStretch = maxDist / REST;
-    const dip = THREE.MathUtils.clamp((maxDist - REST) / 1.15, 0, 1);
+    const dip = hop.grounded ? THREE.MathUtils.clamp((maxDist - REST) / 1.15, 0, 1) : 0;
     const hipTarget = BASE_HIP - dip * 0.1;
     hipShown = THREE.MathUtils.damp(hipShown, hipTarget, 16, dt);
     land = Math.max(0, land - dt * 5);
@@ -642,18 +1233,23 @@
     headLag.x = THREE.MathUtils.damp(headLag.x, -lx * 0.02, 6, dt);
     headLag.z = THREE.MathUtils.damp(headLag.z, -lz * 0.035, 6, dt);
 
-    rig.position.set(ctrl.x, 0, ctrl.z);
+    rig.position.set(ctrl.x, hop.y, ctrl.z);
     rig.rotation.set(0, yaw, 0);
     const sq = land * 0.12;
+    const rise = hop.grounded ? 0 : THREE.MathUtils.clamp(hop.vy * 0.035, -0.1, 0.14);
     body.position.set(0, hipShown, 0);
-    body.scale.set(1 + sq, 1 - sq, 1 + sq);
+    body.scale.set(
+      Math.max(0.72, 1 + sq - rise),
+      Math.max(0.72, 1 - sq + rise),
+      Math.max(0.72, 1 + sq - rise)
+    );
     head.position.set(headLag.x, hipShown + 0.4, headLag.z);
     bob.rotation.x = THREE.MathUtils.damp(bob.rotation.x, THREE.MathUtils.clamp(speed * 0.035 + dip * 0.2, 0, 0.28), 8, dt);
-    armL.position.set(-0.3, hipShown + 0.02, 0.02);
-    armR.position.set(0.3, hipShown + 0.02, 0.02);
+    armL.position.set(-0.26, hipShown + 0.08, 0.16);
+    armR.position.set(0.26, hipShown + 0.08, 0.16);
 
     feet.forEach(function (foot) {
-      localToWorld(foot.side * 0.16, hipShown - SOCKET_DROP, 0, foot.sock);
+      socketAt(foot, foot.sock);
       const dist = foot.sock.distanceTo(foot.pos);
       const stretch01 = THREE.MathUtils.clamp((dist - REST) / Math.max(0.2, preset.release - REST), 0, 1);
       const slack = THREE.MathUtils.clamp(1 - (dist - REST) / 0.55, 0, 1);
@@ -684,7 +1280,17 @@
       foot.mesh.scale.set(1 + pop, 0.42 - pop * 0.1, 1.3 + pop);
       const fz = (foot.pos.x - ctrl.x) * s + (foot.pos.z - ctrl.z) * c;
       const arm = foot.side < 0 ? armL : armR;
-      arm.rotation.x = THREE.MathUtils.clamp(-fz * 1.1, -0.9, 0.9);
+      const lift = hop.grounded ? 0 : 0.75;
+      const holding = held === 'axe' && foot.side > 0;
+      const chopArc = holding && chopT > 0 ? Math.sin((1 - chopT / 0.36) * Math.PI) * 1.35 : 0;
+      const swing = THREE.MathUtils.clamp(-fz * 0.35, -0.22, 0.22);
+      if (holding && chopT <= 0) {
+        arm.rotation.z = 0.55;
+        arm.rotation.x = -0.55 + swing - lift;
+      } else {
+        arm.rotation.z = arm.userData.side * 0.18;
+        arm.rotation.x = arm.userData.restX + swing - lift - chopArc;
+      }
     });
 
     for (let i = 0; i < puffs.length; i++) {
@@ -701,23 +1307,36 @@
       if (p.life <= 0) p.mesh.visible = false;
     }
 
-    blob.position.set(ctrl.x, 0.03, ctrl.z);
-    blob.scale.setScalar(1 + dip * 0.35);
+    updateAxe();
+    updateLogs(dt);
+    updateTrees(dt);
+    refreshQuest();
 
-    const back = 1.15;
-    const side = 2.85;
+    blob.position.set(ctrl.x, 0.03, ctrl.z);
+    blob.scale.setScalar((1 + dip * 0.35) / (1 + hop.y * 1.4));
+
+    if (camHold.l || keys.has('KeyQ')) cam.yaw += dt * 1.7;
+    if (camHold.r || keys.has('KeyE')) cam.yaw -= dt * 1.7;
+    if (camHold.up || keys.has('KeyR')) cam.pitch += dt * 0.7;
+    if (camHold.down || keys.has('KeyF')) cam.pitch -= dt * 0.7;
+    if (camHold.inn) cam.dist -= dt * 2.2;
+    if (camHold.out) cam.dist += dt * 2.2;
+    clampCam();
+
+    const lookY = 0.55 + hop.y * 0.18;
+    const horiz = Math.cos(cam.pitch) * cam.dist;
     camDesired.set(
-      ctrl.x - Math.sin(yaw) * back + Math.cos(yaw) * side,
-      0.95,
-      ctrl.z - Math.cos(yaw) * back - Math.sin(yaw) * side
+      ctrl.x + Math.sin(cam.yaw) * horiz,
+      lookY + Math.sin(cam.pitch) * cam.dist,
+      ctrl.z + Math.cos(cam.yaw) * horiz
     );
     if (!camReady) {
       camera.position.copy(camDesired);
       camReady = true;
     } else {
-      camera.position.lerp(camDesired, 1 - Math.exp(-4 * dt));
+      camera.position.lerp(camDesired, 1 - Math.exp(-12 * dt));
     }
-    camera.lookAt(ctrl.x, 0.5, ctrl.z);
+    camera.lookAt(ctrl.x, lookY, ctrl.z);
 
     dir.position.set(ctrl.x + 4.5, 9, ctrl.z + 2.5);
     dirTarget.position.set(ctrl.x, 0.4, ctrl.z);
@@ -737,6 +1356,36 @@
     setPreset: setPreset,
     ctrl: ctrl,
     feet: feet,
+    cam: cam,
+    quest: quest,
+    trees: trees,
+    logs: logs,
+    goChop: function (index) {
+      demoWalk = false;
+      job = { type: 'chop', tree: trees[index] };
+    },
+    goBuild: function () {
+      demoWalk = false;
+      job = { type: 'build' };
+    },
+    held: function () { return held; },
+    pressAct: pressAct,
+    pressDrop: pressDrop,
+    axePose: function () {
+      const handPos = new THREE.Vector3();
+      const axePos = new THREE.Vector3();
+      armR.userData.hand.getWorldPosition(handPos);
+      axe.getWorldPosition(axePos);
+      return {
+        hand: [handPos.x, handPos.y, handPos.z],
+        axe: [axePos.x, axePos.y, axePos.z],
+        armX: armR.rotation.x,
+        armZ: armR.rotation.z,
+      };
+    },
+    jump: function () {
+      jumpEdge = true;
+    },
     stretch: function () {
       return lastStretch;
     },

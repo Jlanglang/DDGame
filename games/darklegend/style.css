@@ -685,6 +685,14 @@ canvas {
 .char-h small.muted,
 .muted { color: var(--muted); font-weight: 400; font-size: 11px; }
 .eq-hint { margin: 0 0 8px; font-size: 11px; }
+.pot-use-scroll {
+  display: inline-block;
+  margin-left: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  vertical-align: middle;
+}
 .bag-recycle {
   display: flex;
   flex-wrap: wrap;

@@ -61,7 +61,7 @@
     'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
     'btnChar', 'char', 'charLv', 'charExpFill', 'charExpText', 'charPower', 'charGold',
     'charTabs', 'paneGear', 'paneBag',
-    'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'potStock',
+    'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'autoTown', 'potStock',
     'eqTip', 'eqTipName', 'eqTipStats', 'eqTipActs', 'eqTipClose',
     'loot', 'lootName', 'lootStats', 'lootAffix',
     'intro', 'introBtn', 'seedText', 'sfxGate', 'sfxEnable',
@@ -205,7 +205,8 @@
     bag: [],
     cd: { half: 0, fire: 0 },
     skills: { half: false, fire: false },   // 技能书解锁：半月 / 烈火
-    autoPot: 50, autoMp: 0,
+    autoPot: 50, autoMp: 0, autoTown: 0,
+    townScrolls: 0,
     potionCd: { red: 0, blue: 0 },
     kills: 0,
     statuses: {},                           // R5：中毒 / 灼烧 / 眩晕 / 麻痹（见 status.js）
@@ -459,6 +460,37 @@
     setAutoFarm(false);
     normalRespawnDue = [];
     genHub();
+  }
+
+  // 回城卷：消耗 1 张离开房间；自动回城也走这里
+  function useTownScroll(opts) {
+    opts = opts || {};
+    if (!currentRoom) {
+      if (!opts.silent) log('你已经在主城。');
+      return false;
+    }
+    if ((P.townScrolls | 0) <= 0) {
+      if (!opts.silent) log('没有回城卷，去商人处买（100 金/张）。', 'bad');
+      return false;
+    }
+    P.townScrolls -= 1;
+    const left = P.townScrolls;
+    log(opts.auto
+      ? `血量过低，使用回城卷回城（剩 ${left}）。`
+      : `使用回城卷回城（剩 ${left}）。`, 'good');
+    leaveRoom();
+    syncHud();
+    if (!el.char.hidden) renderChar();
+    save();
+    return true;
+  }
+
+  function tryAutoTown() {
+    if (!currentRoom || over || P.hp <= 0) return false;
+    if (!(P.autoTown > 0)) return false;
+    if (P.hp > maxHp() * P.autoTown / 100) return false;
+    if ((P.townScrolls | 0) <= 0) return false;
+    return useTownScroll({ auto: true });
   }
 
   function bossCdOf(spec) {
@@ -1111,6 +1143,16 @@
     </button>`;
   }
 
+  function scrollCellHtml(item, index) {
+    const can = P.gold >= item.price;
+    return `<button type="button" class="eq-cell shop-pot${can ? '' : ' unafford'}" data-shop-stock="${index}" aria-label="${item.name}">
+      <span class="eq-ico">📜</span>
+      <span class="eq-lv">×${P.townScrolls | 0}</span>
+      <span class="eq-ltr">卷</span>
+      <span class="eq-price">${item.price}</span>
+    </button>`;
+  }
+
   // 单件详情正文：需要等级 + 基础/浮动属性（品级已在标题）
   function eqDetailHtml(eq) {
     if (!eq) return '';
@@ -1193,6 +1235,8 @@
     let acts = '';
     if (src && src.kind === 'pick') {
       acts = `<button type="button" data-tip-pick="${src.i}">捡起</button>`;
+    } else if (src && src.kind === 'shopStock') {
+      acts = shopBuyActsHtml();
     } else if (src && (src.kind === 'bag' || src.kind === 'shopBag')) {
       acts = `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
     } else if (src && src.kind === 'worn') {
@@ -1205,6 +1249,12 @@
     if (node) placeEqTip(node);
   }
 
+  function shopBuyActsHtml() {
+    return '<button type="button" data-tip-buy="1">买×1</button>'
+      + '<button type="button" data-tip-buy="5">买×5</button>'
+      + '<button type="button" data-tip-buy="10">买×10</button>';
+  }
+
   function showPotTip(item, src, sticky, anchor) {
     if (!el.eqTip || !item) return;
     tipSrc = src;
@@ -1213,9 +1263,27 @@
     el.eqTipName.textContent = item.name;
     el.eqTipStats.innerHTML =
       `${item.potKind === 'blue' ? '回复 MP' : '回复 HP'} <b>+${item.amount}</b><br>`
-      + `<div class="eq-tip-price">售价 <b>${item.price}</b> 金</div>`;
-    el.eqTipActs.innerHTML = '';
-    el.eqTipActs.hidden = true;
+      + `<div class="eq-tip-price">售价 <b>${item.price}</b> 金 / 份</div>`;
+    const acts = (src && src.kind === 'shopStock') ? shopBuyActsHtml() : '';
+    el.eqTipActs.innerHTML = acts;
+    el.eqTipActs.hidden = !acts;
+    el.eqTip.hidden = false;
+    const node = anchor || tipAnchor || findTipAnchor(src);
+    if (node) placeEqTip(node);
+  }
+
+  function showScrollTip(item, src, sticky, anchor) {
+    if (!el.eqTip || !item) return;
+    tipSrc = src;
+    tipSticky = !!sticky;
+    el.eqTipName.className = 'eq-tip-name';
+    el.eqTipName.textContent = item.name;
+    el.eqTipStats.innerHTML =
+      '在野外使用可立刻回主城。自动回城也要消耗。<br>'
+      + `<div class="eq-tip-price">售价 <b>${item.price}</b> 金 / 张 · 已有 <b>${P.townScrolls | 0}</b></div>`;
+    const acts = (src && src.kind === 'shopStock') ? shopBuyActsHtml() : '';
+    el.eqTipActs.innerHTML = acts;
+    el.eqTipActs.hidden = !acts;
     el.eqTip.hidden = false;
     const node = anchor || tipAnchor || findTipAnchor(src);
     if (node) placeEqTip(node);
@@ -1271,10 +1339,15 @@
     }).join('');
     el.autoPot.value = String(P.autoPot);
     if (el.autoMp) el.autoMp.value = String(P.autoMp);
+    if (el.autoTown) el.autoTown.value = String(P.autoTown);
     if (el.potStock) {
-      el.potStock.innerHTML = `<div>🩸红罐 <b>${formatAmount(P.potPool.red)}</b></div><div>💙蓝罐 <b>${formatAmount(P.potPool.blue)}</b></div>`;
+      el.potStock.innerHTML =
+        `<div>🩸红罐 <b>${formatAmount(P.potPool.red)}</b></div>`
+        + `<div>💙蓝罐 <b>${formatAmount(P.potPool.blue)}</b></div>`
+        + `<div>📜回城卷 <b>${P.townScrolls | 0}</b>`
+        + ` <button type="button" class="ghost pot-use-scroll" data-use-scroll${currentRoom && (P.townScrolls | 0) > 0 ? '' : ' disabled'}>使用</button></div>`;
     }
-    el.bagCount.textContent = P.bag.length;
+    el.bagCount.textContent = `${P.bag.length}/${BAG_MAX}`;
     const cells = [];
     for (let i = 0; i < BAG_MAX; i++) {
       cells.push(eqCellHtml(P.bag[i] || null, P.bag[i] ? { bagIndex: i } : { label: '' }));
@@ -1484,6 +1557,7 @@
         v: 4, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         pots: P.pots, potPool: P.potPool, ...gear, kills: P.kills,
         bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot, autoMp: P.autoMp,
+        autoTown: P.autoTown, townScrolls: P.townScrolls,
         skills: P.skills,
         rooms: roomClearedAt,
         ground: groundBags,          // 地上的袋子（含死亡遗物）
@@ -1519,6 +1593,8 @@
       P.bag = Array.isArray(s.bag) ? s.bag.slice(0, BAG_MAX) : [];
       P.autoPot = Number.isFinite(s.autoPot) ? s.autoPot : 50;
       P.autoMp = Number.isFinite(s.autoMp) ? s.autoMp : 0;
+      P.autoTown = Number.isFinite(s.autoTown) ? s.autoTown : 0;
+      P.townScrolls = Math.max(0, s.townScrolls | 0);
       P.potionCd = { red: 0, blue: 0 };
       worldSeed = (s.seed >>> 0) || 0;
       clock = Number.isFinite(s.clock) ? s.clock : 8 * 60;
@@ -1979,6 +2055,7 @@
         hurtFlash();
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
         if (e.boss) bossTrick(e);                                     // R5.2 / R5.8
+        if (tryAutoTown()) return;
         if (P.hp <= 0) { die(); return; }
       } else {
         e.aggroOn = true;
@@ -2013,6 +2090,7 @@
       addFloater(P.x, P.y - 0.4, `-${h.dmg}`, h.key === 'poison' ? '#9ad06a' : '#ff9a5a');
     }
     if (pr.dead) { log('你被持续伤害拖垮了。', 'bad'); die(); return; }
+    if (tryAutoTown()) return;
     for (const e of enemies) {
       if (e.hp <= 0) continue;
       const r = S.tick(e, turn);
@@ -2251,6 +2329,8 @@
       P.mp <= maxMp() * P.autoMp / 100) {
       if (drink('blue')) { after(); return true; }
     }
+    // 自动回城：阈值以下且有回城卷
+    if (tryAutoTown()) return true;
 
     if (autoFarm) {
       const under = bagAt(P.x, P.y);
@@ -2617,6 +2697,7 @@
     P.hp -= dmg;
     addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
     log(`${nearest.name}趁机咬了你一口，<span class="bad">-${dmg} HP</span>。`, 'bad');
+    if (tryAutoTown()) return;
     if (P.hp <= 0) { die(); return; }
     const dirs = DL.World.DIRS8;
     const away = dirs.filter(([dx, dy]) => DL.World.canStep(map, P.x, P.y, dx, dy)
@@ -2962,6 +3043,11 @@
       }
     }
     list.push({
+      kind: 'scroll', buyId: 'townScroll',
+      name: (SHOP.townScroll && SHOP.townScroll.label) || '回城卷',
+      price: (SHOP.townScroll && SHOP.townScroll.price) || 100,
+    });
+    list.push({
       kind: 'equip', buyId: 'sword', price: SHOP.sword.price,
       eq: makeEquip('weapon', 3, 'white', { atkMin: 3, atkMax: 3, defMin: 0, defMax: 0, hp: 0 }),
     });
@@ -2988,6 +3074,7 @@
     if (el.shopStock) {
       el.shopStock.innerHTML = stock.map((it, i) => {
         if (it.kind === 'pot') return potCellHtml(it, i);
+        if (it.kind === 'scroll') return scrollCellHtml(it, i);
         return eqCellHtml(it.eq, { shopStock: i, price: it.price });
       }).join('');
     }
@@ -3003,51 +3090,89 @@
     }
   }
 
-  function buyShopStock(i) {
+  function buyShopStock(i, qty) {
     const it = ensureShopCatalog()[i];
     if (!it) return false;
-    if (it.kind === 'pot') return buyPotion(it.potKind, it.tierId);
-    return buy(it.buyId);
+    const n = Math.max(1, Math.min(99, qty | 0 || 1));
+    if (it.kind === 'pot') return buyPotion(it.potKind, it.tierId, n);
+    if (it.kind === 'scroll') return buyTownScroll(n);
+    return buy(it.buyId, n);
   }
 
-  function buyPotion(kind, tierId) {
+  function buyPotion(kind, tierId, qty) {
     kind = kind === 'blue' ? 'blue' : 'red';
     const tier = potTier(tierId);
     if (!tier) return false;
-    const price = potPrice(kind, tier.id);
+    const n = Math.max(1, Math.min(99, qty | 0 || 1));
+    const unit = potPrice(kind, tier.id);
+    const price = unit * n;
     if (P.gold < price) {
-      log(`金币不够，还差 ${price - P.gold}。`, 'bad');
+      log(`金币不够，还差 ${price - P.gold}（${n} 份共 ${price}）。`, 'bad');
       return false;
     }
     P.gold -= price;
-    P.potPool[kind] = (P.potPool[kind] || 0) + tier.amount;
-    log(`给${kind === 'blue' ? '蓝' : '红'}罐补了 ${tier.amount} 点。`, 'good');
+    const add = tier.amount * n;
+    P.potPool[kind] = (P.potPool[kind] || 0) + add;
+    log(n > 1
+      ? `给${kind === 'blue' ? '蓝' : '红'}罐补了 ${add} 点（×${n}）。`
+      : `给${kind === 'blue' ? '蓝' : '红'}罐补了 ${add} 点。`, 'good');
     syncHud();
     if (!el.shop.hidden) refreshShop();
+    if (!el.char.hidden) renderChar();
     save();
     return true;
   }
 
-  function buy(kind) {
-    if (kind === 'potion' || kind === 'potRedLow') return buyPotion('red', 'low');
-    const it = SHOP[kind];
-    if (!it) return false;
-    if (P.gold < it.price) {
-      log(`金币不够，还差 ${it.price - P.gold}。`, 'bad');
+  function buyTownScroll(qty) {
+    const it = SHOP.townScroll || { price: 100 };
+    const n = Math.max(1, Math.min(99, qty | 0 || 1));
+    const price = it.price * n;
+    if (P.gold < price) {
+      log(`金币不够，还差 ${price - P.gold}（回城卷 ${n} 张）。`, 'bad');
       return false;
     }
-    if (P.bag.length >= BAG_MAX) {
-      log('背包满了，先卖掉或丢掉一些再买。', 'bad');
-      return false;
-    }
-    P.gold -= it.price;
-    if (kind === 'sword') {
-      giveEquip(makeEquip('weapon', 3, 'white', { atkMin: 3, atkMax: 3, defMin: 0, defMax: 0, hp: 0 }));
-    } else if (kind === 'armor') {
-      giveEquip(makeEquip('armor', 3, 'white', { atkMin: 0, atkMax: 0, defMin: 2, defMax: 2, hp: 15 }));
-    }
+    P.gold -= price;
+    P.townScrolls = (P.townScrolls | 0) + n;
+    log(`买了回城卷 ×${n}（共有 ${P.townScrolls}）。`, 'good');
     syncHud();
     if (!el.shop.hidden) refreshShop();
+    if (!el.char.hidden) renderChar();
+    save();
+    return true;
+  }
+
+  function buy(kind, qty) {
+    if (kind === 'potion' || kind === 'potRedLow') return buyPotion('red', 'low', qty);
+    if (kind === 'townScroll') return buyTownScroll(qty);
+    const it = SHOP[kind];
+    if (!it) return false;
+    const n = Math.max(1, Math.min(99, qty | 0 || 1));
+    const price = it.price * n;
+    if (P.gold < price) {
+      log(`金币不够，还差 ${price - P.gold}（×${n}）。`, 'bad');
+      return false;
+    }
+    if (P.bag.length + n > BAG_MAX) {
+      log(`背包空位不够（要 ${n} 格，剩 ${BAG_MAX - P.bag.length}）。`, 'bad');
+      return false;
+    }
+    P.gold -= price;
+    let got = 0;
+    for (let i = 0; i < n; i++) {
+      let eq = null;
+      if (kind === 'sword') {
+        eq = makeEquip('weapon', 3, 'white', { atkMin: 3, atkMax: 3, defMin: 0, defMax: 0, hp: 0 });
+      } else if (kind === 'armor') {
+        eq = makeEquip('armor', 3, 'white', { atkMin: 0, atkMax: 0, defMin: 2, defMax: 2, hp: 15 });
+      }
+      if (!eq || P.bag.length >= BAG_MAX) break;
+      P.bag.push(eq);
+      got += 1;
+    }
+    log(got > 1 ? `买了 ${it.label || kind} ×${got}。` : `买了 ${it.label || kind}。`, 'good');
+    syncHud();
+    if (!el.shop.hidden) refreshShop();
+    if (!el.char.hidden) renderChar();
     save();
     return true;
   }
@@ -3203,6 +3328,7 @@
           if (!info.it) return;
           const src = { kind: 'shopStock', i: info.i, price: info.it.price };
           if (info.it.kind === 'pot') showPotTip(info.it, src, sticky, cell);
+          else if (info.it.kind === 'scroll') showScrollTip(info.it, src, sticky, cell);
           else showEqTip(info.it.eq, src, sticky, cell);
         } else if (info.eq) {
           showEqTip(info.eq, { kind: 'shopBag', i: info.i }, sticky, cell);
@@ -3337,6 +3463,26 @@
         if (e.target.closest('[data-tip-lock]')) {
           const eq = resolveEqFromSrc(tipSrc);
           if (eq) toggleLockEq(eq);
+          return;
+        }
+        const buyBtn = e.target.closest('[data-tip-buy]');
+        if (buyBtn && tipSrc && tipSrc.kind === 'shopStock') {
+          const qty = Number(buyBtn.getAttribute('data-tip-buy')) || 1;
+          if (buyShopStock(tipSrc.i, qty)) {
+            const it = ensureShopCatalog()[tipSrc.i];
+            const cell = findTipAnchor(tipSrc);
+            if (it && it.kind === 'pot') showPotTip(it, tipSrc, true, cell);
+            else if (it && it.kind === 'scroll') showScrollTip(it, tipSrc, true, cell);
+            else if (it && it.eq) showEqTip(it.eq, tipSrc, true, cell);
+          }
+        }
+      });
+    }
+    if (el.char) {
+      el.char.addEventListener('click', (e) => {
+        if (e.target.closest('[data-use-scroll]')) {
+          e.preventDefault();
+          useTownScroll();
         }
       });
     }
@@ -3359,6 +3505,13 @@
       P.autoMp = Number(el.autoMp.value) || 0;
       save();
       log(P.autoMp ? `自动蓝药：蓝量低于 ${P.autoMp}% 时喝。` : '自动蓝药已关闭。');
+    });
+    if (el.autoTown) el.autoTown.addEventListener('change', () => {
+      P.autoTown = Number(el.autoTown.value) || 0;
+      save();
+      log(P.autoTown
+        ? `自动回城：血量低于 ${P.autoTown}% 且有回城卷时回城。`
+        : '自动回城已关闭。');
     });
     el.menuRestart.addEventListener('click', restart);
     el.doorList.addEventListener('click', (e) => {
@@ -3724,8 +3877,10 @@
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy, buyPotion, buyShopStock,
       Sfx, openShop, refreshShop, ensureShopCatalog,
+      buyTownScroll, useTownScroll, tryAutoTown,
       potTotal, potPrice, pickPotTier, normalizePots, formatAmount,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
+      BAG_MAX,
       makeEnemy, rollGrade, isCrush,
       hubRegen,
       addToBag, equipFromBag, sellFromBag, sellBagByRarity, toggleLockEq, sellPrice, openChar, eqCompareHtml, eqStatText, eqDetailHtml,

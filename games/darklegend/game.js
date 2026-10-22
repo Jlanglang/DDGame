@@ -2376,6 +2376,7 @@
 
   function act(kind) {
     if (over || uiOpen()) return;
+    Sfx.unlock();
     stopWalk();
     if (!blockAction()) return;
     if (kind === 'attack') { if (attack(1.2, '攻击')) after(); }
@@ -3045,10 +3046,11 @@
     const onMuteToggle = () => { Sfx.unlock(); Sfx.toggleMute(); syncMuteUi(); };
     if (el.btnMute) el.btnMute.addEventListener('click', onMuteToggle);
     if (el.menuMute) el.menuMute.addEventListener('click', onMuteToggle);
-    // 浏览器要用户手势才给 AudioContext
-    const unlockOnce = () => { Sfx.unlock(); };
-    document.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
-    document.addEventListener('keydown', unlockOnce, { once: true });
+    // 手机：捕获阶段持续尝试 resume，直到 running（只绑一次监听不够）
+    if (typeof Sfx.bindAutoUnlock === 'function') Sfx.bindAutoUnlock(document);
+    if (el.introBtn) {
+      el.introBtn.addEventListener('click', () => { Sfx.unlock(); Sfx.play('ui'); });
+    }
 
     el.btnMenu.addEventListener('click', () => {
       el.seedText.textContent = String(worldSeed);

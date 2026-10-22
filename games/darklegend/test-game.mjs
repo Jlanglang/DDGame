@@ -415,10 +415,11 @@ try {
     ok('角色面板显示攻击最小-最大', html.includes(`攻击 <b>${ar.min}-${ar.max}</b>`), html);
   }
 
-  /* R15.6 音效：掉落分档 + 静音不炸 */
+  /* R15.6 音效：掉落分档 + 静音不炸 + 解锁 API */
   {
     const S = dl.Sfx || sandbox.DL.Sfx;
-    ok('Sfx 模块存在', !!(S && S.play && S.drop));
+    ok('Sfx 模块存在', !!(S && S.play && S.drop && S.unlock));
+    ok('bindAutoUnlock 存在', typeof S.bindAutoUnlock === 'function');
     const was = S.isMuted();
     S.setMuted(true);
     ok('静音后 play 不抛', (() => { S.play('hit'); S.drop('orange'); return true; })());

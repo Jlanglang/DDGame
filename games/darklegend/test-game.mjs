@@ -414,6 +414,35 @@ try {
   dl.rest();
   ok('学会后可释放半月', dl.halfMoon() === true);
 
+  /* 被动：剑术精通（10 级自动学，攻速 ×2） */
+  dl.P.lv = 9;
+  dl.P.skills.swordMaster = false;
+  dl.checkPassives();
+  ok('9 级不学剑术精通', dl.P.skills.swordMaster === false);
+  ok('默认攻速 1 秒', dl.combatMs() === 1000, dl.combatMs());
+  dl.P.lv = 10;
+  dl.checkPassives();
+  ok('10 级自动学剑术精通', dl.P.skills.swordMaster === true);
+  ok('剑术精通攻速 ×2', dl.combatMs() === 500, dl.combatMs());
+  dl.P.potionCd.red = Date.now() + 3000;
+  ok('药水 CD 3 秒', dl.drink('red') === false);
+  dl.P.potionCd.red = 0;
+  dl.openChar();
+  const skillHtml = sandbox.document.getElementById('skillList').innerHTML;
+  ok('技能页含剑术精通', skillHtml.includes('剑术精通'), skillHtml.slice(0, 120));
+  dl.P.lv = 10;
+  dl.P.skills.half = true;
+  dl.P.skills.swordMaster = false;
+  dl.P.cd.half = 0;
+  dl.P.mp = 100;
+  dl.halfMoon();
+  ok('默认半月 CD 2 回合', dl.P.cd.half === 2, dl.P.cd.half);
+  dl.P.cd.half = 0;
+  dl.P.mp = 100;
+  dl.P.skills.swordMaster = true;
+  dl.halfMoon();
+  ok('剑术精通层半月 CD 4 回合（实际仍 2 秒）', dl.P.cd.half === 4, dl.P.cd.half);
+
   /* 20. 怪物：1 级鸡 / 2 级鸡(精英) / 3 级鸡(稀有) */
   const DATA = sandbox.window.DL.DATA;
   const chicken = DATA.MON.find((m) => m.id === 'chicken');
@@ -1243,6 +1272,20 @@ try {
     dl.tick();
     ok('挂机关有怪警戒推进', dl.state().turn > turn0, dl.state().turn - turn0);
     ok('挂机关警戒主动怪会追', Math.abs(dog.x - dl.P.x) < Math.abs(x0 - dl.P.x), [dog.x, x0]);
+  }
+  {
+    dl.P.skills.half = true;
+    dl.P.cd.half = 0;
+    dl.P.mp = 100;
+    const es = dl.enemies();
+    es.length = 0;
+    const rare = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'rare');
+    rare.x = dl.P.x + 1;
+    rare.y = dl.P.y;
+    rare.hp = 999;
+    es.push(rare);
+    dl.halfMoon();
+    ok('半月不命中稀有', rare.hp === 999 && rare.playerEngaged === false, [rare.hp, rare.playerEngaged]);
   }
   // pause 后 resume 必须重启世界时钟（否则房内补刷停死）
   {

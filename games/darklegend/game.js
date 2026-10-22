@@ -62,7 +62,7 @@
     'trial', 'trialRound', 'trialDesc', 'trialProg', 'trialReward', 'trialTurnIn', 'trialAbandon', 'trialClose', 'trialExpOrbs', 'trialUseOrb', 'trialMats', 'trialSellMats', 'trialModePick', 'trialSwitch',
     'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
     'btnChar', 'char', 'charLv', 'charExpFill', 'charExpText', 'charPower', 'charGold',
-    'charTabs', 'paneGear', 'paneBag',
+    'charTabs', 'paneGear', 'paneBag', 'paneSkills', 'skillList',
     'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'autoTown', 'potStock',
     'eqTip', 'eqTipName', 'eqTipStats', 'eqTipActs', 'eqTipClose',
     'loot', 'lootName', 'lootStats', 'lootAffix',
@@ -212,7 +212,7 @@
     necklace: null, earring: null, ringL: null, ringR: null,
     bag: [],
     cd: { half: 0, fire: 0 },
-    skills: { half: false, fire: false },   // 技能书解锁：半月 / 烈火
+    skills: { half: false, fire: false, swordMaster: false },   // 技能书解锁：半月 / 烈火；被动：剑术精通
     autoPot: 50, autoMp: 0, autoTown: 0,
     townScrolls: 0,
     potionCd: { red: 0, blue: 0 },
@@ -257,12 +257,14 @@
   const floaters = [];
   const cam = { x: 0, y: 0 };
   const COMBAT_MS = D.COMBAT_MS || D.IDLE_MS || 1000;  // 打怪节奏
+  // 被动「剑术精通」：攻速 ×2（只影响玩家，不影响怪物）
+  const playerCombatMs = () => (P.skills && P.skills.swordMaster ? Math.round(COMBAT_MS / 2) : COMBAT_MS);
   const MOVE_MS = D.MOVE_MS || 180;                     // 走路节奏（快得多）
   const ENEMY_ACT_MS = D.ENEMY_ACT_MS || 1000;          // 怪行动：1 次/秒
   const WALK_STEP_MS = D.WALK_STEP_MS || 70;            // 点地寻路每格
   const IDLE_MS = COMBAT_MS;                            // 旧名兼容
   let idleTimer = null;
-  let nextIdleMs = COMBAT_MS;                           // after() 排下一拍用
+  let nextIdleMs = playerCombatMs();                      // after() 排下一拍用
   let enemyNextActAt = 0;                               // 兼容旧逻辑
   let statusNextTickAt = 0;                             // DoT 最多 1 次/秒，防飘字狂冒
   let playerNextStrikeAt = 0;                           // 玩家普攻/撞怪最多约 1 次/秒
@@ -1380,6 +1382,27 @@
       if (eq) showEqTip(eq, tipSrc, tipSticky, findTipAnchor(tipSrc));
       else hideEqTip();
     }
+    renderSkills();
+  }
+
+  function renderSkills() {
+    if (!el.skillList) return;
+    const rows = [
+      { name: '攻杀剑术', kind: '主动', desc: '普攻，无消耗、无 CD', learned: true },
+      { name: '半月弯刀', kind: '主动', desc: '周围 5 格，MP 12，CD 3 回合', learned: !!P.skills.half },
+      { name: '烈火剑法', kind: '主动', desc: '单体 ×2.2 + 灼烧 3 回合，MP 18，CD 4 回合', learned: !!P.skills.fire },
+      ...(D.PASSIVES || []).map((p) => ({
+        name: p.name,
+        kind: '被动',
+        desc: `${p.desc}（${p.unlockLv} 级自动学习）`,
+        learned: p.id === 'swordMaster' ? !!P.skills.swordMaster : false,
+      })),
+    ];
+    el.skillList.innerHTML = rows.map((r) => `
+      <div class="skill-row ${r.learned ? '' : 'locked'}">
+        <div><b>${r.name}</b><small>${r.kind} · ${r.desc}</small></div>
+        <span>${r.learned ? '已学' : '未学'}</span>
+      </div>`).join('');
   }
 
   let charTab = 'gear';
@@ -1388,6 +1411,7 @@
     charTab = tab;
     el.paneGear.hidden = tab !== 'gear';
     el.paneBag.hidden = tab !== 'bag';
+    if (el.paneSkills) el.paneSkills.hidden = tab !== 'skills';
     if (el.charTabs && el.charTabs.querySelectorAll) {
       el.charTabs.querySelectorAll('.char-tab').forEach((b) => {
         b.classList.toggle('active', b.dataset.tab === tab);
@@ -1489,7 +1513,15 @@
     el.lv.textContent = `Lv.${P.lv} · 🕐 ${clockText()}`;
   }
 
+  function checkPassives() {
+    if (P.lv >= 10 && !P.skills.swordMaster) {
+      P.skills.swordMaster = true;
+      log('被动技能「剑术精通」已领悟：攻速 ×2。', 'good');
+    }
+  }
+
   function syncHud() {
+    checkPassives();
     updateClockLabel();
     el.hpFill.style.width = `${clamp(P.hp / maxHp(), 0, 1) * 100}%`;
     el.hpText.textContent = `${Math.max(0, Math.ceil(P.hp))} / ${maxHp()}`;
@@ -1502,11 +1534,12 @@
     el.gear.textContent = gearText();
     el.potionCount.textContent = formatAmount(potTotal('red'));
     el.btnAtk.disabled = over;
-    el.btnPotion.disabled = over || potTotal('red') <= 0 || P.potionCd.red > 0;
-    el.potionCd.textContent = P.potionCd.red > 0 ? `⏳${P.potionCd.red}` : '';
+    const nowMs = Date.now();
+    el.btnPotion.disabled = over || potTotal('red') <= 0 || P.potionCd.red > nowMs;
+    el.potionCd.textContent = P.potionCd.red > nowMs ? `⏳${Math.ceil((P.potionCd.red - nowMs) / 1000)}` : '';
     if (el.mpPotionCount) el.mpPotionCount.textContent = formatAmount(potTotal('blue'));
-    if (el.btnMpPotion) el.btnMpPotion.disabled = over || potTotal('blue') <= 0 || P.potionCd.blue > 0;
-    if (el.mpPotionCd) el.mpPotionCd.textContent = P.potionCd.blue > 0 ? `⏳${P.potionCd.blue}` : '';
+    if (el.btnMpPotion) el.btnMpPotion.disabled = over || potTotal('blue') <= 0 || P.potionCd.blue > nowMs;
+    if (el.mpPotionCd) el.mpPotionCd.textContent = P.potionCd.blue > nowMs ? `⏳${Math.ceil((P.potionCd.blue - nowMs) / 1000)}` : '';
     if (el.potStock) {
       el.potStock.innerHTML = `<div>🩸红罐 <b>${formatAmount(P.potPool.red)}</b></div><div>💙蓝罐 <b>${formatAmount(P.potPool.blue)}</b></div>`;
     }
@@ -1579,7 +1612,7 @@
     btn.disabled = over || !learned || cd > 0 || P.mp < cost;
     btn.classList.toggle('cooling', cd > 0);
     btn.classList.toggle('locked', !learned);
-    cdEl.textContent = learned ? (cd > 0 ? `⏳${cd}` : '') : '未学';
+    cdEl.textContent = learned ? (cd > 0 ? `⏳${Math.ceil(cd * playerCombatMs() / 1000)}` : '') : '未学';
   }
 
   /* ---------------- 存档 ---------------- */
@@ -2484,7 +2517,7 @@
   function after(opts) {
     if (over) return;
     const pace = (opts && opts.pace) || 'combat';
-    nextIdleMs = pace === 'move' ? MOVE_MS : COMBAT_MS;
+    nextIdleMs = pace === 'move' ? MOVE_MS : playerCombatMs();
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     // 战斗回合照常结算 DoT；走路回合最多约 1 次/秒，避免狂冒字
     if (pace !== 'move' || now >= statusNextTickAt) {
@@ -2495,8 +2528,7 @@
     P.mp = Math.min(maxMp(), P.mp + Math.max(1, Math.round(maxMp() * 0.08)));
     if (P.cd.half > 0) P.cd.half--;
     if (P.cd.fire > 0) P.cd.fire--;
-    if (P.potionCd.red > 0) P.potionCd.red--;
-    if (P.potionCd.blue > 0) P.potionCd.blue--;
+    // 药水 CD 走真实时间（3 秒），不随攻速变
     // 走路回合：怪只追不打；战斗回合：可追可打（每怪仍约 1 次/秒）
     if (!leveledUp) enemiesTurn({ allowAttack: pace !== 'move' });
     leveledUp = false;
@@ -2538,7 +2570,7 @@
   function autoStrikeAdjacent(target, fromFarm) {
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     if (now < playerNextStrikeAt) return;
-    playerNextStrikeAt = now + COMBAT_MS;
+    playerNextStrikeAt = now + playerCombatMs();
     faceTo(target.x, target.y);
     if (fromFarm) {
       const halfAll = halfMoonTargets();
@@ -2550,7 +2582,7 @@
       if (canHalf && halfFarm.length >= 2) { act('half'); return; }
       if (canFire) {
         P.mp -= 12;
-        P.cd.fire = 3;
+        P.cd.fire = Math.ceil((D.SKILL_CD_MS && D.SKILL_CD_MS.fire ? D.SKILL_CD_MS.fire : 3000) / playerCombatMs());
         strike(target, 2.2, '烈火');
         if (target.hp > 0) {
           const st = S.apply(target, 'burn', { turn, dmg: S.damageFrom('burn', atkMean()) });
@@ -2581,7 +2613,7 @@
     if (block) {
       const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       if (now < playerNextStrikeAt) { after({ pace: 'move' }); return true; }
-      playerNextStrikeAt = now + COMBAT_MS;
+      playerNextStrikeAt = now + playerCombatMs();
       killFromFarm = true;
       strike(block, 1.2, '攻击');
       after();
@@ -2606,11 +2638,11 @@
     if (!S.canAct(P)) { blockAction(); return turn !== t; }
 
     // 自动喝药（挂机/手控都开；红优先于蓝）
-    if (P.autoPot > 0 && P.potionCd.red <= 0 &&
+    if (P.autoPot > 0 && P.potionCd.red <= Date.now() &&
       P.hp <= maxHp() * P.autoPot / 100) {
       if (drink('red')) { after(); return true; }
     }
-    if (P.autoMp > 0 && P.potionCd.blue <= 0 &&
+    if (P.autoMp > 0 && P.potionCd.blue <= Date.now() &&
       P.mp <= maxMp() * P.autoMp / 100) {
       if (drink('blue')) { after(); return true; }
     }
@@ -2731,7 +2763,8 @@
   }
 
   function halfMoonTargets() {
-    return DL.Combat.targetsAt(enemies, halfMoonCells());
+    // 半月只打普通/精英：避免误伤稀有/首领，把它们非主动拉进战斗
+    return DL.Combat.targetsAt(enemies, halfMoonCells()).filter((e) => !e.boss && !e.rare);
   }
 
   function halfMoon() {
@@ -2739,7 +2772,7 @@
     if (P.cd.half > 0) { log(`半月还在冷却（${P.cd.half} 回合）。`); return false; }
     if (P.mp < 6) { log('MP 不足（需要 6）。', 'bad'); return false; }
     P.mp -= 6;
-    P.cd.half = 2;
+    P.cd.half = Math.ceil((D.SKILL_CD_MS && D.SKILL_CD_MS.half ? D.SKILL_CD_MS.half : 2000) / playerCombatMs());
     halfFlash = 1;
     halfFlashCells = halfMoonCells();
     const targets = halfMoonTargets();
@@ -2755,7 +2788,7 @@
     const t = adjacentTarget();
     if (!t) { log('身边没有敌人。'); return false; }
     P.mp -= 12;
-    P.cd.fire = 3;
+    P.cd.fire = Math.ceil((D.SKILL_CD_MS && D.SKILL_CD_MS.fire ? D.SKILL_CD_MS.fire : 3000) / playerCombatMs());
     strike(t, 2.2, '烈火');
     // R4.1：烈火剑法 = 单体 ×2.2 + 灼烧 3 回合（R3.12 灼烧 = 攻击 ×15% × 层数）
     if (t.hp > 0) {
@@ -2769,8 +2802,9 @@
   function drink(kind) {
     kind = kind === 'blue' ? 'blue' : 'red';
     const label = kind === 'blue' ? '蓝罐' : '红罐';
-    if (P.potionCd[kind] > 0) {
-      log(`${label}还在冷却（${P.potionCd[kind]} 回合）。`);
+    if (P.potionCd[kind] > Date.now()) {
+      const left = Math.ceil((P.potionCd[kind] - Date.now()) / 1000);
+      log(`${label}还在冷却（${left} 秒）。`);
       return false;
     }
     const max = kind === 'blue' ? maxMp() : maxHp();
@@ -2783,7 +2817,7 @@
     P.potPool[kind] = pool - got;
     if (kind === 'blue') P.mp = Math.min(max, P.mp + got);
     else P.hp = Math.min(max, P.hp + got);
-    P.potionCd[kind] = POTIONS.cd || 3;
+    P.potionCd[kind] = Date.now() + (POTIONS.cdMs || 3000);
     addFloater(P.x, P.y - 0.4, `+${got}${kind === 'blue' ? 'MP' : ''}`, kind === 'blue' ? '#6ab0ff' : '#7ee0a0');
     log(`喝下${label} ${got} 点，罐子剩 ${formatAmount(P.potPool[kind])}。`, 'good');
     return true;
@@ -2928,7 +2962,7 @@
         if (fromWalk) stopWalk();
         return false;
       }
-      playerNextStrikeAt = now + COMBAT_MS;
+      playerNextStrikeAt = now + playerCombatMs();
       strike(e, 1.2, '攻击');
       if (fromWalk) stopWalk();
       after();
@@ -4269,7 +4303,7 @@
       P, act, move, attack, halfMoon, fireSword, drink, buy, buyPotion, buyShopStock,
       Sfx, openShop, refreshShop, ensureShopCatalog, tryInteract,
       openBookShop, renderBookShop, buyBook, BOOK_SHOP,
-      rollTrialTask, turnInTrial, abandonTrial, useExpOrb, trialDone, trialProgress, openTrial, MATS, TRIAL, sellAllMats, chooseTrialMode, resetTrialMode, trialMode,
+      rollTrialTask, turnInTrial, abandonTrial, useExpOrb, trialDone, trialProgress, openTrial, MATS, TRIAL, sellAllMats, chooseTrialMode, resetTrialMode, trialMode, checkPassives,
       buyTownScroll, useTownScroll, tryAutoTown,
       potTotal, potPrice, pickPotTier, normalizePots, formatAmount,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
@@ -4331,7 +4365,7 @@
       atkRange: () => atkRange(P), defRange: () => defRange(P),
       renderChar,
       idleMs: () => IDLE_MS,
-      combatMs: () => COMBAT_MS,
+      combatMs: () => playerCombatMs(),
       moveMs: () => MOVE_MS,
       walkStepMs: () => WALK_STEP_MS,
       clock: () => clock,

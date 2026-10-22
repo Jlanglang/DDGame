@@ -172,6 +172,7 @@
       <div class="char-tabs" id="charTabs">
         <button type="button" class="char-tab active" data-tab="gear">装备</button>
         <button type="button" class="char-tab" data-tab="bag">背包 <b class="bag-count" id="bagCount">0</b></button>
+        <button type="button" class="char-tab" data-tab="skills">技能</button>
       </div>
 
       <div class="char-pane" id="paneGear">
@@ -225,6 +226,11 @@
           <button type="button" class="bag-recycle-btn" data-recycle-run>一键回收</button>
         </div>
         <div class="eq-grid bag" id="bagList"></div>
+      </div>
+
+      <div class="char-pane" id="paneSkills" hidden>
+        <h4 class="char-h">主动 / 被动</h4>
+        <div id="skillList"></div>
       </div>
 
       <button type="button" class="ghost" id="charClose">关闭</button>

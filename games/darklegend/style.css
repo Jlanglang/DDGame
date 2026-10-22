@@ -475,6 +475,22 @@ canvas {
 .book-row button:disabled { opacity: 0.5; }
 .trial-actions { display: flex; gap: 8px; margin: 8px 0; }
 .trial-actions button { flex: 1; }
+.skill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #16203a;
+  margin-bottom: 8px;
+}
+.skill-row b { display: block; color: var(--gold); font-size: 14px; }
+.skill-row small { color: var(--muted); font-size: 11px; }
+.skill-row.locked { opacity: 0.5; }
+.skill-row span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.trial-actions button { flex: 1; }
 .trial-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
 .trial-mode button { margin: 0; }
 .trial-orbs {

@@ -14,6 +14,7 @@
     </div>
     <div class="hud-right">
       <div class="hud-btns">
+        <button id="btnMute" class="icon-btn" type="button" title="音效开/关" aria-label="音效" aria-pressed="false">🔊</button>
         <button id="btnChar" class="icon-btn" type="button" title="角色">👤</button>
         <button id="btnMenu" class="icon-btn" type="button" title="菜单" aria-label="菜单">☰</button>
       </div>
@@ -192,6 +193,7 @@
       <p class="menu-help"><b>鸡打你 0 伤害</b>，但金币只有 1–5、还常常不掉。<b>刷鸡到 5 级就没经验了</b>（比怪高 4 级起经验归零），该换门了。</p>
       <p class="menu-help">怪掉的<b>装备会落在地上变成钱袋</b>（袋子上的 C/B/A/S 是里面最好的品级），走上去就捡，捡起来能一件一件挑。<b>死了会掉一件身上的装备</b>，留在原地，回去还能捡。</p>
       <p class="menu-help">地图种子：<b id="seedText">-</b>（同一存档固定）</p>
+      <p class="menu-help">音效：<button type="button" class="ghost" id="menuMute">🔊 开启</button>（顶栏喇叭也可切）</p>
       <button type="button" id="menuClose">继续游戏</button>
       <button type="button" class="ghost" id="menuRetreat">撤退（R）</button>
       <button type="button" class="danger" id="menuRestart">重开新档</button>
@@ -223,6 +225,7 @@
 <script src="world.js"></script>
 <script src="combat.js"></script>
 <script src="status.js"></script>
+<script src="sfx.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

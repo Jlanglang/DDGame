@@ -86,6 +86,7 @@ const coreCode = fs.readFileSync(path.join(ROOT, 'core.js'), 'utf8');
 const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
 const combatCode = fs.readFileSync(path.join(ROOT, 'combat.js'), 'utf8');
 const statusCode = fs.readFileSync(path.join(ROOT, 'status.js'), 'utf8');
+const sfxCode = fs.readFileSync(path.join(ROOT, 'sfx.js'), 'utf8');
 vm.createContext(sandbox);
 try {
   vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
@@ -93,6 +94,7 @@ try {
   vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
   vm.runInContext(combatCode, sandbox, { filename: 'combat.js' });
   vm.runInContext(statusCode, sandbox, { filename: 'status.js' });
+  vm.runInContext(sfxCode, sandbox, { filename: 'sfx.js' });
   vm.runInContext(code, sandbox, { filename: 'game.js' });
 } catch (err) {
   console.error('加载游戏脚本失败：', err && err.stack ? err.stack : err);
@@ -158,6 +160,8 @@ try {
   dl.drink('red');
   ok('红罐回满', dl.P.hp === dl.maxHp(), [dl.P.hp, dl.maxHp()]);
   ok('红罐按实际回复扣', dl.P.potPool.red === redPool0 - needRed, [redPool0, dl.P.potPool.red, needRed]);
+  ok('万级余量显示能看出扣减', dl.formatAmount(100000) === '10万' && dl.formatAmount(99940) === '9.99万',
+    [dl.formatAmount(100000), dl.formatAmount(99940)]);
   dl.P.mp = 0;
   dl.P.potionCd.blue = 0;
   dl.drink('blue');
@@ -226,7 +230,7 @@ try {
   dl.tick();
   ok('暂停后 tick 不推进', dl.state().turn === turnA, [turnA, dl.state().turn]);
 
-  /* 14. 新手兜底：鸡啄不动你（无伤），稻草人打得动 */
+  /* 14. 鸡啄 1–3 点；稻草人走正常攻防 */
   const MONs = sandbox.window.DL.DATA.MON;
   dl.genHub();
   dl.P.lv = 1;
@@ -236,10 +240,16 @@ try {
   const chick0 = dl.makeEnemy(MONs.find((m) => m.id === 'chicken'), 'normal');
   chick0.x = dl.P.x + 1;
   chick0.y = dl.P.y;
+  chick0.aggroOn = true; // 被动怪：挨打后才还手
   es0.push(chick0);
   const hpChick0 = dl.state().hp;
-  for (let i = 0; i < 10; i++) dl.after();
-  ok('鸡打玩家 0 伤害（新手兜底）', dl.state().hp === hpChick0, [hpChick0, dl.state().hp]);
+  dl.resetEnemyClock();
+  dl.after();
+  ok('鸡打玩家 1–3 点', (() => {
+    const lost = hpChick0 - dl.state().hp;
+    return lost >= 1 && lost <= 3;
+  })(), [hpChick0, dl.state().hp]);
+  ok('鸡攻击区间 1–3', chick0.atkMin === 1 && chick0.atkMax === 3, [chick0.atkMin, chick0.atkMax]);
 
   es0.length = 0;
   dl.rest();
@@ -283,7 +293,7 @@ try {
   dl.resumeAuto();
   ok('resumeAuto 后自动战斗恢复', dl.autoEnabled() === true, dl.autoEnabled());
 
-  /* 19. 技能书：初始只有普攻，半月/烈火要靠技能书 */
+  /* 19. 技能书：初始只有普攻；20 级 BOSS→半月、30 级 BOSS→烈火 */
   dl.genHub();
   dl.P.skills.half = false;
   dl.P.skills.fire = false;
@@ -293,7 +303,24 @@ try {
   const mpBefore = dl.state().mp;
   ok('未学半月不可释放', dl.halfMoon() === false);
   ok('未学半月不耗 MP', dl.state().mp === mpBefore, [mpBefore, dl.state().mp]);
-
+  {
+    const elite = { boss: false, elite: true, lv: 12, name: '精英' };
+    const b10 = { boss: true, lv: 10, name: '稻草王' };
+    const b20 = { boss: true, lv: 20, name: '山大王' };
+    const b25 = { boss: true, lv: 25, name: '古墓尸王' };
+    const b30 = { boss: true, lv: 30, name: '血月怨主' };
+    ok('精英不掉技能书', dl.rollSkillBookDrop(elite) == null);
+    ok('10 级首领不掉技能书', dl.rollSkillBookDrop(b10) == null);
+    ok('25 级首领不掉技能书', dl.rollSkillBookDrop(b25) == null);
+    const halfBook = dl.rollSkillBookDrop(b20);
+    ok('20 级首领掉半月书', halfBook && halfBook.skill === 'half', halfBook);
+    ok('捡半月书才学会', dl.state().skills.half === false);
+    ok('学习半月书', dl.learnSkillBook(halfBook) === true && dl.state().skills.half === true);
+    ok('已学会不再掉半月', dl.rollSkillBookDrop(b20) == null);
+    const fireBook = dl.rollSkillBookDrop(b30);
+    ok('30 级首领掉烈火书', fireBook && fireBook.skill === 'fire', fireBook);
+    ok('学习烈火书', dl.learnSkillBook(fireBook) === true && dl.state().skills.fire === true);
+  }
   dl.P.skills.half = true;
   dl.P.cd.half = 0;
   dl.rest();
@@ -310,6 +337,15 @@ try {
   ok('鸡稀有 Lv3', r.lv === 3 && r.name.includes('稀有'), [r.lv, r.name]);
   ok('稀有血量 > 精英 > 普通', r.hp > e.hp && e.hp > n.hp, [n.hp, e.hp, r.hp]);
   ok('图 1 共 4 种怪 + BOSS Lv10', DATA.MON.filter((m) => m.lv <= 10).length === 4 && DATA.BOSS.lv === 10, [DATA.MON.length, DATA.BOSS.lv]);
+  {
+    const b = dl.makeEnemy(DATA.BOSS, 'boss');
+    const n = dl.makeEnemy(DATA.MON.find((m) => m.id === 'boar') || DATA.MON[0], 'normal');
+    // 同级对照：首领血约普通的 ×10（野猪 Lv7 vs 稻草人王 Lv10 不比）；用公式倍率验收
+    ok('首领血量倍率 ×10', DATA.GRADE.boss.hp === 10, DATA.GRADE.boss.hp);
+    ok('首领攻击倍率 ×1.35', DATA.GRADE.boss.atk === 1.35, DATA.GRADE.boss.atk);
+    ok('Lv10 首领血量约 800+', b.maxHp >= 750 && b.maxHp <= 900, b.maxHp);
+    void n;
+  }
 
   let rareHit = 0;
   for (let i = 0; i < 4000; i++) if (dl.rollGrade() === 'rare') rareHit++;
@@ -359,8 +395,37 @@ try {
     ok('基础+浮动文案', dl.eqStatText(shown) === '攻击 0-15(+10)', dl.eqStatText(shown));
   }
   dl.P.lv = 5;
+  dl.P.weapon = null;
+  dl.P.bag = [];
   dl.addToBag(eqO);
-  ok('好装备直接穿上', dl.state().weapon === eqO || dl.P.bag.includes(eqO));
+  ok('好装备不自动穿，进背包', dl.state().weapon == null && dl.P.bag.includes(eqO), dl.P.bag.map((e) => e && e.name));
+  ok('双击才穿上', dl.equipFromBag(0) === true && dl.P.weapon === eqO);
+  {
+    dl.P.lv = 1;
+    const w = dl.makeEquip('weapon', 5, 'white');
+    w.atkMin = 4; w.atkMax = 12; w.defMin = 0; w.defMax = 0; w.hp = 0;
+    dl.P.weapon = w;
+    for (const id of ['armor', 'glovesL', 'glovesR', 'shoes', 'helmet', 'necklace', 'earringL', 'earringR', 'ringL', 'ringR']) {
+      dl.P[id] = null;
+    }
+    const ar = dl.atkRange();
+    ok('面板攻击是区间', ar.min === 5 + 4 && ar.max === 5 + 12, ar);
+    dl.openChar();
+    const html = sandbox.document.getElementById('charStats').innerHTML;
+    ok('角色面板显示攻击最小-最大', html.includes(`攻击 <b>${ar.min}-${ar.max}</b>`), html);
+  }
+
+  /* R15.6 音效：掉落分档 + 静音不炸 */
+  {
+    const S = dl.Sfx || sandbox.DL.Sfx;
+    ok('Sfx 模块存在', !!(S && S.play && S.drop));
+    const was = S.isMuted();
+    S.setMuted(true);
+    ok('静音后 play 不抛', (() => { S.play('hit'); S.drop('orange'); return true; })());
+    ok('掉落音映射齐全', ['white', 'blue', 'yellow', 'orange']
+      .every((r) => S.DROP_BY_RARITY[r]), S.DROP_BY_RARITY);
+    S.setMuted(was);
+  }
 
   /* 等级不够不能穿 */
   {
@@ -464,6 +529,24 @@ try {
     const r = DATA.ROOMS.find((x) => x.id === 'cave3');
     return r && r.boss === true && r.bossLv === 20 && r.bossName === '山大王';
   })());
+  ok('血月荒原 30 级首领', (() => {
+    const r = DATA.ROOMS.find((x) => x.id === 'field7');
+    return r && r.boss === true && r.bossLv === 30 && r.bossName === '血月怨主';
+  })());
+  /* R11.14 进图：lvMin ≤ 自身 +10 */
+  {
+    const lv0 = dl.P.lv;
+    dl.P.lv = 1;
+    ok('1 级可进狼谷(lvMin11)', dl.canEnterRoom(DATA.ROOMS.find((r) => r.id === 'field3')) === true);
+    ok('1 级不可进蛛网洞(lvMin13)', dl.canEnterRoom(DATA.ROOMS.find((r) => r.id === 'field3b')) === false);
+    ok('蛛网洞需 Lv.3', dl.roomEnterNeedLv(DATA.ROOMS.find((r) => r.id === 'field3b')) === 3);
+    const before = dl.currentRoom();
+    ok('1 级强进蛛网洞失败', dl.enterRoom('field3b') === false);
+    ok('强进失败不换图', dl.currentRoom() === before, [before, dl.currentRoom()]);
+    dl.P.lv = 3;
+    ok('3 级可进蛛网洞', dl.canEnterRoom(DATA.ROOMS.find((r) => r.id === 'field3b')) === true);
+    dl.P.lv = lv0;
+  }
 
   /* 槽位等级解锁 + 掉落部位（R7.1b） */
   ok('1 级可穿武器护甲', dl.slotUnlocked('weapon', 1) && dl.slotUnlocked('armor', 1));
@@ -774,8 +857,32 @@ try {
     DATA.GRADE.rare.color !== DATA.GRADE.normal.color &&
     DATA.GRADE.boss.color !== DATA.GRADE.normal.color,
     [DATA.GRADE.elite.color, DATA.GRADE.rare.color, DATA.GRADE.boss.color]);
-  ok('S 掉率收紧', DATA.DROP.normal.s === 0.0002 && DATA.DROP.elite.s === 0.002 &&
+  ok('S 掉率收紧', DATA.DROP.normal.s === 0.0001 && DATA.DROP.elite.s === 0.002 &&
     DATA.DROP.rare.s === 0.03 && DATA.DROP.boss.s === 0.06, DATA.DROP);
+  {
+    let aFromNormal = 0, aFromElite = 0, aFromRare = 0;
+    const chick = DATA.MON.find((m) => m.id === 'chicken');
+    for (let i = 0; i < 800; i++) {
+      const n = dl.makeEnemy(chick, 'normal');
+      for (const eq of dl.rollKillEquipDrops(n, false)) {
+        if (eq.kind === 'skillbook') continue;
+        if (eq.rarity === 'yellow' || eq.rarity === 'orange') aFromNormal++;
+      }
+      const el = dl.makeEnemy(chick, 'elite');
+      for (const eq of dl.rollKillEquipDrops(el, false)) {
+        if (eq.kind === 'skillbook') continue;
+        if (eq.rarity === 'yellow') aFromElite++;
+      }
+      const rr = dl.makeEnemy(chick, 'rare');
+      for (const eq of dl.rollKillEquipDrops(rr, false)) {
+        if (eq.kind === 'skillbook') continue;
+        if (eq.rarity === 'yellow') aFromRare++;
+      }
+    }
+    ok('1–10 普通不掉 A/S', aFromNormal === 0, aFromNormal);
+    ok('1–10 精英不掉 A（仍保底 B）', aFromElite === 0, aFromElite);
+    ok('1–10 稀有仍掉 A', aFromRare >= 700, aFromRare);
+  }
 
   /* ============ 地面掉落袋：击杀不再直接进包 ============ */
   dl.genHub();
@@ -1012,7 +1119,7 @@ try {
   const bagA = { items: [dl.makeEquip('weapon', 5, 'yellow')], relic: false };
   const bagS = { items: [dl.makeEquip('weapon', 5, 'orange')], relic: false };
   ok('B 袋可自动捡', dl.bagAutoLootable(bagB) === true);
-  ok('A 袋不自动捡', dl.bagAutoLootable(bagA) === false);
+  ok('A 袋可自动捡', dl.bagAutoLootable(bagA) === true);
   ok('S 袋不自动捡', dl.bagAutoLootable(bagS) === false);
 
   // 补刷：死后 5s 才补，不立刻灌密度
@@ -1053,12 +1160,16 @@ try {
   ok('到阈值必出精英', dl.enemies().some((e) => e.elite && e.hp > 0), dl.enemies().map((e) => e.grade));
   ok('出精英后重掷阈值', dl.eliteThreshold() >= 1 && dl.eliteThreshold() <= 50 && dl.killsToElite() === 0,
     [dl.eliteThreshold(), dl.killsToElite()]);
-  // 稀有：阈值设为 1 时下一刀必出
+  ok('出精英后还差=新阈值', dl.eliteLeft() === dl.eliteThreshold(), [dl.eliteLeft(), dl.eliteThreshold()]);
+  // 稀有：杀满 rareThreshold
   dl.enemies().length = 0;
-  // 把稀有阈值压到 1：多 roll 几次或杀到 —— 用循环滚到阈值 1 很难，改为杀满 rareThreshold
   const rNeed = dl.rareThreshold();
   for (let i = 0; i < rNeed; i++) dl.onNormalKillProgress();
   ok('到稀有阈值必出稀有', dl.enemies().some((e) => e.rare && e.hp > 0), dl.enemies().map((e) => e.grade));
+  ok('出稀有后计数清零', dl.killsToRare() === 0, dl.killsToRare());
+  ok('出稀有后还差=新阈值', dl.rareLeft() === dl.rareThreshold()
+    || dl.enemies().some((e) => e.rare && e.hp > 0), // 稀有在场时 rareLeft 为 0
+    [dl.rareLeft(), dl.rareThreshold()]);
 
   // BOSS CD：击杀记时，CD 内重进不刷
   dl.enterRoom('cave1');

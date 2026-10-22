@@ -14,6 +14,10 @@
 
   const D = (window.DL && window.DL.DATA) || {};
   if (!D.TILE) throw new Error('data.js 未加载');
+  const Sfx = (window.DL && window.DL.Sfx) || {
+    unlock() {}, play() {}, drop() {}, isMuted() { return true; },
+    setMuted() { return true; }, toggleMute() { return true; },
+  };
   const TILE = D.TILE;
   const VIEW_W = D.VIEW_W;
   const VIEW_H = D.VIEW_H;
@@ -47,12 +51,12 @@
   const el = {};
   [
     'lv', 'hpFill', 'hpText', 'mpFill', 'mpText', 'expFill', 'expText', 'gold', 'gear', 'tips', 'log',
-    'btnAtk', 'btnHalf', 'btnFire', 'btnPotion', 'btnMpPotion', 'btnFarm', 'btnInteract', 'btnRetreat', 'btnMenu',
+    'btnAtk', 'btnHalf', 'btnFire', 'btnPotion', 'btnMpPotion', 'btnFarm', 'btnInteract', 'btnRetreat', 'btnMenu', 'btnMute',
     'halfCd', 'fireCd', 'potionCount', 'potionCd', 'mpPotionCount', 'mpPotionCd',
     'logWrap', 'logToggle', 'dpad', 'stickBase', 'stickKnob',
     'over', 'overK', 'overT', 'overS', 'overBtn', 'overAlt',
     'shop', 'shopGold', 'shopClose', 'shopStock', 'shopBag',
-    'menu', 'menuClose', 'menuRetreat', 'menuRestart',
+    'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
     'btnChar', 'char', 'charLv', 'charExpFill', 'charExpText', 'charPower', 'charGold',
     'charTabs', 'paneGear', 'paneBag',
     'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'potStock',
@@ -67,7 +71,7 @@
   const {
     rand, randi, clamp, roll, key, dist, mulberry32, randomSeed,
     eqAtkMin, eqAtkMax, eqDefMin, eqDefMax, eqAtk, eqDef, eqHp, eqScore,
-    sumEqAtk, sumEqDef,
+    sumEqAtk, sumEqDef, sumEqAtkMin, sumEqAtkMax, sumEqDefMin, sumEqDefMax,
     atkRange, defRange,
   } = DL.Core;
   // 区域划分：地图从左到右，x 越大越危险（图 1 固定村庄在左、洞穴入口在右）
@@ -119,8 +123,9 @@
   const FLOAT_MAX = D.FLOAT_MAX;
   const DROP = D.DROP || {};
   const DEATH = D.DEATH || { dropP: 0, expLoss: 0.05 };
-  const AUTO_FARM = D.AUTO_FARM || { autoLootMax: 'blue' };
+  const AUTO_FARM = D.AUTO_FARM || { autoLootMax: 'yellow' };
   const RESPAWN = D.RESPAWN || {};
+  const ROOM_ENTER_SLACK = D.ROOM_ENTER_SLACK != null ? D.ROOM_ENTER_SLACK : 10;
   const POTIONS = D.POTIONS || {
     cd: 3,
     tiers: [
@@ -164,9 +169,15 @@
     const amt = potTier(tierId).amount;
     return Math.round(amt * (kind === 'blue' ? (POTIONS.blueMul || 2) : (POTIONS.redMul || 1)));
   }
+  // 罐子余量：百点级扣减也要看得见（旧版 ≥10 万只显示「10万」，像没扣）
   function formatAmount(n) {
     const v = Math.max(0, Math.round(n || 0));
-    if (v >= 10000) return (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '万';
+    if (v >= 100000000) {
+      return (v / 100000000).toFixed(2).replace(/\.?0+$/, '') + '亿';
+    }
+    if (v >= 10000) {
+      return (v / 10000).toFixed(2).replace(/\.?0+$/, '') + '万';
+    }
     return String(v);
   }
   function potTotal(kind) {
@@ -343,10 +354,10 @@
       if (x === back.x && y === back.y) continue;
       spots.push({ x, y });
     }
-    // 怪池：按房间的 pool 刷（每道门怪不一样）；等级按房间 lvMin/lvMax 覆盖
+    // 进房只刷普通；精英/稀有一律走击杀保底（刷出后重掷阈值）
     for (const s of spots) {
       const mon = poolMon(spec);
-      const e = makeEnemy(mon, rollGrade());
+      const e = makeEnemy(mon, 'normal');
       e.x = s.x; e.y = s.y;
       out.push(e);
     }
@@ -372,10 +383,24 @@
     return out;
   }
 
+  // R11.14：只能进 lvMin ≤ 自身等级 + slack 的图
+  function canEnterRoom(spec) {
+    if (!spec) return false;
+    return (spec.lvMin || 1) <= P.lv + ROOM_ENTER_SLACK;
+  }
+  function roomEnterNeedLv(spec) {
+    if (!spec) return 1;
+    return Math.max(1, (spec.lvMin || 1) - ROOM_ENTER_SLACK);
+  }
+
   // 进入小世界房间
   function enterRoom(roomId) {
     const spec = roomSpec(roomId);
-    if (!spec) return;
+    if (!spec) return false;
+    if (!canEnterRoom(spec)) {
+      log(`${spec.name}太危险了（需 Lv.${roomEnterNeedLv(spec)}，你 Lv.${P.lv}）。`, 'bad');
+      return false;
+    }
     mapRng = mulberry32(worldSeed ^ hashId(roomId));
     const r = DL.World.genRoom(spec, mapRng);
     map = r.map;
@@ -406,6 +431,7 @@
 
     centerCam();
     log(`进入 ${spec.name}（Lv.${spec.lvMin}–${spec.lvMax}）。点技能栏「挂机」刷普通/精英。`, 'good');
+    return true;
   }
 
   // 离开房间回主城
@@ -485,6 +511,7 @@
     b.x = best.x;
     b.y = best.y;
     enemies.push(b);
+    Sfx.play('boss');
     log('👹 首领刷新了！不主动追人——去手打换装，再开挂机升级。', 'bad');
     syncHud();
     return b;
@@ -530,6 +557,7 @@
 
   // 稀有刷出：只提示，不关挂机（玩家自己关再去手打）
   function onRareSpawned(e) {
+    Sfx.play('rare');
     log(`★ 稀有的${e.name}出现了！挂机不会打它——关掉「挂机」再去手打拿 A 装。`, 'good');
     syncHud();
   }
@@ -571,11 +599,17 @@
   function trySpawnEliteGuaranteed() {
     const cap = RESPAWN.eliteCap || 2;
     if (living((e) => e.elite).length >= cap) return null;
+    const prevNeed = eliteThreshold;
     const e = spawnOneInRoom('elite');
     if (e) {
-      log(`精英${e.name}加入战场（本轮阈值 ${eliteThreshold} 只）。`, 'good');
+      // 先重掷保底，再提示（还差 = 新阈值）
       rollEliteThreshold();
+      Sfx.play('elite');
+      log(`精英${e.name}加入战场（阈值 ${prevNeed}）· 保底已重置，还差 ${eliteLeft()}。`, 'good');
       syncHud();
+    } else {
+      // 刷不出：回退 1，避免顶栏卡在「还差 0」
+      killsToElite = Math.max(0, eliteThreshold - 1);
     }
     return e;
   }
@@ -586,6 +620,10 @@
     if (e) {
       rollRareThreshold();
       onRareSpawned(e);
+      log(`稀有保底已重置，还差 ${rareLeft()}。`, 'good');
+      syncHud();
+    } else {
+      killsToRare = Math.max(0, rareThreshold - 1);
     }
     return e;
   }
@@ -623,7 +661,8 @@
       name: mon.name + (g.name ? `·${g.name}` : ''),
       glyph: mon.glyph,
       ai: mon.ai || 'active',          // R14.6：passive / active
-      harmless: !!mon.harmless,        // 新手兜底：打玩家 0 伤害（鸡）
+      atkMin: mon.atkMin != null ? mon.atkMin : null,
+      atkMax: mon.atkMax != null ? mon.atkMax : null,
       boss: isBoss,
       elite: gradeKey === 'elite',
       rare: gradeKey === 'rare',
@@ -802,13 +841,9 @@
   // 词缀位：词缀系统 M2 才做，现在统一显示"未鉴定"（R8）
   const affixSlot = () => '<span class="affix-todo">词缀 未鉴定</span>';
 
-  // 能否收下：更好装且等级够可直接穿（换下的需 1 格）；否则需背包有空位
+  // 能否收下：一律进背包，不自动穿（自己双击穿才有对比感）
   function canAcceptEquip(eq) {
     if (!eq || !eq.slot) return false;
-    const cur = wornOf(eq.slot);
-    if (canWearEq(eq) && eqScore(eq) > eqScore(cur) + 0.001) {
-      return !cur || P.bag.length < BAG_MAX;
-    }
     return P.bag.length < BAG_MAX;
   }
 
@@ -818,24 +853,17 @@
       log('背包满了，请先丢掉或换装腾位。', 'bad');
       return false;
     }
-    const cur = wornOf(eq.slot);
-    if (canWearEq(eq) && eqScore(eq) > eqScore(cur) + 0.001) {
-      if (cur) P.bag.push(cur);
-      setWorn(eq.slot, eq);
-      P.hp = Math.min(P.hp, maxHp());
-      showLoot(eq, true);
-      log(`装备 ${eq.name}（${RARITY[eq.rarity].name}）。`, 'good');
-      return true;
-    }
     P.bag.push(eq);
     showLoot(eq, false);
     const need = eqReqLv(eq);
     if (!canWearEq(eq) && P.lv < need) {
       log(`获得 ${eq.name}（需 Lv.${need}，已放背包）。`);
+    } else if (isUpgrade(eq)) {
+      log(`获得 ${eq.name}（${RARITY[eq.rarity].name}）↑ 比身上好，已放背包。`, 'good');
     } else {
       log(`获得 ${eq.name}（${RARITY[eq.rarity].name}），已放背包。`);
     }
-    return false;
+    return true;
   }
 
   function giveEquip(eq) {
@@ -947,8 +975,16 @@
 
   function gearText() {
     const tag = (eq) => (eq ? `[${(RARITY[eq.rarity] || RARITY.white).letter}]` : '');
-    const w = P.weapon ? `${P.weapon.name}${tag(P.weapon)} +${eqAtk(P.weapon)}` : '空手';
-    const a = P.armor ? `${P.armor.name}${tag(P.armor)} +${eqDef(P.armor)}` : '布衣';
+    const atkTag = (eq) => {
+      const lo = eqAtkMin(eq), hi = eqAtkMax(eq);
+      return lo === hi ? `+${lo}` : `+${lo}-${hi}`;
+    };
+    const defTag = (eq) => {
+      const lo = eqDefMin(eq), hi = eqDefMax(eq);
+      return lo === hi ? `+${lo}` : `+${lo}-${hi}`;
+    };
+    const w = P.weapon ? `${P.weapon.name}${tag(P.weapon)} ${atkTag(P.weapon)}` : '空手';
+    const a = P.armor ? `${P.armor.name}${tag(P.armor)} ${defTag(P.armor)}` : '布衣';
     const extra = SLOT_IDS.filter((id) => id !== 'weapon' && id !== 'armor' && P[id]).length;
     return extra ? `⚔ ${w}　🛡 ${a}　+${extra}` : `⚔ ${w}　🛡 ${a}`;
   }
@@ -1140,15 +1176,21 @@
     el.charExpFill.style.width = `${clamp(P.exp / needExp(), 0, 1) * 100}%`;
     el.charPower.textContent = powerOf();
     el.charGold.textContent = P.gold;
-    const baseAtk = 5 + 1.5 * (P.lv - 1);
-    const baseDef = 3 + (P.lv - 1);
+    const baseAtk = Math.round(5 + 1.5 * (P.lv - 1));
+    const baseDef = Math.round(3 + (P.lv - 1));
+    const ar = atkRange(P);
+    const dr = defRange(P);
+    const eqALo = sumEqAtkMin(P), eqAHi = sumEqAtkMax(P);
+    const eqDLo = sumEqDefMin(P), eqDHi = sumEqDefMax(P);
+    const eqAtkTxt = eqALo === eqAHi ? String(eqALo) : `${eqALo}-${eqAHi}`;
+    const eqDefTxt = eqDLo === eqDHi ? String(eqDLo) : `${eqDLo}-${eqDHi}`;
     el.charStats.innerHTML = `
       <div>等级 <b>Lv.${P.lv}</b></div>
       <div>经验 <b>${P.exp}/${needExp()}</b></div>
       <div>HP <b>${Math.ceil(P.hp)}/${maxHp()}</b></div>
       <div>MP <b>${Math.ceil(P.mp)}/${maxMp()}</b></div>
-      <div>攻击 <b>${Math.round(atkMean())}</b><small>基础 ${Math.round(baseAtk)} + 装备 ${sumEqAtk(P)}</small></div>
-      <div>防御 <b>${Math.round(defMean())}</b><small>基础 ${Math.round(baseDef)} + 装备 ${sumEqDef(P)}</small></div>
+      <div>攻击 <b>${ar.min}-${ar.max}</b><small>基础 ${baseAtk} + 装备 ${eqAtkTxt}</small></div>
+      <div>防御 <b>${dr.min}-${dr.max}</b><small>基础 ${baseDef} + 装备 ${eqDefTxt}</small></div>
     `;
     el.charSlots.innerHTML = EQUIP_SLOTS.map((s) => {
       if (!slotUnlocked(s.id)) {
@@ -1300,6 +1342,9 @@
     if (el.mpPotionCount) el.mpPotionCount.textContent = formatAmount(potTotal('blue'));
     if (el.btnMpPotion) el.btnMpPotion.disabled = over || potTotal('blue') <= 0 || P.potionCd.blue > 0;
     if (el.mpPotionCd) el.mpPotionCd.textContent = P.potionCd.blue > 0 ? `⏳${P.potionCd.blue}` : '';
+    if (el.potStock) {
+      el.potStock.innerHTML = `<div>🩸红罐 <b>${formatAmount(P.potPool.red)}</b></div><div>💙蓝罐 <b>${formatAmount(P.potPool.blue)}</b></div>`;
+    }
     setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half, P.skills.half);
     setSkillBtn(el.btnFire, el.fireCd, 12, P.cd.fire, P.skills.fire);
     syncFarmBtn();
@@ -1444,6 +1489,7 @@
     e.hp -= dmg;
     engage(e);
     S.onHit(e);                 // R5.8：眩晕受击解除
+    Sfx.play(e.hp <= 0 ? 'kill' : 'hit');
     addFloater(e.x, e.y - 0.4, `-${dmg}`, '#ffd166');
     log(`${tag}对${e.name}造成 <b>${dmg}</b> 伤害，剩余 ${Math.max(0, Math.ceil(e.hp))}。`);
     if (e.hp <= 0) kill(e);
@@ -1469,6 +1515,7 @@
     P.exp += expGain;
     P.gold += goldGain;
     P.kills++;
+    if (goldGain > 0) Sfx.play('gold');
     let gapTip = '';
     if (isNormal && gap >= 10) gapTip = '（高 10 级：普通怪无金币）';
     else if (isNormal && gap >= 5) gapTip = '（高 5 级：普通怪金币减半）';
@@ -1477,8 +1524,9 @@
     if (Math.random() < (crushed ? DROP.potionCrush : DROP.potion)) {
       const blue = Math.random() < (DROP.potionBlueShare || 0);
       const kind = blue ? 'blue' : 'red';
-      P.pots[kind].low = (P.pots[kind].low || 0) + 1;
-      log(`捡到 1 瓶初级${blue ? '蓝' : '红'}药。`, 'good');
+      const amt = potTier('low').amount;
+      P.potPool[kind] = (P.potPool[kind] || 0) + amt;
+      log(`罐子补了 ${amt} 点${blue ? '蓝' : '红'}（剩 ${formatAmount(P.potPool[kind])}）。`, 'good');
     }
     if (!e.boss && !e.elite && !e.rare) {
       onNormalKillProgress();
@@ -1486,30 +1534,12 @@
     }
     if (e.boss && currentRoom) roomClearedAt[currentRoom] = clock;
 
-    // 装备掉落：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
-    // 碾压时只衰减"额外掉落"，保底照旧。掉出来的进地面袋，不直接进包。
-    const dropMul = crushed ? CRUSH.dropMul : 1;
-    const drops = [];
-    const push = (eq) => { if (eq) drops.push(eq); };
-    if (e.boss) {
-      push(rollDrop(e, 'blue'));
-      push(rollDrop(e, 'yellow'));
-      if (Math.random() < (DROP.boss.s) * dropMul) push(rollDrop(e, 'orange'));
-    } else if (e.rare) {
-      push(rollDrop(e, 'yellow'));                                   // 保底 A
-      if (Math.random() < DROP.rare.s * dropMul) push(rollDrop(e, 'orange'));
-    } else if (e.elite) {
-      push(rollDrop(e, 'blue'));                                     // 保底 B
-      if (Math.random() < DROP.elite.a * dropMul) push(rollDrop(e, 'yellow'));
-      if (Math.random() < DROP.elite.s * dropMul) push(rollDrop(e, 'orange'));
-    } else {
-      const N = DROP.normal;
-      const r = Math.random();
-      const s = N.s * dropMul, a = s + N.a * dropMul, b = a + N.b * dropMul, c = b + N.c * dropMul;
-      if (r < s) push(rollDrop(e, 'orange'));
-      else if (r < a) push(rollDrop(e, 'yellow'));
-      else if (r < b) push(rollDrop(e, 'blue'));
-      else if (r < c) push(rollDrop(e));
+    // 装备掉落：见 rollKillEquipDrops；掉出来的进地面袋，不直接进包。
+    const drops = rollKillEquipDrops(e, crushed);
+    const book = rollSkillBookDrop(e);
+    if (book) {
+      drops.push(book);
+      log(`${e.name}掉落了${book.name}！走到袋子里捡起学习。`, 'good');
     }
     if (drops.length) dropBag(e.x, e.y, drops);
     while (P.exp >= needExp()) {
@@ -1518,28 +1548,91 @@
       P.hp = maxHp();
       P.mp = maxMp();
       leveledUp = true;
+      Sfx.play('level');
       log(`升级！现在是 Lv.${P.lv}，HP/MP 已回满。`, 'good');
     }
-    tryDropSkill(e);
     if (e.boss) win();
   }
 
-  // 技能书：精英 40% 掉一本、首领必掉一本；已学完就不掉
-  function tryDropSkill(e) {
-    if (!e.boss && !e.elite) return;
-    if (e.elite && Math.random() > 0.4) return;
-    const canHalf = !P.skills.half;
-    const canFire = !P.skills.fire;
-    if (!canHalf && !canFire) return;
-    const halfFirst = canHalf && (!canFire || Math.random() < 0.6);
-    if (halfFirst) {
-      P.skills.half = true;
-      log('拾得《半月弯刀》技能书，已学会！按 1 释放。', 'good');
-    } else if (canFire) {
-      P.skills.fire = true;
-      log('拾得《烈火剑法》技能书，已学会！按 2 释放。', 'good');
+  function isSkillBook(it) {
+    return !!(it && it.kind === 'skillbook');
+  }
+
+  function makeSkillBook(skill) {
+    const half = skill === 'half';
+    return {
+      kind: 'skillbook',
+      skill: half ? 'half' : 'fire',
+      name: half ? '《半月弯刀》' : '《烈火剑法》',
+      rarity: 'orange', // 技能书按 S 档：挂机 ≤A 不捡，须手捡学习
+    };
+  }
+
+  // 仅 20 级 BOSS → 半月、30 级 BOSS → 烈火；已学会则不再掉
+  function rollSkillBookDrop(e) {
+    if (!e || !e.boss) return null;
+    const map = (D.SKILL_BOOK && D.SKILL_BOOK.byBossLv) || {};
+    const skill = map[e.lv] || map[String(e.lv)];
+    if (skill !== 'half' && skill !== 'fire') return null;
+    if (skill === 'half' && P.skills.half) return null;
+    if (skill === 'fire' && P.skills.fire) return null;
+    return makeSkillBook(skill);
+  }
+
+  function learnSkillBook(it) {
+    if (!isSkillBook(it)) return false;
+    if (it.skill === 'half') {
+      if (P.skills.half) {
+        log('已经学会半月弯刀了，书页化作飞灰。');
+      } else {
+        P.skills.half = true;
+        Sfx.play('level');
+        log('学会了《半月弯刀》！按 1 释放。', 'good');
+      }
+    } else {
+      if (P.skills.fire) {
+        log('已经学会烈火剑法了，书页化作飞灰。');
+      } else {
+        P.skills.fire = true;
+        Sfx.play('level');
+        log('学会了《烈火剑法》！按 2 释放。', 'good');
+      }
     }
     syncHud();
+    save();
+    return true;
+  }
+
+  function skillBookCellHtml(book, opts) {
+    opts = opts || {};
+    const ico = book.skill === 'half' ? '🌙' : '🔥';
+    const attr = opts.pickIndex != null ? `data-pick="${opts.pickIndex}"` : '';
+    return `<button type="button" class="eq-cell skill-book rarity-orange" ${attr} aria-label="${book.name}">
+      <span class="eq-ico">${ico}</span>
+      <span class="eq-ltr">书</span>
+    </button>`;
+  }
+
+  function showSkillBookTip(book, src, sticky, anchor) {
+    if (!el.eqTip || !book) return;
+    tipSrc = src;
+    tipSticky = !!sticky;
+    el.eqTipName.className = 'eq-tip-name rarity-orange';
+    el.eqTipName.textContent = book.name;
+    const known = book.skill === 'half' ? P.skills.half : P.skills.fire;
+    el.eqTipStats.innerHTML = known
+      ? '已经学会，捡起会消耗掉。'
+      : (book.skill === 'half'
+        ? '技能书。捡起后学会半月弯刀（按 1）。'
+        : '技能书。捡起后学会烈火剑法（按 2）。');
+    const acts = (src && src.kind === 'pick')
+      ? `<button type="button" data-tip-pick="${src.i}">${known ? '捡起' : '学习'}</button>`
+      : '';
+    el.eqTipActs.innerHTML = acts;
+    el.eqTipActs.hidden = !acts;
+    el.eqTip.hidden = false;
+    const node = anchor || tipAnchor || findTipAnchor(src);
+    if (node) placeEqTip(node);
   }
 
   // 生成一件掉落（还没落地）；装备等级=怪等级（固定，作穿戴需求）；部位按怪等级解锁
@@ -1547,7 +1640,41 @@
     const baseLv = e.lv || 1;
     const ilvl = clamp(baseLv, 1, 60);
     const slot = rollDropSlot(baseLv);
+    // forceRarity 必传品级；未传才走 rollRarity（调试用）
     return makeEquip(slot, ilvl, forceRarity || rollRarity(ilvl));
+  }
+
+  // 击杀掉装表：普通按概率；精英保底 B；稀有保底 A；BOSS 保底 B+A
+  // 1–10 级怪：只有稀有/BOSS 掉 A（普通与精英不出 A）
+  function rollKillEquipDrops(e, crushed) {
+    const dropMul = crushed ? CRUSH.dropMul : 1;
+    const lowTier = (e.lv || 1) <= 10;
+    const drops = [];
+    const push = (eq) => { if (eq) drops.push(eq); };
+    if (e.boss) {
+      push(rollDrop(e, 'blue'));
+      push(rollDrop(e, 'yellow'));
+      if (Math.random() < (DROP.boss.s) * dropMul) push(rollDrop(e, 'orange'));
+    } else if (e.rare) {
+      push(rollDrop(e, 'yellow'));
+      if (Math.random() < DROP.rare.s * dropMul) push(rollDrop(e, 'orange'));
+    } else if (e.elite) {
+      push(rollDrop(e, 'blue'));
+      if (!lowTier && Math.random() < DROP.elite.a * dropMul) push(rollDrop(e, 'yellow'));
+      if (Math.random() < DROP.elite.s * dropMul) push(rollDrop(e, 'orange'));
+    } else {
+      const N = DROP.normal;
+      const r = Math.random();
+      const s = lowTier ? 0 : N.s * dropMul;
+      const a = s + (lowTier ? 0 : N.a * dropMul);
+      const b = a + N.b * dropMul;
+      const c = b + N.c * dropMul;
+      if (r < s) push(rollDrop(e, 'orange'));
+      else if (r < a) push(rollDrop(e, 'yellow'));
+      else if (r < b) push(rollDrop(e, 'blue'));
+      else if (r < c) push(rollDrop(e, 'white'));
+    }
+    return drops;
   }
 
   // 调试/兼容：直接掉进背包（正常击杀走地面袋）
@@ -1559,21 +1686,24 @@
 
   /* ---------------- 地面掉落袋 ---------------- */
 
-  // 把掉落物放在地上；同格已有袋子就合并
+  // 把掉落物放在地上；同格已有袋子就合并；R15.6 按最好品级播掉落音
   function dropBag(x, y, items, opts = {}) {
     if (!items || !items.length) return null;
     const exist = bagAt(x, y);
+    let bag;
     if (exist) {
       exist.items.push(...items);
       if (opts.relic) exist.relic = true;
-      return exist;
+      bag = exist;
+    } else {
+      bag = { x, y, items: items.slice(), relic: !!opts.relic };
+      activeBags.push(bag);
+      while (activeBags.length > 40) {
+        activeBags.shift();
+        log('地上旧的袋子散落了。');
+      }
     }
-    const bag = { x, y, items: items.slice(), relic: !!opts.relic };
-    activeBags.push(bag);
-    while (activeBags.length > 40) {
-      activeBags.shift();
-      log('地上旧的袋子散落了。');
-    }
+    if (!opts.silent) Sfx.drop(bagBestRarityKey(bag));
     return bag;
   }
 
@@ -1585,6 +1715,7 @@
     pickBag = bag;
     renderPick();
     el.lootPick.hidden = false;
+    Sfx.play('pickup');
     log(`打开地上的${bag.relic ? '遗物袋' : '钱袋'}：${bag.items.length} 件装备，挑一挑。`, 'good');
     syncHud();
     save();
@@ -1621,15 +1752,18 @@
     el.pickHint.textContent = pickBag.relic
       ? '点格子看详情，↑ 比身上好。'
       : '点格子看详情再捡；↑ 表示比身上好。不拿的留在原地。';
-    el.pickList.innerHTML = pickBag.items.map((eq, i) => eqCellHtml(eq, { pickIndex: i })).join('');
+    el.pickList.innerHTML = pickBag.items.map((it, i) =>
+      isSkillBook(it) ? skillBookCellHtml(it, { pickIndex: i }) : eqCellHtml(it, { pickIndex: i })
+    ).join('');
   }
 
   function takeFromBag(i) {
     if (!pickBag) return;
-    const eq = pickBag.items[i];
-    if (!eq) return;
+    const it = pickBag.items[i];
+    if (!it) return;
     pickBag.items.splice(i, 1);
-    addToBag(eq);
+    if (isSkillBook(it)) learnSkillBook(it);
+    else addToBag(it);
     removeBagIfEmpty(pickBag);
     if (!pickBag.items.length) closePick();
     else renderPick();
@@ -1639,7 +1773,10 @@
   function takeAllFromBag() {
     if (!pickBag) return;
     const items = pickBag.items.splice(0);
-    for (const eq of items) addToBag(eq);
+    for (const it of items) {
+      if (isSkillBook(it)) learnSkillBook(it);
+      else addToBag(it);
+    }
     removeBagIfEmpty(pickBag);
     closePick();
   }
@@ -1689,14 +1826,20 @@
   function bagAutoLootable(bag) {
     if (!bag || !bag.items || !bag.items.length) return false;
     if (bag.relic) return false; // 遗物袋手捡
-    const maxKey = AUTO_FARM.autoLootMax || 'blue';
+    const maxKey = AUTO_FARM.autoLootMax || 'yellow';
     return (RAR_RANK[bagBestRarityKey(bag)] || 0) <= (RAR_RANK[maxKey] || 1);
   }
 
-  // 挂机静默全捡（不弹清单）；满包返回 false
+  // 挂机静默全捡（不弹清单）；满包返回 false；技能书直接学会
   function autoTakeBag(bag) {
     if (!bag || !bag.items.length) return true;
     while (bag.items.length) {
+      const it = bag.items[0];
+      if (isSkillBook(it)) {
+        bag.items.shift();
+        learnSkillBook(it);
+        continue;
+      }
       if (P.bag.length >= BAG_MAX) {
         log('背包满了，挂机已停。清一清再开。', 'bad');
         setAutoFarm(false);
@@ -1705,7 +1848,7 @@
       addToBag(bag.items.shift());
     }
     removeBagIfEmpty(bag);
-    log('挂机捡起地上的袋子（≤B）。', 'good');
+    log('挂机捡起地上的袋子（≤A）。', 'good');
     return true;
   }
 
@@ -1756,16 +1899,18 @@
       e.nextActAt = now + ENEMY_ACT_MS;
 
       if (action === 'attack') {
-        // 新手兜底：鸡啄不动你，新手可以安全刷鸡续命，不用一直回城
-        if (e.harmless) {
-          addFloater(P.x, P.y - 0.4, '无伤', '#8d99b5');
-          continue;
-        }
         if (isCrush(P.lv, e.lv, e.boss || e.elite || e.rare)) continue;   // 碾压：只有普通怪打不动你
-        const dr = defRange(P);
-        const dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
+        let dmg;
+        if (e.atkMin != null && e.atkMax != null) {
+          // 固定攻击区间（鸡 1–3）：直接取区间，不吃防，新手有疼
+          dmg = randi(e.atkMin, e.atkMax);
+        } else {
+          const dr = defRange(P);
+          dmg = DL.Combat.enemyDamage(e.atk, dr.min, dr.max, maxHp(), e.boss);
+        }
         P.hp -= dmg;
         S.onHit(P);                                                   // R5.8：眩晕受击解除
+        Sfx.play('hurt');
         addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
         hurtFlash();
         log(`${e.name}攻击你，<span class="bad">-${dmg} HP</span>。`, 'bad');
@@ -1826,6 +1971,7 @@
   function die() {
     over = true;
     P.hp = 0;
+    Sfx.play('die');
     P.exp = Math.floor(P.exp * (1 - (DEATH.expLoss || 0.05)));
     // R3.19：按概率掉一件身上穿的装备，留在倒下的地方；回去能捡回来
     let lost = null;
@@ -2161,13 +2307,14 @@
   }
 
   function halfMoon() {
-    if (!P.skills.half) { log('还没学会半月弯刀——打精英或首领掉技能书。', 'bad'); return false; }
+    if (!P.skills.half) { log('还没学会半月弯刀——击败 20 级首领山大王可获得。', 'bad'); return false; }
     if (P.cd.half > 0) { log(`半月还在冷却（${P.cd.half} 回合）。`); return false; }
     if (P.mp < 6) { log('MP 不足（需要 6）。', 'bad'); return false; }
     P.mp -= 6;
     P.cd.half = 2;
     halfFlash = 1;
     halfFlashCells = halfMoonCells();
+    Sfx.play('skill');
     const targets = halfMoonTargets();
     for (const e of targets) strike(e, 1.1, '半月');
     if (!targets.length) log('半月劈在空气里。');
@@ -2175,13 +2322,14 @@
   }
 
   function fireSword() {
-    if (!P.skills.fire) { log('还没学会烈火剑法——打精英或首领掉技能书。', 'bad'); return false; }
+    if (!P.skills.fire) { log('还没学会烈火剑法——击败 30 级首领血月怨主可获得。', 'bad'); return false; }
     if (P.cd.fire > 0) { log(`烈火还在冷却（${P.cd.fire} 回合）。`); return false; }
     if (P.mp < 12) { log('MP 不足（需要 12）。', 'bad'); return false; }
     const t = adjacentTarget();
     if (!t) { log('身边没有敌人。'); return false; }
     P.mp -= 12;
     P.cd.fire = 3;
+    Sfx.play('fire');
     strike(t, 2.2, '烈火');
     // R4.1：烈火剑法 = 单体 ×2.2 + 灼烧 3 回合（R3.12 灼烧 = 攻击 ×15% × 层数）
     if (t.hp > 0) {
@@ -2210,6 +2358,7 @@
     if (kind === 'blue') P.mp = Math.min(max, P.mp + got);
     else P.hp = Math.min(max, P.hp + got);
     P.potionCd[kind] = POTIONS.cd || 3;
+    Sfx.play('potion');
     addFloater(P.x, P.y - 0.4, `+${got}${kind === 'blue' ? 'MP' : ''}`, kind === 'blue' ? '#6ab0ff' : '#7ee0a0');
     log(`喝下${label} ${got} 点，罐子剩 ${formatAmount(P.potPool[kind])}。`, 'good');
     return true;
@@ -2253,9 +2402,12 @@
       const cleared = roomClearedAt[spec.id];
       const cdLeft = spec.boss && cleared != null && clock - cleared < cd
         ? Math.ceil(cd - (clock - cleared)) : 0;
-      return `<button type="button" class="door-room" data-room="${spec.id}">
+      const ok = canEnterRoom(spec);
+      const need = roomEnterNeedLv(spec);
+      const lockTip = ok ? '' : ` · 需 Lv.${need}`;
+      return `<button type="button" class="door-room${ok ? '' : ' locked'}" data-room="${spec.id}"${ok ? '' : ' disabled'}>
         <b>${spec.name}</b><span class="door-lv">Lv.${spec.lvMin}–${spec.lvMax}</span>
-        <small>${names || '杂兵'}${spec.boss ? ' + 首领' : ''}${cdLeft ? ` · 首领 ${cdLeft} 分钟后` : ''}</small>
+        <small>${names || '杂兵'}${spec.boss ? ' + 首领' : ''}${cdLeft ? ` · 首领 ${cdLeft} 分钟后` : ''}${lockTip}</small>
       </button>`;
     }).join('') : '<p class="menu-help">这个等级段还没有房间。</p>';
   }
@@ -2264,7 +2416,7 @@
     pendingDoor = d;
     doorReturnPos = { x: ox, y: oy };
     el.doorTitle.textContent = `传送门 · ${d.name || ''}`;
-    el.doorDesc.textContent = '选择要去的房间：';
+    el.doorDesc.textContent = `选择房间（可进自身等级 +${ROOM_ENTER_SLACK} 以内）：`;
     renderDoorList(d);
     el.doorConfirm.hidden = false;
     pauseAuto();
@@ -2278,8 +2430,16 @@
 
   function enterRoomFromDoor(roomId) {
     if (!roomId) return;
+    const spec = roomSpec(roomId);
+    if (!canEnterRoom(spec)) {
+      log(`${spec ? spec.name : '这里'}太危险了（需 Lv.${roomEnterNeedLv(spec)}，你 Lv.${P.lv}）。`, 'bad');
+      return;
+    }
     closeDoor();
-    enterRoom(roomId);
+    if (!enterRoom(roomId)) {
+      resumeAuto();
+      return;
+    }
     centerCam();
     syncHud();
     save();
@@ -2360,7 +2520,7 @@
       if (fromWalk) stopWalk();
       return true;
     }
-    // 走到袋子上：挂机自动捡 ≤B；否则弹清单
+    // 走到袋子上：挂机自动捡 ≤A；否则弹清单
     const bag = bagAt(nx, ny);
     if (bag && bag.items.length) {
       if (autoFarm && bagAutoLootable(bag)) autoTakeBag(bag);
@@ -2803,16 +2963,8 @@
       return false;
     }
     if (P.bag.length >= BAG_MAX) {
-      // 若会自动穿上且不占包，仍可买；否则提示满包
-      const preview = kind === 'sword'
-        ? makeEquip('weapon', 3, 'white', { atkMin: 3, atkMax: 3, defMin: 0, defMax: 0, hp: 0 })
-        : makeEquip('armor', 3, 'white', { atkMin: 0, atkMax: 0, defMin: 2, defMax: 2, hp: 15 });
-      const cur = wornOf(preview.slot);
-      const willAuto = canWearEq(preview) && eqScore(preview) > eqScore(cur) + 0.001;
-      if (!willAuto || (cur && P.bag.length >= BAG_MAX)) {
-        log('背包满了，先卖掉或丢掉一些再买。', 'bad');
-        return false;
-      }
+      log('背包满了，先卖掉或丢掉一些再买。', 'bad');
+      return false;
     }
     P.gold -= it.price;
     if (kind === 'sword') {
@@ -2880,8 +3032,27 @@
     if (el.btnRetreat) el.btnRetreat.addEventListener('click', retreat);
     if (el.btnFarm) el.btnFarm.addEventListener('click', toggleFarm);
     if (el.btnInteract) el.btnInteract.addEventListener('click', tryInteract);
+    function syncMuteUi() {
+      const off = Sfx.isMuted();
+      if (el.btnMute) {
+        el.btnMute.textContent = off ? '🔇' : '🔊';
+        el.btnMute.setAttribute('aria-pressed', off ? 'true' : 'false');
+        el.btnMute.title = off ? '音效已关（点开）' : '音效已开（点关）';
+      }
+      if (el.menuMute) el.menuMute.textContent = off ? '🔇 已关' : '🔊 开启';
+    }
+    syncMuteUi();
+    const onMuteToggle = () => { Sfx.unlock(); Sfx.toggleMute(); syncMuteUi(); };
+    if (el.btnMute) el.btnMute.addEventListener('click', onMuteToggle);
+    if (el.menuMute) el.menuMute.addEventListener('click', onMuteToggle);
+    // 浏览器要用户手势才给 AudioContext
+    const unlockOnce = () => { Sfx.unlock(); };
+    document.addEventListener('pointerdown', unlockOnce, { once: true, passive: true });
+    document.addEventListener('keydown', unlockOnce, { once: true });
+
     el.btnMenu.addEventListener('click', () => {
       el.seedText.textContent = String(worldSeed);
+      syncMuteUi();
       el.menu.hidden = false;
     });
     el.menuClose.addEventListener('click', () => { el.menu.hidden = true; });
@@ -2970,21 +3141,31 @@
     // 装备格子：悬停预览，点击钉住详情（手机靠点击）
     const bindEqGrid = (root, kind) => {
       if (!root) return;
+      const previewCell = (cell, sticky) => {
+        let src = null;
+        if (cell.dataset.bag != null) {
+          src = { kind: 'bag', i: Number(cell.dataset.bag) };
+          const eq = P.bag[src.i];
+          if (eq) showEqTip(eq, src, sticky, cell);
+          return;
+        }
+        if (cell.dataset.worn) {
+          src = { kind: 'worn', i: cell.dataset.worn };
+          const eq = resolveEqFromSrc(src);
+          if (eq) showEqTip(eq, src, sticky, cell);
+          return;
+        }
+        if (cell.dataset.pick != null) {
+          src = { kind: 'pick', i: Number(cell.dataset.pick) };
+          const it = pickBag && pickBag.items[src.i];
+          if (isSkillBook(it)) showSkillBookTip(it, src, sticky, cell);
+          else if (it) showEqTip(it, src, sticky, cell);
+        }
+      };
       root.addEventListener('pointerover', (e) => {
         const cell = e.target.closest('.eq-cell:not(.empty)');
         if (!cell || tipSticky) return;
-        let src = null, eq = null;
-        if (cell.dataset.bag != null) {
-          src = { kind: 'bag', i: Number(cell.dataset.bag) };
-          eq = P.bag[src.i];
-        } else if (cell.dataset.worn) {
-          src = { kind: 'worn', i: cell.dataset.worn };
-          eq = resolveEqFromSrc(src);
-        } else if (cell.dataset.pick != null) {
-          src = { kind: 'pick', i: Number(cell.dataset.pick) };
-          eq = resolveEqFromSrc(src);
-        }
-        if (eq) showEqTip(eq, src, false, cell);
+        previewCell(cell, false);
       });
       root.addEventListener('pointerout', (e) => {
         if (tipSticky) return;
@@ -2993,24 +3174,12 @@
         hideEqTip();
       });
       root.addEventListener('click', (e) => {
-        // tip 按钮在 eqTip 里，这里只处理格子
         const cell = e.target.closest('.eq-cell:not(.empty)');
         if (!cell || !root.contains(cell)) return;
         e.stopPropagation();
-        let src = null, eq = null;
-        if (cell.dataset.bag != null) {
-          src = { kind: 'bag', i: Number(cell.dataset.bag) };
-          eq = P.bag[src.i];
-        } else if (cell.dataset.worn) {
-          src = { kind: 'worn', i: cell.dataset.worn };
-          eq = resolveEqFromSrc(src);
-        } else if (cell.dataset.pick != null) {
-          src = { kind: 'pick', i: Number(cell.dataset.pick) };
-          eq = resolveEqFromSrc(src);
-        }
-        if (eq) showEqTip(eq, src, true, cell);
+        previewCell(cell, true);
       });
-      // 背包双击直接穿戴
+      // 背包双击直接穿戴；拾取清单双击捡起/学技能书
       if (kind === 'bag') {
         root.addEventListener('dblclick', (e) => {
           const cell = e.target.closest('.eq-cell:not(.empty)');
@@ -3018,6 +3187,16 @@
           e.preventDefault();
           e.stopPropagation();
           if (equipFromBag(Number(cell.dataset.bag))) hideEqTip();
+        });
+      }
+      if (kind === 'pick') {
+        root.addEventListener('dblclick', (e) => {
+          const cell = e.target.closest('.eq-cell:not(.empty)');
+          if (!cell || cell.dataset.pick == null || !root.contains(cell)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          takeFromBag(Number(cell.dataset.pick));
+          hideEqTip();
         });
       }
     };
@@ -3417,16 +3596,17 @@
   if (location.search.includes('debug')) {
     window.__dl = {
       P, act, move, attack, halfMoon, fireSword, drink, buy, buyPotion, buyShopStock,
-      openShop, refreshShop, ensureShopCatalog,
-      potTotal, potPrice, pickPotTier, normalizePots,
+      Sfx, openShop, refreshShop, ensureShopCatalog,
+      potTotal, potPrice, pickPotTier, normalizePots, formatAmount,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
       makeEnemy, rollGrade, isCrush,
       hubRegen,
       addToBag, equipFromBag, sellFromBag, sellPrice, openChar, eqCompareHtml, eqStatText, eqDetailHtml,
       eqReqLv, canWearEq,
+      rollSkillBookDrop, makeSkillBook, learnSkillBook, isSkillBook,
       rollDropSlot, slotUnlocked, slotMeta, EQUIP_SLOTS, wornOf,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
-      genHub, enterRoom, leaveRoom, bfs, save, load, spawnWild,
+      genHub, enterRoom, leaveRoom, canEnterRoom, roomEnterNeedLv, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,
       cam: () => ({ x: cam.x, y: cam.y }),
       camTarget,
@@ -3450,7 +3630,7 @@
       after,
       bags: () => activeBags,
       groundBags: () => groundBags,
-      bagAt, dropBag, pickupBag, takeFromBag, takeAllFromBag, closePick, rollDrop,
+      bagAt, dropBag, pickupBag, takeFromBag, takeAllFromBag, closePick, rollDrop, rollKillEquipDrops,
       autoTakeBag, bagAutoLootable, bagBestRarityKey,
       setAutoFarm, toggleFarm, autoFarm: () => autoFarm,
       onRareSpawned, nearestFarmEnemy, adjacentFarmTarget, rareThreatNear,
@@ -3468,6 +3648,8 @@
       pickOpen: () => !el.lootPick.hidden,
       pickItems: () => (pickBag ? pickBag.items.slice() : []),
       maxHp: () => maxHp(), maxMp: () => maxMp(),
+      atkRange: () => atkRange(P), defRange: () => defRange(P),
+      renderChar,
       idleMs: () => IDLE_MS,
       combatMs: () => COMBAT_MS,
       moveMs: () => MOVE_MS,

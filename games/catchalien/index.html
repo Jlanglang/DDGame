@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆捉外星人</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <a class="hub-back" href="../../index.html">← 游戏库</a>
+  <div class="top-actions">
+    <button type="button" id="retry" aria-label="这栋重来">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M19.5 4.5V9H15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button type="button" id="next" aria-label="下一栋">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 6l6 6-6 6M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+  <header class="top">
+    <h1 id="title">豆豆捉外星人</h1>
+    <p id="notice"></p>
+  </header>
+  <div id="building"></div>
+  <p id="toast" hidden></p>
+  <div class="modes" id="modes">
+    <button type="button" data-mode="visit" class="is-on">上门</button>
+    <button type="button" data-mode="kill">抓外星人</button>
+  </div>
+  <p class="hint">豆豆已经翻开。门牌 402 是 4 楼 2 单元。线索是人数，几句对上才确定。点到外星人这局就结束。</p>
+  <div id="win" hidden>
+    <div class="win-card">
+      <p class="win-k">捉住了</p>
+      <h2>这栋楼清完了</h2>
+      <button type="button" id="win-next">下一栋</button>
+    </div>
+  </div>
+  <div id="lose" hidden>
+    <div class="win-card">
+      <p class="win-k">撞见了</p>
+      <h2>这户是外星人</h2>
+      <button type="button" id="lose-retry">这栋重来</button>
+    </div>
+  </div>
+</div>
+<script src="logic.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

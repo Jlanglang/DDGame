@@ -462,6 +462,27 @@ try {
   ok('可卖背包件', dl.sellFromBag(0) === true && dl.P.bag.length === bagN - 1, dl.P.bag.length);
   ok('卖掉加金币', dl.state().gold > goldBeforeSell, [goldBeforeSell, dl.state().gold]);
 
+  /* R10.7/R10.8 锁定 + 按品质回收 */
+  {
+    const c1 = dl.makeEquip('weapon', 1, 'white');
+    const c2 = dl.makeEquip('armor', 1, 'white');
+    const b1 = dl.makeEquip('weapon', 5, 'blue');
+    const a1 = dl.makeEquip('weapon', 8, 'yellow');
+    c2.locked = true;
+    dl.P.bag = [c1, c2, b1, a1];
+    const g0 = dl.state().gold;
+    const n0 = dl.P.bag.length;
+    ok('锁定件不可单卖', dl.sellFromBag(1) === false && dl.P.bag.length === n0);
+    const r = dl.sellBagByRarity(['white', 'blue']);
+    ok('回收卖 C+B 两件', r.n === 2 && r.gold > 0, r);
+    ok('锁定 C 与 A 留下', dl.P.bag.length === 2
+      && dl.P.bag.some((e) => e.locked) && dl.P.bag.some((e) => e.rarity === 'yellow'),
+      dl.P.bag.map((e) => `${e.rarity}${e.locked ? 'L' : ''}`));
+    ok('回收加金币', dl.state().gold === g0 + r.gold, [g0, dl.state().gold, r.gold]);
+    ok('toggleLock 可解', dl.toggleLockEq(dl.P.bag.find((e) => e.locked)) === true
+      && !dl.P.bag.find((e) => e.rarity === 'white').locked);
+  }
+
   /* 商店左右窗：货架目录 + 双击购买入口 */
   {
     const cat = dl.ensureShopCatalog();
@@ -522,6 +543,20 @@ try {
   ok('主城 3 个等级段传送门', dl.doors().length === 3
     && dl.doors().map((d) => d.tierMin).join(',') === '1,10,20',
     dl.doors().map((d) => d.name));
+  ok('传送门靠商人旁（手机可见）', dl.doors().every((d) => d.x === 14 && d.x < 20),
+    dl.doors().map((d) => `${d.x},${d.y}`));
+  {
+    const d10 = dl.doors().find((d) => d.tierMin === 10);
+    dl.setHubReturnDoor({ tierMin: 10, name: d10.name });
+    dl.enterRoom('field1');
+    ok('进房后有当前房间', !!dl.currentRoom());
+    dl.leaveRoom();
+    ok('回城站进门旁', !dl.currentRoom()
+      && dl.P.x === d10.x - 1 && dl.P.y === d10.y,
+      [dl.P.x, dl.P.y, d10.x, d10.y]);
+    dl.setHubReturnDoor(null);
+    dl.genHub();
+  }
   ok('房间等级覆盖到 30', DATA.ROOMS.some((r) => r.lvMax >= 30));
   ok('古墓首领 Lv.25', (() => {
     const r = DATA.ROOMS.find((x) => x.id === 'cave2');

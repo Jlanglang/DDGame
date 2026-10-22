@@ -291,6 +291,7 @@
   const ROOMS = DL.DATA.ROOMS;
   let currentRoom = null;        // 当前房间 id；在主城为 null
   let doors = [];                // 主城传送门列表
+  let hubReturnDoor = null;      // 进房前踩的门 { tierMin }；回城站该门西侧
   const roomClearedAt = {};      // 房间最后清空时间（游戏内分钟）
 
   /* ---------------- 地面掉落袋（R9 改） ----------------
@@ -314,7 +315,7 @@
     return h >>> 0;
   }
 
-  // 主城：固定小村庄 + 传送门
+  // 主城：固定小村庄 + 传送门；若有进门记录则站在该门西侧（不踩门）
   function genHub() {
     mapRng = mulberry32(worldSeed);
     const h = DL.World.genHub(ROOMS);
@@ -324,12 +325,23 @@
     inCave = false;
     currentRoom = null;
     over = false;
-    P.x = h.spawn.x;
-    P.y = h.spawn.y;
     villagePos = { x: h.spawn.x, y: h.spawn.y };
     npc = h.npc;
     doors = h.doors;
     door = doors[0] || { x: 0, y: 0 };
+    let placed = false;
+    if (hubReturnDoor != null) {
+      const d = doors.find((x) => x.tierMin === hubReturnDoor.tierMin) || doors[0];
+      if (d) {
+        P.x = Math.max(1, d.x - 1);
+        P.y = d.y;
+        placed = true;
+      }
+    }
+    if (!placed) {
+      P.x = h.spawn.x;
+      P.y = h.spawn.y;
+    }
     lastZoneLv = 1;
     S.clear(P);                     // 换图脱战：状态清零
     loadBags();
@@ -898,6 +910,10 @@
   function sellFromBag(i) {
     const eq = P.bag[i];
     if (!eq) return false;
+    if (eq.locked) {
+      log(`${eq.name}已锁定，无法出售。`, 'bad');
+      return false;
+    }
     P.bag.splice(i, 1);
     const price = sellPrice(eq);
     P.gold += price;
@@ -907,6 +923,54 @@
     syncHud();
     save();
     return true;
+  }
+
+  function toggleLockEq(eq) {
+    if (!eq || !eq.slot) return false;
+    eq.locked = !eq.locked;
+    log(eq.locked ? `锁定 ${eq.name}（不会被回收/卖掉）。` : `解锁 ${eq.name}。`, 'good');
+    if (!el.char.hidden) renderChar();
+    if (el.shop && !el.shop.hidden) refreshShop();
+    if (tipSrc && !el.eqTip.hidden) showEqTip(eq, tipSrc, tipSticky, findTipAnchor(tipSrc));
+    save();
+    return true;
+  }
+
+  // 按勾选品质批量卖（跳过锁定）；rarities 为 white/blue/yellow/orange
+  function sellBagByRarity(rarities) {
+    const want = new Set(Array.isArray(rarities) ? rarities : []);
+    if (!want.size) {
+      log('请先勾选要回收的品质（C/B/A/S）。', 'bad');
+      return { n: 0, gold: 0 };
+    }
+    let n = 0;
+    let gained = 0;
+    for (let i = P.bag.length - 1; i >= 0; i--) {
+      const eq = P.bag[i];
+      if (!eq || eq.locked || !want.has(eq.rarity)) continue;
+      const price = sellPrice(eq);
+      P.bag.splice(i, 1);
+      P.gold += price;
+      gained += price;
+      n += 1;
+    }
+    if (n) {
+      log(`回收 ${n} 件，+${gained} 金币。`, 'good');
+      if (!el.char.hidden) renderChar();
+      if (el.shop && !el.shop.hidden) refreshShop();
+      syncHud();
+      save();
+    } else {
+      log('没有可回收的装备（已锁定或未勾选对应品质）。');
+    }
+    return { n, gold: gained };
+  }
+
+  function selectedRecycleRarities(root) {
+    const box = root || document;
+    return Array.from(box.querySelectorAll('[data-recycle-rar]:checked'))
+      .map((el) => el.getAttribute('data-recycle-rar'))
+      .filter(Boolean);
   }
 
   // 丢掉：落到脚下钱袋，玩家可再捡
@@ -1024,11 +1088,13 @@
       ? `<span class="eq-price" title="价格">${opts.price}</span>`
       : '';
     const unaff = opts.shopStock != null && opts.price != null && P.gold < opts.price;
-    return `<button type="button" class="eq-cell rarity-${eq.rarity}${up ? ' up' : ''}${unaff ? ' unafford' : ''}" ${attr} aria-label="${eq.name}">
+    const lockMark = eq.locked ? '<span class="eq-pin" title="已锁定">🔒</span>' : '';
+    return `<button type="button" class="eq-cell rarity-${eq.rarity}${up ? ' up' : ''}${unaff ? ' unafford' : ''}${eq.locked ? ' pinned' : ''}" ${attr} aria-label="${eq.name}">
       <span class="eq-ico">${ico}</span>
       <span class="eq-lv">${eq.ilvl || 1}</span>
       <span class="eq-ltr">${r.letter}</span>
       ${up ? '<span class="eq-up" title="比身上好">↑</span>' : ''}
+      ${lockMark}
       ${priceTag}
     </button>`;
   }
@@ -1124,9 +1190,14 @@
       extra = `<div class="eq-tip-price">可卖 <b>${sellPrice(eq)}</b> 金</div>`;
     }
     el.eqTipStats.innerHTML = eqDetailHtml(eq) + extra + (showCmp ? eqCompareHtml(eq) : '');
-    const acts = (src && src.kind === 'pick')
-      ? `<button type="button" data-tip-pick="${src.i}">捡起</button>`
-      : '';
+    let acts = '';
+    if (src && src.kind === 'pick') {
+      acts = `<button type="button" data-tip-pick="${src.i}">捡起</button>`;
+    } else if (src && (src.kind === 'bag' || src.kind === 'shopBag')) {
+      acts = `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
+    } else if (src && src.kind === 'worn') {
+      acts = `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
+    }
     el.eqTipActs.innerHTML = acts;
     el.eqTipActs.hidden = !acts;
     el.eqTip.hidden = false;
@@ -2424,6 +2495,7 @@
       log(`${spec ? spec.name : '这里'}太危险了（需 Lv.${roomEnterNeedLv(spec)}，你 Lv.${P.lv}）。`, 'bad');
       return;
     }
+    if (pendingDoor) hubReturnDoor = { tierMin: pendingDoor.tierMin, name: pendingDoor.name };
     closeDoor();
     if (!enterRoom(roomId)) {
       resumeAuto();
@@ -3165,6 +3237,15 @@
     };
     bindShopGrid(el.shopStock, 'stock');
     bindShopGrid(el.shopBag, 'bag');
+    document.querySelectorAll('[data-recycle-run]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const bar = btn.closest('.bag-recycle');
+        sellBagByRarity(selectedRecycleRarities(bar));
+        hideEqTip();
+      });
+    });
     if (el.eqTipClose) el.eqTipClose.addEventListener('click', hideEqTip);
     // 装备格子：悬停预览，点击钉住详情（手机靠点击）
     const bindEqGrid = (root, kind) => {
@@ -3238,6 +3319,11 @@
           takeFromBag(Number(pickBtn.dataset.tipPick));
           hideEqTip();
           if (pickBag && pickBag.items.length) renderPick();
+          return;
+        }
+        if (e.target.closest('[data-tip-lock]')) {
+          const eq = resolveEqFromSrc(tipSrc);
+          if (eq) toggleLockEq(eq);
         }
       });
     }
@@ -3629,7 +3715,7 @@
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
       makeEnemy, rollGrade, isCrush,
       hubRegen,
-      addToBag, equipFromBag, sellFromBag, sellPrice, openChar, eqCompareHtml, eqStatText, eqDetailHtml,
+      addToBag, equipFromBag, sellFromBag, sellBagByRarity, toggleLockEq, sellPrice, openChar, eqCompareHtml, eqStatText, eqDetailHtml,
       eqReqLv, canWearEq,
       rollSkillBookDrop, makeSkillBook, learnSkillBook, isSkillBook,
       rollDropSlot, slotUnlocked, slotMeta, EQUIP_SLOTS, wornOf,
@@ -3639,6 +3725,8 @@
       cam: () => ({ x: cam.x, y: cam.y }),
       camTarget,
       doors: () => doors,
+      hubReturnDoor: () => hubReturnDoor,
+      setHubReturnDoor: (v) => { hubReturnDoor = v; },
       roomSpec,
       roomClearedAt: () => ({ ...roomClearedAt }),
       zoneLevel, zoneName, zoneRange,

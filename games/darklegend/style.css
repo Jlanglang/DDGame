@@ -685,6 +685,50 @@ canvas {
 .char-h small.muted,
 .muted { color: var(--muted); font-weight: 400; font-size: 11px; }
 .eq-hint { margin: 0 0 8px; font-size: 11px; }
+.bag-recycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  border-radius: 10px;
+  background: rgba(10, 14, 24, 0.35);
+  font-size: 12px;
+  color: var(--muted);
+}
+.bag-recycle-lab { font-weight: 700; color: var(--ink); margin-right: 2px; }
+.bag-recycle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 32px;
+  cursor: pointer;
+  user-select: none;
+}
+.bag-recycle input { width: 16px; height: 16px; accent-color: #6ea8ff; }
+.bag-recycle-btn {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 180, 80, 0.45);
+  border-radius: 9px;
+  background: rgba(255, 160, 60, 0.16);
+  color: #ffd9a0;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.eq-pin {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
+.eq-cell.pinned { box-shadow: inset 0 0 0 1px rgba(255, 210, 120, 0.35); }
 
 /* ---------- 装备格子 ---------- */
 .eq-grid {

@@ -86,7 +86,15 @@
           <div class="eq-grid shop" id="shopStock"></div>
         </div>
         <div class="shop-pane">
-          <h4 class="shop-h">背包 <small class="muted">双击/右键出售</small></h4>
+          <h4 class="shop-h">背包 <small class="muted">双击/右键出售 · 锁定防卖</small></h4>
+          <div class="bag-recycle" id="shopRecycle">
+            <span class="bag-recycle-lab">回收</span>
+            <label><input type="checkbox" data-recycle-rar="white" checked>C</label>
+            <label><input type="checkbox" data-recycle-rar="blue" checked>B</label>
+            <label><input type="checkbox" data-recycle-rar="yellow">A</label>
+            <label><input type="checkbox" data-recycle-rar="orange">S</label>
+            <button type="button" class="bag-recycle-btn" data-recycle-run>一键回收</button>
+          </div>
           <div class="eq-grid shop-bag" id="shopBag"></div>
         </div>
       </div>
@@ -162,7 +170,15 @@
       </div>
 
       <div class="char-pane" id="paneBag" hidden>
-        <p class="menu-help eq-hint">双击穿戴。↑ 比身上好。卖掉去村口商店。</p>
+        <p class="menu-help eq-hint">双击穿戴。↑ 比身上好。详情可锁定。勾选品质一键回收。</p>
+        <div class="bag-recycle" id="bagRecycle">
+          <span class="bag-recycle-lab">回收</span>
+          <label><input type="checkbox" data-recycle-rar="white" checked>C</label>
+          <label><input type="checkbox" data-recycle-rar="blue" checked>B</label>
+          <label><input type="checkbox" data-recycle-rar="yellow">A</label>
+          <label><input type="checkbox" data-recycle-rar="orange">S</label>
+          <button type="button" class="bag-recycle-btn" data-recycle-run>一键回收</button>
+        </div>
         <div class="eq-grid bag" id="bagList"></div>
       </div>
 
@@ -226,12 +242,12 @@
     </div>
   </div>
 </div>
-<script src="data.js?v=1567"></script>
-<script src="core.js?v=1567"></script>
-<script src="world.js?v=1567"></script>
-<script src="combat.js?v=1567"></script>
-<script src="status.js?v=1567"></script>
-<script src="sfx.js?v=1567"></script>
-<script src="game.js?v=1567"></script>
+<script src="data.js?v=1568"></script>
+<script src="core.js?v=1568"></script>
+<script src="world.js?v=1568"></script>
+<script src="combat.js?v=1568"></script>
+<script src="status.js?v=1568"></script>
+<script src="sfx.js?v=1568"></script>
+<script src="game.js?v=1568"></script>
 </body>
 </html>

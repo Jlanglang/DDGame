@@ -133,10 +133,13 @@
     }
   }
 
+  // 总音量：偏柔，避免手机外放刺耳
+  const MASTER = 0.38;
+
   function playTone(freq, dur, type, vol, slide) {
     if (!unlocked || muted) return;
     const url = blobUrlOf(freq, dur, type, vol, slide);
-    playBlob(url, 1);
+    playBlob(url, MASTER);
   }
 
   function playSeq(steps) {
@@ -149,7 +152,7 @@
     }
   }
 
-  /* ---------- 手势内同步解锁：WebAudio 尖鸣 + HTMLAudio ---------- */
+  /* ---------- 手势内同步解锁：柔和「咚」+ HTMLAudio ---------- */
   function beepWebSync() {
     try {
       const Ctx = global.AudioContext || global.webkitAudioContext;
@@ -161,10 +164,10 @@
       const o = AC.createOscillator();
       const g = AC.createGain();
       o.type = 'sine';
-      o.frequency.setValueAtTime(880, t0);
-      o.frequency.setValueAtTime(1174, t0 + 0.08);
+      o.frequency.setValueAtTime(392, t0);
+      o.frequency.exponentialRampToValueAtTime(330, t0 + 0.22);
       g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.03);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
       o.connect(g).connect(AC.destination);
       o.start(t0);
@@ -185,11 +188,11 @@
     // HTMLAudio 同步播一声（Blob）
     if (hasAudio && audible) {
       try {
-        const url = blobUrlOf(660, 0.18, 'sine', 0.7, 0);
+        const url = blobUrlOf(392, 0.2, 'sine', 0.35, -40);
         const a = new Audio();
         a.playsInline = true;
         a.setAttribute('playsinline', 'true');
-        a.volume = 1;
+        a.volume = MASTER;
         a.src = url;
         try { a.load(); } catch { /* 忽略 */ }
         const p = a.play();
@@ -220,62 +223,63 @@
     return unlocked;
   }
 
+  // 音色：多用 sine/triangle，少方波锯齿；音高偏低，听感柔一点
   const SFX = {
-    dropWhite() { playTone(200, 0.07, 'square', 0.55, -40); },
-    dropBlue() { playTone(900, 0.11, 'sine', 0.6, -220); },
+    dropWhite() { playTone(220, 0.06, 'sine', 0.35, -30); },
+    dropBlue() { playTone(523, 0.1, 'sine', 0.4, -80); },
     dropYellow() {
       playSeq([
-        { f: 988, d: 0.12, type: 'sine', vol: 0.6 },
-        { f: 1319, d: 0.16, type: 'sine', vol: 0.55, delay: 0.07 },
+        { f: 587, d: 0.1, type: 'sine', vol: 0.4 },
+        { f: 740, d: 0.12, type: 'sine', vol: 0.35, delay: 0.07 },
       ]);
     },
     dropOrange() {
       playSeq([
-        { f: 140, d: 0.35, type: 'sawtooth', vol: 0.65 },
-        { f: 280, d: 0.25, type: 'triangle', vol: 0.5, delay: 0.08 },
+        { f: 196, d: 0.28, type: 'triangle', vol: 0.45 },
+        { f: 247, d: 0.2, type: 'sine', vol: 0.35, delay: 0.1 },
       ]);
     },
-    hit() { playTone(220, 0.08, 'sawtooth', 0.55, -100); },
-    kill() { playTone(170, 0.12, 'square', 0.6, -90); },
-    hurt() { playTone(140, 0.16, 'sawtooth', 0.6, -50); },
-    die() { playTone(95, 0.45, 'sawtooth', 0.65, -45); },
+    hit() { playTone(180, 0.06, 'triangle', 0.32, -60); },
+    kill() { playTone(160, 0.1, 'sine', 0.38, -50); },
+    hurt() { playTone(150, 0.12, 'triangle', 0.36, -40); },
+    die() { playTone(110, 0.35, 'sine', 0.4, -30); },
     level() {
       playSeq([
-        { f: 523, d: 0.1, type: 'triangle', vol: 0.6 },
-        { f: 659, d: 0.1, type: 'triangle', vol: 0.6, delay: 0.09 },
-        { f: 784, d: 0.16, type: 'triangle', vol: 0.6, delay: 0.18 },
+        { f: 392, d: 0.09, type: 'sine', vol: 0.38 },
+        { f: 494, d: 0.09, type: 'sine', vol: 0.38, delay: 0.09 },
+        { f: 587, d: 0.14, type: 'sine', vol: 0.36, delay: 0.18 },
       ]);
     },
-    potion() { playTone(440, 0.1, 'sine', 0.55, 180); },
-    gold() { playTone(1200, 0.08, 'sine', 0.5, -400); },
-    skill() { playTone(280, 0.2, 'sawtooth', 0.55, 450); },
+    potion() { playTone(349, 0.1, 'sine', 0.36, 60); },
+    gold() { playTone(660, 0.07, 'sine', 0.32, -120); },
+    skill() { playTone(262, 0.16, 'triangle', 0.36, 120); },
     fire() {
       playSeq([
-        { f: 190, d: 0.12, type: 'sawtooth', vol: 0.6 },
-        { f: 320, d: 0.16, type: 'sawtooth', vol: 0.5, delay: 0.08 },
+        { f: 196, d: 0.1, type: 'triangle', vol: 0.38 },
+        { f: 247, d: 0.12, type: 'sine', vol: 0.32, delay: 0.07 },
       ]);
     },
     elite() {
       playSeq([
-        { f: 440, d: 0.1, type: 'triangle', vol: 0.6 },
-        { f: 554, d: 0.12, type: 'triangle', vol: 0.55, delay: 0.08 },
+        { f: 349, d: 0.09, type: 'sine', vol: 0.38 },
+        { f: 440, d: 0.1, type: 'sine', vol: 0.34, delay: 0.08 },
       ]);
     },
     rare() {
       playSeq([
-        { f: 523, d: 0.12, type: 'sine', vol: 0.6 },
-        { f: 784, d: 0.14, type: 'sine', vol: 0.55, delay: 0.1 },
+        { f: 392, d: 0.1, type: 'sine', vol: 0.4 },
+        { f: 523, d: 0.12, type: 'sine', vol: 0.36, delay: 0.09 },
       ]);
     },
     boss() {
       playSeq([
-        { f: 90, d: 0.35, type: 'sawtooth', vol: 0.7 },
-        { f: 130, d: 0.25, type: 'square', vol: 0.55, delay: 0.1 },
+        { f: 98, d: 0.28, type: 'triangle', vol: 0.42 },
+        { f: 123, d: 0.2, type: 'sine', vol: 0.34, delay: 0.1 },
       ]);
     },
-    ui() { playTone(660, 0.1, 'sine', 0.6); },
-    pickup() { playTone(720, 0.09, 'triangle', 0.55, 200); },
-    test() { playTone(880, 0.22, 'sine', 0.75); },
+    ui() { playTone(440, 0.08, 'sine', 0.32); },
+    pickup() { playTone(523, 0.08, 'sine', 0.34, 80); },
+    test() { playTone(392, 0.18, 'sine', 0.4); },
   };
 
   const DROP_BY_RARITY = {

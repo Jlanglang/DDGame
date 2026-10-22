@@ -32,10 +32,9 @@ body {
   position: fixed;
   inset: 0;
   margin: auto;
-  width: min(100vw, calc(100vh * 0.45));
-  height: min(100vh, calc(100vw / 0.45));
-  width: min(100vw, calc(100dvh * 0.45));
-  height: min(100dvh, calc(100vw / 0.45));
+  width: min(100vw, 480px);
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 0%, rgba(90, 120, 180, 0.28), transparent 42%),
@@ -43,7 +42,7 @@ body {
   box-shadow: 0 0 80px -20px rgba(0, 0, 0, 0.9);
   display: flex;
   flex-direction: column;
-  padding: 58px 14px 12px;
+  padding: 52px 10px 8px;
   touch-action: none;
 }
 
@@ -87,51 +86,68 @@ body {
 
 .top h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .top p {
-  margin: 4px 0 8px;
+  margin: 2px 0 4px;
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
+#stage.is-tight { padding: 48px 8px 6px; }
+#stage.is-tight .top h1 { font-size: 16px; }
+#stage.is-tight .top p { font-size: 11px; margin: 1px 0 2px; }
+#stage.is-tight .modes { margin-top: 4px; }
+#stage.is-tight .modes button { min-height: 44px; font-size: 16px; }
+#stage.is-tight .hint { font-size: 10px; margin-top: 3px; }
+
 #building {
+  --fit: 1;
+  --gap: 4px;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  overflow: auto;
-  touch-action: pan-y;
+  gap: var(--gap);
+  overflow: hidden;
+  touch-action: none;
   justify-content: center;
-  padding: 2px 0 4px;
+  --floors: 3;
+  --units: 3;
 }
 
 .floor-row {
   flex: 0 0 auto;
+  width: 100%;
+  height: var(--row-h, auto);
+  min-height: 0;
   display: flex;
 }
 
 .doors {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
   display: grid;
-  gap: 6px;
+  gap: var(--gap);
   align-items: stretch;
+  container-type: size;
+  container-name: doors;
 }
 
 .door {
   position: relative;
   width: 100%;
   height: 100%;
-  min-width: 44px;
+  min-width: 0;
   min-height: 0;
-  height: auto;
-  aspect-ratio: 3 / 4;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: calc(12px * var(--fit));
   background: #1a2230;
   color: var(--ink);
   padding: 0;
@@ -141,15 +157,28 @@ body {
 
 .door .room {
   position: absolute;
-  top: 5px;
-  left: 5px;
+  top: 3px;
+  left: 3px;
   z-index: 2;
-  padding: 2px 4px;
+  padding: 1px 3px;
   border-radius: 4px;
   background: rgba(8, 12, 20, 0.55);
-  font-size: 11px;
-  line-height: 1;
+  font-size: calc(11px * var(--fit));
+  line-height: 1.1;
   color: #fff;
+}
+
+.door .role {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 2;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: rgba(8, 12, 20, 0.55);
+  font-size: calc(10px * var(--fit));
+  line-height: 1.1;
+  color: #d5deef;
 }
 
 .door .avatar {
@@ -169,16 +198,16 @@ body {
 .door .name {
   position: absolute;
   left: 50%;
-  bottom: 6px;
+  bottom: 2px;
   z-index: 4;
   transform: translateX(-50%);
-  max-width: calc(100% - 10px);
-  padding: 2px 8px;
-  border-radius: 6px;
+  max-width: calc(100% - 6px);
+  padding: 1px 5px;
+  border-radius: 5px;
   background: rgba(8, 12, 20, 0.88);
-  font-size: 12px;
+  font-size: calc(12px * var(--fit));
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -187,19 +216,21 @@ body {
 
 .door .bubble {
   position: absolute;
-  left: 5px;
-  right: 5px;
-  bottom: 28px;
+  left: 3px;
+  right: 3px;
+  bottom: calc(14px * var(--fit) + 2px);
   z-index: 3;
+  max-height: 64%;
   margin: 0;
-  padding: 6px 6px 7px;
-  border-radius: 10px;
+  padding: calc(3px * var(--fit)) calc(4px * var(--fit));
+  border-radius: calc(8px * var(--fit));
   background: #f7f4ee;
   color: #1c140c;
-  font-size: 12px;
+  font-size: calc(12px * var(--fit));
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
   text-align: center;
+  overflow: hidden;
   box-shadow: 0 2px 0 rgba(8, 12, 20, 0.25);
 }
 
@@ -212,6 +243,17 @@ body {
   border: 6px solid transparent;
   border-top-color: #f7f4ee;
   border-bottom: 0;
+}
+
+@container doors (max-height: 96px) {
+  .door .bubble { font-size: 10px; padding: 2px 3px; line-height: 1.2; max-height: 58%; }
+  .door .name { font-size: 10px; }
+  .door .room { font-size: 9px; }
+}
+
+@container doors (max-height: 78px) {
+  .door .bubble { font-size: 9px; max-height: 68%; }
+  .door .name { font-size: 9px; }
 }
 
 .door.is-open { background: #243044; border-color: rgba(255, 158, 196, 0.45); }
@@ -240,12 +282,13 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 6px;
+  flex: 0 0 auto;
 }
 
 .modes button {
-  min-height: 52px;
-  font-size: 20px;
+  min-height: 46px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -271,9 +314,11 @@ button {
 }
 
 .hint {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.3;
+  flex: 0 0 auto;
 }
 
 #win,

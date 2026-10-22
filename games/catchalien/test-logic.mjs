@@ -109,13 +109,18 @@ for (let b = 0; b < bands.length; b++) {
       const atom = level.cells[c].speech && level.cells[c].speech.atom;
       if (!atom) continue;
       heardKinds[atom.kind] = true;
-      if (atom.kind !== 'around' && atom.kind !== 'diag' && atom.kind !== 'floor' && atom.kind !== 'unit' && atom.kind !== 'same') linked = false;
+      if (atom.kind !== 'around' && atom.kind !== 'diag' && atom.kind !== 'floor' && atom.kind !== 'unit' && atom.kind !== 'same' && atom.kind !== 'rows' && atom.kind !== 'cols' && atom.kind !== 'pair' && atom.kind !== 'meal' && atom.kind !== 'role') linked = false;
     }
     check(band + ' seed ' + seed + ' clues stay linked', linked);
     openSum += gotOpens;
     cellSum += level.units * level.floors;
     if (!globalThis.__kinds) globalThis.__kinds = {};
     Object.keys(heardKinds).forEach(function (k) { globalThis.__kinds[k] = true; });
+    if (!globalThis.__diag) globalThis.__diag = [0, 0];
+    for (let k = 0; k < (level.chainKinds || []).length; k++) {
+      globalThis.__diag[1]++;
+      if (level.chainKinds[k] === 'diag') globalThis.__diag[0]++;
+    }
     check(band + ' seed ' + seed + ' names and truths', nameOk && names['豆豆']);
     const again = CA.generateLevel(band, seed * 17 + b * 1000);
     check(band + ' seed ' + seed + ' stable', again.doudouKey === level.doudouKey && again.alienKeys.join() === level.alienKeys.join() && again.cells.map(function (c) { return c.name; }).join() === level.cells.map(function (c) { return c.name; }).join());
@@ -140,6 +145,11 @@ for (let n = 1; n <= 8; n++) {
   check('band ' + n, CA.bandFor(n) === expect);
 }
 
-console.log('kinds', Object.keys(globalThis.__kinds || {}).join(','));
+const heardKinds = globalThis.__kinds || {};
+const strategic = ['rows', 'cols', 'pair', 'meal', 'role'].filter(function (k) { return heardKinds[k]; });
+check('strategic clues show up', strategic.length >= 3);
+const diagStat = globalThis.__diag || [0, 0];
+check('diag is not the main clue', diagStat[1] === 0 || diagStat[0] / diagStat[1] < 0.22);
+console.log('kinds', Object.keys(heardKinds).join(','), 'diag', diagStat[0] + '/' + diagStat[1]);
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 if (fail) process.exit(1);

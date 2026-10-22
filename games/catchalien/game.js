@@ -51,6 +51,7 @@
     var caught = state.killed.length;
     title.textContent = '第 ' + state.levelIndex + ' 栋 · ' + level.label;
     notice.textContent = level.units + ' 单元 ' + level.floors + ' 层 · 这栋有 ' + level.alienCount + ' 个外星人 · 已捉住 ' + caught;
+    applyFit(level);
     drawBuilding();
     var buttons = document.querySelectorAll('#modes button');
     for (var i = 0; i < buttons.length; i++) {
@@ -58,12 +59,39 @@
     }
   }
 
+  function applyFit(level) {
+    var n = level.units * level.floors;
+    var fit = Math.max(0.78, Math.min(1, 4.5 / Math.sqrt(n)));
+    var gap = n >= 24 ? 3 : (n >= 15 ? 4 : 6);
+    building.style.setProperty('--fit', fit.toFixed(3));
+    building.style.setProperty('--gap', gap + 'px');
+    building.style.setProperty('--floors', String(level.floors));
+    building.style.setProperty('--units', String(level.units));
+    stage.classList.toggle('is-tight', level.floors >= 5 || level.units >= 5);
+    layoutRows();
+  }
+
+  function layoutRows() {
+    if (!state) return;
+    var level = state.level;
+    var width = building.clientWidth;
+    var height = building.clientHeight;
+    if (width < 1 || height < 1) return;
+    var gap = parseFloat(building.style.getPropertyValue('--gap')) || 4;
+    var cardW = (width - gap * Math.max(0, level.units - 1)) / level.units;
+    var natural = cardW * 4 / 3;
+    var fitH = (height - gap * Math.max(0, level.floors - 1)) / level.floors;
+    var rowH = Math.min(natural, fitH);
+    if (!(rowH > 0)) return;
+    building.style.setProperty('--row-h', rowH.toFixed(1) + 'px');
+  }
+
   function drawBuilding() {
     var level = state.level;
     var html = '';
     for (var f = level.floors - 1; f >= 0; f--) {
       html += '<div class="floor-row">';
-      html += '<div class="doors" style="grid-template-columns:repeat(' + level.units + ',minmax(44px,1fr))">';
+      html += '<div class="doors" style="grid-template-columns:repeat(' + level.units + ',minmax(0,1fr))">';
       for (var x = 0; x < level.units; x++) {
         var cell = level.byKey[x + ':' + f];
         html += doorHtml(cell);
@@ -157,8 +185,10 @@
     var faceKind = opened ? (cell.alien ? 'alien' : (cell.role || 'closed')) : 'closed';
     var face = killed ? stampSvg() : avatarSvg(faceKind, cell.name);
     var label = killed ? '捉住了' : (opened && cell.alien ? '外星人' : cell.name);
+    var roleText = cell.role && cell.role !== 'doudou' ? (CA.ROLE_LABEL[cell.role] || '') : '';
     return '<button type="button" class="' + cls + '" data-key="' + cell.key + '">' +
       '<span class="room">' + roomNo(cell) + '</span>' +
+      (roleText ? '<span class="role">' + esc(roleText) + '</span>' : '') +
       '<span class="avatar">' + face + '</span>' +
       '<span class="name">' + esc(label) + '</span>' +
       bubbleHtml(cell, opened, killed) + '</button>';
@@ -227,5 +257,13 @@
     boot(state.levelIndex, state.seed);
   });
 
-  boot(1, freshSeed());
+  window.addEventListener('resize', function () {
+    if (state) layoutRows(state.level);
+  });
+
+  var query = new URLSearchParams(location.search);
+  var startIndex = parseInt(query.get('level') || '1', 10);
+  if (!startIndex || startIndex < 1) startIndex = 1;
+  var seedArg = query.get('seed');
+  boot(startIndex, seedArg == null ? freshSeed() : (parseInt(seedArg, 10) >>> 0));
 })();

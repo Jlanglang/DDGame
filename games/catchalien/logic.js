@@ -16,26 +16,26 @@
       label: '暖',
       sizes: [[3, 3], [3, 4], [4, 3]],
       aliens: [1, 1, 1, 2],
-      kinds: ['around', 'diag', 'floor', 'unit', 'same'],
+      kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
       roles: ['neighbor', 'neighbor', 'classmate', 'passer'],
     },
     normal: {
       label: '普通',
       sizes: [[4, 4], [4, 5], [3, 5]],
       aliens: [2, 2, 2, 3],
-      kinds: ['around', 'diag', 'floor', 'unit', 'same'],
+      kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
       roles: ['neighbor', 'neighbor', 'classmate', 'passer'],
     },
     hard: {
       label: '难',
       sizes: [[4, 5], [4, 6], [5, 5]],
       aliens: [2, 2, 3],
-      kinds: ['around', 'diag', 'floor', 'unit', 'same'],
-      roles: ['neighbor'],
+      kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
+      roles: ['neighbor', 'neighbor', 'neighbor', 'classmate', 'passer'],
     },
   };
 
-  const NAMES = ['小海', '阿青', '林子', '周周', '陈一', '苏苏', '老周', '阿宁', '小北', '江江', '许安', '罗罗', '宋晚', '何何', '小马', '顾清', '唐糖', '沈一', '韩韩', '叶叶', '方知', '程程', '曹曹', '丁一', '潘潘', '任清', '姚姚', '魏薇', '乔乔', '冯晚'];
+  const NAMES = ['小海', '阿青', '林子', '周周', '陈一', '苏苏', '老周', '阿宁', '小北', '江江', '许安', '罗罗', '宋晚', '何何', '小马', '顾清', '唐糖', '沈一', '韩韩', '叶叶', '方知', '程程', '曹曹', '丁一', '潘潘', '任清', '姚姚', '魏薇', '乔乔', '冯晚', '然然', '坨坨'];
 
   const DIR = {
     up: [0, 1],
@@ -215,6 +215,12 @@
     return mask >>> 0;
   }
 
+  function groupMask(level, line, indexes) {
+    let mask = 0;
+    for (let i = 0; i < indexes.length; i++) mask |= lineMask(level, line, indexes[i]);
+    return mask >>> 0;
+  }
+
   function holdsMask(level, atom, alienMask) {
     const aliens = alienMask >>> 0;
     if (atom.kind === 'around' || atom.kind === 'diag') {
@@ -230,6 +236,25 @@
       const au = bitCount(aliens & lineMask(level, 'unit', atom.unit));
       if (atom.good) return (level.units - af) === (level.floors - au);
       return af === au;
+    }
+    if (atom.kind === 'rows' || atom.kind === 'cols') {
+      const line = atom.kind === 'rows' ? 'floor' : 'unit';
+      return bitCount(aliens & groupMask(level, line, atom.a)) === bitCount(aliens & groupMask(level, line, atom.b));
+    }
+    if (atom.kind === 'pair') {
+      return (aliens & (1 << idBit(level, atom.who[0]))) === 0 && (aliens & (1 << idBit(level, atom.who[1]))) === 0;
+    }
+    if (atom.kind === 'meal') {
+      return (aliens & (1 << idBit(level, atom.who))) === 0;
+    }
+    if (atom.kind === 'role') {
+      let n = 0;
+      for (let i = 0; i < level.cells.length; i++) {
+        const cell = level.cells[i];
+        if (cell.role !== atom.role) continue;
+        if ((aliens & (1 << idBit(level, cell.key))) !== 0) n++;
+      }
+      return n === atom.n;
     }
     if (atom.kind === 'dir') {
       const id = dest(atom.unit, atom.floor, atom.dir, level.units, level.floors);
@@ -428,7 +453,7 @@
     if (atom.kind === 'unit') {
       return countLine(draft.alienSet, cellsOnUnit(draft.floors, atom.unit)) === atom.n;
     }
-    if (atom.kind === 'around' || atom.kind === 'diag' || atom.kind === 'same') {
+    if (atom.kind === 'around' || atom.kind === 'diag' || atom.kind === 'same' || atom.kind === 'rows' || atom.kind === 'cols' || atom.kind === 'pair' || atom.kind === 'meal' || atom.kind === 'role') {
       let mask = 0;
       draft.alienSet.forEach(function (id) { mask |= (1 << idBit(draft, id)); });
       return holdsMask(draft, atom, mask >>> 0);
@@ -450,6 +475,29 @@
       const pair = (atom.unit + 1) + '单元和' + (atom.floor + 1) + '楼';
       if (atom.good) return [pair + '的好人数一样。', pair + '好人一样多。'];
       return [pair + '的外星人数一样。', pair + '坏人一样多。'];
+    }
+    if (atom.kind === 'rows' || atom.kind === 'cols') {
+      const word = atom.kind === 'rows' ? '楼' : '单元';
+      const left = groupWord(atom.a, word);
+      const right = groupWord(atom.b, word);
+      return [left + '的外星人和' + right + '一样多。', left + '和' + right + '的外星人数一样。'];
+    }
+    if (atom.kind === 'pair') {
+      const a = atom.names[0];
+      const b = atom.names[1];
+      if (atom.style === 'play') return [a + '和' + b + '昨天一起玩，都是好人。'];
+      return [a + '和' + b + '是好朋友，都是好人。'];
+    }
+    if (atom.kind === 'meal') {
+      return ['我和' + atom.name + '昨天一起去吃了好吃的。', '我和' + atom.name + '昨天一起去吃了好吃的，' + atom.name + '是好人。'];
+    }
+    if (atom.kind === 'role') {
+      if (atom.role === 'classmate') {
+        if (atom.n === 0) return ['同学里面没有外星人。', '同学都是好人。'];
+        return ['同学里面有 ' + atom.n + ' 个外星人。', '同学里有 ' + atom.n + ' 个是假扮的。'];
+      }
+      if (atom.n === 0) return ['邻居没有被外星人替代。', '邻居都是好人。'];
+      return ['邻居有 ' + atom.n + ' 个被外星人替代了。', '邻居里有 ' + atom.n + ' 个是假扮的。'];
     }
     if (atom.kind === 'dir') {
       const who = DIR_WORD[atom.dir] + '那户';
@@ -477,9 +525,17 @@
     return [label + '有 ' + atom.n + ' 个外星人。', label + '不对劲的有 ' + atom.n + ' 户。', label + '坏的有 ' + atom.n + ' 户。'];
   }
 
+  function groupWord(indexes, suffix) {
+    const nums = [];
+    for (let i = 0; i < indexes.length; i++) nums.push(indexes[i] + 1);
+    return nums.join('、') + suffix;
+  }
+
   function sceneLines(kind) {
     if (kind === 'around' || kind === 'diag') return ['往四周看了看', '压低声音', '指了指旁边的门'];
-    if (kind === 'same') return ['想了想两边的人数', '掰着手指对过', '把两处放在一起说'];
+    if (kind === 'same' || kind === 'rows' || kind === 'cols') return ['想了想两边的人数', '掰着手指对过', '把两处放在一起说'];
+    if (kind === 'pair' || kind === 'meal') return ['笑着想起谁', '把声音放轻', '像在说家里人'];
+    if (kind === 'role') return ['在心里数了数', '看了看这一类人', '压低声音'];
     if (kind === 'dir') return ['在楼道里停下', '手里还拎着垃圾袋', '门开了一条缝'];
     if (kind === 'floor') return ['楼层群里发来一句', '在楼梯转角说', '把声音放轻'];
     if (kind === 'unit') return ['电梯里顿了顿', '在单元门口说', '进门前补了一句'];
@@ -588,7 +644,8 @@
       const c = coords[i];
       const alien = alienSet.has(c.key);
       let role = null;
-      if (!alien) role = c.key === doudou.key ? 'doudou' : pick(rng, spec.roles);
+      if (c.key === doudou.key) role = 'doudou';
+      else role = pick(rng, spec.roles);
       cells.push({
         key: c.key,
         unit: c.unit,
@@ -632,7 +689,24 @@
     return out;
   }
 
-  function countAtoms(draft, cell) {
+  function blocksOf(n) {
+    const out = [];
+    for (let start = 0; start < n; start++) {
+      for (let end = start + 1; end < n; end++) {
+        const block = [];
+        for (let i = start; i <= end; i++) block.push(i);
+        out.push(block);
+      }
+    }
+    return out;
+  }
+
+  function blocksOverlap(a, b) {
+    for (let i = 0; i < a.length; i++) if (b.indexOf(a[i]) >= 0) return true;
+    return false;
+  }
+
+  function countAtoms(draft, cell, rng) {
     const atoms = [];
     const around = nearKeys(draft, cell.unit, cell.floor, false);
     if (around.length) {
@@ -687,6 +761,67 @@
         atoms.push({ kind: 'same', floor: f, unit: cell.unit, good: true });
       }
     }
+    const floorBlocks = blocksOf(draft.floors);
+    for (let i = 0; i < floorBlocks.length; i++) {
+      for (let j = i + 1; j < floorBlocks.length; j++) {
+        if (blocksOverlap(floorBlocks[i], floorBlocks[j])) continue;
+        const left = floorBlocks[i];
+        const right = floorBlocks[j];
+        let ln = 0;
+        let rn = 0;
+        for (let k = 0; k < left.length; k++) ln += countLine(draft.alienSet, cellsOnFloor(draft.units, left[k]));
+        for (let k = 0; k < right.length; k++) rn += countLine(draft.alienSet, cellsOnFloor(draft.units, right[k]));
+        if (ln === rn) atoms.push({ kind: 'rows', a: left.slice(), b: right.slice() });
+      }
+    }
+    const unitBlocks = blocksOf(draft.units);
+    for (let i = 0; i < unitBlocks.length; i++) {
+      for (let j = i + 1; j < unitBlocks.length; j++) {
+        if (blocksOverlap(unitBlocks[i], unitBlocks[j])) continue;
+        const left = unitBlocks[i];
+        const right = unitBlocks[j];
+        let ln = 0;
+        let rn = 0;
+        for (let k = 0; k < left.length; k++) ln += countLine(draft.alienSet, cellsOnUnit(draft.floors, left[k]));
+        for (let k = 0; k < right.length; k++) rn += countLine(draft.alienSet, cellsOnUnit(draft.floors, right[k]));
+        if (ln === rn) atoms.push({ kind: 'cols', a: left.slice(), b: right.slice() });
+      }
+    }
+    const goods = [];
+    for (let i = 0; i < draft.cells.length; i++) {
+      const other = draft.cells[i];
+      if (other.alien || other.key === cell.key || !other.name) continue;
+      goods.push(other);
+    }
+    const picked = shuffle(rng, goods).slice(0, 3);
+    for (let i = 0; i < picked.length; i++) {
+      atoms.push({ kind: 'meal', who: picked[i].key, name: picked[i].name });
+    }
+    const pool = shuffle(rng, goods);
+    let pairs = 0;
+    for (let i = 0; i < pool.length && pairs < 3; i++) {
+      for (let j = i + 1; j < pool.length && pairs < 3; j++) {
+        atoms.push({
+          kind: 'pair',
+          style: pairs % 2 === 0 ? 'friend' : 'play',
+          who: [pool[i].key, pool[j].key],
+          names: [pool[i].name, pool[j].name],
+        });
+        pairs++;
+      }
+    }
+    const roles = ['classmate', 'neighbor'];
+    for (let r = 0; r < roles.length; r++) {
+      const role = roles[r];
+      let len = 0;
+      let n = 0;
+      for (let i = 0; i < draft.cells.length; i++) {
+        if (draft.cells[i].role !== role) continue;
+        len++;
+        if (draft.cells[i].alien) n++;
+      }
+      if (len >= 2) atoms.push({ kind: 'role', role: role, n: n, len: len });
+    }
     return atoms;
   }
 
@@ -718,6 +853,7 @@
 
   function generateOnce(band, rng) {
     const draft = place(band, rng);
+    assignNames(draft, rng);
     const limit = openLimit(draft.units, draft.floors);
     const opened = new Set();
     const chainKeys = [];
@@ -741,7 +877,7 @@
       let best = null;
       for (let i = 0; i < candidates.length; i++) {
         const cell = candidates[i];
-        const atoms = shuffle(rng, countAtoms(draft, cell));
+        const atoms = shuffle(rng, countAtoms(draft, cell, rng));
         for (let j = 0; j < atoms.length; j++) {
           const atom = atoms[j];
           const trialOpen = new Set(opened);
@@ -758,9 +894,20 @@
           if (soloBefore.contradiction || soloAfter.contradiction) continue;
           const solo = gain(soloBefore.status, soloAfter.status, cell.key);
           if (solo < 0) continue;
+          const isSocial = atom.kind === 'pair' || atom.kind === 'meal';
+          const socialSoFar = chainKinds.filter(function (k) { return k === 'pair' || k === 'meal'; }).length;
+          if (isSocial && socialSoFar >= 2) continue;
+          let nudge = atom.kind === 'rows' || atom.kind === 'cols' || atom.kind === 'role' ? 0 : 1;
+          let bucket = solo === 0 ? 0 : 1;
+          if (isSocial) bucket = 2;
+          if (atom.kind === 'diag') bucket = 3;
+          if (isSocial && socialSoFar < 2 && chainKeys.length % 4 === 3) {
+            bucket = 0;
+            nudge = -1;
+          }
           const rank = early
-            ? (solo === 0 ? 0 : 1) * 10000 + g
-            : (finishes ? 0 : 1) * 10000 - g;
+            ? bucket * 10000 + g * 10 + nudge
+            : (finishes ? 0 : 1) * 10000 + (atom.kind === 'diag' ? 5000 : 0) - g * 10 + nudge;
           if (!best || rank < best.rank) best = { cell: cell, atom: atom, rank: rank };
         }
       }
@@ -822,13 +969,11 @@
       const draft = generateOnce(useBand, rng);
       if (!draft) continue;
       if (fewestOpens(draft) < openLimit(draft.units, draft.floors)) continue;
-      assignNames(draft, rng);
       return strip(draft, useBand, seed, i, false);
     }
     for (let i = 0; i < 40; i++) {
       const draft = generateOnce('warm', mulberry32((seed + 1 + i * 997) >>> 0));
       if (!draft) continue;
-      assignNames(draft, mulberry32((seed ^ 0xA5A5A5A5) >>> 0));
       const level = strip(draft, useBand, seed, 180 + i, true);
       return level;
     }
@@ -851,6 +996,8 @@
       const atom = clues[i].atom;
       if (atom.kind === 'door' && key(atom.unit, atom.floor) === id) return true;
       if (atom.kind === 'dir' && dest(atom.unit, atom.floor, atom.dir, level.units, level.floors) === id) return true;
+      if (atom.kind === 'meal' && atom.who === id) return true;
+      if (atom.kind === 'pair' && (atom.who[0] === id || atom.who[1] === id)) return true;
     }
     return false;
   }
@@ -908,6 +1055,7 @@
     const draft = {
       units: level.units,
       floors: level.floors,
+      cells: level.cells,
       alienSet: alienSet,
     };
     return atomTrue(draft, atom);

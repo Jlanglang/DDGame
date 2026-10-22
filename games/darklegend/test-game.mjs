@@ -543,7 +543,19 @@ try {
   ok('主城 3 个等级段传送门', dl.doors().length === 3
     && dl.doors().map((d) => d.tierMin).join(',') === '1,10,20',
     dl.doors().map((d) => d.name));
-  ok('传送门靠商人旁（手机可见）', dl.doors().every((d) => d.x === 14 && d.x < 20),
+  ok('1–10 门四张图', (() => {
+    const ids = dl.roomsForDoor(dl.doors().find((d) => d.tierMin === 1)).map((r) => r.id);
+    return ids.join(',') === 'field1,field2,field2b,cave1';
+  })());
+  ok('10–20 门含山大王', (() => {
+    const ids = dl.roomsForDoor(dl.doors().find((d) => d.tierMin === 10)).map((r) => r.id);
+    return ids.length === 5 && ids.includes('cave3');
+  })(), dl.roomsForDoor(dl.doors().find((d) => d.tierMin === 10)).map((r) => r.name));
+  ok('20–30 门含血月荒原', (() => {
+    const ids = dl.roomsForDoor(dl.doors().find((d) => d.tierMin === 20)).map((r) => r.id);
+    return ids.length === 5 && ids.includes('field7');
+  })(), dl.roomsForDoor(dl.doors().find((d) => d.tierMin === 20)).map((r) => r.name));
+  ok('传送门在东侧且留出名字', dl.doors().every((d) => d.x === 20),
     dl.doors().map((d) => `${d.x},${d.y}`));
   {
     const d10 = dl.doors().find((d) => d.tierMin === 10);
@@ -556,6 +568,17 @@ try {
       [dl.P.x, dl.P.y, d10.x, d10.y]);
     dl.setHubReturnDoor(null);
     dl.genHub();
+    const TILE = DATA.TILE;
+    const VW = DATA.VIEW_W;
+    const mapW = 24 * TILE;
+    const lo = Math.min(0, mapW - VW);
+    const hi = Math.max(0, mapW - VW);
+    const want = dl.P.x * TILE + TILE / 2 - VW / 2;
+    const camX = Math.min(hi, Math.max(lo, want));
+    ok('出生点传送门名字在画面内', dl.doors().every((d) => {
+      const sx = d.x * TILE - camX + TILE / 2;
+      return sx >= 48 && sx <= VW - 48;
+    }), dl.doors().map((d) => `${d.name}@${d.x * TILE - camX + TILE / 2}`));
   }
   ok('房间等级覆盖到 30', DATA.ROOMS.some((r) => r.lvMax >= 30));
   ok('古墓首领 Lv.25', (() => {

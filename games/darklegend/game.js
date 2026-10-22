@@ -30,12 +30,12 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  // 等比铺满：逻辑坐标 720×1120；canvas 覆盖整个舞台（超出裁剪），UI 浮在上面
+  // 等比完整放入：逻辑 720×1120；用 min 留边（contain），避免手机 cover 裁掉右缘传送门
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     const availW = (wrap && wrap.clientWidth) || VIEW_W;
     const availH = (wrap && wrap.clientHeight) || VIEW_H;
-    const scale = Math.max(availW / VIEW_W, availH / VIEW_H);
+    const scale = Math.min(availW / VIEW_W, availH / VIEW_H);
     if (!(scale > 0)) return;
     canvas.style.width = Math.floor(VIEW_W * scale) + 'px';
     canvas.style.height = Math.floor(VIEW_H * scale) + 'px';
@@ -2450,10 +2450,20 @@
   let pendingDoor = null;
   let doorReturnPos = null;
 
-  function renderDoorList(d) {
+  // 按房间 lvMin 归到门上。段尾房的 lvMax 会比门牌高 1（稀有 +2），
+  // 用 lvMax 去卡会把山贼寨、血月荒原挤出所有门。
+  function roomsForDoor(d) {
     const min = d && d.tierMin != null ? d.tierMin : 0;
-    const max = d && d.tierMax != null ? d.tierMax : 999;
-    const list = ROOMS.filter((spec) => spec.lvMin >= min && spec.lvMax <= max);
+    const next = doors.map((x) => x.tierMin).filter((t) => t > min).sort((a, b) => a - b)[0];
+    return ROOMS.filter((spec) => {
+      const lv = spec.lvMin || 1;
+      if (lv < min) return false;
+      return next == null || lv < next;
+    });
+  }
+
+  function renderDoorList(d) {
+    const list = roomsForDoor(d);
     el.doorList.innerHTML = list.length ? list.map((spec) => {
       const names = (spec.pool || [])
         .map((id) => (MON.find((m) => m.id === id) || {}).name)
@@ -2585,7 +2595,10 @@
     const bag = bagAt(nx, ny);
     if (bag && bag.items.length) {
       if (autoFarm && bagAutoLootable(bag)) autoTakeBag(bag);
-      else if (autoFarm) log(`地上有 ${bagBestRarityKey(bag).toUpperCase()} 级袋子，挂机不捡——请手控。`);
+      else if (autoFarm) {
+        const rar = RARITY[bagBestRarityKey(bag)] || RARITY.orange;
+        log(`地上有 ${rar.letter} 级袋子，挂机不捡——请手控。`);
+      }
       else pickupBag(bag);
     }
     // 纯走路用快节奏；撞怪攻击走 strike→after 已是战斗节奏
@@ -3358,7 +3371,7 @@
     el.introBtn.addEventListener('click', () => {
       el.intro.hidden = true;
       save();
-      log('鸡鸣村外：先打鸡，学会走位；打不动就换武器——破防靠装备。', 'good');
+      log('主城：往东走进传送门，先去鸡鸣村外打鸡。鸡啄 1–3 点，5 级起没经验。', 'good');
     });
     el.overAlt.onclick = restart;
   }
@@ -3725,6 +3738,7 @@
       cam: () => ({ x: cam.x, y: cam.y }),
       camTarget,
       doors: () => doors,
+      roomsForDoor,
       hubReturnDoor: () => hubReturnDoor,
       setHubReturnDoor: (v) => { hubReturnDoor = v; },
       roomSpec,

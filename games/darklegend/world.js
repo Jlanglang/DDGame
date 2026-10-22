@@ -99,16 +99,16 @@
     // 中间一条石板路（视觉用，不挡路）
     for (let x = 2; x < size - 2; x++) m[12][x] = 0;
 
-    // 三个等级段传送门：靠商人右侧（勿贴地图右缘——手机 cover 裁切会裁掉）
+    // 三个等级段传送门：东侧，离右墙留两格。
+    // 主城只比视野宽 48px，出生点相机贴左，门若贴在 x=22，名字中心正好在画面右缘外。
     const tiers = [
       { min: 1, max: 10, name: '1–10 级' },
       { min: 10, max: 20, name: '10–20 级' },
       { min: 20, max: 30, name: '20–30 级' },
     ];
-    const doorX = 14;
     const ys = [6, 12, 18];
     const doors = tiers.map((t, i) => {
-      const d = { x: doorX, y: ys[i], room: 'portal', name: t.name, tierMin: t.min, tierMax: t.max, lv: t.min };
+      const d = { x: size - 4, y: ys[i], room: 'portal', name: t.name, tierMin: t.min, tierMax: t.max, lv: t.min };
       m[d.y][d.x] = 2;
       return d;
     });

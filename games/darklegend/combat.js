@@ -80,7 +80,7 @@
     if (distance > (A.leash || 14)) return 'leash';
     if (!enemy.boss && enemy.lv < playerLv - 5 && !enemy.aggroOn) return 'idle';
     if (distance === 1) {
-      // 仅 BOSS：未激怒时贴身也不砍；鸡/稻草人贴身仍会啄（鸡无伤）
+      // 仅 BOSS：未激怒时贴身也不砍；鸡/稻草人贴身仍会啄（鸡固定 1–3，不吃防）
       if (enemy.boss && !enemy.aggroOn) return 'idle';
       return 'attack';
     }

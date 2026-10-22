@@ -62,7 +62,7 @@
     'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'potStock',
     'eqTip', 'eqTipName', 'eqTipStats', 'eqTipActs', 'eqTipClose',
     'loot', 'lootName', 'lootStats', 'lootAffix',
-    'intro', 'introBtn', 'seedText',
+    'intro', 'introBtn', 'seedText', 'sfxGate', 'sfxEnable',
     'doorConfirm', 'doorTitle', 'doorDesc', 'doorList', 'doorNo',
     'pStatus',
     'lootPick', 'pickTitle', 'pickHint', 'pickList', 'pickAll', 'pickClose',
@@ -276,7 +276,7 @@
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
   // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
   const visible = () => true;
-  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden;
+  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden);
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
@@ -2376,7 +2376,6 @@
 
   function act(kind) {
     if (over || uiOpen()) return;
-    Sfx.unlock();
     stopWalk();
     if (!blockAction()) return;
     if (kind === 'attack') { if (attack(1.2, '攻击')) after(); }
@@ -3042,20 +3041,42 @@
       }
       if (el.menuMute) el.menuMute.textContent = off ? '🔇 已关' : '🔊 开启';
     }
+    function syncSfxGate() {
+      if (!el.sfxGate) return;
+      el.sfxGate.hidden = !!Sfx.isUnlocked();
+    }
     syncMuteUi();
-    const onMuteToggle = () => { Sfx.unlock(); Sfx.toggleMute(); syncMuteUi(); };
+    syncSfxGate();
+    if (typeof Sfx.onChange === 'function') {
+      Sfx.onChange(() => { syncMuteUi(); syncSfxGate(); });
+    }
+    const onMuteToggle = () => {
+      if (!Sfx.isUnlocked()) {
+        Sfx.enable();
+        syncMuteUi();
+        syncSfxGate();
+        return;
+      }
+      Sfx.toggleMute();
+      syncMuteUi();
+    };
     if (el.btnMute) el.btnMute.addEventListener('click', onMuteToggle);
     if (el.menuMute) el.menuMute.addEventListener('click', onMuteToggle);
-    // 手机：捕获阶段持续尝试 resume，直到 running（只绑一次监听不够）
-    if (typeof Sfx.bindAutoUnlock === 'function') Sfx.bindAutoUnlock(document);
-    if (el.introBtn) {
-      el.introBtn.addEventListener('click', () => { Sfx.unlock(); Sfx.play('test'); });
+    // 手机必须点显式按钮：在手势里同步建 AudioContext 并出声
+    const onSfxEnable = (e) => {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      Sfx.enable();
+      syncMuteUi();
+      syncSfxGate();
+    };
+    if (el.sfxEnable) {
+      el.sfxEnable.addEventListener('pointerdown', onSfxEnable);
+      el.sfxEnable.addEventListener('click', onSfxEnable);
     }
-    // 长按喇叭：未静音时也试听一声，方便排查手机无声
-    if (el.btnMute) {
-      el.btnMute.addEventListener('pointerdown', (e) => {
-        if (e.button && e.button !== 0) return;
-        Sfx.unlock();
+    if (el.introBtn) {
+      el.introBtn.addEventListener('click', () => {
+        if (!Sfx.isUnlocked()) Sfx.enable();
+        else Sfx.play('ui');
       });
     }
 

@@ -415,11 +415,13 @@ try {
     ok('角色面板显示攻击最小-最大', html.includes(`攻击 <b>${ar.min}-${ar.max}</b>`), html);
   }
 
-  /* R15.6 音效：掉落分档 + 静音不炸 + 解锁 API */
+  /* R15.6 音效：掉落分档 + 静音不炸 + enable API */
   {
     const S = dl.Sfx || sandbox.DL.Sfx;
-    ok('Sfx 模块存在', !!(S && S.play && S.drop && S.unlock));
-    ok('bindAutoUnlock 存在', typeof S.bindAutoUnlock === 'function');
+    ok('Sfx 模块存在', !!(S && S.play && S.drop && S.enable));
+    ok('未解锁前默认不响', S.isUnlocked() === false);
+    S.enable();
+    ok('enable 后已解锁', S.isUnlocked() === true);
     const was = S.isMuted();
     S.setMuted(true);
     ok('静音后 play 不抛', (() => { S.play('hit'); S.drop('orange'); return true; })());

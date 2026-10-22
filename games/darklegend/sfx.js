@@ -1,32 +1,50 @@
 /* 豆豆暗黑传奇 · 音效
-   主路径：合成短 WAV → HTMLAudioElement.play（手机/微信更稳）
-   辅：手势里顺带 resume WebAudio
-   R15.6 掉落分档；静音键 localStorage darklegend-sfx-mute
+   手机策略：
+   1) 必须在用户点击里同步 create/resume AudioContext 并出声
+   2) WAV 用 Blob URL（部分机 data: URI 播不了）
+   3) 首次未解锁前游戏音效不播，等点「开启音效」
 */
 (function (global) {
   'use strict';
   const DL = (global.DL = global.DL || {});
   const MUTE_KEY = 'darklegend-sfx-mute';
+  const UNLOCK_KEY = 'darklegend-sfx-unlocked';
   const hasAudio = typeof global.Audio === 'function';
 
   let muted = false;
-  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* 隐私模式 */ }
+  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* 忽略 */ }
 
   let unlocked = false;
+  let lastError = '';
   let AC = null;
-  const cache = Object.create(null);
+  const wavCache = Object.create(null); // key -> blobUrl
   const pool = [];
+  const listeners = [];
 
-  /* ---------- WAV 编码 ---------- */
-  function encodeWav(samples, sr) {
+  function setErr(e) {
+    lastError = e ? String(e.message || e) : '';
+  }
+
+  function notify() {
+    for (const fn of listeners) {
+      try { fn({ unlocked, muted, lastError }); } catch { /* 忽略 */ }
+    }
+  }
+
+  function onChange(fn) {
+    if (typeof fn === 'function') listeners.push(fn);
+  }
+
+  /* ---------- 原始 WAV bytes → Blob URL ---------- */
+  function makeWavBytes(samples, sr) {
     const n = samples.length;
     const buf = new ArrayBuffer(44 + n * 2);
     const v = new DataView(buf);
-    const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    wstr(0, 'RIFF');
+    const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0, 'RIFF');
     v.setUint32(4, 36 + n * 2, true);
-    wstr(8, 'WAVE');
-    wstr(12, 'fmt ');
+    w(8, 'WAVE');
+    w(12, 'fmt ');
     v.setUint32(16, 16, true);
     v.setUint16(20, 1, true);
     v.setUint16(22, 1, true);
@@ -34,7 +52,7 @@
     v.setUint32(28, sr * 2, true);
     v.setUint16(32, 2, true);
     v.setUint16(34, 16, true);
-    wstr(36, 'data');
+    w(36, 'data');
     v.setUint32(40, n * 2, true);
     let o = 44;
     for (let i = 0; i < n; i++) {
@@ -42,28 +60,14 @@
       v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
       o += 2;
     }
-    const bytes = new Uint8Array(buf);
-    let b64;
-    if (typeof btoa === 'function') {
-      let bin = '';
-      const step = 0x8000;
-      for (let i = 0; i < bytes.length; i += step) {
-        bin += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + step, bytes.length)));
-      }
-      b64 = btoa(bin);
-    } else if (typeof Buffer !== 'undefined') {
-      b64 = Buffer.from(bytes).toString('base64');
-    } else {
-      b64 = '';
-    }
-    return 'data:audio/wav;base64,' + b64;
+    return buf;
   }
 
-  function synth(freq, dur, type, vol, slide) {
+  function synthSamples(freq, dur, type, vol, slide) {
     const sr = 22050;
     const n = Math.max(1, Math.floor(sr * dur));
     const out = new Float32Array(n);
-    vol = vol == null ? 0.35 : vol;
+    vol = vol == null ? 0.4 : vol;
     slide = slide || 0;
     for (let i = 0; i < n; i++) {
       const t = i / sr;
@@ -74,55 +78,69 @@
       else if (type === 'sawtooth') s = 2 * ((f * t) % 1) - 1;
       else if (type === 'triangle') s = 1 - 4 * Math.abs(((f * t) % 1) - 0.5);
       else s = Math.sin(ph);
-      const attack = Math.min(1, i / (sr * 0.008));
-      const release = Math.exp(-3.2 * t / Math.max(0.02, dur));
+      const attack = Math.min(1, i / (sr * 0.01));
+      const release = Math.exp(-2.8 * t / Math.max(0.02, dur));
       out[i] = s * vol * attack * release;
     }
-    return encodeWav(out, sr);
+    return { samples: out, sr };
   }
 
-  function uriOf(freq, dur, type, vol, slide) {
+  function blobUrlOf(freq, dur, type, vol, slide) {
     const key = [freq, dur, type || 'sine', vol || 0, slide || 0].join('|');
-    if (!cache[key]) cache[key] = synth(freq, dur, type, vol, slide);
-    return cache[key];
+    if (wavCache[key]) return wavCache[key];
+    const { samples, sr } = synthSamples(freq, dur, type, vol, slide);
+    const bytes = makeWavBytes(samples, sr);
+    const url = (typeof URL !== 'undefined' && URL.createObjectURL)
+      ? URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }))
+      : '';
+    wavCache[key] = url;
+    return url;
   }
 
-  /* ---------- HTMLAudio ---------- */
   function getAudio() {
     if (!hasAudio) return null;
     let a = pool.find((x) => x.paused || x.ended);
     if (!a) {
       a = new Audio();
       a.preload = 'auto';
+      a.playsInline = true;
       a.setAttribute('playsinline', 'true');
       a.setAttribute('webkit-playsinline', 'true');
       pool.push(a);
-      if (pool.length > 8) pool.shift();
+      if (pool.length > 6) pool.shift();
     }
     return a;
   }
 
-  function playUri(uri, vol) {
-    if (muted || !uri || !hasAudio) return;
+  function playBlob(url, vol) {
+    if (muted || !url || !hasAudio) return Promise.resolve(false);
     try {
       const a = getAudio();
-      if (!a) return;
-      a.volume = Math.max(0, Math.min(1, vol == null ? 0.85 : vol));
-      a.src = uri;
+      if (!a) return Promise.resolve(false);
+      a.volume = Math.max(0, Math.min(1, vol == null ? 1 : vol));
+      if (a.src !== url) {
+        a.src = url;
+        try { a.load(); } catch { /* 忽略 */ }
+      }
       const p = a.play();
       if (p && typeof p.then === 'function') {
-        p.then(() => { unlocked = true; }).catch(() => {});
-      } else {
-        unlocked = true;
+        return p.then(() => true).catch((e) => { setErr(e); return false; });
       }
-    } catch { /* 忽略 */ }
+      return Promise.resolve(true);
+    } catch (e) {
+      setErr(e);
+      return Promise.resolve(false);
+    }
   }
 
   function playTone(freq, dur, type, vol, slide) {
-    playUri(uriOf(freq, dur, type, vol, slide), 0.9);
+    if (!unlocked || muted) return;
+    const url = blobUrlOf(freq, dur, type, vol, slide);
+    playBlob(url, 1);
   }
 
   function playSeq(steps) {
+    if (!unlocked || muted) return;
     for (const s of steps) {
       const delay = Math.round((s.delay || 0) * 1000);
       const run = () => playTone(s.f, s.d, s.type, s.vol, s.slide);
@@ -131,116 +149,133 @@
     }
   }
 
-  /* ---------- 解锁（静音 WAV + WebAudio resume） ---------- */
-  let silentUri = null;
-
-  function unlockWeb() {
+  /* ---------- 手势内同步解锁：WebAudio 尖鸣 + HTMLAudio ---------- */
+  function beepWebSync() {
     try {
-      if (!AC) {
-        const Ctx = global.AudioContext || global.webkitAudioContext;
-        if (Ctx) AC = new Ctx();
-      }
-      if (!AC) return;
-      if (AC.state === 'suspended') AC.resume().catch(() => {});
-      const n = Math.max(1, Math.floor(AC.sampleRate * 0.02));
-      const buf = AC.createBuffer(1, n, AC.sampleRate);
-      const src = AC.createBufferSource();
-      src.buffer = buf;
-      src.connect(AC.destination);
-      src.start(0);
-    } catch { /* 忽略 */ }
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return false;
+      // 必须在手势栈里 new，不能复用页加载时建的
+      if (!AC || AC.state === 'closed') AC = new Ctx();
+      if (AC.state === 'suspended') AC.resume();
+      const t0 = AC.currentTime;
+      const o = AC.createOscillator();
+      const g = AC.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(880, t0);
+      o.frequency.setValueAtTime(1174, t0 + 0.08);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      o.connect(g).connect(AC.destination);
+      o.start(t0);
+      o.stop(t0 + 0.3);
+      return true;
+    } catch (e) {
+      setErr(e);
+      return false;
+    }
   }
 
-  function unlock() {
-    unlockWeb();
-    if (!hasAudio) return unlocked;
-    if (!silentUri) {
-      const sr = 22050;
-      const n = Math.floor(sr * 0.05);
-      const z = new Float32Array(n);
-      for (let i = 0; i < 16 && i < n; i++) z[i] = 0.001;
-      silentUri = encodeWav(z, sr);
-    }
-    try {
-      const a = getAudio();
-      if (!a) return unlocked;
-      a.volume = 0.02;
-      a.src = silentUri;
-      const p = a.play();
-      if (p && typeof p.then === 'function') {
-        p.then(() => { unlocked = true; }).catch(() => {});
-      } else {
-        unlocked = true;
+  function unlock(opts) {
+    opts = opts || {};
+    const audible = opts.audible !== false;
+    let ok = false;
+    if (audible) ok = beepWebSync() || ok;
+
+    // HTMLAudio 同步播一声（Blob）
+    if (hasAudio && audible) {
+      try {
+        const url = blobUrlOf(660, 0.18, 'sine', 0.7, 0);
+        const a = new Audio();
+        a.playsInline = true;
+        a.setAttribute('playsinline', 'true');
+        a.volume = 1;
+        a.src = url;
+        try { a.load(); } catch { /* 忽略 */ }
+        const p = a.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            unlocked = true;
+            try { localStorage.setItem(UNLOCK_KEY, '1'); } catch { /* 忽略 */ }
+            notify();
+          }).catch((e) => setErr(e));
+        } else {
+          ok = true;
+        }
+      } catch (e) {
+        setErr(e);
       }
-    } catch { /* 忽略 */ }
+    }
+
+    if (ok || audible) {
+      unlocked = true;
+      try { localStorage.setItem(UNLOCK_KEY, '1'); } catch { /* 忽略 */ }
+    }
+    // 若用户之前静音，开启流程里可强制取消静音
+    if (opts.forceUnmute) {
+      muted = false;
+      try { localStorage.setItem(MUTE_KEY, '0'); } catch { /* 忽略 */ }
+    }
+    notify();
     return unlocked;
   }
 
-  /* ---------- 音色 ---------- */
   const SFX = {
-    dropWhite() { playTone(200, 0.06, 'square', 0.5, -40); },
-    dropBlue() { playTone(900, 0.1, 'sine', 0.55, -220); },
+    dropWhite() { playTone(200, 0.07, 'square', 0.55, -40); },
+    dropBlue() { playTone(900, 0.11, 'sine', 0.6, -220); },
     dropYellow() {
       playSeq([
-        { f: 988, d: 0.12, type: 'sine', vol: 0.55 },
-        { f: 1319, d: 0.16, type: 'sine', vol: 0.5, delay: 0.07 },
+        { f: 988, d: 0.12, type: 'sine', vol: 0.6 },
+        { f: 1319, d: 0.16, type: 'sine', vol: 0.55, delay: 0.07 },
       ]);
     },
     dropOrange() {
       playSeq([
-        { f: 120, d: 0.4, type: 'sawtooth', vol: 0.6 },
-        { f: 240, d: 0.3, type: 'triangle', vol: 0.45, delay: 0.08 },
-        { f: 360, d: 0.22, type: 'sine', vol: 0.4, delay: 0.16 },
+        { f: 140, d: 0.35, type: 'sawtooth', vol: 0.65 },
+        { f: 280, d: 0.25, type: 'triangle', vol: 0.5, delay: 0.08 },
       ]);
     },
-    hit() { playTone(220, 0.07, 'sawtooth', 0.48, -100); },
-    kill() { playTone(170, 0.12, 'square', 0.55, -90); },
-    hurt() { playTone(140, 0.16, 'sawtooth', 0.55, -50); },
-    die() { playTone(95, 0.5, 'sawtooth', 0.6, -45); },
+    hit() { playTone(220, 0.08, 'sawtooth', 0.55, -100); },
+    kill() { playTone(170, 0.12, 'square', 0.6, -90); },
+    hurt() { playTone(140, 0.16, 'sawtooth', 0.6, -50); },
+    die() { playTone(95, 0.45, 'sawtooth', 0.65, -45); },
     level() {
       playSeq([
-        { f: 523, d: 0.1, type: 'triangle', vol: 0.55 },
-        { f: 659, d: 0.1, type: 'triangle', vol: 0.55, delay: 0.09 },
-        { f: 784, d: 0.16, type: 'triangle', vol: 0.55, delay: 0.18 },
+        { f: 523, d: 0.1, type: 'triangle', vol: 0.6 },
+        { f: 659, d: 0.1, type: 'triangle', vol: 0.6, delay: 0.09 },
+        { f: 784, d: 0.16, type: 'triangle', vol: 0.6, delay: 0.18 },
       ]);
     },
-    potion() { playTone(440, 0.1, 'sine', 0.5, 180); },
-    gold() { playTone(1200, 0.07, 'sine', 0.45, -400); },
-    skill() { playTone(280, 0.22, 'sawtooth', 0.5, 450); },
+    potion() { playTone(440, 0.1, 'sine', 0.55, 180); },
+    gold() { playTone(1200, 0.08, 'sine', 0.5, -400); },
+    skill() { playTone(280, 0.2, 'sawtooth', 0.55, 450); },
     fire() {
       playSeq([
-        { f: 190, d: 0.12, type: 'sawtooth', vol: 0.55 },
-        { f: 320, d: 0.18, type: 'sawtooth', vol: 0.45, delay: 0.08 },
+        { f: 190, d: 0.12, type: 'sawtooth', vol: 0.6 },
+        { f: 320, d: 0.16, type: 'sawtooth', vol: 0.5, delay: 0.08 },
       ]);
     },
     elite() {
       playSeq([
-        { f: 440, d: 0.1, type: 'triangle', vol: 0.55 },
-        { f: 554, d: 0.12, type: 'triangle', vol: 0.5, delay: 0.08 },
+        { f: 440, d: 0.1, type: 'triangle', vol: 0.6 },
+        { f: 554, d: 0.12, type: 'triangle', vol: 0.55, delay: 0.08 },
       ]);
     },
     rare() {
       playSeq([
-        { f: 523, d: 0.12, type: 'sine', vol: 0.55 },
-        { f: 784, d: 0.14, type: 'sine', vol: 0.52, delay: 0.1 },
-        { f: 1047, d: 0.18, type: 'sine', vol: 0.5, delay: 0.2 },
+        { f: 523, d: 0.12, type: 'sine', vol: 0.6 },
+        { f: 784, d: 0.14, type: 'sine', vol: 0.55, delay: 0.1 },
       ]);
     },
     boss() {
       playSeq([
-        { f: 80, d: 0.4, type: 'sawtooth', vol: 0.65 },
-        { f: 120, d: 0.28, type: 'square', vol: 0.5, delay: 0.12 },
+        { f: 90, d: 0.35, type: 'sawtooth', vol: 0.7 },
+        { f: 130, d: 0.25, type: 'square', vol: 0.55, delay: 0.1 },
       ]);
     },
-    ui() { playTone(660, 0.09, 'sine', 0.55); },
-    pickup() { playTone(720, 0.08, 'triangle', 0.5, 200); },
-    test() {
-      playSeq([
-        { f: 523, d: 0.16, type: 'sine', vol: 0.7 },
-        { f: 659, d: 0.16, type: 'sine', vol: 0.7, delay: 0.12 },
-        { f: 784, d: 0.22, type: 'sine', vol: 0.7, delay: 0.24 },
-      ]);
-    },
+    ui() { playTone(660, 0.1, 'sine', 0.6); },
+    pickup() { playTone(720, 0.09, 'triangle', 0.55, 200); },
+    test() { playTone(880, 0.22, 'sine', 0.75); },
   };
 
   const DROP_BY_RARITY = {
@@ -251,8 +286,7 @@
   };
 
   function play(name) {
-    if (muted) return;
-    if (!unlocked) unlock();
+    if (muted || !unlocked) return;
     const fn = SFX[name];
     if (typeof fn === 'function') fn();
   }
@@ -263,17 +297,13 @@
 
   function isMuted() { return muted; }
   function isUnlocked() { return unlocked; }
+  function getLastError() { return lastError; }
 
   function setMuted(v) {
-    const was = muted;
     muted = !!v;
     try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* 忽略 */ }
-    if (was && !muted) {
-      unlock();
-      // 打开音效时强制试听，方便确认手机能响
-      const fn = SFX.test;
-      if (fn) fn();
-    }
+    if (!muted && unlocked) play('test');
+    notify();
     return muted;
   }
 
@@ -281,44 +311,16 @@
     return setMuted(!muted);
   }
 
-  function bindAutoUnlock(target) {
-    if (!target || typeof target.addEventListener !== 'function') return;
-    const tryUnlock = () => {
-      unlock();
-      if (unlocked) {
-        target.removeEventListener('pointerdown', tryUnlock, true);
-        target.removeEventListener('touchstart', tryUnlock, true);
-        target.removeEventListener('mousedown', tryUnlock, true);
-        target.removeEventListener('keydown', tryUnlock, true);
-      }
-    };
-    target.addEventListener('pointerdown', tryUnlock, true);
-    target.addEventListener('touchstart', tryUnlock, { capture: true, passive: true });
-    target.addEventListener('mousedown', tryUnlock, true);
-    target.addEventListener('keydown', tryUnlock, true);
-    if (typeof document !== 'undefined' && document.addEventListener) {
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) unlock();
-      });
-    }
+  // 兼容旧 API：不再静默解锁，改为需要 enable()
+  function bindAutoUnlock() { /* 改由显式按钮 enable */ }
+
+  function enable() {
+    return unlock({ audible: true, forceUnmute: true });
   }
 
-  // 预热常用 cache（不播）
-  try {
-    [
-      [220, 0.07, 'sawtooth', 0.48, -100],
-      [170, 0.12, 'square', 0.55, -90],
-      [660, 0.09, 'sine', 0.55, 0],
-      [200, 0.06, 'square', 0.5, -40],
-      [900, 0.1, 'sine', 0.55, -220],
-      [1200, 0.07, 'sine', 0.45, -400],
-      [440, 0.1, 'sine', 0.5, 180],
-      [523, 0.16, 'sine', 0.7, 0],
-    ].forEach((s) => { uriOf(s[0], s[1], s[2], s[3], s[4]); });
-  } catch { /* 忽略 */ }
-
   DL.Sfx = {
-    unlock, play, drop, isMuted, isUnlocked, setMuted, toggleMute, bindAutoUnlock,
+    unlock, enable, play, drop, isMuted, isUnlocked, setMuted, toggleMute,
+    bindAutoUnlock, onChange, getLastError,
     MUTE_KEY, DROP_BY_RARITY,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

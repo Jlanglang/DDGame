@@ -985,6 +985,43 @@ canvas {
 .intro-card b { color: var(--ink); }
 .intro-card button { margin-top: 16px; }
 
+.sfx-gate {
+  position: absolute;
+  left: 0; right: 0; top: 0; bottom: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(7, 10, 17, 0.82);
+  backdrop-filter: blur(2px);
+}
+.sfx-gate[hidden] { display: none !important; }
+.sfx-enable {
+  min-width: 220px;
+  min-height: 52px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  background: linear-gradient(180deg, #3a2e14, #1e180c);
+  color: var(--gold);
+  font-size: 17px;
+  font-weight: 700;
+  font-family: inherit;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.sfx-enable:active { transform: translateY(1px); }
+.sfx-gate-hint {
+  margin: 0;
+  max-width: 280px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .loot {
   position: absolute;
   top: 92px;

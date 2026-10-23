@@ -580,7 +580,10 @@
     if (atom.kind === 'unit') {
       return countLine(draft.alienSet, cellsOnUnit(draft.floors, atom.unit)) === atom.n;
     }
-    if (atom.kind === 'around' || atom.kind === 'diag' || atom.kind === 'same' || atom.kind === 'rows' || atom.kind === 'cols' || atom.kind === 'pair' || atom.kind === 'meal' || atom.kind === 'role') {
+    if (atom.kind === 'around' || atom.kind === 'diag' || atom.kind === 'same' ||
+        atom.kind === 'rows' || atom.kind === 'cols' || atom.kind === 'pair' ||
+        atom.kind === 'meal' || atom.kind === 'role' || atom.kind === 'half' ||
+        atom.kind === 'edge' || atom.kind === 'nonadj' || atom.kind === 'corners') {
       let mask = 0;
       draft.alienSet.forEach(function (id) { mask |= (1 << idBit(draft, id)); });
       return holdsMask(draft, atom, mask >>> 0);
@@ -1072,6 +1075,37 @@
     else atoms.push({ kind: 'corners', mode: 'count', n: cornerN });
   }
 
+  /* 然然 / 坨坨 是豆豆的朋友，不能是外星人：抽到了就把身份和普通住户换一下 */
+  function protectFriends(draft) {
+    const friends = [];
+    const others = [];
+    for (let i = 0; i < draft.cells.length; i++) {
+      const cell = draft.cells[i];
+      if (cell.role === 'doudou') continue;
+      if (FRIEND_NAMES.indexOf(cell.name) >= 0) friends.push(cell);
+      else others.push(cell);
+    }
+    let changed = false;
+    for (let i = 0; i < friends.length; i++) {
+      const f = friends[i];
+      if (!f.alien) continue;
+      let target = null;
+      for (let k = 0; k < others.length; k++) {
+        if (!others[k].alien) { target = others[k]; break; }
+      }
+      if (!target) continue;
+      f.alien = false;
+      target.alien = true;
+      draft.alienSet.delete(f.key);
+      draft.alienSet.add(target.key);
+      changed = true;
+    }
+    if (changed) {
+      draft.alienKeys = draft.cells.filter(function (c) { return c.alien; })
+        .map(function (c) { return c.key; });
+    }
+  }
+
   function finishChatter(draft, rng, usedLines) {
     for (let i = 0; i < draft.cells.length; i++) {
       const cell = draft.cells[i];
@@ -1101,6 +1135,7 @@
   function generateOnce(band, rng) {
     const draft = place(band, rng);
     assignNames(draft, rng);
+    protectFriends(draft);
     const limit = openLimit(draft.units, draft.floors, draft.alienCount);
     const opened = new Set();
     const chainKeys = [];

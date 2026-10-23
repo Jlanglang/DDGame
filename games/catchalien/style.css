@@ -222,9 +222,9 @@ body {
   position: absolute;
   left: 3px;
   right: 3px;
-  bottom: calc(14px * var(--fit) + 2px);
+  bottom: calc(12px * var(--fit) + 2px);
   z-index: 3;
-  max-height: 64%;
+  max-height: 46%;
   margin: 0;
   padding: calc(3px * var(--fit)) calc(4px * var(--fit));
   border-radius: calc(8px * var(--fit));
@@ -360,3 +360,17 @@ button {
 }
 
 .win-card h2 { margin: 6px 0 14px; }
+
+/* 角色卡（assets/characters） */
+.door .avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: 50% 50%;
+  border-radius: 8px;
+  transform: scale(1.18);
+  transform-origin: 50% 0;
+}
+
+

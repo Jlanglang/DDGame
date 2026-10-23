@@ -173,6 +173,25 @@
     return '<span class="bubble">' + esc(cell.speech.clue) + '</span>';
   }
 
+  function cardImg(src) {
+    return '<img src="' + src + '" alt="" loading="lazy" decoding="async">';
+  }
+
+  function faceHtml(cell, opened, killed) {
+    var cards = window.CHARACTER_CARDS || {};
+    var thumbs = window.CHARACTER_THUMBS || {};
+    var spec = window.CHARACTER_SPECIAL || {};
+    // 抓住 / 撞见：直接是外星人惊恐脸
+    if (killed || (opened && cell.alien)) return cardImg(spec.alien_3.card);
+    // 豆豆：开门用大卡，没开门用缩略
+    if (cell.role === 'doudou') {
+      return cardImg(opened ? spec.doudou_1.card : spec.doudou_1.thumb);
+    }
+    // 邻居：没开门也给脸，只是用小图，省流量
+    if (cards[cell.name]) return cardImg(opened ? cards[cell.name] : thumbs[cell.name]);
+    return avatarSvg(cell.role || 'classmate', cell.name);
+  }
+
   function doorHtml(cell) {
     var opened = state.opened.indexOf(cell.key) >= 0;
     var killed = state.killed.indexOf(cell.key) >= 0;
@@ -180,8 +199,7 @@
     if (opened) cls += ' is-open';
     if (opened && cell.speech && !cell.speech.atom) cls += ' is-chat';
     if (killed || (opened && cell.alien)) cls += ' is-alien';
-    var faceKind = opened ? (cell.alien ? 'alien' : (cell.role || 'closed')) : 'closed';
-    var face = killed ? stampSvg() : avatarSvg(faceKind, cell.name);
+    var face = faceHtml(cell, opened, killed);
     var label = killed ? '捉住了' : (opened && cell.alien ? '外星人' : cell.name);
     var roleText = cell.role && cell.role !== 'doudou' ? (CA.ROLE_LABEL[cell.role] || '') : '';
     var roleCls = roleText ? ' role role-' + cell.role : '';

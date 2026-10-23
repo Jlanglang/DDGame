@@ -37,6 +37,8 @@
 
   const NAMES = ['小海', '阿青', '林子', '周周', '陈一', '苏苏', '老周', '阿宁', '小北', '江江', '许安', '罗罗', '宋晚', '何何', '小马', '顾清', '唐糖', '沈一', '韩韩', '叶叶', '方知', '程程', '曹曹', '丁一', '潘潘', '任清', '姚姚', '魏薇', '乔乔', '冯晚', '然然', '坨坨'];
   const FRIEND_NAMES = ['然然', '坨坨'];
+  /* 小朋友（"同学"尽量用这一批，成年人留给"路人"） */
+  const KID_NAMES = ['周周', '唐糖', '小海', '小北', '罗罗', '阿宁', '叶叶', '潘潘', '乔乔', '姚姚', '小马', '然然', '坨坨'];
 
   const DIR = {
     up: [0, 1],
@@ -922,11 +924,24 @@
     let n = 0;
     for (let i = 0; i < draft.cells.length; i++) {
       const cell = draft.cells[i];
-      if (cell.role === 'doudou') cell.name = '豆豆';
-      else {
-        cell.name = pool[n++];
-        if (FRIEND_NAMES.indexOf(cell.name) >= 0) cell.role = 'friend';
+      if (cell.role === 'doudou') {
+        cell.name = '豆豆';
+        continue;
       }
+      /* 同学优先发小朋友的名字：在剩下的池子里把最近的一个小朋友换到当前位置 */
+      if (cell.role === 'classmate') {
+        let idx = -1;
+        for (let k = n; k < pool.length; k++) {
+          if (KID_NAMES.indexOf(pool[k]) >= 0) { idx = k; break; }
+        }
+        if (idx > n) {
+          const tmp = pool[n];
+          pool[n] = pool[idx];
+          pool[idx] = tmp;
+        }
+      }
+      cell.name = pool[n++];
+      if (FRIEND_NAMES.indexOf(cell.name) >= 0) cell.role = 'friend';
     }
   }
 

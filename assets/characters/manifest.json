@@ -1,0 +1,239 @@
+{
+  "count": 32,
+  "size": [
+    512,
+    683
+  ],
+  "characters": [
+    {
+      "id": 1,
+      "name": "小海",
+      "card": "assets/characters/cards/card_01.webp",
+      "thumb": "assets/characters/thumbs/thumb_01.webp"
+    },
+    {
+      "id": 2,
+      "name": "阿青",
+      "card": "assets/characters/cards/card_02.webp",
+      "thumb": "assets/characters/thumbs/thumb_02.webp"
+    },
+    {
+      "id": 3,
+      "name": "林子",
+      "card": "assets/characters/cards/card_03.webp",
+      "thumb": "assets/characters/thumbs/thumb_03.webp"
+    },
+    {
+      "id": 4,
+      "name": "周周",
+      "card": "assets/characters/cards/card_04.webp",
+      "thumb": "assets/characters/thumbs/thumb_04.webp"
+    },
+    {
+      "id": 5,
+      "name": "陈一",
+      "card": "assets/characters/cards/card_05.webp",
+      "thumb": "assets/characters/thumbs/thumb_05.webp"
+    },
+    {
+      "id": 6,
+      "name": "苏苏",
+      "card": "assets/characters/cards/card_06.webp",
+      "thumb": "assets/characters/thumbs/thumb_06.webp"
+    },
+    {
+      "id": 7,
+      "name": "老周",
+      "card": "assets/characters/cards/card_07.webp",
+      "thumb": "assets/characters/thumbs/thumb_07.webp"
+    },
+    {
+      "id": 8,
+      "name": "阿宁",
+      "card": "assets/characters/cards/card_08.webp",
+      "thumb": "assets/characters/thumbs/thumb_08.webp"
+    },
+    {
+      "id": 9,
+      "name": "小北",
+      "card": "assets/characters/cards/card_09.webp",
+      "thumb": "assets/characters/thumbs/thumb_09.webp"
+    },
+    {
+      "id": 10,
+      "name": "江江",
+      "card": "assets/characters/cards/card_10.webp",
+      "thumb": "assets/characters/thumbs/thumb_10.webp"
+    },
+    {
+      "id": 11,
+      "name": "许安",
+      "card": "assets/characters/cards/card_11.webp",
+      "thumb": "assets/characters/thumbs/thumb_11.webp"
+    },
+    {
+      "id": 12,
+      "name": "罗罗",
+      "card": "assets/characters/cards/card_12.webp",
+      "thumb": "assets/characters/thumbs/thumb_12.webp"
+    },
+    {
+      "id": 13,
+      "name": "宋晚",
+      "card": "assets/characters/cards/card_13.webp",
+      "thumb": "assets/characters/thumbs/thumb_13.webp"
+    },
+    {
+      "id": 14,
+      "name": "何何",
+      "card": "assets/characters/cards/card_14.webp",
+      "thumb": "assets/characters/thumbs/thumb_14.webp"
+    },
+    {
+      "id": 15,
+      "name": "小马",
+      "card": "assets/characters/cards/card_15.webp",
+      "thumb": "assets/characters/thumbs/thumb_15.webp"
+    },
+    {
+      "id": 16,
+      "name": "顾清",
+      "card": "assets/characters/cards/card_16.webp",
+      "thumb": "assets/characters/thumbs/thumb_16.webp"
+    },
+    {
+      "id": 17,
+      "name": "唐糖",
+      "card": "assets/characters/cards/card_17.webp",
+      "thumb": "assets/characters/thumbs/thumb_17.webp"
+    },
+    {
+      "id": 18,
+      "name": "沈一",
+      "card": "assets/characters/cards/card_18.webp",
+      "thumb": "assets/characters/thumbs/thumb_18.webp"
+    },
+    {
+      "id": 19,
+      "name": "韩韩",
+      "card": "assets/characters/cards/card_19.webp",
+      "thumb": "assets/characters/thumbs/thumb_19.webp"
+    },
+    {
+      "id": 20,
+      "name": "叶叶",
+      "card": "assets/characters/cards/card_20.webp",
+      "thumb": "assets/characters/thumbs/thumb_20.webp"
+    },
+    {
+      "id": 21,
+      "name": "方知",
+      "card": "assets/characters/cards/card_21.webp",
+      "thumb": "assets/characters/thumbs/thumb_21.webp"
+    },
+    {
+      "id": 22,
+      "name": "程程",
+      "card": "assets/characters/cards/card_22.webp",
+      "thumb": "assets/characters/thumbs/thumb_22.webp"
+    },
+    {
+      "id": 23,
+      "name": "曹曹",
+      "card": "assets/characters/cards/card_23.webp",
+      "thumb": "assets/characters/thumbs/thumb_23.webp"
+    },
+    {
+      "id": 24,
+      "name": "丁一",
+      "card": "assets/characters/cards/card_24.webp",
+      "thumb": "assets/characters/thumbs/thumb_24.webp"
+    },
+    {
+      "id": 25,
+      "name": "潘潘",
+      "card": "assets/characters/cards/card_25.webp",
+      "thumb": "assets/characters/thumbs/thumb_25.webp"
+    },
+    {
+      "id": 26,
+      "name": "任清",
+      "card": "assets/characters/cards/card_26.webp",
+      "thumb": "assets/characters/thumbs/thumb_26.webp"
+    },
+    {
+      "id": 27,
+      "name": "姚姚",
+      "card": "assets/characters/cards/card_27.webp",
+      "thumb": "assets/characters/thumbs/thumb_27.webp"
+    },
+    {
+      "id": 28,
+      "name": "魏薇",
+      "card": "assets/characters/cards/card_28.webp",
+      "thumb": "assets/characters/thumbs/thumb_28.webp"
+    },
+    {
+      "id": 29,
+      "name": "乔乔",
+      "card": "assets/characters/cards/card_29.webp",
+      "thumb": "assets/characters/thumbs/thumb_29.webp"
+    },
+    {
+      "id": 30,
+      "name": "冯晚",
+      "card": "assets/characters/cards/card_30.webp",
+      "thumb": "assets/characters/thumbs/thumb_30.webp"
+    },
+    {
+      "id": 31,
+      "name": "然然",
+      "card": "assets/characters/cards/card_31.webp",
+      "thumb": "assets/characters/thumbs/thumb_31.webp"
+    },
+    {
+      "id": 32,
+      "name": "坨坨",
+      "card": "assets/characters/cards/card_32.webp",
+      "thumb": "assets/characters/thumbs/thumb_32.webp"
+    }
+  ],
+  "special": [
+    {
+      "key": "doudou",
+      "variant": 1,
+      "card": "assets/characters/cards/card_doudou_1.webp",
+      "thumb": "assets/characters/thumbs/thumb_doudou_1.webp"
+    },
+    {
+      "key": "doudou",
+      "variant": 2,
+      "card": "assets/characters/cards/card_doudou_2.webp",
+      "thumb": "assets/characters/thumbs/thumb_doudou_2.webp"
+    },
+    {
+      "key": "doudou",
+      "variant": 3,
+      "card": "assets/characters/cards/card_doudou_3.webp",
+      "thumb": "assets/characters/thumbs/thumb_doudou_3.webp"
+    },
+    {
+      "key": "alien",
+      "variant": 1,
+      "card": "assets/characters/cards/card_alien_1.webp",
+      "thumb": "assets/characters/thumbs/thumb_alien_1.webp"
+    },
+    {
+      "key": "alien",
+      "variant": 2,
+      "card": "assets/characters/cards/card_alien_2.webp",
+      "thumb": "assets/characters/thumbs/thumb_alien_2.webp"
+    },
+    {
+      "key": "alien",
+      "variant": 3,
+      "card": "assets/characters/cards/card_alien_3.webp",
+      "thumb": "assets/characters/thumbs/thumb_alien_3.webp"
+    }
+  ]
+}

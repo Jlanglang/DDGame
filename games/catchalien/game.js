@@ -282,7 +282,8 @@
         '<ellipse cx="49.6" cy="42" rx="2" ry="2" fill="#eafff0"/>' +
         '<path d="M32 58h16" stroke="#1d4a30" stroke-width="2.2" stroke-linecap="round"/></svg>';
     }
-    var hair = kind === 'doudou' ? '#f2b3c8' : hairOf(name);
+    /* 豆豆：棕色齐肩卷发（旧版是粉发双丸子，和卡面/封面不一致） */
+    var hair = kind === 'doudou' ? '#6b4a33' : hairOf(name);
     var front = '';
     if (kind === 'doudou') {
       front = '<circle cx="24" cy="50" r="3.4" fill="#ff9ec4" opacity="0.9"/>' +
@@ -296,7 +297,7 @@
       front = '<path d="M40 60c-5-3.2-8-.6-8 2.6 0 3.2 8 7.4 8 7.4s8-4.2 8-7.4c0-3.2-3-5.8-8-2.6z" fill="#ff8eb8"/>';
     }
     var buns = kind === 'doudou'
-      ? '<circle cx="10" cy="34" r="10" fill="#f2b3c8"/><circle cx="70" cy="34" r="10" fill="#f2b3c8"/>'
+      ? '<path d="M8 40c2-6 6-9 10-9M72 40c-2-6-6-9-10-9" stroke="#6b4a33" stroke-width="6" fill="none" stroke-linecap="round"/>'
       : '';
     return '<svg viewBox="0 0 80 80" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' +
       buns +
@@ -437,4 +438,20 @@
   if (!startIndex || startIndex < 1) startIndex = 1;
   var seedArg = query.get('seed');
   startLevel(startIndex, seedArg == null ? null : (parseInt(seedArg, 10) >>> 0));
+  if (location.search.indexOf('debug=1') >= 0) {
+    setTimeout(function () {
+      var b = document.getElementById('building');
+      var rows = b.querySelectorAll('.floor-row');
+      var r0 = rows[0];
+      var t = document.createElement('div');
+      t.style.cssText = 'position:fixed;left:0;top:0;z-index:99;background:#000;color:#0f0;font:11px monospace;padding:3px;white-space:pre';
+      t.textContent = 'lv floors=' + state.level.floors + ' units=' + state.level.units +
+        '\nbld ' + b.clientWidth + 'x' + b.clientHeight + ' scrollTop=' + b.scrollTop +
+        '\nrows=' + rows.length + ' row0=' + (r0 ? r0.clientWidth + 'x' + r0.clientHeight : '-') +
+        '\nrowH=' + getComputedStyle(b).getPropertyValue('--row-h') +
+        '\nstage=' + document.getElementById('stage').clientHeight;
+      document.body.appendChild(t);
+    }, 1500);
+  }
 })();
+

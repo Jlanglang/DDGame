@@ -1,4 +1,8 @@
 // 角色卡映射（由 assets/characters/manifest.json 生成）
+// 设定备忘（重画素材时按这个来，别再画错）：
+//   豆豆  = 小女孩，棕色齐肩卷发、棕色大眼睛、绿底白碎花连衣裙（不是粉发双丸子）
+//   坨坨  = 女生！胖乎乎的小女孩，黑色短波波头 + 小发夹，蓝色背带裤，牵黄气球
+//   然然  = 小女孩，黄色连衣裙，抱玩偶
 window.CHARACTER_CARDS = {};
 window.CHARACTER_THUMBS = {};
 window.CHARACTER_CARDS["小海"] = "../../assets/characters/cards/card_01.webp";

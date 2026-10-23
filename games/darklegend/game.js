@@ -26,6 +26,7 @@
   const SAVE_KEY = D.SAVE_KEY;
   const LEGACY_KEY = D.LEGACY_KEY;
   const BAG_MAX = D.BAG_MAX;
+  const STASH_MAX = D.STASH_MAX || 100;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -58,6 +59,7 @@
     'logWrap', 'logToggle', 'dpad', 'stickBase', 'stickKnob',
     'over', 'overK', 'overT', 'overS', 'overBtn', 'overAlt',
     'shop', 'shopGold', 'shopClose', 'shopStock', 'shopBag',
+    'stash', 'stashCount', 'stashGrid', 'stashBag', 'stashClose',
     'bookShop', 'bookShopGold', 'bookShopList', 'bookShopClose',
     'trial', 'trialRound', 'trialDesc', 'trialProg', 'trialReward', 'trialTurnIn', 'trialAbandon', 'trialClose', 'trialExpOrbs', 'trialUseOrb', 'trialMats', 'trialSellMats', 'trialModePick', 'trialSwitch',
     'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
@@ -73,6 +75,7 @@
   ].forEach((id) => { el[id] = document.getElementById(id); });
   if (el.bookShop) el.bookShop.hidden = true;
   if (el.trial) el.trial.hidden = true;
+  if (el.stash) el.stash.hidden = true;
 
   const {
     rand, randi, clamp, roll, key, dist, mulberry32, randomSeed,
@@ -211,6 +214,7 @@
     glovesL: null, glovesR: null, shoes: null, helmet: null,
     necklace: null, earring: null, ringL: null, ringR: null,
     bag: [],
+    stash: [],                              // 仓库：只存装备，上限 STASH_MAX
     cd: { half: 0, fire: 0 },
     skills: { half: false, fire: false, swordMaster: false },   // 技能书解锁：半月 / 烈火；被动：剑术精通
     autoPot: 50, autoMp: 0, autoTown: 0,
@@ -243,6 +247,7 @@
   let npc = null;
   let bookNpc = null;
   let trialNpc = null;
+  let stashNpc = null;
   let inCave = false;
   let turn = 0;
   let over = false;
@@ -297,7 +302,7 @@
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
   // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
   const visible = () => true;
-  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden) || (el.bookShop && el.bookShop.hidden === false) || (el.trial && el.trial.hidden === false);
+  const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden) || (el.bookShop && el.bookShop.hidden === false) || (el.trial && el.trial.hidden === false) || (el.stash && el.stash.hidden === false);
 
   /* ---------------- 地图（生成器在 world.js） ---------------- */
   function centerCam() {
@@ -348,6 +353,7 @@
     npc = h.npc;
     bookNpc = h.bookNpc;
     trialNpc = h.trialNpc;
+    stashNpc = h.stashNpc;
     doors = h.doors;
     door = doors[0] || { x: 0, y: 0 };
     let placed = false;
@@ -446,6 +452,7 @@
     npc = null;
     bookNpc = null;
     trialNpc = null;
+    stashNpc = null;
     P.x = r.spawn.x;
     P.y = r.spawn.y;
     back = r.exit;
@@ -980,12 +987,51 @@
     return true;
   }
 
+  function afterStashChange() {
+    if (el.stash && !el.stash.hidden) refreshStash();
+    if (!el.char.hidden) renderChar();
+    if (el.shop && !el.shop.hidden) refreshShop();
+    syncHud();
+    save();
+  }
+
+  // 背包 → 仓库。锁定只防卖，不防存。
+  function depositFromBag(i) {
+    const eq = P.bag[i];
+    if (!eq || !eq.slot) return false;
+    if (P.stash.length >= STASH_MAX) {
+      log(`仓库满了（${STASH_MAX} 格）。`, 'bad');
+      return false;
+    }
+    P.bag.splice(i, 1);
+    P.stash.push(eq);
+    log(`存入 ${eq.name}。`, 'good');
+    afterStashChange();
+    return true;
+  }
+
+  // 仓库 → 背包
+  function withdrawFromStash(i) {
+    const eq = P.stash[i];
+    if (!eq || !eq.slot) return false;
+    if (P.bag.length >= BAG_MAX) {
+      log('背包满了，先腾出空位再取。', 'bad');
+      return false;
+    }
+    P.stash.splice(i, 1);
+    P.bag.push(eq);
+    log(`取出 ${eq.name}。`, 'good');
+    afterStashChange();
+    return true;
+  }
+
   function toggleLockEq(eq) {
     if (!eq || !eq.slot) return false;
     eq.locked = !eq.locked;
     log(eq.locked ? `锁定 ${eq.name}（不会被回收/卖掉）。` : `解锁 ${eq.name}。`, 'good');
     if (!el.char.hidden) renderChar();
     if (el.shop && !el.shop.hidden) refreshShop();
+    if (el.stash && !el.stash.hidden) refreshStash();
     if (tipSrc && !el.eqTip.hidden) showEqTip(eq, tipSrc, tipSticky, findTipAnchor(tipSrc));
     save();
     return true;
@@ -1139,6 +1185,8 @@
     else if (opts.pickIndex != null) attr = `data-pick="${opts.pickIndex}"`;
     else if (opts.shopBag != null) attr = `data-shop-bag="${opts.shopBag}"`;
     else if (opts.shopStock != null) attr = `data-shop-stock="${opts.shopStock}"`;
+    else if (opts.stashIndex != null) attr = `data-stash="${opts.stashIndex}"`;
+    else if (opts.stashBag != null) attr = `data-stash-bag="${opts.stashBag}"`;
     const priceTag = opts.price != null
       ? `<span class="eq-price" title="价格">${opts.price}</span>`
       : '';
@@ -1215,6 +1263,8 @@
     if (src.kind === 'pick' && el.pickList) return el.pickList.querySelector(`[data-pick="${src.i}"]`);
     if (src.kind === 'shopStock' && el.shopStock) return el.shopStock.querySelector(`[data-shop-stock="${src.i}"]`);
     if (src.kind === 'shopBag' && el.shopBag) return el.shopBag.querySelector(`[data-shop-bag="${src.i}"]`);
+    if (src.kind === 'stash' && el.stashGrid) return el.stashGrid.querySelector(`[data-stash="${src.i}"]`);
+    if (src.kind === 'stashBag' && el.stashBag) return el.stashBag.querySelector(`[data-stash-bag="${src.i}"]`);
     return null;
   }
 
@@ -1264,6 +1314,12 @@
       acts = `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
     } else if (src && src.kind === 'worn') {
       acts = `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
+    } else if (src && src.kind === 'stash') {
+      acts = `<button type="button" data-tip-stash="out">取出</button>`
+        + `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
+    } else if (src && src.kind === 'stashBag') {
+      acts = `<button type="button" data-tip-stash="in">存入</button>`
+        + `<button type="button" data-tip-lock>${eq.locked ? '解锁' : '锁定'}</button>`;
     }
     el.eqTipActs.innerHTML = acts;
     el.eqTipActs.hidden = !acts;
@@ -1318,6 +1374,8 @@
     if (src.kind === 'worn') return wornOf(src.i);
     if (src.kind === 'pick') return (pickBag && pickBag.items[src.i]) || null;
     if (src.kind === 'shopBag') return P.bag[src.i] || null;
+    if (src.kind === 'stash') return P.stash[src.i] || null;
+    if (src.kind === 'stashBag') return P.bag[src.i] || null;
     if (src.kind === 'shopStock') {
       const it = ensureShopCatalog()[src.i];
       return (it && it.kind === 'equip') ? it.eq : null;
@@ -1447,6 +1505,10 @@
       el.tips.textContent = `${tag}村口商人　按空格或点「交谈」开商店${nearBag}`;
       return;
     }
+    if (nearStash() && !currentRoom && !inCombat()) {
+      el.tips.textContent = `${tag}仓库　按空格或点「交谈」存取装备${nearBag}`;
+      return;
+    }
     const rare = living((e) => e.rare)[0];
     if (rare) {
       const d = dist(rare, P);
@@ -1557,13 +1619,17 @@
   function nearBookShop() {
     return !!bookNpc && dist(bookNpc, P) <= 1;
   }
+  function nearStash() {
+    return !!stashNpc && dist(stashNpc, P) <= 1;
+  }
 
-  // 可交互目标：商人 / 技能书商人
+  // 可交互目标：商人 / 技能书商人 / 村长 / 仓库
   function interactTarget() {
     if (over || uiOpen()) return null;
     if (nearShop()) return { kind: 'shop', name: '商人' };
     if (nearBookShop()) return { kind: 'bookShop', name: '技能书商人' };
     if (nearTrial()) return { kind: 'trial', name: '村长' };
+    if (nearStash()) return { kind: 'stash', name: '仓库' };
     return null;
   }
 
@@ -1592,6 +1658,10 @@
     }
     if (t.kind === 'trial') {
       openTrial();
+      return true;
+    }
+    if (t.kind === 'stash') {
+      openStash();
       return true;
     }
     return false;
@@ -1624,7 +1694,7 @@
         v: 4, lv: P.lv, exp: P.exp, hp: P.hp, mp: P.mp, gold: P.gold,
         pots: P.pots, potPool: P.potPool, ...gear, kills: P.kills,
         mats: P.mats, expOrbs: P.expOrbs, trial: P.trial, trialMode: P.trialMode, trialRound: P.trialRound, trialStage: P.trialStage,
-        bag: P.bag, seed: worldSeed, clock, autoPot: P.autoPot, autoMp: P.autoMp,
+        bag: P.bag, stash: P.stash, seed: worldSeed, clock, autoPot: P.autoPot, autoMp: P.autoMp,
         autoTown: P.autoTown, townScrolls: P.townScrolls,
         skills: P.skills,
         rooms: roomClearedAt,
@@ -1665,6 +1735,9 @@
       };
       P.kills = s.kills || 0;
       P.bag = Array.isArray(s.bag) ? s.bag.slice(0, BAG_MAX) : [];
+      P.stash = Array.isArray(s.stash)
+        ? s.stash.filter((eq) => eq && eq.slot).slice(0, STASH_MAX)
+        : [];
       P.autoPot = Number.isFinite(s.autoPot) ? s.autoPot : 50;
       P.autoMp = Number.isFinite(s.autoMp) ? s.autoMp : 0;
       P.autoTown = Number.isFinite(s.autoTown) ? s.autoTown : 0;
@@ -3464,6 +3537,39 @@
     }
   }
 
+  function refreshStash() {
+    if (!el.stashCount) return;
+    el.stashCount.textContent = `${P.stash.length}/${STASH_MAX}`;
+    if (el.stashGrid) {
+      const cells = [];
+      for (let i = 0; i < STASH_MAX; i++) {
+        const eq = P.stash[i];
+        cells.push(eq ? eqCellHtml(eq, { stashIndex: i }) : eqCellHtml(null, { label: '' }));
+      }
+      el.stashGrid.innerHTML = cells.join('');
+    }
+    if (el.stashBag) {
+      const cells = [];
+      for (let i = 0; i < BAG_MAX; i++) {
+        const eq = P.bag[i];
+        cells.push(eq ? eqCellHtml(eq, { stashBag: i }) : eqCellHtml(null, { label: '' }));
+      }
+      el.stashBag.innerHTML = cells.join('');
+    }
+  }
+
+  function openStash() {
+    if (over) return false;
+    if (!nearStash()) {
+      log('仓库不在附近。回主城，出生点南边。', 'bad');
+      return false;
+    }
+    hideEqTip();
+    el.stash.hidden = false;
+    refreshStash();
+    return true;
+  }
+
   function buyShopStock(i, qty) {
     const it = ensureShopCatalog()[i];
     if (!it) return false;
@@ -3562,6 +3668,7 @@
 
   function closeAll() {
     el.shop.hidden = true;
+    if (el.stash) el.stash.hidden = true;
     if (el.bookShop) el.bookShop.hidden = true;
     if (el.trial) el.trial.hidden = true;
     el.menu.hidden = true;
@@ -3683,6 +3790,8 @@
     bindBackdropClose(el.menu, () => { el.menu.hidden = true; });
     bindBackdropClose(el.lootPick, () => { hideEqTip(); closePick(); });
     if (el.shopClose) el.shopClose.addEventListener('click', () => { hideEqTip(); el.shop.hidden = true; });
+    if (el.stashClose) el.stashClose.addEventListener('click', () => { hideEqTip(); el.stash.hidden = true; });
+    bindBackdropClose(el.stash, () => { hideEqTip(); el.stash.hidden = true; });
     if (el.bookShopClose) el.bookShopClose.addEventListener('click', () => { el.bookShop.hidden = true; });
     if (el.bookShopList) el.bookShopList.addEventListener('click', (e) => {
       const b = e.target.closest('[data-book]');
@@ -3769,6 +3878,63 @@
     };
     bindShopGrid(el.shopStock, 'stock');
     bindShopGrid(el.shopBag, 'bag');
+    const bindStashGrid = (root, mode) => {
+      if (!root) return;
+      const read = (cell) => {
+        if (mode === 'stash' && cell.dataset.stash != null) {
+          const i = Number(cell.dataset.stash);
+          return { i, eq: P.stash[i] };
+        }
+        if (mode === 'bag' && cell.dataset.stashBag != null) {
+          const i = Number(cell.dataset.stashBag);
+          return { i, eq: P.bag[i] };
+        }
+        return null;
+      };
+      const preview = (cell, sticky) => {
+        const info = read(cell);
+        if (!info || !info.eq) return;
+        showEqTip(info.eq, { kind: mode === 'stash' ? 'stash' : 'stashBag', i: info.i }, sticky, cell);
+      };
+      root.addEventListener('pointerover', (e) => {
+        const cell = e.target.closest('.eq-cell:not(.empty)');
+        if (!cell || tipSticky) return;
+        preview(cell, false);
+      });
+      root.addEventListener('pointerout', (e) => {
+        if (tipSticky) return;
+        const to = e.relatedTarget;
+        if (to && (root.contains(to) || (el.eqTip && el.eqTip.contains(to)))) return;
+        hideEqTip();
+      });
+      root.addEventListener('click', (e) => {
+        const cell = e.target.closest('.eq-cell:not(.empty)');
+        if (!cell || !root.contains(cell)) return;
+        e.stopPropagation();
+        preview(cell, true);
+      });
+      root.addEventListener('dblclick', (e) => {
+        const cell = e.target.closest('.eq-cell:not(.empty)');
+        if (!cell || !root.contains(cell)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const info = read(cell);
+        if (!info || !info.eq) return;
+        const moved = mode === 'stash' ? withdrawFromStash(info.i) : depositFromBag(info.i);
+        if (moved) hideEqTip();
+      });
+      root.addEventListener('contextmenu', (e) => {
+        const cell = e.target.closest('.eq-cell:not(.empty)');
+        if (!cell || !root.contains(cell)) return;
+        e.preventDefault();
+        const info = read(cell);
+        if (!info || !info.eq) return;
+        const moved = mode === 'stash' ? withdrawFromStash(info.i) : depositFromBag(info.i);
+        if (moved) hideEqTip();
+      });
+    };
+    bindStashGrid(el.stashGrid, 'stash');
+    bindStashGrid(el.stashBag, 'bag');
     document.querySelectorAll('[data-recycle-run]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3856,6 +4022,13 @@
         if (e.target.closest('[data-tip-lock]')) {
           const eq = resolveEqFromSrc(tipSrc);
           if (eq) toggleLockEq(eq);
+          return;
+        }
+        const stashBtn = e.target.closest('[data-tip-stash]');
+        if (stashBtn && tipSrc) {
+          const dir = stashBtn.getAttribute('data-tip-stash');
+          const moved = dir === 'in' ? depositFromBag(tipSrc.i) : withdrawFromStash(tipSrc.i);
+          if (moved) hideEqTip();
           return;
         }
         const buyBtn = e.target.closest('[data-tip-buy]');
@@ -4104,6 +4277,18 @@
       ctx.fillText('村长', sx, sy - 18);
     }
 
+    // 仓库（只在主城）
+    if (stashNpc) {
+      const sx = stashNpc.x * TILE - cam.x + TILE / 2;
+      const sy = stashNpc.y * TILE - cam.y + TILE / 2;
+      ctx.font = '30px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('📦', sx, sy + 10);
+      ctx.font = 'bold 10px system-ui';
+      ctx.fillStyle = '#8ab4ff';
+      ctx.fillText('仓库', sx, sy - 18);
+    }
+
     // 敌人
     for (const e of enemies) {
       if (e.hp <= 0) continue;
@@ -4248,6 +4433,10 @@
       ctx.fillStyle = '#ffb74d';
       ctx.fillRect(ox + trialNpc.x * s - 1, oy + trialNpc.y * s - 1, 3, 3);
     }
+    if (stashNpc && seen.has(key(stashNpc.x, stashNpc.y))) {
+      ctx.fillStyle = '#8ab4ff';
+      ctx.fillRect(ox + stashNpc.x * s - 1, oy + stashNpc.y * s - 1, 3, 3);
+    }
     for (const b of activeBags) {
       ctx.fillStyle = (b.relic ? RARITY.yellow : bestRarityOf(b.items)).color;
       ctx.fillRect(ox + b.x * s - 1.5, oy + b.y * s - 1.5, 3, 3);
@@ -4307,7 +4496,9 @@
       buyTownScroll, useTownScroll, tryAutoTown,
       potTotal, potPrice, pickPotTier, normalizePots, formatAmount,
       revive, continueAfterWin, die, win, dropEquip, makeEquip, giveEquip,
-      BAG_MAX,
+      BAG_MAX, STASH_MAX,
+      openStash, refreshStash, depositFromBag, withdrawFromStash,
+      stashNpc: () => stashNpc,
       makeEnemy, rollGrade, isCrush,
       hubRegen,
       addToBag, equipFromBag, sellFromBag, sellBagByRarity, toggleLockEq, sellPrice, openChar, eqCompareHtml, eqStatText, eqDetailHtml,
@@ -4326,6 +4517,7 @@
       roomSpec,
       bookNpc: () => bookNpc,
       trialNpc: () => trialNpc,
+      nearStash,
       roomClearedAt: () => ({ ...roomClearedAt }),
       zoneLevel, zoneName, zoneRange,
       setSeed: (n) => { worldSeed = n >>> 0; },

@@ -1442,6 +1442,35 @@ try {
 
   dl.setAutoFarm(false);
   dl.genHub();
+
+  /* 仓库：主城 100 格，只存装备，房间里没有 */
+  ok('没靠近打不开仓库', dl.openStash() === false);
+  const keeper = dl.stashNpc();
+  ok('主城有仓库', !!(keeper && Number.isFinite(keeper.x)), keeper);
+  dl.setPos(keeper.x, keeper.y);
+  const sword = dl.makeEquip('weapon', 1, 'white');
+  dl.P.bag = [sword];
+  dl.P.stash = [];
+  ok('靠近仓库能打开', dl.openStash() === true);
+  ok('存入背包的装备', dl.depositFromBag(0) === true && dl.P.bag.length === 0 && dl.P.stash[0] === sword);
+  ok('取出回到背包', dl.withdrawFromStash(0) === true && dl.P.bag[0] === sword && dl.P.stash.length === 0);
+  dl.P.stash = Array.from({ length: dl.STASH_MAX }, () => dl.makeEquip('weapon', 1, 'white'));
+  dl.P.bag = [dl.makeEquip('weapon', 1, 'blue')];
+  ok('仓库满了不能再存', dl.depositFromBag(0) === false && dl.P.bag.length === 1 && dl.P.stash.length === dl.STASH_MAX);
+  dl.P.bag = Array.from({ length: dl.BAG_MAX }, () => dl.makeEquip('armor', 1, 'white'));
+  ok('背包满了不能取出', dl.withdrawFromStash(0) === false && dl.P.bag.length === dl.BAG_MAX && dl.P.stash.length === dl.STASH_MAX);
+  const locked = dl.makeEquip('weapon', 5, 'yellow');
+  locked.locked = true;
+  dl.P.stash = [];
+  dl.P.bag = [locked];
+  ok('锁定装备可以存', dl.depositFromBag(0) === true && dl.P.stash[0] && dl.P.stash[0].locked === true);
+  dl.save();
+  dl.P.stash = [];
+  ok('读档恢复仓库', dl.load() === true && dl.P.stash.length === 1 && dl.P.stash[0].locked === true);
+  dl.enterRoom('field1');
+  ok('房间里没有仓库', dl.stashNpc() == null);
+  ok('房间里打不开仓库', dl.openStash() === false);
+  dl.genHub();
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

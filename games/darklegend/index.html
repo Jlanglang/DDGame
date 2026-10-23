@@ -102,6 +102,26 @@
     </div>
   </div>
 
+  <div class="sheet" id="stash" hidden>
+    <div class="sheet-card shop-card">
+      <div class="sheet-head">
+        <h3>仓库</h3>
+        <span class="sheet-gold" id="stashCount">0/100</span>
+      </div>
+      <div class="shop-split">
+        <div class="shop-pane">
+          <h4 class="shop-h">仓库 <small class="muted">点开详情取出 · 双击也取出</small></h4>
+          <div class="eq-grid shop" id="stashGrid"></div>
+        </div>
+        <div class="shop-pane">
+          <h4 class="shop-h">背包 <small class="muted">点开详情存入 · 双击也存入</small></h4>
+          <div class="eq-grid shop-bag" id="stashBag"></div>
+        </div>
+      </div>
+      <button type="button" class="ghost" id="stashClose">离开</button>
+    </div>
+  </div>
+
   <div class="sheet" id="doorConfirm" hidden>
     <div class="sheet-card">
       <h3 id="doorTitle">传送门</h3>
@@ -255,7 +275,7 @@
   <div class="menu" id="menu" hidden>
     <div class="sheet-card">
       <h3>豆豆暗黑传奇</h3>
-      <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人按空格或点「交谈」开商店；E 挂机。J 普攻，1 半月，2 烈火，Q 红药，F 蓝药，R 撤退，C 角色。东边三扇传送门是 1–10 / 10–20 / 20–30。</p>
+      <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人按空格或点「交谈」开商店；西南角仓库同样交谈存取。E 挂机。J 普攻，1 半月，2 烈火，Q 红药，F 蓝药，R 撤退，C 角色。东边三扇传送门是 1–10 / 10–20 / 20–30。</p>
       <p class="menu-help"><b>被动怪</b>（鸡、稻草人、<b>首领</b>）不主动追人；鸡/稻草人挨打追 3 格放弃，首领挨打后会持续还手。主动怪（野狗、野猪）进 5 格就追。首领横扫会<b>眩晕</b>，腐气会<b>麻痹</b>；烈火会点燃（🔥）。</p>
       <p class="menu-help"><b>鸡会啄你 1–3 点血</b>（不看防御），金币只有 1–5、还常常不掉。<b>刷鸡到 5 级就没经验了</b>（比怪高 4 级起经验归零），该换门了。</p>
       <p class="menu-help">怪掉的<b>装备会落在地上变成钱袋</b>（袋子上的 C/B/A/S 是里面最好的品级），走上去就捡，捡起来能一件一件挑。<b>死了会掉一件身上的装备</b>，留在原地，回去还能捡。</p>
@@ -288,17 +308,18 @@
         <li>挂机收益与手打相同；自动捡到 A，S 要自己捡</li>
         <li>先打鸡：鸡啄 1–3 点血，练到 5 级就没经验，该换门</li>
         <li>东边三扇门按等级段：1–10 / 10–20 / 20–30，点门再选房间</li>
+        <li>出生点南边是仓库，靠近后交谈，可存 100 件装备</li>
       </ul>
       <button type="button" id="introBtn">出发</button>
     </div>
   </div>
 </div>
-<script src="data.js?v=159"></script>
-<script src="core.js?v=159"></script>
-<script src="world.js?v=159"></script>
-<script src="combat.js?v=159"></script>
-<script src="status.js?v=159"></script>
-<script src="sfx.js?v=159"></script>
-<script src="game.js?v=159"></script>
+<script src="data.js?v=163"></script>
+<script src="core.js?v=163"></script>
+<script src="world.js?v=163"></script>
+<script src="combat.js?v=163"></script>
+<script src="status.js?v=163"></script>
+<script src="sfx.js?v=163"></script>
+<script src="game.js?v=163"></script>
 </body>
 </html>

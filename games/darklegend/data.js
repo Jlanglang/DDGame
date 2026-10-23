@@ -12,6 +12,7 @@
     VIEW_W: 720,
     VIEW_H: 1120,
     BAG_MAX: 40,
+    STASH_MAX: 100,
     SAVE_KEY: 'darklegend-save-v2',
     LEGACY_KEY: 'darklegend-save-v1',
     /* 战斗回合节奏 vs 移动节奏（移动不应跟砍怪一样慢） */

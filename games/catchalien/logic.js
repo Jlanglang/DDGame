@@ -15,21 +15,21 @@
     warm: {
       label: '暖',
       sizes: [[3, 3], [3, 4], [4, 3]],
-      aliens: [1, 1, 1, 2],
+      aliens: [2, 2, 2],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
       roles: ['classmate', 'classmate', 'classmate', 'passer'],
     },
     normal: {
       label: '普通',
       sizes: [[4, 4], [4, 5], [3, 5]],
-      aliens: [2, 2, 2, 3],
+      aliens: [2, 2, 3],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
       roles: ['classmate', 'classmate', 'classmate', 'passer'],
     },
     hard: {
       label: '难',
-      sizes: [[4, 5], [4, 6], [5, 5]],
-      aliens: [2, 2, 3],
+      sizes: [[4, 5], [4, 6]],
+      aliens: [3, 4],
       kinds: ['around', 'diag', 'floor', 'unit', 'same', 'rows', 'cols', 'pair', 'meal', 'role'],
       roles: ['classmate', 'classmate', 'classmate', 'classmate', 'passer'],
     },
@@ -224,6 +224,49 @@
     return mask >>> 0;
   }
 
+  /* 把一个线索编译成 (alienMask) => bool，mask 只算一次，枚举时全是位运算 */
+  function compileAtom(level, atom) {
+    if (atom.kind === 'around' || atom.kind === 'diag') {
+      const mask = nearMask(level, atom.unit, atom.floor, atom.kind === 'diag');
+      return function (a) { return bitCount(a & mask) === atom.n; };
+    }
+    if (atom.kind === 'floor' || atom.kind === 'unit') {
+      const mask = lineMask(level, atom.kind, atom.kind === 'floor' ? atom.floor : atom.unit);
+      return function (a) { return bitCount(a & mask) === atom.n; };
+    }
+    if (atom.kind === 'same') {
+      const fMask = lineMask(level, 'floor', atom.floor);
+      const uMask = lineMask(level, 'unit', atom.unit);
+      return function (a) {
+        const af = bitCount(a & fMask);
+        const au = bitCount(a & uMask);
+        return atom.good ? (level.units - af) === (level.floors - au) : af === au;
+      };
+    }
+    if (atom.kind === 'rows' || atom.kind === 'cols') {
+      const line = atom.kind === 'rows' ? 'floor' : 'unit';
+      const aMask = groupMask(level, line, atom.a);
+      const bMask = groupMask(level, line, atom.b);
+      return function (a) { return bitCount(a & aMask) === bitCount(a & bMask); };
+    }
+    if (atom.kind === 'pair') {
+      const bits = (1 << idBit(level, atom.who[0])) | (1 << idBit(level, atom.who[1]));
+      return function (a) { return (a & bits) === 0; };
+    }
+    if (atom.kind === 'meal') {
+      const bit = 1 << idBit(level, atom.who);
+      return function (a) { return (a & bit) === 0; };
+    }
+    if (atom.kind === 'role') {
+      let mask = 0;
+      for (let i = 0; i < level.cells.length; i++) {
+        if (level.cells[i].role === atom.role) mask |= 1 << idBit(level, level.cells[i].key);
+      }
+      return function (a) { return bitCount(a & mask) === atom.n; };
+    }
+    return function (a) { return holdsMask(level, atom, a); };
+  }
+
   function holdsMask(level, atom, alienMask) {
     const aliens = alienMask >>> 0;
     if (atom.kind === 'around' || atom.kind === 'diag') {
@@ -311,10 +354,13 @@
     let models = 0;
     const votes = [];
     for (let i = 0; i < total; i++) votes.push(0);
+    /* 把每个线索编译成纯位运算的判定函数，避免在枚举里反复构造 mask（大户型提速几十倍） */
+    const atomFns = [];
+    for (let i = 0; i < atoms.length; i++) atomFns.push(compileAtom(level, atoms[i]));
     function consider(mask) {
       const aliens = (mask | fixedAlien) >>> 0;
-      for (let i = 0; i < atoms.length; i++) {
-        if (!holdsMask(level, atoms[i], aliens)) return;
+      for (let i = 0; i < atomFns.length; i++) {
+        if (!atomFns[i](aliens)) return;
       }
       models++;
       let rest = aliens;
@@ -629,7 +675,9 @@
     const size = pick(rng, spec.sizes);
     const units = size[0];
     const floors = size[1];
-    const alienCount = pick(rng, spec.aliens);
+    const total = units * floors;
+    /* 外星人：最少 2 个，最多占一半（四舍五入） */
+    const alienCount = Math.max(2, Math.min(Math.floor(total / 2), pick(rng, spec.aliens)));
     const coords = [];
     for (let f = 0; f < floors; f++) {
       for (let u = 0; u < units; u++) coords.push({ unit: u, floor: f, key: key(u, f) });
@@ -669,8 +717,13 @@
     };
   }
 
-  function openLimit(units, floors) {
-    return Math.floor(units * floors / 2) + 1;
+  function openLimit(units, floors, aliens) {
+    const n = units * floors;
+    const half = Math.floor(n / 2) + 1;
+    if (!aliens) return half;
+    /* 开门数下限跟着外星人数走：外星人越多，需要的线索越多，
+       但不再固定要求"半栋楼"，否则大户型 + 少外星人几乎抽不出合法局面 */
+    return Math.min(half, Math.max(3, aliens + 3));
   }
 
   function nearKeys(draft, unit, floor, diagOnly) {
@@ -853,7 +906,7 @@
   function generateOnce(band, rng) {
     const draft = place(band, rng);
     assignNames(draft, rng);
-    const limit = openLimit(draft.units, draft.floors);
+    const limit = openLimit(draft.units, draft.floors, draft.alienCount);
     const opened = new Set();
     const chainKeys = [];
     const chainKinds = [];
@@ -982,14 +1035,14 @@
   function generateLevel(band, seed) {
     const rng = mulberry32(seed >>> 0);
     const useBand = BANDS[band] ? band : 'warm';
-    for (let i = 1; i <= 180; i++) {
+    for (let i = 1; i <= 45; i++) {
       const draft = generateOnce(useBand, rng);
       if (!draft) continue;
-      if (fewestOpens(draft) < openLimit(draft.units, draft.floors)) continue;
+      if (fewestOpens(draft) < openLimit(draft.units, draft.floors, draft.alienCount)) continue;
       return strip(draft, useBand, seed, i, false);
     }
     for (let i = 0; i < 40; i++) {
-      const draft = generateOnce('warm', mulberry32((seed + 1 + i * 997) >>> 0));
+      const draft = generateOnce(useBand, mulberry32((seed + 1 + i * 997) >>> 0));
       if (!draft) continue;
       const level = strip(draft, useBand, seed, 180 + i, true);
       return level;
@@ -1061,3 +1114,7 @@
     mulberry32: mulberry32,
   };
 });
+
+
+
+

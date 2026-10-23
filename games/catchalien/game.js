@@ -260,8 +260,9 @@
     render();
   });
 
+  /* 换一栋：同一关，重新生成一栋楼（同一个种子重开没意义——答案已经看过了） */
   document.getElementById('retry').addEventListener('click', function () {
-    boot(state.levelIndex, state.seed);
+    boot(state.levelIndex, freshSeed());
   });
 
   document.getElementById('next').addEventListener('click', function () {
@@ -273,7 +274,7 @@
   });
 
   document.getElementById('lose-retry').addEventListener('click', function () {
-    boot(state.levelIndex, state.seed);
+    boot(state.levelIndex, freshSeed());
   });
 
   window.addEventListener('resize', function () {

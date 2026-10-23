@@ -928,11 +928,13 @@
         cell.name = '豆豆';
         continue;
       }
-      /* 同学优先发小朋友的名字：在剩下的池子里把最近的一个小朋友换到当前位置 */
-      if (cell.role === 'classmate') {
+      /* 同学优先小朋友、路人优先大人：在剩下的池子里把最近的替换到当前位置 */
+      if (cell.role === 'classmate' || cell.role === 'passer') {
+        const wantKid = cell.role === 'classmate';
         let idx = -1;
         for (let k = n; k < pool.length; k++) {
-          if (KID_NAMES.indexOf(pool[k]) >= 0) { idx = k; break; }
+          const isKid = KID_NAMES.indexOf(pool[k]) >= 0;
+          if (isKid === wantKid) { idx = k; break; }
         }
         if (idx > n) {
           const tmp = pool[n];

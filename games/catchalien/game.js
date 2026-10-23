@@ -10,15 +10,104 @@
   var state = null;
   var toastTimer = 0;
 
+  var loading = document.getElementById('loading');
+  var ready = {};          /* 已经生成好的关卡： index -> { seed, level } */
+  var pending = {};        /* worker 请求 id -> 回调 */
+  var reqSeq = 0;
+  var worker = null;
+
+  try {
+    worker = new Worker('level-worker.js');
+    worker.onmessage = function (e) {
+      var d = e.data || {};
+      var job = pending[d.id];
+      if (!job) return;
+      delete pending[d.id];
+      job(d.level || null, d.seed);
+    };
+    worker.onerror = function () { worker = null; };
+  } catch (err) {
+    worker = null;   /* file:// 打开时 Worker 可能不可用，退回主线程生成 */
+  }
+
   stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   function freshSeed() {
     return (Date.now() ^ (Math.floor(Math.random() * 0x7fffffff))) >>> 0;
   }
 
-  function boot(levelIndex, seed) {
-    var band = CA.bandFor(levelIndex);
-    var level = CA.generateLevel(band, seed);
+  function showLoading() {
+    if (loading) loading.hidden = false;
+  }
+
+  function hideLoading() {
+    if (loading) loading.hidden = true;
+  }
+
+  /* 要一份关卡：优先 Worker，退化为主线程（先让 loading 画出来再生成） */
+  function requestLevel(index, seed, cb) {
+    var done = false;
+    function deliver(level, usedSeed) {
+      if (done) return;
+      done = true;
+      cb(level, usedSeed);
+    }
+    function fallback() {
+      setTimeout(function () {
+        var level = null;
+        try { level = CA.generateLevel(CA.bandFor(index), seed); } catch (err) { level = null; }
+        deliver(level, seed);
+      }, 24);
+    }
+    if (worker) {
+      var id = ++reqSeq;
+      pending[id] = deliver;
+      /* Worker 起不来（比如 file:// 打开）时不能一直转圈 */
+      setTimeout(function () {
+        if (done || !pending[id]) return;
+        delete pending[id];
+        worker = null;
+        fallback();
+      }, 3500);
+      worker.postMessage({ id: id, band: CA.bandFor(index), seed: seed });
+      return;
+    }
+    fallback();
+  }
+
+  /* 后台先把「换一栋」和「下一栋」算好 */
+  function prefetch(index) {
+    if (!worker) return;
+    var targets = [index, index + 1];
+    for (var i = 0; i < targets.length; i++) {
+      (function (idx) {
+        if (ready[idx]) return;
+        requestLevel(idx, freshSeed(), function (level, seed) {
+          if (level) ready[idx] = { seed: seed, level: level };
+        });
+      })(targets[i]);
+    }
+  }
+
+  function startLevel(index, seed) {
+    var cached = seed == null ? ready[index] : null;
+    if (cached) {
+      delete ready[index];
+      applyLevel(index, cached.seed, cached.level);
+      return;
+    }
+    showLoading();
+    requestLevel(index, seed == null ? freshSeed() : seed, function (level, usedSeed) {
+      hideLoading();
+      if (!level) {
+        showToast('这栋楼没生成出来，再点一次。');
+        return;
+      }
+      applyLevel(index, usedSeed, level);
+    });
+  }
+
+  function applyLevel(levelIndex, seed, level) {
     state = {
       levelIndex: levelIndex,
       seed: seed,
@@ -33,6 +122,7 @@
     preloadCards(level);
     render();
     focusDoor(level.doudouKey);
+    prefetch(levelIndex);
   }
 
   /* 预加载本关会用到的卡面，翻牌时才不会闪一下 */
@@ -318,19 +408,19 @@
 
   /* 换一栋：同一关，重新生成一栋楼（同一个种子重开没意义——答案已经看过了） */
   document.getElementById('retry').addEventListener('click', function () {
-    boot(state.levelIndex, freshSeed());
+    startLevel(state.levelIndex);
   });
 
   document.getElementById('next').addEventListener('click', function () {
-    boot(state.levelIndex + 1, freshSeed());
+    startLevel(state.levelIndex + 1);
   });
 
   document.getElementById('win-next').addEventListener('click', function () {
-    boot(state.levelIndex + 1, freshSeed());
+    startLevel(state.levelIndex + 1);
   });
 
   document.getElementById('lose-retry').addEventListener('click', function () {
-    boot(state.levelIndex, freshSeed());
+    startLevel(state.levelIndex);
   });
 
   window.addEventListener('resize', function () {
@@ -341,5 +431,5 @@
   var startIndex = parseInt(query.get('level') || '1', 10);
   if (!startIndex || startIndex < 1) startIndex = 1;
   var seedArg = query.get('seed');
-  boot(startIndex, seedArg == null ? freshSeed() : (parseInt(seedArg, 10) >>> 0));
+  startLevel(startIndex, seedArg == null ? null : (parseInt(seedArg, 10) >>> 0));
 })();

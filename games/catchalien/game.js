@@ -208,6 +208,9 @@
     return holder.firstElementChild;
   }
 
+  /* 楼房骨架的签名：单元数 × 楼层数变了就必须整片重建 */
+  var gridShape = '';
+
   function drawBuilding() {
     var level = state.level;
     var rows = [];
@@ -217,8 +220,10 @@
       rows.push(cells);
     }
 
-    /* 第一次生成整片楼 */
-    if (!building.querySelector('.floor-row')) {
+    var shape = level.units + 'x' + level.floors;
+    /* 第一次渲染，或者换了一栋尺寸不同的楼 */
+    if (shape !== gridShape || !building.querySelector('.floor-row')) {
+      gridShape = shape;
       var html = '';
       for (var r = 0; r < rows.length; r++) {
         html += '<div class="floor-row">';

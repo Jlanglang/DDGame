@@ -243,12 +243,16 @@
       return function (a) { return bitCount(a & mask) === atom.n; };
     }
     if (atom.kind === 'same') {
-      const fMask = lineMask(level, 'floor', atom.floor);
-      const uMask = lineMask(level, 'unit', atom.unit);
+      const bMask = lineMask(level, atom.scope, atom.a);
+      const cMask = lineMask(level, atom.scope, atom.b);
+      const len = atom.len != null ? atom.len : (atom.scope === 'floor' ? level.units : level.floors);
+      const want = atom.diff || 0;
       return function (a) {
-        const af = bitCount(a & fMask);
-        const au = bitCount(a & uMask);
-        return atom.good ? (level.units - af) === (level.floors - au) : af === au;
+        const na = bitCount(a & bMask);
+        const nb = bitCount(a & cMask);
+        return atom.good
+          ? ((len - nb) - (len - na)) === want
+          : (nb - na) === want;
       };
     }
     if (atom.kind === 'rows' || atom.kind === 'cols') {
@@ -324,10 +328,12 @@
       return bitCount(aliens & mask) === atom.n;
     }
     if (atom.kind === 'same') {
-      const af = bitCount(aliens & lineMask(level, 'floor', atom.floor));
-      const au = bitCount(aliens & lineMask(level, 'unit', atom.unit));
-      if (atom.good) return (level.units - af) === (level.floors - au);
-      return af === au;
+      const na = bitCount(aliens & lineMask(level, atom.scope, atom.a));
+      const nb = bitCount(aliens & lineMask(level, atom.scope, atom.b));
+      const len = atom.len != null ? atom.len : (atom.scope === 'floor' ? level.units : level.floors);
+      const want = atom.diff || 0;
+      if (atom.good) return ((len - nb) - (len - na)) === want;
+      return (nb - na) === want;
     }
     if (atom.kind === 'rows' || atom.kind === 'cols') {
       const line = atom.kind === 'rows' ? 'floor' : 'unit';
@@ -602,9 +608,28 @@
       return lines;
     }
     if (atom.kind === 'same') {
-      const pair = (atom.unit + 1) + '单元和' + (atom.floor + 1) + '楼';
-      if (atom.good) return [pair + '的好人数一样。', pair + '好人一样多。'];
-      return [pair + '的外星人数一样。', pair + '坏人一样多。'];
+      /* 同类同尺寸的两组比人数：X单元 ↔ Y单元、X楼 ↔ Y楼，把差值直接说出来 */
+      const isUnit = atom.scope === 'unit';
+      const aName = (atom.a + 1) + (isUnit ? '单元' : '楼');
+      const bName = (atom.b + 1) + (isUnit ? '单元' : '楼');
+      const word = atom.good ? '好人' : '外星人';
+      const diff = atom.diff || 0;
+      if (diff === 0) {
+        return [
+          aName + '和' + bName + '的' + word + '数一样。',
+          aName + '和' + bName + '，' + word + '一样多。',
+        ];
+      }
+      if (diff > 0) {
+        return [
+          bName + '的' + word + '比' + aName + '多 ' + diff + ' 个。',
+          bName + '比' + aName + '多 ' + diff + ' 个' + word + '。',
+        ];
+      }
+      return [
+        bName + '的' + word + '比' + aName + '少 ' + (-diff) + ' 个。',
+        bName + '比' + aName + '少 ' + (-diff) + ' 个' + word + '。',
+      ];
     }
     if (atom.kind === 'rows' || atom.kind === 'cols') {
       const word = atom.kind === 'rows' ? '楼' : '单元';
@@ -944,21 +969,31 @@
     }
     const ownFloorN = countLine(draft.alienSet, cellsOnFloor(draft.units, cell.floor));
     const ownUnitN = countLine(draft.alienSet, cellsOnUnit(draft.floors, cell.unit));
-    for (let u = 0; u < draft.units; u++) {
-      const unitN = u === cell.unit
-        ? ownUnitN
-        : countLine(draft.alienSet, cellsOnUnit(draft.floors, u));
-      if (ownFloorN === unitN) atoms.push({ kind: 'same', floor: cell.floor, unit: u, good: false });
-      if ((draft.units - ownFloorN) === (draft.floors - unitN)) {
-        atoms.push({ kind: 'same', floor: cell.floor, unit: u, good: true });
+    /* 人数对比只比"同类、同尺寸、互不重叠"的两组：
+       单元 ↔ 单元（都是 floors 户）、楼层 ↔ 楼层（都是 units 户）。
+       楼和单元互相重叠一格且户数不同，比出来玩家没法读，直接不比。 */
+    for (let v = 0; v < draft.units; v++) {
+      if (v === cell.unit) continue;
+      const vN = countLine(draft.alienSet, cellsOnUnit(draft.floors, v));
+      const dAlien = vN - ownUnitN;
+      const dGood = (draft.floors - vN) - (draft.floors - ownUnitN);
+      if (Math.abs(dGood) <= 1) {
+        atoms.push({ kind: 'same', scope: 'unit', a: cell.unit, b: v, good: true, diff: dGood, len: draft.floors });
+      }
+      if (Math.abs(dAlien) <= 1) {
+        atoms.push({ kind: 'same', scope: 'unit', a: cell.unit, b: v, good: false, diff: dAlien, len: draft.floors });
       }
     }
-    for (let f = 0; f < draft.floors; f++) {
-      if (f === cell.floor) continue;
-      const floorN = countLine(draft.alienSet, cellsOnFloor(draft.units, f));
-      if (floorN === ownUnitN) atoms.push({ kind: 'same', floor: f, unit: cell.unit, good: false });
-      if ((draft.units - floorN) === (draft.floors - ownUnitN)) {
-        atoms.push({ kind: 'same', floor: f, unit: cell.unit, good: true });
+    for (let g = 0; g < draft.floors; g++) {
+      if (g === cell.floor) continue;
+      const gN = countLine(draft.alienSet, cellsOnFloor(draft.units, g));
+      const dAlien = gN - ownFloorN;
+      const dGood = (draft.units - gN) - (draft.units - ownFloorN);
+      if (Math.abs(dGood) <= 1) {
+        atoms.push({ kind: 'same', scope: 'floor', a: cell.floor, b: g, good: true, diff: dGood, len: draft.units });
+      }
+      if (Math.abs(dAlien) <= 1) {
+        atoms.push({ kind: 'same', scope: 'floor', a: cell.floor, b: g, good: false, diff: dAlien, len: draft.units });
       }
     }
     const floorBlocks = blocksOf(draft.floors);

@@ -113,6 +113,14 @@
     return out;
   }
 
+  /* 四角：去重（单元或楼层为 1 的时候会重合） */
+  function cornerKeys(units, floors) {
+    const list = [key(0, 0), key(units - 1, 0), key(0, floors - 1), key(units - 1, floors - 1)];
+    const out = [];
+    for (let i = 0; i < list.length; i++) if (out.indexOf(list[i]) < 0) out.push(list[i]);
+    return out;
+  }
+
   function allKeys(units, floors) {
     const out = [];
     for (let f = 0; f < floors; f++) {
@@ -264,6 +272,44 @@
       }
       return function (a) { return bitCount(a & mask) === atom.n; };
     }
+    if (atom.kind === 'half') {
+      const mask = atom.scope === 'floor'
+        ? lineMask(level, 'floor', atom.index)
+        : lineMask(level, 'unit', atom.index);
+      const target = atom.total / 2;
+      return function (a) { return bitCount(a & mask) === target; };
+    }
+    if (atom.kind === 'edge') {
+      const bits = (1 << idBit(level, key(0, atom.floor))) |
+        (1 << idBit(level, key(level.units - 1, atom.floor)));
+      return function (a) { return (a & bits) === 0; };
+    }
+    if (atom.kind === 'nonadj') {
+      const cells = atom.scope === 'floor'
+        ? cellsOnFloor(level.units, atom.index)
+        : cellsOnUnit(level.floors, atom.index);
+      const bits = [];
+      for (let i = 0; i < cells.length; i++) bits.push(1 << idBit(level, cells[i]));
+      return function (a) {
+        for (let i = 0; i + 1 < bits.length; i++) {
+          if ((a & bits[i]) && (a & bits[i + 1])) return false;
+        }
+        return true;
+      };
+    }
+    if (atom.kind === 'corners') {
+      const corners = cornerKeys(level.units, level.floors);
+      let mask = 0;
+      for (let i = 0; i < corners.length; i++) mask |= 1 << idBit(level, corners[i]);
+      const mode = atom.mode;
+      const want = atom.n;
+      return function (a) {
+        const n = bitCount(a & mask);
+        if (mode === 'none') return n === 0;
+        if (mode === 'all') return n === corners.length;
+        return n === want;
+      };
+    }
     return function (a) { return holdsMask(level, atom, a); };
   }
 
@@ -311,6 +357,38 @@
     if (atom.kind === 'door') {
       const on = (aliens & (1 << idBit(level, key(atom.unit, atom.floor)))) !== 0;
       return on === !!atom.alien;
+    }
+    if (atom.kind === 'half') {
+      const mask = atom.scope === 'floor'
+        ? lineMask(level, 'floor', atom.index)
+        : lineMask(level, 'unit', atom.index);
+      return bitCount(aliens & mask) === atom.total / 2;
+    }
+    if (atom.kind === 'edge') {
+      const bits = (1 << idBit(level, key(0, atom.floor))) |
+        (1 << idBit(level, key(level.units - 1, atom.floor)));
+      return (aliens & bits) === 0;
+    }
+    if (atom.kind === 'nonadj') {
+      const cells = atom.scope === 'floor'
+        ? cellsOnFloor(level.units, atom.index)
+        : cellsOnUnit(level.floors, atom.index);
+      for (let i = 0; i + 1 < cells.length; i++) {
+        const a = aliens & (1 << idBit(level, cells[i]));
+        const b = aliens & (1 << idBit(level, cells[i + 1]));
+        if (a && b) return false;
+      }
+      return true;
+    }
+    if (atom.kind === 'corners') {
+      const corners = cornerKeys(level.units, level.floors);
+      let n = 0;
+      for (let i = 0; i < corners.length; i++) {
+        if (aliens & (1 << idBit(level, corners[i]))) n++;
+      }
+      if (atom.mode === 'none') return n === 0;
+      if (atom.mode === 'all') return n === corners.length;
+      return n === atom.n;
     }
     return false;
   }
@@ -558,6 +636,42 @@
       }
       return [where + '那户是好人。', where + '那户可以上门。', where + '我看见了，不是外星人。'];
     }
+    if (atom.kind === 'half') {
+      const where = atom.scope === 'floor' ? (atom.index + 1) + '楼' : (atom.index + 1) + '单元';
+      return [
+        where + '有一半是外星人。',
+        where + '里一半是假扮的。',
+        where + '好人坏人正好各一半。',
+      ];
+    }
+    if (atom.kind === 'edge') {
+      return [
+        (atom.floor + 1) + '楼两边不是外星人。',
+        (atom.floor + 1) + '楼两头都是好人。',
+        (atom.floor + 1) + '楼最左最右那两户可以放心。',
+      ];
+    }
+    if (atom.kind === 'nonadj') {
+      const where = atom.scope === 'floor' ? (atom.index + 1) + '楼' : (atom.index + 1) + '单元';
+      return [
+        where + '的外星人不相邻。',
+        where + '里没有挨着的两户外星人。',
+        where + '就算有坏人，也不会是连着的两户。',
+      ];
+    }
+    if (atom.kind === 'corners') {
+      if (atom.mode === 'none') {
+        return ['四个角落都是好人。', '四个角落没有外星人。', '楼角那几户都可以放心。'];
+      }
+      if (atom.mode === 'all') {
+        return ['四个角落都是外星人。', '四个角落全是假扮的。', '楼角的几户一个都别去。'];
+      }
+      return [
+        '四个角落有 ' + atom.n + ' 个外星人。',
+        '四个角落只有 ' + atom.n + ' 个外星人。',
+        '楼角里一共 ' + atom.n + ' 户不对劲。',
+      ];
+    }
     const label = atom.kind === 'floor'
       ? (atom.floor + 1) + '楼'
       : (atom.unit + 1) + '单元';
@@ -685,7 +799,37 @@
     const order = shuffle(rng, coords);
     const alienSet = new Set();
     for (let i = 0; i < alienCount; i++) alienSet.add(order[i].key);
-    const doudou = order[alienCount];
+
+    /* 让「有一半是外星人」这类线索真的出现：随机把某条偶数长度的楼层/单元调成正好一半 */
+    if (rng() < 0.5) {
+      const lines = [];
+      if (units % 2 === 0) for (let f = 0; f < floors; f++) lines.push(cellsOnFloor(units, f));
+      if (floors % 2 === 0) for (let u = 0; u < units; u++) lines.push(cellsOnUnit(floors, u));
+      if (lines.length) {
+        const line = lines[Math.floor(rng() * lines.length)];
+        const half = line.length / 2;
+        const inLine = function (k) { return line.indexOf(k) >= 0; };
+        const insideAliens = line.filter(function (k) { return alienSet.has(k); });
+        const insideGood = line.filter(function (k) { return !alienSet.has(k); });
+        const outsideAliens = coords.filter(function (c) { return !inLine(c.key) && alienSet.has(c.key); })
+          .map(function (c) { return c.key; });
+        const outsideGood = coords.filter(function (c) { return !inLine(c.key) && !alienSet.has(c.key); })
+          .map(function (c) { return c.key; });
+        while (insideAliens.length > half && outsideGood.length) {
+          alienSet.delete(insideAliens.pop());
+          alienSet.add(outsideGood.pop());
+        }
+        while (insideAliens.length < half && outsideAliens.length && insideGood.length) {
+          alienSet.delete(outsideAliens.pop());
+          const into = insideGood.pop();
+          alienSet.add(into);
+          insideAliens.push(into);
+        }
+      }
+    }
+
+    const doudouCoord = coords.filter(function (c) { return !alienSet.has(c.key); })[0] || coords[0];
+    const doudou = doudouCoord;
     const cells = [];
     for (let i = 0; i < coords.length; i++) {
       const c = coords[i];
@@ -710,7 +854,8 @@
       floors: floors,
       alienCount: alienCount,
       alienSet: alienSet,
-      alienKeys: order.slice(0, alienCount).map(function (c) { return c.key; }),
+      alienKeys: coords.filter(function (c) { return alienSet.has(c.key); })
+        .map(function (c) { return c.key; }),
       doudouKey: doudou.key,
       cells: cells,
       byKey: byKey,
@@ -874,7 +1019,57 @@
       }
       if (len >= 2) atoms.push({ kind: 'role', role: role, n: n, len: len });
     }
+    addLandmarkAtoms(draft, atoms);
     return atoms;
+  }
+
+  /* 一半 / 两边 / 不相邻 / 四角：这些是"整栋楼的形状"线索，任何一户都可能提起 */
+  function addLandmarkAtoms(draft, atoms) {
+    if (draft.units % 2 === 0) {
+      for (let f = 0; f < draft.floors; f++) {
+        const n = countLine(draft.alienSet, cellsOnFloor(draft.units, f));
+        if (n === draft.units / 2) {
+          atoms.push({ kind: 'half', scope: 'floor', index: f, total: draft.units });
+        }
+      }
+    }
+    if (draft.floors % 2 === 0) {
+      for (let u = 0; u < draft.units; u++) {
+        const n = countLine(draft.alienSet, cellsOnUnit(draft.floors, u));
+        if (n === draft.floors / 2) {
+          atoms.push({ kind: 'half', scope: 'unit', index: u, total: draft.floors });
+        }
+      }
+    }
+    for (let f = 0; f < draft.floors; f++) {
+      const left = key(0, f);
+      const right = key(draft.units - 1, f);
+      if (!draft.alienSet.has(left) && !draft.alienSet.has(right)) {
+        atoms.push({ kind: 'edge', floor: f });
+      }
+    }
+    for (let f = 0; f < draft.floors; f++) {
+      let ok = true;
+      for (let u = 0; u + 1 < draft.units; u++) {
+        if (draft.alienSet.has(key(u, f)) && draft.alienSet.has(key(u + 1, f))) { ok = false; break; }
+      }
+      if (ok) atoms.push({ kind: 'nonadj', scope: 'floor', index: f });
+    }
+    for (let u = 0; u < draft.units; u++) {
+      let ok = true;
+      for (let f = 0; f + 1 < draft.floors; f++) {
+        if (draft.alienSet.has(key(u, f)) && draft.alienSet.has(key(u, f + 1))) { ok = false; break; }
+      }
+      if (ok) atoms.push({ kind: 'nonadj', scope: 'unit', index: u });
+    }
+    let cornerN = 0;
+    const corners = cornerKeys(draft.units, draft.floors);
+    for (let i = 0; i < corners.length; i++) {
+      if (draft.alienSet.has(corners[i])) cornerN++;
+    }
+    if (cornerN === 0) atoms.push({ kind: 'corners', mode: 'none' });
+    else if (cornerN === corners.length) atoms.push({ kind: 'corners', mode: 'all' });
+    else atoms.push({ kind: 'corners', mode: 'count', n: cornerN });
   }
 
   function finishChatter(draft, rng, usedLines) {

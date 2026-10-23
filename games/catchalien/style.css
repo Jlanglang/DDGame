@@ -366,11 +366,9 @@ button {
   width: 100%;
   height: 100%;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   object-position: 50% 50%;
   border-radius: 8px;
-  transform: scale(1.18);
-  transform-origin: 50% 0;
 }
 
 /* 翻牌动画：只在门被翻开（节点新建）时触发 */
@@ -433,3 +431,4 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 2.4s; }
 }
+

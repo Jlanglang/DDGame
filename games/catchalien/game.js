@@ -30,8 +30,26 @@
     win.hidden = true;
     lose.hidden = true;
     hideToast();
+    preloadCards(level);
     render();
     focusDoor(level.doudouKey);
+  }
+
+  /* 预加载本关会用到的卡面，翻牌时才不会闪一下 */
+  function preloadCards(level) {
+    var cards = window.CHARACTER_CARDS || {};
+    var spec = window.CHARACTER_SPECIAL || {};
+    var seen = {};
+    var list = [];
+    for (var i = 0; i < level.cells.length; i++) {
+      var cell = level.cells[i];
+      var src = cell.role === 'doudou'
+        ? (spec.doudou_1 && spec.doudou_1.card)
+        : cards[cell.name];
+      if (src && !seen[src]) { seen[src] = 1; list.push(src); }
+    }
+    if (spec.alien_3 && spec.alien_3.card) list.push(spec.alien_3.card);
+    for (var k = 0; k < list.length; k++) { var img = new Image(); img.src = list[k]; }
   }
 
   function hideToast() {
@@ -86,19 +104,57 @@
     building.style.setProperty('--row-h', rowH.toFixed(1) + 'px');
   }
 
+  function doorSig(cell) {
+    var opened = state.opened.indexOf(cell.key) >= 0;
+    var killed = state.killed.indexOf(cell.key) >= 0;
+    var bubble = opened && !killed && cell.speech && !cell.speech.atom ? cell.speech.clue : '';
+    return (opened ? '1' : '0') + (killed ? '1' : '0') + '|' + bubble;
+  }
+
+  function doorNode(cell) {
+    var sig = doorSig(cell);
+    var holder = document.createElement('div');
+    holder.innerHTML = doorHtml(cell).replace('<button ', '<button data-sig="' + sig + '" ');
+    return holder.firstElementChild;
+  }
+
   function drawBuilding() {
     var level = state.level;
-    var html = '';
+    var rows = [];
     for (var f = level.floors - 1; f >= 0; f--) {
-      html += '<div class="floor-row">';
-      html += '<div class="doors" style="grid-template-columns:repeat(' + level.units + ',minmax(0,1fr))">';
-      for (var x = 0; x < level.units; x++) {
-        var cell = level.byKey[x + ':' + f];
-        html += doorHtml(cell);
-      }
-      html += '</div></div>';
+      var cells = [];
+      for (var x = 0; x < level.units; x++) cells.push(level.byKey[x + ':' + f]);
+      rows.push(cells);
     }
-    building.innerHTML = html;
+
+    /* 第一次生成整片楼 */
+    if (!building.querySelector('.floor-row')) {
+      var html = '';
+      for (var r = 0; r < rows.length; r++) {
+        html += '<div class="floor-row">';
+        html += '<div class="doors" style="grid-template-columns:repeat(' + level.units + ',minmax(0,1fr))">';
+        for (var i = 0; i < rows[r].length; i++) {
+          var sig = doorSig(rows[r][i]);
+          html += doorHtml(rows[r][i]).replace('<button ', '<button data-sig="' + sig + '" ');
+        }
+        html += '</div></div>';
+      }
+      building.innerHTML = html;
+      return;
+    }
+
+    /* 之后只替换状态变了的门：没变的门不重建，图片也不会重新加载 */
+    for (var r2 = 0; r2 < rows.length; r2++) {
+      for (var i2 = 0; i2 < rows[r2].length; i2++) {
+        var cell = rows[r2][i2];
+        var el = building.querySelector('[data-key="' + cell.key + '"]');
+        if (!el) continue;
+        if (el.getAttribute('data-sig') !== doorSig(cell)) {
+          var fresh = doorNode(cell);
+          if (fresh) el.replaceWith(fresh);
+        }
+      }
+    }
   }
 
   function esc(text) {

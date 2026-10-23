@@ -373,4 +373,27 @@ button {
   transform-origin: 50% 0;
 }
 
+/* 翻牌动画：只在门被翻开（节点新建）时触发 */
+.door { perspective: 700px; }
+
+@keyframes cardFlip {
+  0%   { transform: rotateY(-86deg) translateZ(0); opacity: .25; }
+  60%  { opacity: 1; }
+  100% { transform: rotateY(0deg) translateZ(0); opacity: 1; }
+}
+
+.door.is-open .avatar {
+  animation: cardFlip .36s cubic-bezier(.2, .8, .3, 1.06) both;
+  backface-visibility: hidden;
+}
+
+.door.is-alien .avatar {
+  animation: cardFlip .42s cubic-bezier(.2, .8, .3, 1.06) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .door.is-open .avatar,
+  .door.is-alien .avatar { animation: none; }
+}
+
 

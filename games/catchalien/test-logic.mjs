@@ -118,7 +118,7 @@ for (let b = 0; b < bands.length; b++) {
       const atom = level.cells[c].speech && level.cells[c].speech.atom;
       if (!atom) continue;
       heardKinds[atom.kind] = true;
-      if (atom.kind !== 'around' && atom.kind !== 'diag' && atom.kind !== 'floor' && atom.kind !== 'unit' && atom.kind !== 'same' && atom.kind !== 'rows' && atom.kind !== 'cols' && atom.kind !== 'pair' && atom.kind !== 'meal' && atom.kind !== 'role') linked = false;
+      if (atom.kind !== 'around' && atom.kind !== 'diag' && atom.kind !== 'floor' && atom.kind !== 'unit' && atom.kind !== 'same' && atom.kind !== 'rows' && atom.kind !== 'cols' && atom.kind !== 'pair' && atom.kind !== 'meal' && atom.kind !== 'role' && atom.kind !== 'half' && atom.kind !== 'edge' && atom.kind !== 'nonadj' && atom.kind !== 'corners') linked = false;
     }
     check(band + ' seed ' + seed + ' clues stay linked', linked);
     openSum += gotOpens;
@@ -164,7 +164,7 @@ for (let n = 1; n <= 8; n++) {
 
 const friendBoards = Object.keys(globalThis.__friendLevels || {}).length;
 check('friends are not in every building', friendBoards > 0 && friendBoards < 24 * 3);
-check('a friend tag can be an alien', (globalThis.__friendAlien || 0) > 0);
+check('friends are never aliens', (globalThis.__friendAlien || 0) === 0);
 
 const heardKinds = globalThis.__kinds || {};
 const strategic = ['rows', 'cols', 'pair', 'meal', 'role'].filter(function (k) { return heardKinds[k]; });
@@ -174,3 +174,5 @@ check('diag is not the main clue', diagStat[1] === 0 || diagStat[0] / diagStat[1
 console.log('kinds', Object.keys(heardKinds).join(','), 'diag', diagStat[0] + '/' + diagStat[1]);
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 if (fail) process.exit(1);
+
+

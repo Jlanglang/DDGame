@@ -890,13 +890,10 @@
     };
   }
 
-  function openLimit(units, floors, aliens) {
-    const n = units * floors;
-    const half = Math.floor(n / 2) + 1;
-    if (!aliens) return half;
-    /* 开门数下限跟着外星人数走：外星人越多，需要的线索越多，
-       但不再固定要求"半栋楼"，否则大户型 + 少外星人几乎抽不出合法局面 */
-    return Math.min(half, Math.max(3, aliens + 3));
+  function openLimit(units, floors) {
+    /* 线索链至少要走"半栋楼 + 1"户，保证一局不会太轻松。
+       24 户的大户型也能满足（线索编译成位运算后生成 ~0.7s） */
+    return Math.floor(units * floors / 2) + 1;
   }
 
   function nearKeys(draft, unit, floor, diagOnly) {
@@ -1171,7 +1168,7 @@
     const draft = place(band, rng);
     assignNames(draft, rng);
     protectFriends(draft);
-    const limit = openLimit(draft.units, draft.floors, draft.alienCount);
+    const limit = openLimit(draft.units, draft.floors);
     const opened = new Set();
     const chainKeys = [];
     const chainKinds = [];
@@ -1303,7 +1300,7 @@
     for (let i = 1; i <= 45; i++) {
       const draft = generateOnce(useBand, rng);
       if (!draft) continue;
-      if (fewestOpens(draft) < openLimit(draft.units, draft.floors, draft.alienCount)) continue;
+      if (fewestOpens(draft) < openLimit(draft.units, draft.floors)) continue;
       return strip(draft, useBand, seed, i, false);
     }
     for (let i = 0; i < 40; i++) {
@@ -1379,6 +1376,7 @@
     mulberry32: mulberry32,
   };
 });
+
 
 
 

@@ -143,5 +143,63 @@ const finisher = C.strike(killed, 'aurora', { type: 'back', asRage: true }, zero
 check('击杀记在这一下上', finisher.hits[0].killed && finisher.hits[0].hpBefore === 40);
 check('整条血打光加满 1000 怒', C.rageOnHurt(40, finisher.hits[0].hpBefore, finisher.hits[0].hp) === 1000);
 
+// 紫垣：磐石架势
+const guardField = [
+  unit({ id: 'zhiyuan', name: '紫垣', side: 'player', row: 'front', col: 1, atk: 20, hp: 100, def: 0 }),
+  unit({ id: 'ef', name: '敌人', side: 'enemy', row: 'front', col: 1, atk: 20 }),
+];
+const guardCast = C.strike(guardField, 'zhiyuan', { type: 'guard', asRage: true }, zero);
+check('磐石架势不造成伤害', guardCast.ok && guardCast.hits.length === 0);
+check('磐石架势给自己加防', guardField[0].guard === C.GUARD_DEF && C.effectiveDef(guardField[0]) === C.GUARD_DEF);
+const guardedHit = C.strike(guardField, 'ef', { type: 'auto' }, zero);
+check('护盾按加防后的防御结算', guardedHit.hits[0].damage === 20 - C.GUARD_DEF && guardField[0].hp === 100 - (20 - C.GUARD_DEF));
+
+// 月光：月华治愈
+const healField = [
+  unit({ id: 'moon', name: '月光', side: 'player', row: 'back', col: 1, atk: 8, hp: 40 }),
+  unit({ id: 'ally-back', name: '后排友', side: 'player', row: 'back', col: 0, hp: 40 }),
+  unit({ id: 'ally-front', name: '前排友', side: 'player', row: 'front', col: 0, hp: 40 }),
+  unit({ id: 'ef', name: '敌人', side: 'enemy', row: 'front', col: 1 }),
+];
+const healCast = C.strike(healField, 'moon', { type: 'heal-row', asRage: true }, zero);
+check('月华治愈只治疗自己这一排', healCast.heals.length === 2 && !healCast.heals.some(function (h) { return h.id === 'ally-front'; }));
+check('月华治愈含自己', healCast.heals.some(function (h) { return h.id === 'moon'; }));
+check('治疗量按最大生命 25%', healCast.heals[0].heal === Math.round(100 * C.HEAL_RATIO));
+check('治疗不超过满血', healField[0].hp === 65 && healField[1].hp === 65 && healField[2].hp === 40);
+
+// 长虹：横扫一排
+const sweepField = field();
+const sweep = C.strike(sweepField, 'aurora', { type: 'row-sweep', asRage: true }, zero);
+check('横扫前排时打整排前排', sweep.hits.length === 2 && sweep.hits.every(function (h) { return h.id === 'ef0' || h.id === 'ef2'; }));
+check('横扫不误伤后排', sweepField.find(function (u) { return u.id === 'eb1'; }).hp === 40);
+sweepField.forEach(function (u) { if (u.side === 'enemy' && u.row === 'front') { u.alive = false; u.hp = 0; } });
+const sweepBack = C.strike(sweepField, 'aurora', { type: 'row-sweep', asRage: true }, zero);
+check('前排清空后横扫打后排', sweepBack.hits.length === 1 && sweepBack.hits[0].id === 'eb1');
+
+// 阔刃：只扫前排，前排没人落空
+const frontSweepField = field();
+frontSweepField.forEach(function (u) { if (u.side === 'enemy' && u.row === 'front') { u.alive = false; u.hp = 0; } });
+const frontSweep = C.strike(frontSweepField, 'aurora', { type: 'front-sweep', asRage: true }, zero);
+check('阔刃前排没人就落空', frontSweep.ok && frontSweep.reason === '落空' && frontSweep.hits.length === 0);
+check('阔刃落空不打后排', frontSweepField.find(function (u) { return u.id === 'eb1'; }).hp === 40);
+
+// 余烬：击杀后追击血最低
+const execField = [
+  unit({ id: 'yujin', name: '余烬', side: 'player', row: 'back', col: 1, atk: 30 }),
+  unit({ id: 'ef', name: '前排', side: 'enemy', row: 'front', col: 1, hp: 5 }),
+  unit({ id: 'eb-low', name: '后排残血', side: 'enemy', row: 'back', col: 0, hp: 20 }),
+  unit({ id: 'eb-high', name: '后排满血', side: 'enemy', row: 'back', col: 2, hp: 80 }),
+];
+const exec = C.strike(execField, 'yujin', { type: 'execute', asRage: true }, zero);
+check('余烬第一下击杀', exec.hits[0].killed);
+check('余烬击杀后追击血最低', exec.hits.length === 2 && exec.hits[1].id === 'eb-low');
+check('余烬追击不碰血高的', execField.find(function (u) { return u.id === 'eb-high'; }).hp === 80);
+
+const execNoKill = field();
+execNoKill.find(function (u) { return u.id === 'ef0'; }).hp = 999;
+execNoKill.find(function (u) { return u.id === 'ef0'; }).maxHp = 999;
+const execOne = C.strike(execNoKill, 'aurora', { type: 'execute', asRage: true }, zero);
+check('余烬没击杀就没有第二下', execOne.hits.length === 1 && !execOne.hits[0].killed);
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 process.exit(fail ? 1 : 0);

@@ -44,6 +44,13 @@
     return list[i];
   }
 
+  var GUARD_DEF = 18;
+  var HEAL_RATIO = 0.25;
+
+  function effectiveDef(target) {
+    return (target.def || 0) + (target.guard || 0);
+  }
+
   function hurt(target, amount) {
     const damage = Math.max(1, amount);
     const hpBefore = target.hp;
@@ -76,6 +83,76 @@
     const kind = action && action.type;
     const rand = rng || Math.random;
 
+    // 磐石架势：只给自己加防，直到自己再完成一次普攻
+    if (kind === 'guard') {
+      attacker.guard = GUARD_DEF;
+      return { ok: true, reason: '', hits: [], heals: [], guard: GUARD_DEF };
+    }
+
+    // 月华治愈：只治疗自己所在那一排，含自己
+    if (kind === 'heal-row') {
+      const list = sortUnits(units.filter((u) => (
+        u.side === attacker.side && alive(u) && u.row === attacker.row
+      )));
+      const heals = [];
+      list.forEach((target) => {
+        const room = Math.max(0, target.maxHp - target.hp);
+        if (!room) return;
+        const amount = Math.min(room, Math.max(1, Math.round(target.maxHp * HEAL_RATIO)));
+        target.hp += amount;
+        heals.push({
+          id: target.id,
+          name: target.name,
+          heal: amount,
+          hp: target.hp,
+          hpBefore: target.hp - amount,
+        });
+      });
+      return { ok: true, reason: '', hits: [], heals };
+    }
+
+    // 长虹：横扫一整排；前排还有人打前排，前排空了打后排
+    if (kind === 'row-sweep') {
+      const front = foes(units, attacker.side).filter((u) => u.row === 'front');
+      const row = front.length ? 'front' : 'back';
+      const list = sortUnits(foes(units, attacker.side).filter((u) => u.row === row));
+      if (!list.length) return { ok: true, reason: '落空', hits: [] };
+      return {
+        ok: true,
+        reason: '',
+        hits: list.map((target) => hurt(target, attacker.atk - effectiveDef(target))),
+      };
+    }
+
+    // 阔刃：只扫敌方第一排，前排没人就落空，不改扫后排
+    if (kind === 'front-sweep') {
+      const list = sortUnits(foes(units, attacker.side).filter((u) => u.row === 'front'));
+      if (!list.length) return { ok: true, reason: '落空', hits: [] };
+      return {
+        ok: true,
+        reason: '',
+        hits: list.map((target) => hurt(target, attacker.atk - effectiveDef(target))),
+      };
+    }
+
+    // 余烬：按普通单体打一下；这一下收掉人，再打剩下血最低的一下
+    if (kind === 'execute') {
+      const legal = basicTargets(units, attacker);
+      if (!legal.length) return { ok: false, reason: '没有目标', hits: [] };
+      const first = action.targetId
+        ? legal.find((u) => u.id === action.targetId) || null
+        : chooseBasicTarget(units, attacker, rand);
+      if (!first) return { ok: false, reason: '前排还在', hits: [] };
+      const hits = [hurt(first, attacker.atk - effectiveDef(first))];
+      if (hits[0].killed) {
+        const rest = foes(units, attacker.side)
+          .filter((u) => alive(u) && u.id !== first.id)
+          .sort((a, b) => a.hp - b.hp || a.col - b.col);
+        if (rest.length) hits.push(hurt(rest[0], attacker.atk - effectiveDef(rest[0])));
+      }
+      return { ok: true, reason: '', hits };
+    }
+
     if (kind === 'auto' || kind === 'pick') {
       const legal = basicTargets(units, attacker);
       if (!legal.length) return { ok: false, reason: '没有目标', hits: [] };
@@ -86,7 +163,7 @@
       return {
         ok: true,
         reason: '',
-        hits: [hurt(target, attacker.atk - target.def)],
+        hits: [hurt(target, attacker.atk - effectiveDef(target))],
       };
     }
 
@@ -98,7 +175,7 @@
       return {
         ok: true,
         reason: '',
-        hits: [hurt(target, attacker.atk * 3 - target.def)],
+        hits: [hurt(target, attacker.atk * 3 - effectiveDef(target))],
       };
     }
 
@@ -109,7 +186,7 @@
       return {
         ok: true,
         reason: '',
-        hits: list.map((target) => hurt(target, attacker.atk - target.def)),
+        hits: list.map((target) => hurt(target, attacker.atk - effectiveDef(target))),
       };
     }
 
@@ -210,6 +287,9 @@
   return {
     ROWS: ROWS,
     COLS: COLS,
+    GUARD_DEF: GUARD_DEF,
+    HEAL_RATIO: HEAL_RATIO,
+    effectiveDef: effectiveDef,
     alive: alive,
     frontAlive: frontAlive,
     basicTargets: basicTargets,

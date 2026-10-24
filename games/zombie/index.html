@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆大战僵尸</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div class="roof-actions">
+    <a class="mini" href="../../index.html">← 游戏库</a>
+    <button type="button" class="mini" id="restart">重开</button>
+  </div>
+
+  <div class="veil" id="title">
+    <div class="panel">
+      <p class="kicker">放置策略 · 前院 · 卡片暂定</p>
+      <h1>豆豆大战僵尸</h1>
+      <ol>
+        <li>点左边的卡片，再点草坪上的空格子。</li>
+        <li>格子里有豆豆、阳光不够、卡片在冷却，都放不下去。</li>
+        <li>再点一次卡片，或按 Esc，把卡片放下。阳光要点了才收下。</li>
+      </ol>
+      <p class="note">每行门口有一台割草机，用过再进门就输。电脑上 1–6 选卡，S 拿铲子。</p>
+      <button type="button" class="go" id="start">开始防守</button>
+    </div>
+  </div>
+
+  <div class="veil" id="end" hidden>
+    <div class="panel">
+      <p class="kicker" id="endK">失守</p>
+      <h2 id="endTitle">僵尸进了屋子</h2>
+      <p class="note" id="endSub"></p>
+      <button type="button" class="go" id="again">再守一次</button>
+    </div>
+  </div>
+
+  <div class="rotate" id="rotate">
+    <div>
+      <div class="rotate-icon" aria-hidden="true">⟳</div>
+      <p>把手机横过来</p>
+      <p class="rotate-sub">五行草坪要横着摆，竖屏格子太挤</p>
+      <button class="rotate-skip" id="rotateSkip" type="button">竖屏凑合玩</button>
+    </div>
+  </div>
+</div>
+<script src="data.js"></script>
+<script src="sim.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

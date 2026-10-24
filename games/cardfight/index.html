@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>卡牌战斗</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #1b1714;
+      color: #f3e6d4;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+    #app {
+      box-sizing: border-box;
+      height: 100dvh;
+      height: 100vh;
+      padding: 12px 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    #genre {
+      margin: 0;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: #c8b39a;
+    }
+    #phase {
+      margin: 0;
+      font-size: 13px;
+      color: #c8b39a;
+    }
+    #field {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      gap: 12px;
+    }
+    .side {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(3, minmax(44px, 1fr));
+      gap: 8px;
+    }
+    #player { background: #241c18; border-radius: 12px; padding: 8px; }
+    #enemy { background: #241c18; border-radius: 12px; padding: 8px; }
+    .cell, button {
+      min-width: 44px;
+      min-height: 44px;
+      border-radius: 10px;
+      border: 1px solid #5c4636;
+      background: #2a221c;
+      color: inherit;
+      font: inherit;
+      touch-action: none;
+    }
+    .cell {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 6px;
+      text-align: left;
+    }
+    .cell.on {
+      outline: 2px solid #e2b15a;
+    }
+    .cell.spent {
+      opacity: 0.45;
+    }
+    .cell.queue {
+      outline: 2px solid #d4554a;
+    }
+    .cell.front {
+      background: #3a2a22;
+    }
+    .name { font-size: 14px; }
+    .hp { font-size: 12px; color: #e7c27a; }
+    .bar {
+      height: 6px;
+      margin-top: 4px;
+      background: #4a332c;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar i {
+      display: block;
+      height: 100%;
+      background: #d4554a;
+    }
+    #tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    button {
+      padding: 0 12px;
+      background: #6b3a2a;
+    }
+    button:disabled {
+      opacity: 0.45;
+    }
+    #roster {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      flex: 0 0 auto;
+      touch-action: pan-x;
+    }
+    .cast {
+      position: relative;
+      flex: 0 0 72px;
+      width: 72px;
+      height: 96px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #5c4636;
+      background: #2a221c;
+    }
+    .cast img,
+    .cell .face {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 16%;
+      display: block;
+      pointer-events: none;
+    }
+    .cell .face {
+      position: absolute;
+      inset: 0;
+    }
+    .cast span {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 12px 2px 3px;
+      background: linear-gradient(transparent, rgba(20, 12, 8, 0.9));
+      font-size: 12px;
+      text-align: center;
+    }
+    .cell .meta {
+      position: relative;
+      z-index: 1;
+      padding: 18px 6px 6px;
+      background: linear-gradient(transparent, rgba(20, 12, 8, 0.92));
+    }
+    #log {
+      flex: 0 0 96px;
+      margin: 0;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #ddcbb6;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>卡牌战斗</h1>
+    <p id="genre">卡牌养成策略</p>
+    <p id="phase">挑战前可以改排列</p>
+    <div id="roster" aria-label="名册"></div>
+    <div id="field">
+      <div id="player" class="side"></div>
+      <div id="enemy" class="side"></div>
+    </div>
+    <div id="tools">
+      <button id="start" type="button">开战</button>
+      <button id="back" type="button" disabled>怒气技能</button>
+      <button id="auto" type="button">开自动</button>
+      <button id="again" type="button">再摆一次</button>
+    </div>
+    <p id="log"></p>
+  </div>
+  <script src="combat.js"></script>
+  <script>
+    var COLS = [0, 1, 2];
+    var fighting = false;
+    var selectedId = '';
+    var round = 1;
+    var saved = null;
+    var timer = 0;
+    var rageQueue = [];
+    var rageSeq = 0;
+    var autoRage = false;
+    var RAGE_MAX = CardFight.RAGE_MAX;
+
+    var CAST = [
+      { name: '极光', face: 'faces/aurora.jpg' },
+      { name: '长虹', face: 'faces/changhong.jpg' },
+      { name: '迟星', face: 'faces/chixing.jpg' },
+      { name: '余烬', face: 'faces/yujin.jpg' },
+      { name: '大剑士', face: 'faces/dajian.jpg' },
+      { name: '震甲', face: 'faces/zhenjia.jpg' },
+      { name: '阔刃', face: 'faces/kuoren.jpg' },
+      { name: '铁桩', face: 'faces/tiezhuang.jpg' },
+      { name: '月光', face: 'faces/yueguang.jpg' },
+      { name: '鼓手', face: 'faces/gushou.jpg' },
+      { name: '残灯', face: 'faces/candeng.jpg' },
+      { name: '早潮', face: 'faces/zaochao.jpg' }
+    ];
+
+    function drawRoster() {
+      var host = document.getElementById('roster');
+      host.innerHTML = '';
+      CAST.forEach(function (c) {
+        var card = document.createElement('div');
+        card.className = 'cast';
+        var img = document.createElement('img');
+        img.src = c.face;
+        img.alt = '';
+        var name = document.createElement('span');
+        name.textContent = c.name;
+        card.appendChild(img);
+        card.appendChild(name);
+        host.appendChild(card);
+      });
+    }
+
+    function makeUnit(partial) {
+      var u = {
+        hp: 100,
+        maxHp: 100,
+        atk: 10,
+        def: 0,
+        alive: true,
+        row: 'front',
+        col: 0
+      };
+      var k;
+      for (k in partial) u[k] = partial[k];
+      u.maxHp = u.hp;
+      return u;
+    }
+
+    function defaultUnits() {
+      return [
+        makeUnit({ id: 'tank', name: '大剑士', face: 'faces/dajian.jpg', side: 'player', row: 'front', col: 1, atk: 20, hp: 200 }),
+        makeUnit({ id: 'aurora', name: '极光', face: 'faces/aurora.jpg', side: 'player', row: 'back', col: 0, atk: 30, hp: 100, rage: 1000, rageSkill: 'back' }),
+        makeUnit({ id: 'moon', name: '月光', face: 'faces/yueguang.jpg', side: 'player', row: 'back', col: 2, atk: 8, hp: 120 }),
+        makeUnit({ id: 'ef0', name: '前排甲', side: 'enemy', row: 'front', col: 0, atk: 12, hp: 80, rage: 1000, rageSkill: 'back' }),
+        makeUnit({ id: 'ef2', name: '前排乙', side: 'enemy', row: 'front', col: 2, atk: 12, hp: 80 }),
+        makeUnit({ id: 'eb1', name: '后排', side: 'enemy', row: 'back', col: 1, atk: 16, hp: 70 })
+      ];
+    }
+
+    var units = defaultUnits();
+
+    function cloneUnits(list) {
+      return list.map(function (u) {
+        var c = {};
+        var k;
+        for (k in u) c[k] = u[k];
+        return c;
+      });
+    }
+
+    function byCell(side, row, col) {
+      var i;
+      for (i = 0; i < units.length; i++) {
+        var u = units[i];
+        if (u.side === side && u.row === row && u.col === col) return u;
+      }
+      return null;
+    }
+
+    function log(line) {
+      var el = document.getElementById('log');
+      el.textContent = line + '\n' + el.textContent;
+    }
+
+    function living(side) {
+      return CardFight.livingSide(units, side);
+    }
+
+    function outcome() {
+      if (!living('player').length) return '我方倒下';
+      if (!living('enemy').length) return '敌方倒下';
+      return '';
+    }
+
+    function render() {
+      drawSide('player');
+      drawSide('enemy');
+      var phase = document.getElementById('phase');
+      var end = outcome();
+      document.getElementById('start').disabled = fighting;
+      document.getElementById('back').disabled = !fighting || !!end || !rageCandidate();
+      document.getElementById('auto').textContent = autoRage ? '关自动' : '开自动';
+      if (!fighting) phase.textContent = '左我右敌。第一排 1 2 3 靠中间，第二排 4 5 6 靠外侧。出手从第一排开始。';
+      else if (end) phase.textContent = end;
+      else phase.textContent = '第 ' + round + ' 回合。' + (autoRage ? '自动怒气开。' : '') + rageLine();
+    }
+
+    function drawSide(id) {
+      var host = document.getElementById(id);
+      host.innerHTML = '';
+      var side = id === 'player' ? 'player' : 'enemy';
+      var slots = side === 'player' ? ['back', 'front'] : ['front', 'back'];
+      COLS.forEach(function (col) {
+        slots.forEach(function (row) {
+          var u = byCell(side, row, col);
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          var queued = !!(u && rageQueue.some(function (item) { return item.id === u.id; }));
+          btn.className = 'cell' + (row === 'front' ? ' front' : '') + (u && u.id === selectedId ? ' on' : '') + (u && u.acted ? ' spent' : '') + (queued ? ' queue' : '');
+          btn.dataset.side = side;
+          btn.dataset.row = row;
+          btn.dataset.col = String(col);
+          if (u) btn.dataset.id = u.id;
+          var slotNo = (row === 'front' ? 1 : 4) + col;
+          if (!u) {
+            btn.textContent = slotNo + ' 空';
+          } else {
+            if (u.face) {
+              var img = document.createElement('img');
+              img.className = 'face';
+              img.src = u.face;
+              img.alt = '';
+              btn.appendChild(img);
+            }
+            var meta = document.createElement('div');
+            meta.className = 'meta';
+            var name = document.createElement('div');
+            name.className = 'name';
+            name.textContent = slotNo + ' ' + u.name + (u.alive ? '' : ' 倒下') + (queued ? ' 排队' : '');
+            var hp = document.createElement('div');
+            hp.className = 'hp';
+            hp.textContent = u.hp + '/' + u.maxHp + (u.rageSkill ? '  怒' + (u.rage || 0) : '');
+            var bar = document.createElement('div');
+            bar.className = 'bar';
+            var fill = document.createElement('i');
+            fill.style.width = Math.max(0, Math.round(u.hp / u.maxHp * 100)) + '%';
+            bar.appendChild(fill);
+            meta.appendChild(name);
+            meta.appendChild(hp);
+            meta.appendChild(bar);
+            btn.appendChild(meta);
+          }
+          btn.addEventListener('pointerdown', onCell);
+          host.appendChild(btn);
+        });
+      });
+    }
+
+    function onCell(e) {
+      e.preventDefault();
+      var side = e.currentTarget.dataset.side;
+      var row = e.currentTarget.dataset.row;
+      var col = Number(e.currentTarget.dataset.col);
+      var id = e.currentTarget.dataset.id;
+      if (!fighting) {
+        moveSelected(side, row, col, id);
+        return;
+      }
+      if (side === 'player' && id) {
+        selectedId = id;
+        render();
+      }
+    }
+
+    function moveSelected(side, row, col, id) {
+      if (side !== 'player') return;
+      if (id && id !== selectedId && !selectedId) {
+        selectedId = id;
+        render();
+        return;
+      }
+      var selected = units.find(function (u) { return u.id === selectedId; });
+      if (!selected || selected.side !== 'player') {
+        if (id) selectedId = id;
+        render();
+        return;
+      }
+      if (id === selected.id) return;
+      var occupied = id ? units.find(function (u) { return u.id === id; }) : null;
+      if (occupied && occupied.side === 'player') {
+        var pr = selected.row;
+        var pc = selected.col;
+        selected.row = occupied.row;
+        selected.col = occupied.col;
+        occupied.row = pr;
+        occupied.col = pc;
+        selectedId = occupied.id;
+      } else if (!occupied) {
+        selected.row = row;
+        selected.col = col;
+      }
+      render();
+    }
+
+    function rageLine() {
+      if (!rageQueue.length) return '怒气随时可按。';
+      return '怒气队列：' + rageQueue.map(function (item) {
+        var u = units.find(function (x) { return x.id === item.id; });
+        return u ? u.name : item.id;
+      }).join('、');
+    }
+
+    function rageCandidate() {
+      var selected = units.find(function (u) { return u.id === selectedId; });
+      if (selected && selected.side === 'player' && CardFight.rageReady(selected) && !rageQueue.some(function (item) { return item.id === selected.id; })) {
+        return selected;
+      }
+      var i;
+      for (i = 0; i < units.length; i++) {
+        var u = units[i];
+        if (u.side === 'player' && CardFight.rageReady(u) && !rageQueue.some(function (item) { return item.id === u.id; })) return u;
+      }
+      return null;
+    }
+
+    function offerRage(unit) {
+      var result = CardFight.enqueueRage(rageQueue, unit, rageSeq);
+      if (!result.ok) return false;
+      rageQueue = result.queue;
+      rageSeq = result.seq;
+      log(unit.name + ' 怒气排队');
+      return true;
+    }
+
+    function pullReady() {
+      var before = {};
+      rageQueue.forEach(function (item) { before[item.id] = true; });
+      var result = CardFight.enqueueReady(rageQueue, units, rageSeq, { playerAuto: autoRage });
+      rageQueue = result.queue;
+      rageSeq = result.seq;
+      result.queue.forEach(function (item) {
+        if (before[item.id]) return;
+        var u = units.find(function (x) { return x.id === item.id; });
+        log((u ? u.name : item.id) + ' 怒气排队');
+      });
+    }
+
+    function describe(attacker, action, result) {
+      var verb = action.asRage ? '怒气' : (action.type === 'back' ? '打后排' : (action.type === 'pick' ? '选取攻击' : '自动攻击'));
+      if (!result.ok) return attacker.name + ' ' + verb + '，' + result.reason;
+      if (result.reason === '落空') return attacker.name + (action.asRage ? ' 怒气' : '') + ' 打后排，落空';
+      return result.hits.map(function (h) {
+        return attacker.name + ' ' + verb + ' ' + h.name + '，' + h.damage + ' 伤害';
+      }).join('；');
+    }
+
+    function gainRage(unit, n) {
+      if (!unit || !unit.rageSkill || !CardFight.alive(unit)) return;
+      var before = unit.rage || 0;
+      unit.rage = Math.min(RAGE_MAX, before + n);
+      if (before < RAGE_MAX && unit.rage >= RAGE_MAX && (unit.side === 'enemy' || autoRage)) offerRage(unit);
+    }
+
+    function applyStrike(attackerId, action) {
+      var attacker = units.find(function (u) { return u.id === attackerId; });
+      if (!attacker) return;
+      var result = CardFight.strike(units, attackerId, action);
+      log(describe(attacker, action, result));
+      if (result.ok) {
+        if (action.asRage) attacker.rage = 0;
+        else {
+          attacker.acted = true;
+          gainRage(attacker, CardFight.RAGE_ON_ATTACK);
+        }
+        var kills = 0;
+        result.hits.forEach(function (h) {
+          var victim = units.find(function (u) { return u.id === h.id; });
+          gainRage(victim, CardFight.rageOnHurt(victim.maxHp, h.hpBefore, h.hp));
+          if (h.killed) kills += 1;
+        });
+        if (kills) gainRage(attacker, kills * CardFight.RAGE_ON_KILL);
+      }
+      var end = outcome();
+      if (end) {
+        stopLoop();
+        log(end);
+      }
+      render();
+    }
+
+    function stopLoop() {
+      clearInterval(timer);
+      timer = 0;
+    }
+
+    function resolveRage() {
+      var before = rageQueue.slice();
+      var taken = CardFight.takeRage(rageQueue, units);
+      rageQueue = taken.queue;
+      before.forEach(function (item) {
+        if (taken.unit && item.id === taken.unit.id) return;
+        if (rageQueue.some(function (q) { return q.id === item.id; })) return;
+        var u = units.find(function (x) { return x.id === item.id; });
+        log((u ? u.name : item.id) + ' 已倒下，怒气取消');
+      });
+      if (!taken.unit) return false;
+      applyStrike(taken.unit.id, { type: taken.unit.rageSkill || 'back', asRage: true });
+      return true;
+    }
+
+    function step() {
+      if (!fighting || outcome()) return;
+      pullReady();
+      if (rageQueue.length) {
+        resolveRage();
+        return;
+      }
+      var actor = CardFight.nextActor(units);
+      if (!actor) {
+        units.forEach(function (u) { u.acted = false; });
+        round += 1;
+        log('第 ' + round + ' 回合');
+        render();
+        return;
+      }
+      applyStrike(actor.id, { type: 'auto' });
+    }
+
+    function startLoop() {
+      clearInterval(timer);
+      timer = setInterval(step, 700);
+    }
+
+    document.getElementById('start').addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (fighting) return;
+      saved = cloneUnits(units);
+      fighting = true;
+      round = 1;
+      units.forEach(function (u) { u.acted = false; });
+      rageQueue = [];
+      rageSeq = 0;
+      log('开战。排列已锁住。第 1 回合');
+      render();
+      startLoop();
+    });
+
+    document.getElementById('back').addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!fighting || outcome()) return;
+      var actor = rageCandidate();
+      if (!actor) return;
+      offerRage(actor);
+      render();
+    });
+
+    document.getElementById('auto').addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      autoRage = !autoRage;
+      if (autoRage && fighting && !outcome()) pullReady();
+      render();
+    });
+
+    document.getElementById('again').addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      stopLoop();
+      fighting = false;
+      round = 1;
+      rageQueue = [];
+      rageSeq = 0;
+      if (saved) units = cloneUnits(saved);
+      else units = defaultUnits();
+      units.forEach(function (u) {
+        u.hp = u.maxHp;
+        u.alive = true;
+        u.acted = false;
+      });
+      document.getElementById('log').textContent = '';
+      log('沿用刚才的排列，可以再改。');
+      render();
+    });
+
+    document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    drawRoster();
+    render();
+  </script>
+</body>
+</html>

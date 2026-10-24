@@ -92,10 +92,36 @@ body {
 }
 
 .top p {
-  margin: 2px 0 4px;
+  margin: 3px 0 4px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+/* 数量条：外星人 / 已捉住 的数字要一眼看到 */
+.top .stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 12px;
+  color: #a7b3cc;
+  letter-spacing: 0.02em;
+}
+.top .stat b {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1;
+  color: #8dffb0;
+  text-shadow: 0 0 12px rgba(141, 255, 176, 0.35);
+}
+.top .stat.caught b { color: #ffcf70; text-shadow: 0 0 12px rgba(255, 207, 112, 0.3); }
+.top .meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(141, 153, 181, 0.8);
 }
 
 #stage.is-tight { padding: 48px 8px 6px; }
@@ -148,7 +174,7 @@ body {
   min-height: 0;
   border: 1px solid var(--line);
   border-radius: calc(12px * var(--fit));
-  background: #1a2230;
+  background: radial-gradient(circle at 50% 36%, #16213c 0%, #0a1122 68%, #070c16 100%);
   color: var(--ink);
   padding: 0;
   overflow: hidden;
@@ -157,26 +183,27 @@ body {
 
 .door .room {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 4px;
+  left: 4px;
   z-index: 2;
-  padding: 1px 3px;
-  border-radius: 4px;
-  background: rgba(8, 12, 20, 0.55);
-  font-size: calc(11px * var(--fit));
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(4, 7, 13, 0.72);
+  font-size: calc(13px * var(--fit));
+  font-weight: 700;
   line-height: 1.1;
   color: #fff;
 }
 
 .door .role {
   position: absolute;
-  top: 3px;
-  right: 3px;
+  top: 4px;
+  right: 4px;
   z-index: 2;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: rgba(8, 12, 20, 0.86);
-  font-size: calc(11px * var(--fit));
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(4, 7, 13, 0.86);
+  font-size: calc(12px * var(--fit));
   font-weight: 700;
   line-height: 1.15;
 }
@@ -201,41 +228,56 @@ body {
 
 .door .name {
   position: absolute;
-  left: 50%;
-  bottom: 2px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 4;
-  transform: translateX(-50%);
-  max-width: calc(100% - 6px);
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: rgba(8, 12, 20, 0.88);
-  font-size: calc(12px * var(--fit));
-  font-weight: 700;
-  line-height: 1.2;
+  height: calc(24px * var(--fit));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  background: linear-gradient(180deg, #131b2b, #080d16);
+  border-top: 1px solid rgba(150, 176, 220, 0.18);
+  font-size: calc(15px * var(--fit));
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
   text-align: center;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .door .bubble {
   position: absolute;
   left: 3px;
   right: 3px;
-  bottom: calc(12px * var(--fit) + 2px);
+  bottom: calc(24px * var(--fit));
   z-index: 3;
-  max-height: 46%;
   margin: 0;
-  padding: calc(3px * var(--fit)) calc(4px * var(--fit));
+  padding: calc(3px * var(--fit)) 4px;
   border-radius: calc(8px * var(--fit));
-  background: #f7f4ee;
+  background: rgba(247, 244, 238, 0.58);
+  -webkit-backdrop-filter: blur(12px) saturate(1.12);
+  backdrop-filter: blur(12px) saturate(1.12);
   color: #1c140c;
-  font-size: calc(12px * var(--fit));
+  font-size: calc(14px * var(--fit));
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   text-align: center;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 2px 0 rgba(8, 12, 20, 0.25);
+}
+
+.door .bubble .bubble-txt {
+  display: block;
+  width: 100%;
 }
 
 .door .bubble::after {
@@ -245,28 +287,49 @@ body {
   bottom: -5px;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: #f7f4ee;
+  border-top-color: rgba(247, 244, 238, 0.58);
   border-bottom: 0;
 }
 
 @container doors (max-height: 96px) {
-  .door .bubble { font-size: 10px; padding: 2px 3px; line-height: 1.2; max-height: 58%; }
-  .door .name { font-size: 10px; }
-  .door .room { font-size: 9px; }
-}
-
-@container doors (max-height: 78px) {
-  .door .bubble { font-size: 9px; max-height: 68%; }
-  .door .name { font-size: 9px; }
+  .door .room { font-size: 11px; padding: 1px 5px; }
+  .door .role { font-size: 10.5px; padding: 1px 5px; }
 }
 
 .door.is-open { background: #243044; border-color: rgba(255, 158, 196, 0.45); }
+
+/* 只剩 3 扇门没开：边框呼吸闪烁，提醒玩家还剩哪几户 */
+.door.is-hint {
+  animation: doorHint 1.15s ease-in-out infinite;
+}
+@keyframes doorHint {
+  0%, 100% {
+    border-color: rgba(255, 158, 196, 0.42);
+    box-shadow: 0 0 0 1px rgba(255, 158, 196, 0.18), 0 0 8px rgba(255, 158, 196, 0.12);
+  }
+  50% {
+    border-color: rgba(255, 226, 120, 0.98);
+    box-shadow: 0 0 0 2px rgba(255, 226, 120, 0.6), 0 0 18px rgba(255, 206, 80, 0.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .door.is-hint {
+    animation: none;
+    border-color: rgba(255, 226, 120, 0.95);
+    box-shadow: 0 0 0 2px rgba(255, 226, 120, 0.55);
+  }
+}
+/* 翻开前整张卡面；翻开后按卡的大小缩一点、往上靠，保证头在气泡上方 */
+.door .avatar img { transition: transform 0.32s ease; transform-origin: 50% 0; }
+.door.is-open .avatar img {
+  transform: scale(var(--img-scale, 1)) translateY(-5%);
+}
 .door.is-chat .bubble {
-  background: #e6ebf5;
+  background: rgba(230, 235, 245, 0.58);
   color: #3c465c;
   font-weight: 500;
 }
-.door.is-chat .bubble::after { border-top-color: #e6ebf5; }
+.door.is-chat .bubble::after { border-top-color: rgba(230, 235, 245, 0.58); }
 .door.is-alien {
   background: #143024;
   border-color: rgba(141, 255, 176, 0.55);
@@ -367,7 +430,7 @@ button {
   height: 100%;
   display: block;
   object-fit: contain;
-  object-position: 50% 50%;
+  object-position: 50% 0%;
   border-radius: 8px;
 }
 

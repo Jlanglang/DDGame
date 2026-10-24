@@ -158,9 +158,14 @@
     var level = state.level;
     var caught = state.killed.length;
     title.textContent = '第 ' + state.levelIndex + ' 栋 · ' + level.label;
-    notice.textContent = level.units + ' 单元 ' + level.floors + ' 层 · 这栋有 ' + level.alienCount + ' 个外星人 · 已捉住 ' + caught;
+    notice.innerHTML =
+      '<span class="stat">外星人<b>' + level.alienCount + '</b></span>' +
+      '<span class="stat caught">已捉住<b>' + caught + '</b></span>' +
+      '<span class="meta">' + level.units + ' 单元 ' + level.floors + ' 层</span>';
     applyFit(level);
     drawBuilding();
+    fitBubbles();
+    markHints();
     var buttons = document.querySelectorAll('#modes button');
     for (var i = 0; i < buttons.length; i++) {
       buttons[i].classList.toggle('is-on', buttons[i].getAttribute('data-mode') === state.mode);
@@ -192,6 +197,70 @@
     var rowH = Math.min(natural, fitH);
     if (!(rowH > 0)) return;
     building.style.setProperty('--row-h', rowH.toFixed(1) + 'px');
+    /* 字号跟着格子实际大小走：6 层这种矮卡会自动把字和气泡缩掉 */
+    var fit = Math.min(rowH / 135, cardW / 105);
+    fit = Math.max(0.62, Math.min(1, fit));
+    building.style.setProperty('--fit', fit.toFixed(3));
+  }
+
+  /* 线索气泡：固定 3 行；卡片越小，字和气泡一起缩，别把人物盖住 */
+  function fitBubbles() {
+    var list = building.querySelectorAll('.bubble');
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      var txt = b.querySelector('.bubble-txt');
+      if (!txt) continue;
+      b.style.fontSize = '';
+      b.style.lineHeight = '';
+      b.style.height = '';
+      var cs = getComputedStyle(b);
+      var base = parseFloat(cs.fontSize) || 12;
+      var padT = parseFloat(cs.paddingTop) || 0;
+      var padB = parseFloat(cs.paddingBottom) || 0;
+      var door = b.parentElement;
+      var nameEl = door && door.querySelector('.name');
+      var dh = door ? door.clientHeight : 0;
+      var nh = nameEl ? nameEl.getBoundingClientRect().height : 0;
+
+      /* 气泡最多占卡高 36%：按 3 行 + padding 反推字号上限 */
+      if (dh > 0) {
+        var ideal = (dh * 0.36 - padT - padB) / 3 / 1.2;
+        if (ideal < base) base = Math.max(9, ideal);
+      }
+      var lh = base * 1.2;
+      b.style.lineHeight = lh + 'px';
+      b.style.height = (lh * 3 + padT + padB) + 'px';
+      var fs = base;
+      while (fs > 8 && txt.scrollHeight > lh * 3 + 0.5) {
+        fs -= 0.5;
+        b.style.fontSize = fs + 'px';
+      }
+      b.style.fontSize = fs + 'px';
+
+      /* 翻开后：气泡以上要放得下头，不够就把人物等比缩小、贴顶 */
+      if (dh > 0 && nameEl) {
+        var headRoom = dh - nh - (lh * 3 + padT + padB);
+        var need = dh * 0.6;
+        var sc = headRoom >= need ? 1 : Math.max(0.55, headRoom / need);
+        door.style.setProperty('--img-scale', sc.toFixed(3));
+      }
+    }
+  }
+
+  /* 只剩 3 扇门没开时，把边框闪烁提示挂到这几扇门上 */
+  var HINT_LEFT = 3;
+  function markHints() {
+    var cells = state.level.cells;
+    var left = [];
+    for (var i = 0; i < cells.length; i++) {
+      if (state.opened.indexOf(cells[i].key) < 0) left.push(cells[i].key);
+    }
+    var on = left.length === HINT_LEFT;
+    var doors = building.querySelectorAll('.door');
+    for (var j = 0; j < doors.length; j++) {
+      var key = doors[j].getAttribute('data-key');
+      doors[j].classList.toggle('is-hint', on && left.indexOf(key) >= 0);
+    }
   }
 
   function doorSig(cell) {
@@ -220,7 +289,8 @@
       rows.push(cells);
     }
 
-    var shape = level.units + 'x' + level.floors;
+    /* 换栋 / 换一栋后即使尺寸一样也要整片重建，否则旧楼的人名会留在格子里 */
+    var shape = level.units + 'x' + level.floors + '@' + level.seed;
     /* 第一次渲染，或者换了一栋尺寸不同的楼 */
     if (shape !== gridShape || !building.querySelector('.floor-row')) {
       gridShape = shape;
@@ -322,7 +392,7 @@
 
   function bubbleHtml(cell, opened, killed) {
     if (killed || !opened || !cell.speech || !cell.speech.clue) return '';
-    return '<span class="bubble">' + esc(cell.speech.clue) + '</span>';
+    return '<span class="bubble"><span class="bubble-txt">' + esc(cell.speech.clue) + '</span></span>';
   }
 
   function cardImg(src) {
@@ -331,16 +401,12 @@
 
   function faceHtml(cell, opened, killed) {
     var cards = window.CHARACTER_CARDS || {};
-    var thumbs = window.CHARACTER_THUMBS || {};
     var spec = window.CHARACTER_SPECIAL || {};
     // 抓住 / 撞见：直接是外星人惊恐脸
     if (killed || (opened && cell.alien)) return cardImg(spec.alien_3.card);
-    // 豆豆：开门用大卡，没开门用缩略
-    if (cell.role === 'doudou') {
-      return cardImg(opened ? spec.doudou_1.card : spec.doudou_1.thumb);
-    }
-    // 邻居：没开门也给脸，只是用小图，省流量
-    if (cards[cell.name]) return cardImg(opened ? cards[cell.name] : thumbs[cell.name]);
+    // 翻开前也放整张卡面（不是缩略图），人物完整露出来
+    if (cell.role === 'doudou') return cardImg(spec.doudou_1.card);
+    if (cards[cell.name]) return cardImg(cards[cell.name]);
     return avatarSvg(cell.role || 'classmate', cell.name);
   }
 
@@ -430,8 +496,11 @@
   });
 
   window.addEventListener('resize', function () {
-    if (state) layoutRows(state.level);
+    if (state) { layoutRows(state.level); fitBubbles(); }
   });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (state) fitBubbles(); });
+  }
 
   var query = new URLSearchParams(location.search);
   var startIndex = parseInt(query.get('level') || '1', 10);
@@ -439,6 +508,7 @@
   var seedArg = query.get('seed');
   startLevel(startIndex, seedArg == null ? null : (parseInt(seedArg, 10) >>> 0));
   if (location.search.indexOf('debug=1') >= 0) {
+    window.__ca = { state: function () { return state; }, open: onDoor };
     setTimeout(function () {
       var b = document.getElementById('building');
       var rows = b.querySelectorAll('.floor-row');

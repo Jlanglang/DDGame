@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卡牌战斗 · 战斗</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #08060c;
+    overflow: hidden;
+    color: #f4e7d2;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1280px;
+    height: 720px;
+    overflow: hidden;
+    transform-origin: center center;
+    background: #1a1220;
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.85);
+  }
+  #bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #units, #fx, #hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  #controls, #log, #hint {
+    position: absolute;
+    pointer-events: none;
+  }
+  #controls { pointer-events: auto; }
+  #units { z-index: 4; }
+  #fx { z-index: 6; }
+  #hud { z-index: 8; }
+  #controls { z-index: 10; }
+  #log { z-index: 9; }
+  #hint { z-index: 9; }
+
+  /* ---------- 角色 ---------- */
+  .slot-marker {
+    position: absolute;
+    width: 72px;
+    height: 26px;
+    transform: translate(-50%, 50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(120, 175, 235, 0.32);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(80, 130, 210, 0.08), transparent 70%);
+    color: rgba(160, 190, 230, 0.55);
+    font-size: 9px;
+    line-height: 1;
+  }
+  .slot-marker.empty {
+    border-style: dashed;
+    color: rgba(160, 190, 230, 0.35);
+    background: transparent;
+  }
+
+  .unit {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 400px;
+    display: flex;            /* 立绘贴底：透视缩放只改 img 高度，名牌仍钉在 120 线上 */
+    align-items: flex-end;
+    transform: translateX(-50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: filter 0.15s, opacity 0.2s;
+    filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.5));
+  }
+  .unit img {
+    height: 100%;
+    width: auto;
+    display: block;
+    transform-origin: center bottom;
+    transition: transform 0.16s;
+    -webkit-mask-image: linear-gradient(to bottom, #000 98.5%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 98.5%, transparent 100%);
+  }
+  .unit.flip img { transform: scaleX(-1); }
+  .unit::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    width: calc(70% * var(--s, 1));
+    height: calc(22px * var(--s, 1));
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
+    z-index: -1;
+  }
+  .unit .plate {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 3px);
+    width: 82px;
+    transform: translateX(-50%);
+    padding: 2px 5px 3px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, rgba(24, 18, 24, 0.92), rgba(12, 9, 12, 0.88));
+    border: 1px solid rgba(206, 166, 104, 0.55);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    text-align: center;
+  }
+  .unit.back .plate { width: 76px; }
+  .unit .nm {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #f1dfc2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .unit .slotno {
+    display: inline-block;
+    margin-left: 3px;
+    padding: 0 2px;
+    border: 1px solid rgba(214, 176, 112, 0.35);
+    border-radius: 2px;
+    color: #b99a6d;
+    font-size: 6px;
+    font-weight: 400;
+    line-height: 8px;
+    vertical-align: 1px;
+  }
+  .unit .info {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    z-index: 3;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    border: 1px solid rgba(214, 176, 112, 0.45);
+    background: rgba(20, 14, 12, 0.8);
+    color: #d8c09a;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    pointer-events: auto;
+  }
+  .unit .info:hover { color: #ffd166; border-color: #ffd166; }
+  .unit.enemy .nm { color: #ffcfc2; }
+  .unit .hpbar {
+    position: relative;
+    height: 4px;
+    margin-top: 2px;
+    border-radius: 2px;
+    background: #2a1c1c;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .unit .hpbar i {
+    display: block;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #8ee08f, #4fbf6a);
+    transition: width 0.25s;
+  }
+  .unit.enemy .hpbar i { background: linear-gradient(90deg, #ff9a7a, #d64a3e); }
+  .unit .hptxt {
+    margin-top: 1px;
+    font-size: 8px;
+    color: #cdbb9f;
+    font-variant-numeric: tabular-nums;
+  }
+  .unit .ragebar {
+    height: 3px;
+    margin-top: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+  .unit .ragebar i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ffd166, #ff8f5a);
+    transition: width 0.2s;
+  }
+  .unit.ready .ragebar i { box-shadow: 0 0 8px #ffd166; }
+  .unit.sel .plate {
+    border-color: #ffd166;
+    box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.45), 0 0 22px rgba(255, 209, 102, 0.35);
+  }
+  .unit.acted { opacity: 0.78; }
+  .unit.queue .plate {
+    border-color: #ff7a6b;
+    box-shadow: 0 0 18px rgba(255, 122, 107, 0.45);
+  }
+  .unit.dead {
+    opacity: 0.28;
+    filter: grayscale(0.9) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45));
+    pointer-events: none;
+  }
+  .unit.dead .plate { border-color: rgba(120, 105, 95, 0.4); }
+  .unit.hit img { transform: scaleX(-1) translateX(6px); }
+  .unit:not(.flip).hit img { transform: translateX(6px); }
+
+  /* ---------- 顶栏 ---------- */
+  .top {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    right: 18px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .team {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 13px 8px 9px;
+    border-radius: 999px;
+    background: rgba(14, 10, 16, 0.72);
+    border: 1px solid rgba(207, 169, 111, 0.32);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+  }
+  .team .crest {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 40% 35%, #f0c27a, #7b4a2a 70%);
+    color: #2a170e;
+    font-size: 15px;
+    font-weight: 900;
+  }
+  .team b { font-size: 13px; letter-spacing: 0.12em; }
+  .team small {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    color: #b9a68d;
+    letter-spacing: 0.06em;
+  }
+  .enemy-team { padding: 6px 11px 6px 7px; }
+  .enemy-team .crest {
+    width: 26px;
+    height: 26px;
+    background: radial-gradient(circle at 40% 35%, #f0a090, #7a2a22 70%);
+    color: #2a0d0b;
+  }
+  .enemy-team b { color: #ffd2c7; }
+  .mid {
+    text-align: center;
+    min-width: 260px;
+  }
+  .round {
+    display: inline-block;
+    padding: 5px 20px 6px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(34, 24, 26, 0.9), rgba(15, 10, 12, 0.86));
+    border: 1px solid rgba(217, 176, 106, 0.55);
+    color: #f6d99b;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    box-shadow: 0 0 22px rgba(217, 176, 106, 0.18);
+  }
+  .stage-name {
+    margin-top: 6px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #c7b394;
+    text-shadow: 0 2px 8px #000;
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pill {
+    pointer-events: auto;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(14, 10, 16, 0.72);
+    border: 1px solid rgba(207, 169, 111, 0.3);
+    color: #d8c4a5;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .speed, .status-btn {
+    pointer-events: auto;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(14, 10, 16, 0.72);
+    border: 1px solid rgba(207, 169, 111, 0.32);
+    color: #e8d5b5;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+  .speed.on { background: linear-gradient(180deg, #e7bd6a, #b98232); color: #241407; }
+
+  /* ---------- 底部控制 ---------- */
+  .controls {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+  }
+  .controls button {
+    min-width: 96px;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 999px;
+    border: 1px solid rgba(217, 176, 106, 0.45);
+    background: linear-gradient(180deg, rgba(63, 38, 28, 0.94), rgba(34, 20, 16, 0.94));
+    color: #f2ddb8;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.45);
+  }
+  .controls button.primary {
+    background: linear-gradient(180deg, #dfb15f, #a76a2e);
+    border-color: #f4d494;
+    color: #24130a;
+  }
+  .controls button:disabled { opacity: 0.4; cursor: default; }
+  .controls button:active:not(:disabled) { transform: translateY(1px); }
+
+  /* ---------- 日志 / 提示 ---------- */
+  .logbox {
+    position: absolute;
+    left: 18px;
+    bottom: 14px;
+    width: 212px;
+    height: 92px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(10, 8, 12, 0.66);
+    border: 1px solid rgba(207, 169, 111, 0.2);
+    color: #cbbc9f;
+    font-size: 11px;
+    line-height: 1.55;
+    overflow: hidden;
+  }
+  .logbox b { color: #efd7a8; font-weight: 700; }
+  .hint {
+    position: absolute;
+    right: 22px;
+    bottom: 26px;
+    color: rgba(231, 209, 172, 0.72);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-align: right;
+    line-height: 1.7;
+    text-shadow: 0 2px 8px #000;
+  }
+  .hub-back {
+    position: absolute;
+    left: 20px;
+    top: 68px;
+    z-index: 11;
+    color: #c8ae86;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    pointer-events: auto;
+    text-shadow: 0 2px 8px #000;
+  }
+
+  /* ---------- 三层结构 ---------- */
+  .layer { position: absolute; inset: 0; }
+  .layer-bg { z-index: 0; }
+  .layer-slots { z-index: 3; pointer-events: none; }
+  .layer-field { z-index: 4; pointer-events: none; }
+  .layer-fx { z-index: 6; pointer-events: none; overflow: hidden; }
+  .layer-hud { z-index: 8; pointer-events: none; }
+  .layer-detail { z-index: 30; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+  .layer-detail[hidden] { display: none; }
+
+  /* ---------- 怒气就绪 ---------- */
+  .unit .rtag {
+    display: none;
+    margin-top: 1px;
+    font-size: 7px;
+    letter-spacing: 0.08em;
+    color: #ffd166;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 0 8px rgba(255, 209, 102, 0.65);
+  }
+  .unit.ready .rtag { display: block; animation: readyBlink 1.1s ease-in-out infinite; }
+  .unit.ready .plate {
+    border-color: rgba(255, 209, 102, 0.9);
+    box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.35), 0 0 24px rgba(255, 209, 102, 0.4);
+  }
+  .unit.ready::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: 86%;
+    height: 42px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 209, 102, 0.75);
+    box-shadow: 0 0 20px rgba(255, 209, 102, 0.35) inset;
+    animation: readyRing 1.4s ease-out infinite;
+    pointer-events: none;
+  }
+  .unit.guard img { filter: drop-shadow(0 0 13px rgba(130, 195, 255, 0.75)); }
+  .unit.guard .plate { border-color: rgba(130, 195, 255, 0.65); }
+  @keyframes readyBlink {
+    0%, 100% { opacity: 0.65; }
+    50% { opacity: 1; }
+  }
+  @keyframes readyRing {
+    0% { transform: translateX(-50%) scale(0.85); opacity: 0.9; }
+    100% { transform: translateX(-50%) scale(1.15); opacity: 0; }
+  }
+
+  /* ---------- 攻击 / 受击 / 飘字 ---------- */
+  .unit.attacking img { animation: lunge 0.3s ease; }
+  .unit.flip.attacking img { animation-name: lungeFlip; }
+  @keyframes lunge {
+    0%, 100% { transform: translate(0, 0); }
+    45% { transform: translate(var(--dx, 18px), var(--dy, -8px)) scale(1.025); }
+  }
+  @keyframes lungeFlip {
+    0%, 100% { transform: scaleX(-1) translate(0, 0); }
+    45% { transform: scaleX(-1) translate(var(--dx, 18px), var(--dy, -8px)) scale(1.025); }
+  }
+  .unit.hit img { filter: brightness(2.2) saturate(0.7); }
+  .unit.hit { animation: hitShake 0.22s linear; }
+  @keyframes hitShake {
+    0%, 100% { margin-left: 0; }
+    25% { margin-left: -5px; }
+    75% { margin-left: 5px; }
+  }
+  .dmg {
+    position: absolute;
+    z-index: 2;
+    transform: translateX(-50%);
+    color: #ffe9b0;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-shadow: 0 2px 4px #000, 0 0 12px rgba(255, 180, 80, 0.6);
+    animation: dmgFloat 0.75s ease-out forwards;
+    pointer-events: none;
+  }
+  .dmg.crit { color: #ff9a8a; font-size: 30px; }
+  .dmg.heal { color: #9df0b0; }
+  @keyframes dmgFloat {
+    0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+    18% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%, -44px) scale(0.95); }
+  }
+  .impact {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 235, 180, 0.9), rgba(255, 140, 70, 0.4) 45%, transparent 70%);
+    animation: impactOut 0.4s ease-out forwards;
+    pointer-events: none;
+  }
+  .impact.heal {
+    background: radial-gradient(circle, rgba(190, 255, 200, 0.9), rgba(90, 220, 140, 0.4) 45%, transparent 70%);
+  }
+  @keyframes impactOut {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.35); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
+  }
+  .beam {
+    position: absolute;
+    height: 14px;
+    transform-origin: 0 50%;
+    transform: rotate(var(--a, 0deg)) scaleX(1);
+    background: linear-gradient(90deg, rgba(255, 245, 200, 0), rgba(255, 225, 140, 0.95), rgba(255, 150, 80, 0.2));
+    border-radius: 999px;
+    filter: blur(1px);
+    animation: beamOut 0.38s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes beamOut {
+    0% { opacity: 0; transform: rotate(var(--a, 0deg)) scaleX(0.1); }
+    25% { opacity: 1; }
+    100% { opacity: 0; transform: rotate(var(--a, 0deg)) scaleX(1); }
+  }
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: 154px;
+    transform: translateX(-50%);
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: rgba(18, 12, 14, 0.9);
+    border: 1px solid rgba(255, 209, 102, 0.4);
+    color: #ffe0a3;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    animation: toastIn 0.2s ease-out;
+    pointer-events: none;
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translate(-50%, 6px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  .skill-banner {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    transform: translate(-50%, -50%);
+    padding: 8px 34px;
+    border-top: 1px solid rgba(255, 209, 102, 0.7);
+    border-bottom: 1px solid rgba(255, 209, 102, 0.7);
+    background: linear-gradient(90deg, transparent, rgba(40, 20, 12, 0.8), transparent);
+    color: #ffe6b0;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-shadow: 0 0 18px rgba(255, 190, 90, 0.65);
+    animation: bannerOut 0.9s ease-out forwards;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  @keyframes bannerOut {
+    0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.6); }
+    20% { opacity: 1; }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -58%) scaleX(1.04); }
+  }
+
+  /* ---------- 详情 / 装备 / 道具层 ---------- */
+  .detail-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 4, 10, 0.76);
+    backdrop-filter: blur(7px);
+  }
+  .detail-card {
+    position: relative;
+    width: 1060px;
+    height: 600px;
+    display: grid;
+    grid-template-columns: 468px 1fr;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(214, 176, 112, 0.48);
+    background: #141018;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    animation: detailIn 0.22s cubic-bezier(0.2, 1.1, 0.3, 1);
+  }
+  @keyframes detailIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .detail-art {
+    position: relative;
+    background: #0c0a10 center 16% / cover no-repeat;
+  }
+  .detail-art.monster { background-position: center 45%; background-size: 54%; background-repeat: no-repeat; background-color: #17121c; }
+  .detail-art-fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 52%, #141018 100%), linear-gradient(0deg, rgba(8, 6, 10, 0.55), transparent 42%);
+  }
+  .detail-panel {
+    position: relative;
+    padding: 32px 34px 26px;
+    overflow: auto;
+  }
+  .detail-close {
+    position: absolute;
+    right: 14px;
+    top: 12px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(214, 176, 112, 0.35);
+    background: rgba(255, 255, 255, 0.04);
+    color: #d8c4a5;
+    font-size: 20px;
+    line-height: 1;
+  }
+  .detail-kicker {
+    font-size: 10px;
+    letter-spacing: 0.24em;
+    color: #b99a6d;
+  }
+  .detail-panel h2 {
+    margin: 4px 0 8px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #f5e4c8;
+  }
+  .detail-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .detail-tags span {
+    padding: 3px 9px;
+    border-radius: 5px;
+    border: 1px solid rgba(214, 176, 112, 0.32);
+    background: rgba(214, 176, 112, 0.08);
+    color: #d9c19b;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  .detail-tags .quality { color: #ffd166; border-color: rgba(255, 209, 102, 0.5); }
+  .detail-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid rgba(214, 176, 112, 0.18);
+    margin-bottom: 18px;
+  }
+  .detail-tabs button {
+    padding: 8px 18px;
+    border: 0;
+    background: transparent;
+    color: #9f8d75;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    border-bottom: 2px solid transparent;
+  }
+  .detail-tabs button.on {
+    color: #ffd166;
+    border-bottom-color: #d9a860;
+  }
+  .stat-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 12px;
+    color: #b6a48d;
+  }
+  .stat-line b { color: #f2ddb8; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .skill-box {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(214, 176, 112, 0.2);
+    background: rgba(214, 176, 112, 0.04);
+  }
+  .skill-box h3 { margin: 0 0 6px; font-size: 13px; color: #ffd166; letter-spacing: 0.08em; }
+  .skill-box p { margin: 0; font-size: 12px; line-height: 1.7; color: #c9b69a; }
+  .slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slot {
+    min-height: 86px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed rgba(214, 176, 112, 0.26);
+    background: rgba(255, 255, 255, 0.025);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .slot .k { font-size: 10px; letter-spacing: 0.14em; color: #8f7d67; }
+  .slot .v { font-size: 13px; color: #d8c4a5; }
+  .slot .v.empty { color: #6f6154; }
+  .detail-note {
+    margin-top: 16px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #7f7162;
+  }
+
+  /* 小屏只缩不重排：手机先不管 */
+  @media (max-width: 900px) {
+    #stage { box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- 第 1 层：背景层 -->
+  <svg id="bg" class="layer layer-bg" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0d1024"/>
+        <stop offset="0.34" stop-color="#2a2143"/>
+        <stop offset="0.56" stop-color="#6d3e52"/>
+        <stop offset="0.72" stop-color="#b96252"/>
+        <stop offset="0.86" stop-color="#e59a67"/>
+        <stop offset="1" stop-color="#f4c08a"/>
+      </linearGradient>
+      <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#fff6dc" stop-opacity="0.95"/>
+        <stop offset="0.28" stop-color="#ffe1ac" stop-opacity="0.7"/>
+        <stop offset="0.62" stop-color="#ffb36b" stop-opacity="0.22"/>
+        <stop offset="1" stop-color="#ff8c4a" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#4b3a5c"/>
+        <stop offset="1" stop-color="#2b2238"/>
+      </linearGradient>
+      <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2a2034"/>
+        <stop offset="1" stop-color="#17121e"/>
+      </linearGradient>
+      <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#4a3b40"/>
+        <stop offset="0.45" stop-color="#2d2530"/>
+        <stop offset="1" stop-color="#17121a"/>
+      </linearGradient>
+      <linearGradient id="pillar" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#2a1515"/>
+        <stop offset="0.35" stop-color="#713533"/>
+        <stop offset="0.5" stop-color="#a95a4a"/>
+        <stop offset="0.68" stop-color="#6e2f2d"/>
+        <stop offset="1" stop-color="#220f12"/>
+      </linearGradient>
+      <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
+      <filter id="soft6"><feGaussianBlur stdDeviation="6"/></filter>
+      <filter id="glow"><feGaussianBlur stdDeviation="8"/></filter>
+    </defs>
+
+    <rect width="1280" height="720" fill="url(#sky)"/>
+    <circle cx="640" cy="352" r="270" fill="url(#sun)"/>
+
+    <!-- 远山 -->
+    <path d="M0 430 L120 356 L214 398 L330 334 L438 386 L556 320 L676 372 L800 338 L926 394 L1048 344 L1168 388 L1280 348 L1280 560 L0 560 Z"
+          fill="url(#far)" opacity="0.72"/>
+    <path d="M0 474 L104 424 L208 458 L330 402 L452 452 L586 408 L724 458 L858 414 L990 456 L1118 422 L1280 468 L1280 590 L0 590 Z"
+          fill="#241c30" opacity="0.9"/>
+    <path d="M0 520 L150 480 L290 510 L440 474 L600 512 L760 482 L920 514 L1080 486 L1280 520 L1280 620 L0 620 Z"
+          fill="url(#near)" opacity="0.95"/>
+
+    <!-- 云海 -->
+    <g fill="#ffd9b8" opacity="0.16" filter="url(#soft)">
+      <ellipse cx="300" cy="448" rx="300" ry="34"/>
+      <ellipse cx="760" cy="462" rx="340" ry="30"/>
+      <ellipse cx="1130" cy="436" rx="240" ry="26"/>
+      <ellipse cx="110" cy="484" rx="220" ry="24"/>
+      <ellipse cx="1020" cy="500" rx="300" ry="28"/>
+    </g>
+    <g fill="#ffe6c8" opacity="0.1" filter="url(#soft6)">
+      <ellipse cx="520" cy="402" rx="180" ry="16"/>
+      <ellipse cx="920" cy="418" rx="200" ry="18"/>
+    </g>
+
+    <!-- 两侧柱子 -->
+    <g opacity="0.92">
+      <rect x="58" y="132" width="42" height="444" fill="url(#pillar)"/>
+      <rect x="48" y="150" width="62" height="12" fill="#b28755" opacity="0.7"/>
+      <rect x="48" y="520" width="62" height="14" fill="#b28755" opacity="0.55"/>
+      <rect x="50" y="108" width="58" height="28" fill="#3a2020"/>
+      <circle cx="79" cy="218" r="17" fill="#ffb36b" opacity="0.22" filter="url(#glow)"/>
+      <circle cx="79" cy="218" r="7" fill="#ffd9a0" opacity="0.9"/>
+      <rect x="1180" y="132" width="42" height="444" fill="url(#pillar)"/>
+      <rect x="1170" y="150" width="62" height="12" fill="#b28755" opacity="0.7"/>
+      <rect x="1170" y="520" width="62" height="14" fill="#b28755" opacity="0.55"/>
+      <rect x="1172" y="108" width="58" height="28" fill="#3a2020"/>
+      <circle cx="1201" cy="218" r="17" fill="#ffb36b" opacity="0.22" filter="url(#glow)"/>
+      <circle cx="1201" cy="218" r="7" fill="#ffd9a0" opacity="0.9"/>
+    </g>
+
+    <!-- 擂台 -->
+    <g transform="translate(640 592)">
+      <ellipse rx="536" ry="176" fill="#120e16" opacity="0.65"/>
+      <ellipse rx="520" ry="168" fill="url(#floor)"/>
+      <ellipse rx="520" ry="168" fill="none" stroke="#a77c58" stroke-width="3" opacity="0.5"/>
+      <ellipse rx="466" ry="148" fill="#332a35" opacity="0.9"/>
+      <ellipse rx="466" ry="148" fill="none" stroke="#c19a6b" stroke-width="1.5" opacity="0.42"/>
+      <ellipse rx="392" ry="122" fill="#3d3240" opacity="0.8"/>
+      <ellipse rx="392" ry="122" fill="none" stroke="#d5ad78" stroke-width="1.5" opacity="0.4"/>
+      <ellipse rx="318" ry="98" fill="#2e2633"/>
+      <ellipse rx="318" ry="98" fill="none" stroke="#e2bf8a" stroke-width="2" opacity="0.5"/>
+      <ellipse rx="246" ry="76" fill="none" stroke="#a9835c" stroke-width="1" opacity="0.45" stroke-dasharray="6 8"/>
+      <path d="M0 -168 L0 -98 M0 168 L0 98 M-520 0 L-318 0 M520 0 L318 0
+               M-450 -96 L-276 -56 M450 -96 L276 -56 M-450 96 L-276 56 M450 96 L276 56"
+            stroke="#6d5548" stroke-width="1.2" opacity="0.55"/>
+      <circle r="54" fill="none" stroke="#d8b27a" stroke-width="2" opacity="0.55"/>
+      <circle r="34" fill="none" stroke="#d8b27a" stroke-width="1" opacity="0.35" stroke-dasharray="4 6"/>
+      <path d="M0 -26 L14 2 L0 26 L-14 2 Z" fill="#d8b27a" opacity="0.3"/>
+    </g>
+
+    <!-- 前景雾 -->
+    <rect y="590" width="1280" height="130" fill="url(#sky)" opacity="0.06"/>
+    <g fill="#f6c9a4" opacity="0.07" filter="url(#soft)">
+      <ellipse cx="240" cy="640" rx="280" ry="30"/>
+      <ellipse cx="1060" cy="650" rx="300" ry="26"/>
+    </g>
+
+    <!-- 星点 -->
+    <g fill="#ffe9c4">
+      <circle cx="130" cy="80" r="1.4" opacity="0.5"/>
+      <circle cx="330" cy="52" r="1" opacity="0.4"/>
+      <circle cx="980" cy="74" r="1.2" opacity="0.45"/>
+      <circle cx="1140" cy="44" r="0.9" opacity="0.35"/>
+      <circle cx="760" cy="34" r="1" opacity="0.3"/>
+    </g>
+  </svg>
+
+  <!-- 第 2 层：场景战斗层（6 格错位站位 / 立绘 / 特效） -->
+  <div id="slots" class="layer layer-slots"></div>
+  <div id="units" class="layer layer-field"></div>
+  <div id="fx" class="layer layer-fx"></div>
+
+  <!-- HUD 固定在最上层，不参与场景层 -->
+  <div class="layer layer-hud">
+  <header id="hud">
+    <div class="top">
+      <div class="team">
+        <div class="crest">⚔</div>
+        <div>
+          <b>我方</b>
+          <small id="teamHp">3 / 3 人</small>
+        </div>
+      </div>
+      <div class="mid">
+        <div class="round" id="round">回合 1</div>
+        <div class="stage-name">第一图 · 试炼台</div>
+      </div>
+      <div class="right">
+        <div class="team enemy-team">
+          <div class="crest">⚔</div>
+          <div>
+            <b>敌方</b>
+            <small id="enemyHp">3 / 3 人</small>
+          </div>
+        </div>
+        <button class="speed" id="speed" type="button">×1</button>
+        <span class="pill" id="status">自动怒气：关</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="controls" class="controls">
+    <button id="start" class="primary" type="button">开战</button>
+    <button id="auto" type="button">开自动</button>
+    <button id="again" type="button">再摆一次</button>
+  </div>
+
+  <div id="log" class="logbox">
+    <b>战斗记录</b><br>
+    <span id="logText">点英雄：怒气满就直接排队释放；没满会提示怒气。点 i 看详情 / 装备 / 道具。</span>
+  </div>
+
+  <div id="hint" class="hint">
+    点英雄 → 满怒释放<br>
+    点 i → 详情 / 装备 / 道具
+  </div>
+
+  <a class="hub-back" href="index.html">← 返回关卡</a>
+  </div>
+
+</div>
+
+<script src="formation.js"></script>
+<script src="economy.js"></script>
+<script src="levels.js"></script>
+<script src="combat.js"></script>
+<script src="battle.js"></script>
+</body>
+</html>

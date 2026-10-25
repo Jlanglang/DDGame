@@ -3,1558 +3,582 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>卡牌战斗</title>
+<title>卡牌战斗 · 关卡</title>
+<link rel="stylesheet" href="theme.css">
 <style>
   * { box-sizing: border-box; }
   html, body {
-    margin: 0;
-    height: 100%;
-    background: #08060c;
-    overflow: hidden;
+    margin: 0; height: 100%;
+    background: #0a0810;
     color: #f4e7d2;
     font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-    user-select: none;
-    -webkit-user-select: none;
+    -webkit-user-select: none; user-select: none;
   }
-  #stage {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 1280px;
-    height: 720px;
-    overflow: hidden;
+  #app {
+    position: absolute; left: 50%; top: 50%;
+    width: 1280px; height: 720px; overflow: hidden;
     transform-origin: center center;
-    background: #1a1220;
+    background: radial-gradient(120% 90% at 50% 0%, #2a2143 0%, #1a1220 55%, #0d0a12 100%);
     box-shadow: 0 0 80px rgba(0, 0, 0, 0.85);
   }
-  #bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  #units, #fx, #hud {
-    position: absolute;
-    inset: 0;
+  .glow {
+    position: absolute; left: 50%; top: -180px; width: 900px; height: 520px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(255, 190, 120, 0.18), transparent 65%);
     pointer-events: none;
   }
-  #controls, #log, #hint {
-    position: absolute;
-    pointer-events: none;
+  header {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 26px 34px 10px;
   }
-  #controls { pointer-events: auto; }
-  #units { z-index: 4; }
-  #fx { z-index: 6; }
-  #hud { z-index: 8; }
-  #controls { z-index: 10; }
-  #log { z-index: 9; }
-  #hint { z-index: 9; }
-
-  /* ---------- 角色 ---------- */
-  .slot-marker {
-    position: absolute;
-    width: 72px;
-    height: 26px;
-    transform: translate(-50%, 50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(120, 175, 235, 0.32);
-    border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(80, 130, 210, 0.08), transparent 70%);
-    color: rgba(160, 190, 230, 0.55);
-    font-size: 9px;
-    line-height: 1;
-  }
-  .slot-marker.empty {
-    border-style: dashed;
-    color: rgba(160, 190, 230, 0.35);
-    background: transparent;
-  }
-
-  .unit {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    height: 400px;
-    transform: translateX(-50%);
-    pointer-events: auto;
-    cursor: pointer;
-    transition: filter 0.15s, opacity 0.2s;
-    filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.5));
-  }
-  .unit img {
-    height: 100%;
-    width: auto;
-    display: block;
-    transform-origin: center bottom;
-    transition: transform 0.16s;
-    -webkit-mask-image: linear-gradient(to bottom, #000 98.5%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 98.5%, transparent 100%);
-  }
-  .unit.flip img { transform: scaleX(-1); }
-  .unit::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: -8px;
-    width: 70%;
-    height: 22px;
-    transform: translateX(-50%);
-    border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0));
-    z-index: -1;
-  }
-  .unit .plate {
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 4px);
-    width: 94px;
-    transform: translateX(-50%);
-    padding: 3px 6px 4px;
-    border-radius: 6px;
-    background: linear-gradient(180deg, rgba(24, 18, 24, 0.92), rgba(12, 9, 12, 0.88));
-    border: 1px solid rgba(206, 166, 104, 0.55);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    text-align: center;
-  }
-  .unit.back .plate { width: 86px; }
-  .unit .nm {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: #f1dfc2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .unit .slotno {
-    display: inline-block;
-    margin-left: 4px;
-    padding: 0 3px;
-    border: 1px solid rgba(214, 176, 112, 0.35);
-    border-radius: 3px;
-    color: #b99a6d;
-    font-size: 8px;
-    font-weight: 400;
-    line-height: 11px;
-    vertical-align: 1px;
-  }
-  .unit .info {
-    position: absolute;
-    right: 5px;
-    top: 5px;
-    z-index: 3;
-    width: 17px;
-    height: 17px;
-    border-radius: 50%;
-    border: 1px solid rgba(214, 176, 112, 0.45);
-    background: rgba(20, 14, 12, 0.8);
-    color: #d8c09a;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1;
-    padding: 0;
-    pointer-events: auto;
-  }
-  .unit .info:hover { color: #ffd166; border-color: #ffd166; }
-  .unit.enemy .nm { color: #ffcfc2; }
-  .unit .hpbar {
-    position: relative;
-    height: 5px;
-    margin-top: 3px;
-    border-radius: 3px;
-    background: #2a1c1c;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-  .unit .hpbar i {
-    display: block;
-    height: 100%;
-    width: 100%;
-    background: linear-gradient(90deg, #8ee08f, #4fbf6a);
-    transition: width 0.25s;
-  }
-  .unit.enemy .hpbar i { background: linear-gradient(90deg, #ff9a7a, #d64a3e); }
-  .unit .hptxt {
-    margin-top: 1px;
-    font-size: 8px;
-    color: #cdbb9f;
-    font-variant-numeric: tabular-nums;
-  }
-  .unit .ragebar {
-    height: 3px;
-    margin-top: 3px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.1);
-    overflow: hidden;
-  }
-  .unit .ragebar i {
-    display: block;
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #ffd166, #ff8f5a);
-    transition: width 0.2s;
-  }
-  .unit.ready .ragebar i { box-shadow: 0 0 8px #ffd166; }
-  .unit.sel .plate {
-    border-color: #ffd166;
-    box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.45), 0 0 22px rgba(255, 209, 102, 0.35);
-  }
-  .unit.acted { opacity: 0.78; }
-  .unit.queue .plate {
-    border-color: #ff7a6b;
-    box-shadow: 0 0 18px rgba(255, 122, 107, 0.45);
-  }
-  .unit.dead {
-    opacity: 0.28;
-    filter: grayscale(0.9) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.45));
-    pointer-events: none;
-  }
-  .unit.dead .plate { border-color: rgba(120, 105, 95, 0.4); }
-  .unit.hit img { transform: scaleX(-1) translateX(6px); }
-  .unit:not(.flip).hit img { transform: translateX(6px); }
-
-  /* ---------- 顶栏 ---------- */
-  .top {
-    position: absolute;
-    top: 14px;
-    left: 18px;
-    right: 18px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 14px;
-  }
-  .team {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 13px 8px 9px;
-    border-radius: 999px;
-    background: rgba(14, 10, 16, 0.72);
-    border: 1px solid rgba(207, 169, 111, 0.32);
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(6px);
-  }
-  .team .crest {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: radial-gradient(circle at 40% 35%, #f0c27a, #7b4a2a 70%);
-    color: #2a170e;
-    font-size: 15px;
-    font-weight: 900;
-  }
-  .team b { font-size: 13px; letter-spacing: 0.12em; }
-  .team small {
-    display: block;
-    margin-top: 2px;
-    font-size: 10px;
-    color: #b9a68d;
-    letter-spacing: 0.06em;
-  }
-  .enemy-team { padding: 6px 11px 6px 7px; }
-  .enemy-team .crest {
-    width: 26px;
-    height: 26px;
-    background: radial-gradient(circle at 40% 35%, #f0a090, #7a2a22 70%);
-    color: #2a0d0b;
-  }
-  .enemy-team b { color: #ffd2c7; }
-  .mid {
-    text-align: center;
-    min-width: 260px;
-  }
-  .round {
-    display: inline-block;
-    padding: 5px 20px 6px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, rgba(34, 24, 26, 0.9), rgba(15, 10, 12, 0.86));
-    border: 1px solid rgba(217, 176, 106, 0.55);
-    color: #f6d99b;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    box-shadow: 0 0 22px rgba(217, 176, 106, 0.18);
-  }
-  .stage-name {
-    margin-top: 6px;
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    color: #c7b394;
-    text-shadow: 0 2px 8px #000;
-  }
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .pill {
-    pointer-events: auto;
-    padding: 8px 12px;
-    border-radius: 999px;
-    background: rgba(14, 10, 16, 0.72);
+  .brand { display: flex; align-items: baseline; gap: 14px; }
+  .brand h1 { margin: 0; font-size: 26px; letter-spacing: 0.18em; color: #f6e2bb; }
+  .brand small { font-size: 11px; letter-spacing: 0.24em; color: #8f7d67; }
+  .progress {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px; border-radius: 999px;
     border: 1px solid rgba(207, 169, 111, 0.3);
-    color: #d8c4a5;
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    background: rgba(14, 10, 16, 0.7);
+    font-size: 12px; color: #c8ae86;
   }
-  button {
-    font: inherit;
-    color: inherit;
-    cursor: pointer;
-  }
-  .speed, .status-btn {
-    pointer-events: auto;
-    height: 32px;
-    padding: 0 12px;
-    border-radius: 999px;
-    background: rgba(14, 10, 16, 0.72);
-    border: 1px solid rgba(207, 169, 111, 0.32);
-    color: #e8d5b5;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-  }
-  .speed.on { background: linear-gradient(180deg, #e7bd6a, #b98232); color: #241407; }
+  .progress b { color: #ffd166; font-size: 15px; }
+  .hub { margin-left: 14px; font-size: 11px; letter-spacing: 0.08em; color: #8f7d67; text-decoration: none; }
+  .hub:hover { color: #ffd166; }
+  .head-right { display: flex; align-items: center; }
 
-  /* ---------- 底部控制 ---------- */
-  .controls {
-    position: absolute;
-    left: 50%;
-    bottom: 18px;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 10px;
-    pointer-events: auto;
+  .layout {
+    position: relative; z-index: 2;
+    display: grid; grid-template-columns: 1fr 268px;
+    gap: 22px; padding: 8px 34px 26px;
+    height: calc(100% - 96px);
   }
-  .controls button {
-    min-width: 96px;
-    height: 40px;
-    padding: 0 20px;
-    border-radius: 999px;
+  .panel {
+    border-radius: 16px;
+    border: 1px solid rgba(207, 169, 111, 0.18);
+    background: linear-gradient(180deg, rgba(28, 21, 32, 0.86), rgba(14, 10, 18, 0.9));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+  .levels { padding: 16px 18px; overflow: auto; }
+  .levels h2, .team h2 {
+    margin: 0 0 12px; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.2em; color: #b99a6d;
+  }
+  .level-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+  }
+  .lv {
+    position: relative;
+    padding: 12px 12px 10px;
+    border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(207, 169, 111, 0.22);
+    background: linear-gradient(180deg, rgba(46, 33, 40, 0.9), rgba(22, 16, 22, 0.92));
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+  }
+  .lv:hover { transform: translateY(-2px); border-color: rgba(255, 209, 102, 0.45); box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
+  .lv .no { font-size: 20px; font-weight: 800; color: #f2ddb8; letter-spacing: 0.04em; }
+  .lv .nm { margin-top: 2px; font-size: 10px; color: #9f8d75; letter-spacing: 0.06em; }
+  .lv .cnt { margin-top: 8px; font-size: 10px; color: #8f7d67; }
+  .lv .mark {
+    position: absolute; right: 9px; top: 9px; font-size: 11px;
+  }
+  .lv.cleared { border-color: rgba(142, 224, 143, 0.35); }
+  .lv.cleared .mark { color: #8ee08f; }
+  .lv.locked { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.4); }
+  .lv.locked .mark { color: #7f7162; }
+  .lv.current { border-color: rgba(255, 209, 102, 0.75); box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25), 0 0 24px rgba(255, 209, 102, 0.16); }
+
+  .team { padding: 16px 16px 14px; display: flex; flex-direction: column; }
+  .team-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .hero-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.02);
+    text-decoration: none; color: inherit; cursor: pointer;
+    box-shadow: 0 0 calc(var(--qglow-r, 8px) * 0.6) var(--qglow, transparent);
+    transition: background 0.12s, transform 0.12s, box-shadow 0.12s;
+  }
+  .hero-row:hover { background: rgba(255, 255, 255, 0.05); transform: translateX(2px); box-shadow: 0 0 var(--qglow-r, 8px) var(--qglow, transparent); }
+  .hero-row .arrow { font-size: 16px; color: #7f7162; margin-left: 4px; }
+  .hero-row .thumb {
+    width: 42px; height: 56px; flex: 0 0 42px; border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.04);
+    background-size: 200% auto;
+    background-position: 50% 6%;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .hero-row .meta { flex: 1; min-width: 0; }
+  .hero-row .nm { font-size: 13px; font-weight: 700; }
+  .hero-row .pos { font-size: 10px; color: #b99a6d; margin-top: 2px; }
+  .btn.link { display: grid; place-items: center; text-decoration: none; }
+  .team-actions .btn { font-family: inherit; }
+  .team-actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+  .btn {
+    height: 42px; border-radius: 999px; cursor: pointer;
     border: 1px solid rgba(217, 176, 106, 0.45);
     background: linear-gradient(180deg, rgba(63, 38, 28, 0.94), rgba(34, 20, 16, 0.94));
-    color: #f2ddb8;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.45);
+    color: #f2ddb8; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.14em;
   }
-  .controls button.primary {
-    background: linear-gradient(180deg, #dfb15f, #a76a2e);
-    border-color: #f4d494;
-    color: #24130a;
-  }
-  .controls button:disabled { opacity: 0.4; cursor: default; }
-  .controls button:active:not(:disabled) { transform: translateY(1px); }
+  .btn.primary { background: linear-gradient(180deg, #dfb15f, #a76a2e); border-color: #f4d494; color: #24130a; }
+  .btn:active { transform: translateY(1px); }
+  .btn[disabled] { opacity: 0.4; cursor: default; }
+  .tip { margin-top: 10px; font-size: 10px; line-height: 1.7; color: #7f7162; }
 
-  /* ---------- 日志 / 提示 ---------- */
-  .logbox {
-    position: absolute;
-    left: 18px;
-    bottom: 14px;
-    width: 212px;
-    height: 92px;
-    padding: 9px 12px;
-    border-radius: 10px;
-    background: rgba(10, 8, 12, 0.66);
-    border: 1px solid rgba(207, 169, 111, 0.2);
-    color: #cbbc9f;
-    font-size: 11px;
-    line-height: 1.55;
-    overflow: hidden;
+  /* ---------- 布阵层 ---------- */
+  #editor[hidden] { display: none; }
+  #editor {
+    position: absolute; inset: 0; z-index: 20;
+    display: flex; flex-direction: column;
+    background: rgba(6, 4, 10, 0.86);
+    backdrop-filter: blur(8px);
   }
-  .logbox b { color: #efd7a8; font-weight: 700; }
-  .hint {
-    position: absolute;
-    right: 22px;
-    bottom: 26px;
-    color: rgba(231, 209, 172, 0.72);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-align: right;
-    line-height: 1.7;
-    text-shadow: 0 2px 8px #000;
+  .ed-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 34px 6px;
   }
-  .hub-back {
-    position: absolute;
-    left: 20px;
-    top: 68px;
-    z-index: 11;
-    color: #c8ae86;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-decoration: none;
-    pointer-events: auto;
-    text-shadow: 0 2px 8px #000;
+  .ed-head h2 { margin: 0; font-size: 20px; letter-spacing: 0.14em; color: #f6e2bb; }
+  .ed-head small { display: block; margin-top: 4px; font-size: 11px; color: #8f7d67; letter-spacing: 0.08em; }
+  .ed-body { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .board {
+    position: relative; width: 780px; height: 439px;
+    border-radius: 14px; overflow: hidden;
+    border: 1px solid rgba(207, 169, 111, 0.22);
+    background: radial-gradient(120% 100% at 50% 0%, #2a2143 0%, #1a1220 60%, #100c16 100%);
   }
-
-  /* ---------- 三层结构 ---------- */
-  .layer { position: absolute; inset: 0; }
-  .layer-bg { z-index: 0; }
-  .layer-slots { z-index: 3; pointer-events: none; }
-  .layer-field { z-index: 4; pointer-events: none; }
-  .layer-fx { z-index: 6; pointer-events: none; overflow: hidden; }
-  .layer-hud { z-index: 8; pointer-events: none; }
-  .layer-detail { z-index: 30; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
-  .layer-detail[hidden] { display: none; }
-
-  /* ---------- 怒气就绪 ---------- */
-  .unit .rtag {
-    display: none;
-    margin-top: 1px;
-    font-size: 7px;
-    letter-spacing: 0.08em;
-    color: #ffd166;
-    text-align: center;
-    white-space: nowrap;
-    text-shadow: 0 0 8px rgba(255, 209, 102, 0.65);
+  .board-stage {
+    position: absolute; left: 0; top: 0;
+    width: 1280px; height: 720px;
+    transform-origin: 0 0;
+    transform: scale(0.609375);
   }
-  .unit.ready .rtag { display: block; animation: readyBlink 1.1s ease-in-out infinite; }
-  .unit.ready .plate {
-    border-color: rgba(255, 209, 102, 0.9);
-    box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.35), 0 0 24px rgba(255, 209, 102, 0.4);
-  }
-  .unit.ready::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: 2px;
-    width: 86%;
-    height: 42px;
-    transform: translateX(-50%);
+  .board-floor {
+    position: absolute; left: 640px; top: 592px;
+    width: 1040px; height: 336px; margin: -168px 0 0 -520px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 209, 102, 0.75);
-    box-shadow: 0 0 20px rgba(255, 209, 102, 0.35) inset;
-    animation: readyRing 1.4s ease-out infinite;
-    pointer-events: none;
+    border: 1px solid rgba(200, 160, 110, 0.35);
+    background: radial-gradient(ellipse at 50% 45%, rgba(61, 50, 64, 0.95), rgba(26, 18, 26, 0.9) 70%);
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5);
   }
-  .unit.guard img { filter: drop-shadow(0 0 13px rgba(130, 195, 255, 0.75)); }
-  .unit.guard .plate { border-color: rgba(130, 195, 255, 0.65); }
-  @keyframes readyBlink {
-    0%, 100% { opacity: 0.65; }
-    50% { opacity: 1; }
+  .board-floor::before, .board-floor::after {
+    content: ""; position: absolute; border-radius: 50%;
+    border: 1px solid rgba(200, 160, 110, 0.22);
   }
-  @keyframes readyRing {
-    0% { transform: translateX(-50%) scale(0.85); opacity: 0.9; }
-    100% { transform: translateX(-50%) scale(1.15); opacity: 0; }
-  }
+  .board-floor::before { inset: 44px 60px; }
+  .board-floor::after { inset: 96px 132px; }
 
-  /* ---------- 攻击 / 受击 / 飘字 ---------- */
-  .unit.attacking img { animation: lunge 0.3s ease; }
-  .unit.flip.attacking img { animation-name: lungeFlip; }
-  @keyframes lunge {
-    0%, 100% { transform: translate(0, 0); }
-    45% { transform: translate(var(--dx, 18px), var(--dy, -8px)) scale(1.025); }
-  }
-  @keyframes lungeFlip {
-    0%, 100% { transform: scaleX(-1) translate(0, 0); }
-    45% { transform: scaleX(-1) translate(var(--dx, 18px), var(--dy, -8px)) scale(1.025); }
-  }
-  .unit.hit img { filter: brightness(2.2) saturate(0.7); }
-  .unit.hit { animation: hitShake 0.22s linear; }
-  @keyframes hitShake {
-    0%, 100% { margin-left: 0; }
-    25% { margin-left: -5px; }
-    75% { margin-left: 5px; }
-  }
-  .dmg {
-    position: absolute;
-    z-index: 2;
-    transform: translateX(-50%);
-    color: #ffe9b0;
-    font-size: 24px;
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    text-shadow: 0 2px 4px #000, 0 0 12px rgba(255, 180, 80, 0.6);
-    animation: dmgFloat 0.75s ease-out forwards;
-    pointer-events: none;
-  }
-  .dmg.crit { color: #ff9a8a; font-size: 30px; }
-  .dmg.heal { color: #9df0b0; }
-  @keyframes dmgFloat {
-    0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
-    18% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
-    100% { opacity: 0; transform: translate(-50%, -44px) scale(0.95); }
-  }
-  .impact {
-    position: absolute;
-    width: 90px;
-    height: 90px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 235, 180, 0.9), rgba(255, 140, 70, 0.4) 45%, transparent 70%);
-    animation: impactOut 0.4s ease-out forwards;
-    pointer-events: none;
-  }
-  .impact.heal {
-    background: radial-gradient(circle, rgba(190, 255, 200, 0.9), rgba(90, 220, 140, 0.4) 45%, transparent 70%);
-  }
-  @keyframes impactOut {
-    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.35); }
-    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); }
-  }
-  .beam {
-    position: absolute;
-    height: 14px;
-    transform-origin: 0 50%;
-    transform: rotate(var(--a, 0deg)) scaleX(1);
-    background: linear-gradient(90deg, rgba(255, 245, 200, 0), rgba(255, 225, 140, 0.95), rgba(255, 150, 80, 0.2));
-    border-radius: 999px;
-    filter: blur(1px);
-    animation: beamOut 0.38s ease-out forwards;
-    pointer-events: none;
-  }
-  @keyframes beamOut {
-    0% { opacity: 0; transform: rotate(var(--a, 0deg)) scaleX(0.1); }
-    25% { opacity: 1; }
-    100% { opacity: 0; transform: rotate(var(--a, 0deg)) scaleX(1); }
-  }
-  .toast {
-    position: absolute;
-    left: 50%;
-    bottom: 154px;
-    transform: translateX(-50%);
-    padding: 8px 18px;
-    border-radius: 999px;
-    background: rgba(18, 12, 14, 0.9);
-    border: 1px solid rgba(255, 209, 102, 0.4);
-    color: #ffe0a3;
-    font-size: 12px;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    animation: toastIn 0.2s ease-out;
-    pointer-events: none;
-  }
-  @keyframes toastIn {
-    from { opacity: 0; transform: translate(-50%, 6px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-  .skill-banner {
-    position: absolute;
-    left: 50%;
-    top: 46%;
-    transform: translate(-50%, -50%);
-    padding: 8px 34px;
-    border-top: 1px solid rgba(255, 209, 102, 0.7);
-    border-bottom: 1px solid rgba(255, 209, 102, 0.7);
-    background: linear-gradient(90deg, transparent, rgba(40, 20, 12, 0.8), transparent);
-    color: #ffe6b0;
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: 0.22em;
-    text-shadow: 0 0 18px rgba(255, 190, 90, 0.65);
-    animation: bannerOut 0.9s ease-out forwards;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-  @keyframes bannerOut {
-    0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.6); }
-    20% { opacity: 1; }
-    75% { opacity: 1; }
-    100% { opacity: 0; transform: translate(-50%, -58%) scaleX(1.04); }
-  }
-
-  /* ---------- 详情 / 装备 / 道具层 ---------- */
-  .detail-mask {
-    position: absolute;
-    inset: 0;
-    background: rgba(6, 4, 10, 0.76);
-    backdrop-filter: blur(7px);
-  }
-  .detail-card {
-    position: relative;
-    width: 1060px;
-    height: 600px;
-    display: grid;
-    grid-template-columns: 468px 1fr;
-    border-radius: 18px;
-    overflow: hidden;
-    border: 1px solid rgba(214, 176, 112, 0.48);
-    background: #141018;
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-    animation: detailIn 0.22s cubic-bezier(0.2, 1.1, 0.3, 1);
-  }
-  @keyframes detailIn {
-    from { opacity: 0; transform: translateY(14px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .detail-art {
-    position: relative;
-    background: #0c0a10 center 16% / cover no-repeat;
-  }
-  .detail-art.monster { background-position: center 45%; background-size: 54%; background-repeat: no-repeat; background-color: #17121c; }
-  .detail-art-fade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, transparent 52%, #141018 100%), linear-gradient(0deg, rgba(8, 6, 10, 0.55), transparent 42%);
-  }
-  .detail-panel {
-    position: relative;
-    padding: 32px 34px 26px;
-    overflow: auto;
-  }
-  .detail-close {
-    position: absolute;
-    right: 14px;
-    top: 12px;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 1px solid rgba(214, 176, 112, 0.35);
-    background: rgba(255, 255, 255, 0.04);
-    color: #d8c4a5;
-    font-size: 20px;
-    line-height: 1;
-  }
-  .detail-kicker {
-    font-size: 10px;
-    letter-spacing: 0.24em;
-    color: #b99a6d;
-  }
-  .detail-panel h2 {
-    margin: 4px 0 8px;
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    color: #f5e4c8;
-  }
-  .detail-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-  .detail-tags span {
-    padding: 3px 9px;
-    border-radius: 5px;
-    border: 1px solid rgba(214, 176, 112, 0.32);
-    background: rgba(214, 176, 112, 0.08);
-    color: #d9c19b;
-    font-size: 10px;
-    letter-spacing: 0.08em;
-  }
-  .detail-tags .quality { color: #ffd166; border-color: rgba(255, 209, 102, 0.5); }
-  .detail-tabs {
-    display: flex;
-    gap: 2px;
-    border-bottom: 1px solid rgba(214, 176, 112, 0.18);
-    margin-bottom: 18px;
-  }
-  .detail-tabs button {
-    padding: 8px 18px;
-    border: 0;
-    background: transparent;
-    color: #9f8d75;
-    font-size: 13px;
-    letter-spacing: 0.12em;
-    border-bottom: 2px solid transparent;
-  }
-  .detail-tabs button.on {
-    color: #ffd166;
-    border-bottom-color: #d9a860;
-  }
-  .stat-line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 9px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 12px;
-    color: #b6a48d;
-  }
-  .stat-line b { color: #f2ddb8; font-size: 15px; font-variant-numeric: tabular-nums; }
-  .skill-box {
-    margin-top: 16px;
-    padding: 14px 16px;
-    border-radius: 10px;
-    border: 1px solid rgba(214, 176, 112, 0.2);
-    background: rgba(214, 176, 112, 0.04);
-  }
-  .skill-box h3 { margin: 0 0 6px; font-size: 13px; color: #ffd166; letter-spacing: 0.08em; }
-  .skill-box p { margin: 0; font-size: 12px; line-height: 1.7; color: #c9b69a; }
-  .slot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .slot {
-    min-height: 86px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px dashed rgba(214, 176, 112, 0.26);
-    background: rgba(255, 255, 255, 0.025);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    position: absolute; transform: translate(-50%, 50%);
+    border-radius: 50%;
+    border: 1px dashed rgba(160, 190, 230, 0.4);
+    background: radial-gradient(ellipse, rgba(80, 130, 210, 0.12), transparent 70%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: rgba(190, 210, 240, 0.6);
+    transition: box-shadow 0.12s, border-color 0.12s;
   }
-  .slot .k { font-size: 10px; letter-spacing: 0.14em; color: #8f7d67; }
-  .slot .v { font-size: 13px; color: #d8c4a5; }
-  .slot .v.empty { color: #6f6154; }
-  .detail-note {
-    margin-top: 16px;
-    font-size: 11px;
-    line-height: 1.7;
-    color: #7f7162;
-  }
+  .slot.hot { border-color: #ffd166; box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.35), 0 0 24px rgba(255, 209, 102, 0.35); }
+  .slot.filled { border-style: solid; border-color: rgba(255, 209, 102, 0.35); }
 
-  /* 小屏只缩不重排：手机先不管 */
-  @media (max-width: 900px) {
-    #stage { box-shadow: none; }
+  .bunit {
+    position: absolute; transform: translateX(-50%);
+    cursor: grab; touch-action: none;
+  }
+  .bunit img { display: block; height: 100%; width: auto; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.55)); }
+  .bunit .tag {
+    position: absolute; left: 50%; bottom: calc(100% + 3px); transform: translateX(-50%);
+    padding: 1px 6px; border-radius: 4px; white-space: nowrap;
+    font-size: 9px; color: #f1dfc2;
+    background: rgba(18, 13, 18, 0.9);
+    border: 1px solid rgba(206, 166, 104, 0.5);
+  }
+  .bunit.dragging { opacity: 0.35; }
+
+  .tray {
+    display: flex; gap: 14px; align-items: center; justify-content: center;
+    padding: 6px 0 0;
+  }
+  .tray-card {
+    position: relative; width: 92px; padding: 8px 8px 10px;
+    border-radius: 12px; text-align: center; cursor: grab;
+    border: 1px solid var(--qline, rgba(207, 169, 111, 0.28));
+    background: linear-gradient(180deg, rgba(44, 32, 38, 0.95), rgba(20, 14, 20, 0.95));
+    touch-action: none;
+  }
+  .tray-card img { height: 74px; width: auto; display: block; margin: 0 auto 4px; pointer-events: none; }
+  .tray-card .nm { font-size: 11px; font-weight: 700; color: var(--qc, #f2ddb8); pointer-events: none; }
+  .tray-card .used { font-size: 9px; color: #8f7d67; margin-top: 2px; pointer-events: none; }
+  .tray-card.placed { border-color: rgba(142, 224, 143, 0.4); }
+
+  .ed-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 34px 22px;
+  }
+  .ed-note { font-size: 11px; color: #8f7d67; letter-spacing: 0.04em; }
+  .ed-actions { display: flex; gap: 10px; }
+  .ed-actions .btn { min-width: 120px; }
+
+  #ghost {
+    position: fixed; z-index: 60; pointer-events: none;
+    transform: translate(-50%, -100%);
+    filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.6));
+  }
+  #ghost img { display: block; }
+  #ghost .cap {
+    margin-top: 2px; text-align: center; font-size: 10px; color: #ffe0a3;
+    text-shadow: 0 2px 6px #000;
   }
 </style>
 </head>
 <body>
-<div id="stage">
-  <!-- 第 1 层：背景层 -->
-  <svg id="bg" class="layer layer-bg" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <defs>
-      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#0d1024"/>
-        <stop offset="0.34" stop-color="#2a2143"/>
-        <stop offset="0.56" stop-color="#6d3e52"/>
-        <stop offset="0.72" stop-color="#b96252"/>
-        <stop offset="0.86" stop-color="#e59a67"/>
-        <stop offset="1" stop-color="#f4c08a"/>
-      </linearGradient>
-      <radialGradient id="sun" cx="50%" cy="50%" r="50%">
-        <stop offset="0" stop-color="#fff6dc" stop-opacity="0.95"/>
-        <stop offset="0.28" stop-color="#ffe1ac" stop-opacity="0.7"/>
-        <stop offset="0.62" stop-color="#ffb36b" stop-opacity="0.22"/>
-        <stop offset="1" stop-color="#ff8c4a" stop-opacity="0"/>
-      </radialGradient>
-      <linearGradient id="far" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#4b3a5c"/>
-        <stop offset="1" stop-color="#2b2238"/>
-      </linearGradient>
-      <linearGradient id="near" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#2a2034"/>
-        <stop offset="1" stop-color="#17121e"/>
-      </linearGradient>
-      <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#4a3b40"/>
-        <stop offset="0.45" stop-color="#2d2530"/>
-        <stop offset="1" stop-color="#17121a"/>
-      </linearGradient>
-      <linearGradient id="pillar" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#2a1515"/>
-        <stop offset="0.35" stop-color="#713533"/>
-        <stop offset="0.5" stop-color="#a95a4a"/>
-        <stop offset="0.68" stop-color="#6e2f2d"/>
-        <stop offset="1" stop-color="#220f12"/>
-      </linearGradient>
-      <filter id="soft"><feGaussianBlur stdDeviation="14"/></filter>
-      <filter id="soft6"><feGaussianBlur stdDeviation="6"/></filter>
-      <filter id="glow"><feGaussianBlur stdDeviation="8"/></filter>
-    </defs>
+<div id="app">
+  <div class="glow"></div>
 
-    <rect width="1280" height="720" fill="url(#sky)"/>
-    <circle cx="640" cy="352" r="270" fill="url(#sun)"/>
-
-    <!-- 远山 -->
-    <path d="M0 430 L120 356 L214 398 L330 334 L438 386 L556 320 L676 372 L800 338 L926 394 L1048 344 L1168 388 L1280 348 L1280 560 L0 560 Z"
-          fill="url(#far)" opacity="0.72"/>
-    <path d="M0 474 L104 424 L208 458 L330 402 L452 452 L586 408 L724 458 L858 414 L990 456 L1118 422 L1280 468 L1280 590 L0 590 Z"
-          fill="#241c30" opacity="0.9"/>
-    <path d="M0 520 L150 480 L290 510 L440 474 L600 512 L760 482 L920 514 L1080 486 L1280 520 L1280 620 L0 620 Z"
-          fill="url(#near)" opacity="0.95"/>
-
-    <!-- 云海 -->
-    <g fill="#ffd9b8" opacity="0.16" filter="url(#soft)">
-      <ellipse cx="300" cy="448" rx="300" ry="34"/>
-      <ellipse cx="760" cy="462" rx="340" ry="30"/>
-      <ellipse cx="1130" cy="436" rx="240" ry="26"/>
-      <ellipse cx="110" cy="484" rx="220" ry="24"/>
-      <ellipse cx="1020" cy="500" rx="300" ry="28"/>
-    </g>
-    <g fill="#ffe6c8" opacity="0.1" filter="url(#soft6)">
-      <ellipse cx="520" cy="402" rx="180" ry="16"/>
-      <ellipse cx="920" cy="418" rx="200" ry="18"/>
-    </g>
-
-    <!-- 两侧柱子 -->
-    <g opacity="0.92">
-      <rect x="58" y="132" width="42" height="444" fill="url(#pillar)"/>
-      <rect x="48" y="150" width="62" height="12" fill="#b28755" opacity="0.7"/>
-      <rect x="48" y="520" width="62" height="14" fill="#b28755" opacity="0.55"/>
-      <rect x="50" y="108" width="58" height="28" fill="#3a2020"/>
-      <circle cx="79" cy="218" r="17" fill="#ffb36b" opacity="0.22" filter="url(#glow)"/>
-      <circle cx="79" cy="218" r="7" fill="#ffd9a0" opacity="0.9"/>
-      <rect x="1180" y="132" width="42" height="444" fill="url(#pillar)"/>
-      <rect x="1170" y="150" width="62" height="12" fill="#b28755" opacity="0.7"/>
-      <rect x="1170" y="520" width="62" height="14" fill="#b28755" opacity="0.55"/>
-      <rect x="1172" y="108" width="58" height="28" fill="#3a2020"/>
-      <circle cx="1201" cy="218" r="17" fill="#ffb36b" opacity="0.22" filter="url(#glow)"/>
-      <circle cx="1201" cy="218" r="7" fill="#ffd9a0" opacity="0.9"/>
-    </g>
-
-    <!-- 擂台 -->
-    <g transform="translate(640 592)">
-      <ellipse rx="536" ry="176" fill="#120e16" opacity="0.65"/>
-      <ellipse rx="520" ry="168" fill="url(#floor)"/>
-      <ellipse rx="520" ry="168" fill="none" stroke="#a77c58" stroke-width="3" opacity="0.5"/>
-      <ellipse rx="466" ry="148" fill="#332a35" opacity="0.9"/>
-      <ellipse rx="466" ry="148" fill="none" stroke="#c19a6b" stroke-width="1.5" opacity="0.42"/>
-      <ellipse rx="392" ry="122" fill="#3d3240" opacity="0.8"/>
-      <ellipse rx="392" ry="122" fill="none" stroke="#d5ad78" stroke-width="1.5" opacity="0.4"/>
-      <ellipse rx="318" ry="98" fill="#2e2633"/>
-      <ellipse rx="318" ry="98" fill="none" stroke="#e2bf8a" stroke-width="2" opacity="0.5"/>
-      <ellipse rx="246" ry="76" fill="none" stroke="#a9835c" stroke-width="1" opacity="0.45" stroke-dasharray="6 8"/>
-      <path d="M0 -168 L0 -98 M0 168 L0 98 M-520 0 L-318 0 M520 0 L318 0
-               M-450 -96 L-276 -56 M450 -96 L276 -56 M-450 96 L-276 56 M450 96 L276 56"
-            stroke="#6d5548" stroke-width="1.2" opacity="0.55"/>
-      <circle r="54" fill="none" stroke="#d8b27a" stroke-width="2" opacity="0.55"/>
-      <circle r="34" fill="none" stroke="#d8b27a" stroke-width="1" opacity="0.35" stroke-dasharray="4 6"/>
-      <path d="M0 -26 L14 2 L0 26 L-14 2 Z" fill="#d8b27a" opacity="0.3"/>
-    </g>
-
-    <!-- 前景雾 -->
-    <rect y="590" width="1280" height="130" fill="url(#sky)" opacity="0.06"/>
-    <g fill="#f6c9a4" opacity="0.07" filter="url(#soft)">
-      <ellipse cx="240" cy="640" rx="280" ry="30"/>
-      <ellipse cx="1060" cy="650" rx="300" ry="26"/>
-    </g>
-
-    <!-- 星点 -->
-    <g fill="#ffe9c4">
-      <circle cx="130" cy="80" r="1.4" opacity="0.5"/>
-      <circle cx="330" cy="52" r="1" opacity="0.4"/>
-      <circle cx="980" cy="74" r="1.2" opacity="0.45"/>
-      <circle cx="1140" cy="44" r="0.9" opacity="0.35"/>
-      <circle cx="760" cy="34" r="1" opacity="0.3"/>
-    </g>
-  </svg>
-
-  <!-- 第 2 层：场景战斗层（6 格错位站位 / 立绘 / 特效） -->
-  <div id="slots" class="layer layer-slots"></div>
-  <div id="units" class="layer layer-field"></div>
-  <div id="fx" class="layer layer-fx"></div>
-
-  <!-- HUD 固定在最上层，不参与场景层 -->
-  <div class="layer layer-hud">
-  <header id="hud">
-    <div class="top">
-      <div class="team">
-        <div class="crest">⚔</div>
-        <div>
-          <b>我方</b>
-          <small id="teamHp">3 / 3 人</small>
-        </div>
-      </div>
-      <div class="mid">
-        <div class="round" id="round">回合 1</div>
-        <div class="stage-name">第一图 · 试炼台</div>
-      </div>
-      <div class="right">
-        <div class="team enemy-team">
-          <div class="crest">⚔</div>
-          <div>
-            <b>敌方</b>
-            <small id="enemyHp">3 / 3 人</small>
-          </div>
-        </div>
-        <button class="speed" id="speed" type="button">×1</button>
-        <span class="pill" id="status">自动怒气：关</span>
-      </div>
+  <header>
+    <div class="brand">
+      <h1>卡牌战斗</h1>
+      <small>STAGE SELECT</small>
+    </div>
+    <div class="head-right">
+      <div class="progress">等级 <b id="lvText">Lv.0</b></div>
+      <div class="progress">金币 <b id="goldText">0</b></div>
+      <div class="progress">进度 <b id="progText">0 / 20</b></div>
+      <a class="hub" href="../../index.html">游戏库</a>
     </div>
   </header>
 
-  <div id="controls" class="controls">
-    <button id="start" class="primary" type="button">开战</button>
-    <button id="auto" type="button">开自动</button>
-    <button id="again" type="button">再摆一次</button>
-  </div>
-
-  <div id="log" class="logbox">
-    <b>战斗记录</b><br>
-    <span id="logText">点英雄：怒气满就直接排队释放；没满会提示怒气。点 i 看详情 / 装备 / 道具。</span>
-  </div>
-
-  <div id="hint" class="hint">
-    点英雄 → 满怒释放<br>
-    点 i → 详情 / 装备 / 道具
-  </div>
-
-  <a class="hub-back" href="../../index.html">← 游戏库</a>
-  </div>
-
-  <!-- 第 3 层：角色详情 / 装备 / 道具（交互层） -->
-  <div id="detail" class="layer layer-detail" hidden>
-    <div class="detail-mask" id="detailMask"></div>
-    <section class="detail-card" role="dialog" aria-modal="true" aria-label="角色详情">
-      <div class="detail-art" id="detailArt">
-        <div class="detail-art-fade"></div>
-      </div>
-      <div class="detail-panel">
-        <button class="detail-close" id="detailClose" type="button" aria-label="关闭">×</button>
-        <div class="detail-kicker" id="detailKicker">英雄详情</div>
-        <h2 id="detailName">极光</h2>
-        <div class="detail-tags" id="detailTags"></div>
-        <div class="detail-tabs" id="detailTabs">
-          <button type="button" data-tab="info" class="on">详情</button>
-          <button type="button" data-tab="equip">装备</button>
-          <button type="button" data-tab="items">道具</button>
-        </div>
-        <div class="detail-body" id="detailBody"></div>
-      </div>
+  <div class="layout">
+    <section class="panel levels">
+      <h2>关卡</h2>
+      <div class="level-grid" id="levelGrid"></div>
     </section>
+
+    <aside class="panel team">
+      <h2>出战队伍</h2>
+      <div class="team-list" id="teamList"></div>
+      <div class="team-actions">
+        <button class="btn primary" id="btnBattle" type="button">出 战</button>
+        <button class="btn" id="btnFormation" type="button">布 阵</button>
+        <a class="btn link" href="heroes.html">英雄池</a>
+      </div>
+      <div class="tip">点队伍里的英雄看详情。<br>布阵只能在主页面做，保存后战斗照着摆。</div>
+    </aside>
+  </div>
+
+  <!-- 布阵层 -->
+  <div id="editor" hidden>
+    <div class="ed-head">
+      <div>
+        <h2>布 阵</h2>
+        <small>把下面的英雄拖到圈里；拖已上场的英雄到别的圈可以换位</small>
+      </div>
+      <div class="ed-note" id="edLevel">敌方：—</div>
+    </div>
+    <div class="ed-body">
+      <div class="board" id="board">
+        <div class="board-stage" id="boardStage">
+          <div class="board-floor"></div>
+          <div id="boardSlots"></div>
+          <div id="boardUnits"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tray" id="tray"></div>
+    <div class="ed-foot">
+      <div class="ed-note">位置规则：1/2 前排、3/4/5 后排；1、3 是锚点，其余按左切面推</div>
+      <div class="ed-actions">
+        <button class="btn" id="btnCancel" type="button">取 消</button>
+        <button class="btn primary" id="btnSave" type="button">保 存</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<script src="combat.js"></script>
+<script src="formation.js"></script>
+<script src="levels.js"></script>
+<script src="heroes.js"></script>
+<script src="economy.js"></script>
 <script>
-  var W = 1280;
-  var H = 720;
-  var stage = document.getElementById('stage');
-  var unitsHost = document.getElementById('units');
-  var logText = document.getElementById('logText');
-  var roundEl = document.getElementById('round');
-  var teamHp = document.getElementById('teamHp');
-  var statusEl = document.getElementById('status');
+(function () {
+  'use strict';
+  var app = document.getElementById('app');
+  var board = document.getElementById('board');
+  var boardStage = document.getElementById('boardStage');
+  var boardSlots = document.getElementById('boardSlots');
+  var boardUnits = document.getElementById('boardUnits');
+  var tray = document.getElementById('tray');
 
-  var FACE_BG = {
-    aurora: 'faces/aurora.jpg', changhong: 'faces/changhong.jpg',
-    chixing: 'faces/chixing.jpg', yujin: 'faces/yujin.jpg',
-    dajian: 'faces/dajian.jpg', zhenjia: 'faces/zhenjia.jpg',
-    kuoren: 'faces/kuoren.jpg', tiezhuang: 'faces/tiezhuang.jpg',
-    yueguang: 'faces/yueguang.jpg', gushou: 'faces/gushou.jpg',
-    candeng: 'faces/candeng.jpg', zaochao: 'faces/zaochao.jpg'
-  };
-  var detailUnit = null;
-  var detailTab = 'info';
-  var detailResume = false;
+  var currentLevel = Math.min(CF.nextUncleared(), CF.LEVELS.length);
+  var formation = CF.loadFormation();
+  var draft = null;         // 布阵中的临时阵容
+  var drag = null;          // { hero, fromSlot, ghost }
 
   function fit() {
-    var s = Math.min(window.innerWidth / W, window.innerHeight / H);
-    stage.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    app.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
   }
   window.addEventListener('resize', fit);
   fit();
 
-  var SLOT_POS = {
-    player: {
-      1: { left: 440, bottom: 320 }, 2: { left: 440, bottom: 210 }, 3: { left: 440, bottom: 100 },
-      4: { left: 260, bottom: 320 }, 5: { left: 260, bottom: 210 }, 6: { left: 260, bottom: 100 }
-    },
-    enemy: {
-      1: { left: 840, bottom: 320 }, 2: { left: 840, bottom: 210 }, 3: { left: 840, bottom: 100 },
-      4: { left: 1010, bottom: 320 }, 5: { left: 1010, bottom: 210 }, 6: { left: 1010, bottom: 100 }
+  /* ---------------- 关卡列表 ---------------- */
+  function renderLevels() {
+    var grid = document.getElementById('levelGrid');
+    var prog = CF.loadProgress();
+    grid.innerHTML = '';
+    CF.LEVELS.forEach(function (lv) {
+      var cleared = prog.cleared.indexOf(lv.id) >= 0;
+      var unlocked = CF.isUnlocked(lv.id);
+      var d = document.createElement('div');
+      d.className = 'lv' + (cleared ? ' cleared' : '') + (unlocked ? '' : ' locked') +
+        (lv.id === currentLevel ? ' current' : '');
+      d.innerHTML =
+        '<div class="no">' + String(lv.id).padStart(2, '0') + '</div>' +
+        '<div class="nm">' + lv.name + '</div>' +
+        '<div class="cnt">敌方 ' + lv.enemies.length + ' 人</div>' +
+        '<div class="mark">' + (cleared ? '★' : unlocked ? '' : '🔒') + '</div>';
+      d.addEventListener('click', function () {
+        if (!unlocked) return;
+        currentLevel = lv.id;
+        renderLevels();
+        renderTeam();
+      });
+      d.addEventListener('dblclick', function () {
+        if (unlocked) location.href = 'battle.html?level=' + lv.id;
+      });
+      grid.appendChild(d);
+    });
+    var clearedCount = prog.cleared.length;
+    document.getElementById('progText').textContent = clearedCount + ' / ' + CF.LEVELS.length;
+  }
+
+  /* ---------------- 队伍 ---------------- */
+  function renderTeam() {
+    var list = document.getElementById('teamList');
+    list.innerHTML = '';
+    formation.slice().sort(function (a, b) { return a.slot - b.slot; }).forEach(function (it) {
+      var h = CF.HEROES[it.hero];
+      var db = (window.HERO_DB && HERO_DB[it.hero]) || { q: 'A', lv: 1 };
+      var hl = window.ECO ? ECO.levelOf(it.hero) : db.lv;
+      var row = document.createElement('a');
+      row.className = 'hero-row q-edge q-' + db.q;
+      row.href = 'hero.html?id=' + it.hero;
+      row.innerHTML =
+        '<span class="thumb" style="background-image:url(\'' + (db.face || h.img) + '\')"></span>' +
+        '<div class="meta"><div class="nm q-name">' + h.name + '</div>' +
+        '<div class="pos">Lv.' + hl + ' · ' + it.slot + ' 号位 · ' +
+          (it.slot <= 2 ? '前排' : '后排') + '</div></div>' +
+        '<span class="arrow">›</span>';
+      list.appendChild(row);
+    });
+    var lv = CF.levelById(currentLevel);
+    document.getElementById('btnBattle').textContent = '出 战 · 第 ' + lv.id + ' 关';
+    if (window.ECO) {
+      document.getElementById('lvText').textContent = 'Lv.' + ECO.playerLevel();
+      document.getElementById('goldText').textContent = ECO.gold();
     }
-  };
-
-  var POS = {
-    aurora:   { left: 340, bottom: 300, h: 180, flip: false, z: 20 },
-    dajian:   { left: 230, bottom: 90,  h: 200, flip: false, z: 30 },
-    yueguang: { left: 150, bottom: 210, h: 175, flip: false, z: 20 },
-    mslime:   { left: 940, bottom: 300, h: 100, flip: false, z: 20 },
-    mgolem:   { left: 1050,bottom: 90,  h: 170, flip: false, z: 30 },
-    mbat:     { left: 1130,bottom: 210, h: 110, flip: false, z: 20 }
-  };
-
-  function makeUnit(p) {
-    var u = {
-      hp: 100, maxHp: 100, atk: 10, def: 0, alive: true,
-      row: 'front', col: 0, rage: 0
-    };
-    for (var k in p) u[k] = p[k];
-    u.maxHp = u.hp;
-    return u;
   }
 
-  function defaultUnits() {
-    // 演示用：开场双方怒气都写满，方便直接试技能；养成接入后按装备/出场怒气算
-    return [
-      makeUnit({ id: 'dajian', name: '紫垣', img: 'cutouts/actions/dajian-7.webp', side: 'player', row: 'front', col: 1, slot: 3, atk: 20, hp: 200, rage: 1000, rageSkill: 'guard', attackFrames: ['cutouts/actions/dajian-6.webp'], skillImg: 'cutouts/actions/dajian-7.webp' }),
-      makeUnit({ id: 'aurora', name: '极光', img: 'cutouts/actions/aurora-1.webp', side: 'player', row: 'back', col: 0, slot: 1, atk: 30, hp: 100, rage: 1000, rageSkill: 'back', attackFrames: ['cutouts/actions/aurora-attack.webp'], skillImg: 'cutouts/actions/aurora-9.webp' }),
-      makeUnit({ id: 'yueguang', name: '月光', img: 'cutouts/actions/yueguang-3.webp', side: 'player', row: 'back', col: 2, slot: 5, atk: 8, hp: 120, rage: 1000, rageSkill: 'heal-row', skillImg: 'cutouts/actions/yueguang-skill.webp' }),
-      makeUnit({ id: 'mgolem', name: '岩石傀儡', img: 'cutouts/monster-golem-clean.webp', side: 'enemy', row: 'front', col: 1, slot: 3, atk: 14, hp: 160, rage: 1000, rageSkill: 'front-sweep' }),
-      makeUnit({ id: 'mslime', name: '青苔史莱姆', img: 'cutouts/monster-slime-clean.webp', side: 'enemy', row: 'back', col: 0, slot: 1, atk: 10, hp: 90, rage: 1000, rageSkill: 'execute' }),
-      makeUnit({ id: 'mbat', name: '夜翼蝙蝠', img: 'cutouts/monster-bat-clean.webp', side: 'enemy', row: 'back', col: 2, slot: 5, atk: 12, hp: 80, rage: 1000, rageSkill: 'row-sweep' })
-    ];
+  document.getElementById('btnBattle').addEventListener('click', function () {
+    location.href = 'battle.html?level=' + currentLevel;
+  });
+
+  /* ---------------- 布阵 ---------------- */
+  function openEditor() {
+    draft = formation.map(function (x) { return { hero: x.hero, slot: x.slot }; });
+    document.getElementById('editor').hidden = false;
+    renderBoard();
+    renderTray();
   }
 
-  var units = defaultUnits();
-  var fighting = false;
-  var selectedId = '';
-  var round = 1;
-  var timer = 0;
-  var rageQueue = [];
-  var rageSeq = 0;
-  var autoRage = false;
-  var speed = 1;
-  var saved = null;
-
-  function unitEl(id) {
-    return document.getElementById('u-' + id);
+  function closeEditor() {
+    document.getElementById('editor').hidden = true;
+    draft = null;
+    killGhost();
   }
 
-  function buildScene() {
-    unitsHost.innerHTML = '';
-    units.forEach(function (u) {
-      var pos = POS[u.id];
-      // 站位只认 slot：改 slot 就会自动对准 1-6 号格
-      var sp = SLOT_POS[u.side][u.slot];
-      if (sp) {
-        pos.left = sp.left;
-        pos.bottom = sp.bottom;
-      }
+  function slotsOf(list) {
+    var w = {};
+    list.forEach(function (it) {
+      if (it.slot === 1 || it.slot === 3 || it.slot === 4) w[it.slot] = CF.widthOf(it.hero);
+    });
+    return CF.computeSlots('player', w);
+  }
+
+  function renderBoard() {
+    var pos = slotsOf(draft);
+    boardSlots.innerHTML = '';
+    boardUnits.innerHTML = '';
+    // 敌方站位（只做预览，不可拖）
+    var lv = CF.levelById(currentLevel);
+    var ew = {};
+    lv.enemies.forEach(function (e) {
+      if (e.slot === 1 || e.slot === 3 || e.slot === 4) ew[e.slot] = CF.widthOf(e.art);
+    });
+    var epos = CF.computeSlots('enemy', ew);
+    lv.enemies.forEach(function (e) {
+      var m = CF.MONSTERS[e.art];
+      var ep = epos[e.slot];
+      var es = CF.depthScale(720 - ep.bottom);
+      var n = document.createElement('div');
+      n.className = 'bunit enemy';
+      n.style.left = ep.left + 'px';
+      n.style.bottom = ep.bottom + 'px';
+      n.style.height = (CF.BODY_H * es) + 'px';
+      n.style.opacity = '0.32';
+      n.style.pointerEvents = 'none';
+      n.innerHTML = '<img src="' + m.img + '" alt="" draggable="false">' +
+        '<div class="tag">' + m.name + ' · ' + e.slot + '</div>';
+      boardUnits.appendChild(n);
+    });
+    for (var no = 1; no <= 5; no += 1) {
+      var p = pos[no];
+      var s = CF.depthScale(720 - p.bottom);
+      var d = document.createElement('div');
+      d.className = 'slot';
+      d.dataset.slot = no;
+      d.style.left = p.left + 'px';
+      d.style.bottom = p.bottom + 'px';
+      d.style.width = (96 * s) + 'px';
+      d.style.height = (96 * s * CF.FLOOR_RATIO) + 'px';
+      d.textContent = no;
+      boardSlots.appendChild(d);
+    }
+    draft.forEach(function (it) {
+      var p = pos[it.slot];
+      var h = CF.HEROES[it.hero];
+      var s = CF.depthScale(720 - p.bottom);
       var el = document.createElement('div');
-      el.id = 'u-' + u.id;
-      el.className = 'unit ' + (u.side === 'player' ? 'player' : 'enemy') + (u.row === 'back' ? ' back' : '') + (pos.flip ? ' flip' : '');
-      el.style.left = pos.left + 'px';
-      el.style.bottom = pos.bottom + 'px';
-      el.style.height = pos.h + 'px';
-      el.style.zIndex = pos.z;
-      el.dataset.id = u.id;
-      el.innerHTML =
-        '<img src="' + u.img + '" alt="">' +
-        '<div class="plate">' +
-          '<div class="nm">' + u.name + '<span class="slotno">' + u.slot + '</span></div>' +
-          '<div class="hpbar"><i></i></div>' +
-        '</div>';
+      el.className = 'bunit';
+      el.dataset.hero = it.hero;
+      el.dataset.slot = it.slot;
+      el.style.left = p.left + 'px';
+      el.style.bottom = p.bottom + 'px';
+      el.style.height = (CF.BODY_H * s) + 'px';
+      el.innerHTML = '<img src="' + h.img + '" alt="" draggable="false">' +
+        '<div class="tag">' + h.name + ' · ' + it.slot + '</div>';
       el.addEventListener('pointerdown', function (e) {
         e.preventDefault();
-        onUnitClick(u);
+        startDrag(e, it.hero, it.slot);
       });
-      var nm = el.querySelector('.nm');
-      nm.addEventListener('pointerdown', function (e) {
+      boardUnits.appendChild(el);
+    });
+    var lv = CF.levelById(currentLevel);
+    document.getElementById('edLevel').textContent =
+      '本关敌方：' + lv.enemies.map(function (e) { return CF.MONSTERS[e.art].name + '(' + e.slot + ')'; }).join('、');
+  }
+
+  function renderTray() {
+    tray.innerHTML = '';
+    CF.HERO_ORDER.forEach(function (id) {
+      var h = CF.HEROES[id];
+      var db = (window.HERO_DB && HERO_DB[id]) || { q: 'A', lv: 1 };
+      var used = draft.filter(function (x) { return x.hero === id; })[0];
+      var card = document.createElement('div');
+      card.className = 'tray-card q-' + db.q + (used ? ' placed' : '');
+      card.innerHTML = '<img src="' + h.img + '" alt="" draggable="false">' +
+        '<div class="nm q-name">' + h.name + '</div>' +
+        '<div class="used">' + (used ? used.slot + ' 号位' : '未上场') + '</div>';
+      card.addEventListener('pointerdown', function (e) {
         e.preventDefault();
-        e.stopPropagation();
-        openDetail(u);
+        if (used) { startDrag(e, id, used.slot); return; }
+        startDrag(e, id, null);
       });
-      unitsHost.appendChild(el);
+      tray.appendChild(card);
     });
   }
 
-  function buildSlots() {
-    var host = el('slots');
-    host.innerHTML = '';
-    ['player', 'enemy'].forEach(function (side) {
-      for (var no = 1; no <= 6; no += 1) {
-        var p = SLOT_POS[side][no];
-        var used = units.some(function (u) { return u.side === side && u.slot === no; });
-        var d = document.createElement('div');
-        d.className = 'slot-marker' + (used ? '' : ' empty');
-        d.style.left = p.left + 'px';
-        d.style.bottom = p.bottom + 'px';
-        d.textContent = no;
-        host.appendChild(d);
-      }
-    });
+  /* ---------------- 拖拽 ---------------- */
+  function startDrag(e, hero, fromSlot) {
+    var h = CF.HEROES[hero];
+    var g = document.createElement('div');
+    g.id = 'ghost';
+    g.innerHTML = '<img src="' + h.img + '" style="height:' + 150 + 'px">' +
+      '<div class="cap">' + h.name + '</div>';
+    document.body.appendChild(g);
+    drag = { hero: hero, fromSlot: fromSlot, ghost: g };
+    moveGhost(e.clientX, e.clientY);
+    var placed = boardUnits.querySelector('.bunit[data-hero="' + hero + '"]');
+    if (placed) placed.classList.add('dragging');
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    highlight(true);
   }
 
-  function el(id) { return document.getElementById(id); }
-
-  function log(line) {
-    var old = logText.innerHTML.split('<br>');
-    old.unshift(line);
-    logText.innerHTML = old.slice(0, 4).join('<br>');
+  function moveGhost(x, y) {
+    if (!drag) return;
+    drag.ghost.style.left = x + 'px';
+    drag.ghost.style.top = y + 'px';
   }
 
-  function living(side) {
-    return CardFight.livingSide(units, side);
+  function killGhost() {
+    if (drag && drag.ghost) drag.ghost.remove();
+    drag = null;
+    highlight(false);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
   }
 
-  function outcome() {
-    if (!living('player').length) return '我方倒下';
-    if (!living('enemy').length) return '敌方倒下';
-    return '';
-  }
+  function onMove(e) { moveGhost(e.clientX, e.clientY); }
 
-  function render() {
-    units.forEach(function (u) {
-      var node = unitEl(u.id);
-      if (!node) return;
-      var hp = Math.max(0, u.hp);
-      var ratio = u.maxHp ? hp / u.maxHp : 0;
-      var queued = rageQueue.some(function (q) { return q.id === u.id; });
-      node.classList.toggle('sel', u.id === selectedId);
-      node.classList.toggle('acted', !!u.acted && u.alive);
-      node.classList.toggle('queue', queued);
-      node.classList.toggle('ready', !!(u.rageSkill && (u.rage || 0) >= CardFight.RAGE_MAX));
-      node.classList.toggle('guard', !!(u.guard > 0));
-      node.classList.toggle('dead', !u.alive);
-      var nm = node.querySelector('.nm');
-      var hpbar = node.querySelector('.hpbar i');
-      nm.innerHTML = u.name + '<span class="slotno">' + u.slot + '</span>';
-      hpbar.style.width = Math.max(0, Math.min(100, ratio * 100)) + '%';
-    });
+  function onUp(e) {
+    if (!drag) return;
+    var slot = slotAt(e.clientX, e.clientY);
+    var hero = drag.hero;
+    var from = drag.fromSlot;
+    killGhost();
+    if (!slot) { renderBoard(); renderTray(); return; }
 
-    var players = living('player').length;
-    var enemies = living('enemy').length;
-    teamHp.textContent = players + ' / 3 人';
-    el('enemyHp').textContent = enemies + ' / 3 人';
-    roundEl.textContent = '回合 ' + round;
-    statusEl.textContent = autoRage ? '自动怒气：开' : '自动怒气：关';
-    el('start').disabled = fighting;
-    el('auto').textContent = autoRage ? '关自动' : '开自动';
-    el('again').disabled = false;
-  }
-
-  function openDetail(u) {
-    if (!u) return;
-    detailUnit = u;
-    detailTab = 'info';
-    detailResume = fighting && !outcome();
-    if (detailResume) stopLoop();
-
-    var face = FACE_BG[u.id] || null;
-    var art = el('detailArt');
-    art.style.backgroundImage = 'url("' + (face || u.img) + '")';
-    art.classList.toggle('monster', !face);
-
-    el('detailKicker').textContent = u.side === 'player' ? '英雄详情' : '敌方单位';
-    el('detailName').textContent = u.name;
-    var role = u.side === 'player' ? '我方' : '敌方';
-    var quality = u.side === 'player' ? 'A' : '普通';
-    el('detailTags').innerHTML =
-      '<span>' + role + '</span>' +
-      '<span class="quality">' + quality + '</span>' +
-      '<span>Lv.1</span>' +
-      '<span>' + (u.rageSkill ? '怒气型' : '普通型') + '</span>';
-
-    renderDetailTabs();
-    el('detail').hidden = false;
-  }
-
-  function closeDetail() {
-    el('detail').hidden = true;
-    detailUnit = null;
-    if (detailResume) {
-      detailResume = false;
-      if (fighting && !outcome()) startLoop();
-    }
-  }
-
-  function renderDetailTabs() {
-    var tabs = el('detailTabs').querySelectorAll('button');
-    for (var i = 0; i < tabs.length; i += 1) {
-      tabs[i].classList.toggle('on', tabs[i].getAttribute('data-tab') === detailTab);
-    }
-    el('detailBody').innerHTML = detailBody(detailUnit);
-  }
-
-  function detailBody(u) {
-    if (!u) return '';
-    if (detailTab === 'equip') {
-      return '<div class="slot-grid">' +
-        '<div class="slot"><span class="k">武器</span><span class="v empty">未装备</span></div>' +
-        '<div class="slot"><span class="k">护甲</span><span class="v empty">未装备</span></div>' +
-        '<div class="slot"><span class="k">饰品</span><span class="v empty">未装备</span></div>' +
-        '<div class="slot"><span class="k">靴子</span><span class="v empty">未装备</span></div>' +
-        '</div>' +
-        '<p class="detail-note">装备层已独立；强化材料和品质加成等养成接入后再填数值。</p>';
-    }
-    if (detailTab === 'items') {
-      return '<div class="slot-grid">' +
-        '<div class="slot"><span class="k">药水</span><span class="v empty">暂无</span></div>' +
-        '<div class="slot"><span class="k">卷轴</span><span class="v empty">暂无</span></div>' +
-        '<div class="slot"><span class="k">材料</span><span class="v empty">暂无</span></div>' +
-        '<div class="slot"><span class="k">碎片</span><span class="v empty">暂无</span></div>' +
-        '</div>' +
-        '<p class="detail-note">道具层只做入口；掉落、碎片、升品材料还没接。</p>';
-    }
-    var skill = u.rageSkill === 'back'
-      ? '落日狙击：随机打后排一人，造成 300% 攻击伤害；后排没人则落空，不改打前排。'
-      : u.rageSkill === 'guard'
-        ? '磐石架势：给自己加 18 防御，直到自己再完成一次普攻；不替队友挡伤害。'
-        : u.rageSkill === 'heal-row'
-          ? '月华治愈：治疗自己所在那一排（含自己），每人回复 25% 最大生命；不治疗另一排。'
-          : u.rageSkill === 'row-sweep'
-            ? '横扫一排：前排还有人打前排，前排空了打后排；整排都吃伤害。'
-            : u.rageSkill === 'front-sweep'
-              ? '横扫前排：只扫敌方第一排；第一排没人则落空，不改扫后排。'
-              : u.rageSkill === 'execute'
-                ? '斩杀追击：先按普通单体打一下；这一下收掉人，再打剩下血最低的一下。'
-                : '没有怒气技能，只进行普通攻击。';
-    return '' +
-      '<div class="stat-line"><span>生命</span><b>' + Math.max(0, u.hp) + ' / ' + u.maxHp + '</b></div>' +
-      '<div class="stat-line"><span>攻击</span><b>' + u.atk + '</b></div>' +
-      '<div class="stat-line"><span>防御</span><b>' + (u.def || 0) + (u.guard ? ' + ' + u.guard + '（护盾）' : '') + '</b></div>' +
-      '<div class="stat-line"><span>怒气</span><b>' + (u.rage || 0) + ' / ' + CardFight.RAGE_MAX + '</b></div>' +
-      '<div class="skill-box"><h3>怒气技能</h3><p>' + skill + '</p></div>' +
-      '<p class="detail-note">详情 / 装备 / 道具三层已经拆开；等级、星级、品质和装备数值等养成接入后再填。</p>';
-  }
-
-  function toast(text) {
-    var d = document.createElement('div');
-    d.className = 'toast';
-    d.textContent = text;
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 1500);
-  }
-
-  function onUnitClick(u) {
-    if (!u) return;
-    if (!fighting || outcome()) { openDetail(u); return; }
-    if (u.side !== 'player') { openDetail(u); return; }
-    if (!u.rageSkill) { selectedId = u.id; toast('这个单位没有怒气技能'); render(); return; }
-    if (CardFight.rageReady(u)) {
-      if (rageQueue.some(function (q) { return q.id === u.id; })) {
-        toast(u.name + ' 的怒气已经排队');
-      } else if (offerRage(u)) {
-        toast(u.name + ' 怒气释放 · 排队');
-      }
+    var occupant = draft.filter(function (x) { return x.slot === slot; })[0];
+    if (occupant && occupant.hero === hero) { renderBoard(); renderTray(); return; }
+    if (from == null) {
+      // 从托盘拖进来：占位的人被挤下场
+      draft = draft.filter(function (x) { return x.hero !== hero && x.slot !== slot; });
+      draft.push({ hero: hero, slot: slot });
     } else {
-      selectedId = u.id;
-      toast(u.name + ' 怒气 ' + (u.rage || 0) + ' / ' + CardFight.RAGE_MAX + '，满了点英雄释放');
+      var self = draft.filter(function (x) { return x.hero === hero; })[0];
+      if (occupant) occupant.slot = self.slot;   // 换位
+      self.slot = slot;
     }
-    render();
+    draft = draft.filter(function (x) { return x.slot > 0; });
+    renderBoard();
+    renderTray();
   }
 
-  function unitCenter(id) {
-    var p = POS[id];
-    if (!p) return { x: 640, y: 420 };
-    return { x: p.left, y: 720 - p.bottom - p.h * 0.55 };
-  }
-
-  function showDamage(id, amount, crit) {
-    var p = POS[id];
-    if (!p) return;
-    var d = document.createElement('div');
-    d.className = 'dmg' + (crit ? ' crit' : '');
-    d.textContent = '-' + amount;
-    d.style.left = (p.left + (Math.random() * 40 - 20)) + 'px';
-    d.style.top = (720 - p.bottom - p.h * 0.72) + 'px';
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 820);
-  }
-
-  function impactFx(id, big, heal) {
-    var c = unitCenter(id);
-    var d = document.createElement('div');
-    d.className = 'impact' + (heal ? ' heal' : '');
-    d.style.left = c.x + 'px';
-    d.style.top = c.y + 'px';
-    d.style.width = d.style.height = (big ? 140 : 90) + 'px';
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 460);
-  }
-
-  function showHeal(id, amount) {
-    var p = POS[id];
-    if (!p) return;
-    var d = document.createElement('div');
-    d.className = 'dmg heal';
-    d.textContent = '+' + amount;
-    d.style.left = (p.left + (Math.random() * 30 - 15)) + 'px';
-    d.style.top = (720 - p.bottom - p.h * 0.72) + 'px';
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 820);
-  }
-
-  function beamFx(fromId, toId) {
-    var a = unitCenter(fromId);
-    var b = unitCenter(toId);
-    var dx = b.x - a.x;
-    var dy = b.y - a.y;
-    var len = Math.sqrt(dx * dx + dy * dy);
-    var deg = Math.atan2(dy, dx) * 180 / Math.PI;
-    var d = document.createElement('div');
-    d.className = 'beam';
-    d.style.left = a.x + 'px';
-    d.style.top = (a.y - 7) + 'px';
-    d.style.width = len + 'px';
-    d.style.setProperty('--a', deg + 'deg');
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 440);
-  }
-
-  function skillBanner(name, label) {
-    var d = document.createElement('div');
-    d.className = 'skill-banner';
-    d.textContent = name + ' · ' + label;
-    el('fx').appendChild(d);
-    setTimeout(function () { d.remove(); }, 950);
-  }
-
-  function lunge(attackerId, targetId) {
-    var node = unitEl(attackerId);
-    var a = POS[attackerId];
-    var b = POS[targetId];
-    if (!node || !a) return;
-    var dir = b && b.left < a.left ? -1 : 1;
-    if (node.classList.contains('flip')) dir *= -1;
-    node.style.setProperty('--dx', (dir * 24) + 'px');
-    node.style.setProperty('--dy', '-10px');
-    node.classList.add('attacking');
-    setTimeout(function () { node.classList.remove('attacking'); }, 330);
-  }
-
-  function setUnitImg(id, src) {
-    var node = unitEl(id);
-    if (!node || !src) return;
-    var img = node.querySelector('img');
-    if (img) img.src = src;
-  }
-
-  function playAttack(unit) {
-    var frames = unit.attackFrames || [];
-    if (!frames.length) return;
-    var i = 0;
-    setUnitImg(unit.id, frames[0]);
-    if (frames.length === 1) {
-      setTimeout(function () { setUnitImg(unit.id, unit.img); }, 260);
-      return;
+  function slotAt(clientX, clientY) {
+    var rect = boardStage.getBoundingClientRect();
+    var scale = rect.width / 1280;
+    var wx = (clientX - rect.left) / scale;
+    var wy = (clientY - rect.top) / scale;
+    var pos = slotsOf(draft);
+    var best = null, bestD = 1e9;
+    for (var no = 1; no <= 5; no += 1) {
+      var p = pos[no];
+      var cx = p.left, cy = 720 - p.bottom;
+      var d = Math.hypot(wx - cx, wy - cy);
+      if (d < bestD) { bestD = d; best = no; }
     }
-    var timer = setInterval(function () {
-      i += 1;
-      if (i >= frames.length) {
-        clearInterval(timer);
-        setTimeout(function () { setUnitImg(unit.id, unit.img); }, 120);
-      } else {
-        setUnitImg(unit.id, frames[i]);
-      }
-    }, 100);
+    return bestD <= 190 ? best : null;
   }
 
-  function playSkill(unit) {
-    if (!unit.skillImg) return;
-    setUnitImg(unit.id, unit.skillImg);
-    setTimeout(function () { setUnitImg(unit.id, unit.img); }, 680);
-  }
-
-  function offerRage(unit) {
-    var result = CardFight.enqueueRage(rageQueue, unit, rageSeq);
-    if (!result.ok) return false;
-    rageQueue = result.queue;
-    rageSeq = result.seq;
-    log('<b>' + unit.name + '</b> 怒气排队');
-    return true;
-  }
-
-  function pullReady() {
-    var before = {};
-    rageQueue.forEach(function (item) { before[item.id] = true; });
-    var result = CardFight.enqueueReady(rageQueue, units, rageSeq, { playerAuto: autoRage });
-    rageQueue = result.queue;
-    rageSeq = result.seq;
-    result.queue.forEach(function (item) {
-      if (before[item.id]) return;
-      var u = units.find(function (x) { return x.id === item.id; });
-      log((u ? u.name : item.id) + ' 怒气排队');
+  function highlight(on) {
+    Array.prototype.forEach.call(boardSlots.children, function (n) {
+      n.classList.toggle('hot', !!on);
     });
   }
 
-  function gainRage(unit, n) {
-    if (!unit || !unit.rageSkill || !CardFight.alive(unit)) return;
-    var before = unit.rage || 0;
-    unit.rage = Math.min(CardFight.RAGE_MAX, before + n);
-    if (before < CardFight.RAGE_MAX && unit.rage >= CardFight.RAGE_MAX) {
-      if (unit.side === 'enemy' || autoRage) {
-        offerRage(unit);
-      } else if (unit.side === 'player') {
-        toast(unit.name + ' 怒气已满 · 点英雄释放');
-      }
-    }
-  }
-
-  function skillLabel(type) {
-    if (type === 'back') return '落日狙击';
-    if (type === 'guard') return '磐石架势';
-    if (type === 'heal-row') return '月华治愈';
-    if (type === 'row-sweep') return '横扫一排';
-    if (type === 'front-sweep') return '横扫前排';
-    if (type === 'execute') return '斩杀追击';
-    return '怒气';
-  }
-
-  function describe(attacker, action, result) {
-    if (action.type === 'guard') {
-      return attacker.name + ' 怒气 磐石架势，防御 +' + (result.guard || CardFight.GUARD_DEF);
-    }
-    if (action.type === 'heal-row') {
-      if (!result.heals || !result.heals.length) return attacker.name + ' 怒气 月华治愈，这一排已经满血';
-      return result.heals.map(function (h) {
-        return attacker.name + ' 月华治愈 ' + h.name + '，+' + h.heal;
-      }).join('；');
-    }
-    if (action.type === 'back' || action.type === 'row-sweep' || action.type === 'front-sweep' || action.type === 'execute') {
-      var label = skillLabel(action.type);
-      if (!result.ok) return attacker.name + ' ' + label + '，' + result.reason;
-      if (result.reason === '落空') return attacker.name + ' ' + label + '，落空';
-      return result.hits.map(function (h, i) {
-        var prefix = i === 1 ? '追击 ' : '';
-        return attacker.name + ' ' + label + ' ' + prefix + h.name + '，' + h.damage + ' 伤害';
-      }).join('；');
-    }
-    var verb = action.asRage ? '怒气' : (action.type === 'pick' ? '选取攻击' : '自动攻击');
-    if (!result.ok) return attacker.name + ' ' + verb + '，' + result.reason;
-    return result.hits.map(function (h) {
-      return attacker.name + ' ' + verb + ' ' + h.name + '，' + h.damage + ' 伤害';
-    }).join('；');
-  }
-
-  function hitAnim(id) {
-    var node = unitEl(id);
-    if (!node) return;
-    node.classList.add('hit');
-    setTimeout(function () { node.classList.remove('hit'); }, 160);
-  }
-
-  function applyStrike(attackerId, action) {
-    var attacker = units.find(function (u) { return u.id === attackerId; });
-    if (!attacker) return;
-    var result = CardFight.strike(units, attackerId, action);
-    log(describe(attacker, action, result));
-    if (result.ok) {
-      if (action.asRage) playSkill(attacker);
-      else playAttack(attacker);
-      if (result.hits.length) lunge(attackerId, result.hits[0].id);
-      if (action.asRage) {
-        skillBanner(attacker.name, skillLabel(action.type));
-        if (action.type === 'back' && result.hits.length) beamFx(attackerId, result.hits[0].id);
-      }
-      if (action.asRage) attacker.rage = 0;
-      else {
-        attacker.acted = true;
-        gainRage(attacker, CardFight.RAGE_ON_ATTACK);
-        if (attacker.guard) {
-          attacker.guard = 0;
-          log(attacker.name + ' 普攻完成，护盾消失');
-        }
-      }
-      var kills = 0;
-      result.hits.forEach(function (h) {
-        hitAnim(h.id);
-        showDamage(h.id, h.damage, !!action.asRage || h.damage >= attacker.atk * 2);
-        impactFx(h.id, !!action.asRage);
-        var victim = units.find(function (u) { return u.id === h.id; });
-        gainRage(victim, CardFight.rageOnHurt(victim.maxHp, h.hpBefore, h.hp));
-        if (h.killed) kills += 1;
-      });
-      if (result.heals) {
-        result.heals.forEach(function (h) {
-          showHeal(h.id, h.heal);
-          impactFx(h.id, false, true);
-        });
-      }
-      if (kills) gainRage(attacker, kills * CardFight.RAGE_ON_KILL);
-    }
-    var end = outcome();
-    if (end) {
-      stopLoop();
-      log(end);
-    }
-    render();
-  }
-
-  function stopLoop() {
-    clearInterval(timer);
-    timer = 0;
-  }
-
-  function startLoop() {
-    stopLoop();
-    timer = setInterval(step, 700 / speed);
-  }
-
-  function resolveRage() {
-    var before = rageQueue.slice();
-    var taken = CardFight.takeRage(rageQueue, units);
-    rageQueue = taken.queue;
-    before.forEach(function (item) {
-      if (taken.unit && item.id === taken.unit.id) return;
-      if (rageQueue.some(function (q) { return q.id === item.id; })) return;
-      var u = units.find(function (x) { return x.id === item.id; });
-      log((u ? u.name : item.id) + ' 已倒下，怒气取消');
-    });
-    if (!taken.unit) return false;
-    applyStrike(taken.unit.id, { type: taken.unit.rageSkill || 'back', asRage: true });
-    return true;
-  }
-
-  function step() {
-    if (!fighting || outcome()) return;
-    pullReady();
-    if (rageQueue.length) {
-      resolveRage();
-      return;
-    }
-    var actor = CardFight.nextActor(units);
-    if (!actor) {
-      units.forEach(function (u) { u.acted = false; });
-      round += 1;
-      log('第 ' + round + ' 回合');
-      render();
-      return;
-    }
-    applyStrike(actor.id, { type: 'auto' });
-  }
-
-  function startBattle() {
-    if (fighting) return;
-    if (detailUnit) { detailResume = false; closeDetail(); }
-    saved = units.map(function (u) {
-      var c = {};
-      for (var k in u) c[k] = u[k];
-      return c;
-    });
-    fighting = true;
-    round = 1;
-    selectedId = '';
-    units.forEach(function (u) { u.acted = false; });
-    rageQueue = [];
-    rageSeq = 0;
-    log('开战。站位固定。第 1 回合');
-    render();
-    startLoop();
-  }
-
-  function again() {
-    if (detailUnit) { detailResume = false; closeDetail(); }
-    stopLoop();
-    fighting = false;
-    round = 1;
-    rageQueue = [];
-    rageSeq = 0;
-    units = saved ? saved.map(function (u) {
-      var c = {};
-      for (var k in u) c[k] = u[k];
-      c.hp = c.maxHp;
-      c.alive = true;
-      c.acted = false;
-      c.rage = c.rageStart || c.rage || 0;
-      return c;
-    }) : defaultUnits();
-    selectedId = '';
-    log('重新摆好。站位固定，直接开战。');
-    render();
-  }
-
-  el('start').addEventListener('click', startBattle);
-  el('again').addEventListener('click', again);
-  el('detailClose').addEventListener('click', closeDetail);
-  el('detailMask').addEventListener('click', closeDetail);
-  el('detailTabs').addEventListener('click', function (e) {
-    var btn = e.target.closest('button');
-    if (!btn) return;
-    detailTab = btn.getAttribute('data-tab');
-    renderDetailTabs();
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !el('detail').hidden) closeDetail();
-  });
-  el('auto').addEventListener('click', function () {
-    autoRage = !autoRage;
-    if (autoRage && fighting && !outcome()) pullReady();
-    render();
-  });
-  el('speed').addEventListener('click', function () {
-    speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
-    this.textContent = '×' + speed;
-    this.classList.toggle('on', speed > 1);
-    if (fighting) startLoop();
+  document.getElementById('btnFormation').addEventListener('click', openEditor);
+  document.getElementById('btnCancel').addEventListener('click', closeEditor);
+  document.getElementById('btnSave').addEventListener('click', function () {
+    formation = draft.map(function (x) { return { hero: x.hero, slot: x.slot }; });
+    CF.saveFormation(formation);
+    closeEditor();
+    renderTeam();
   });
 
-  if (location.search.indexOf('debug') >= 0) {
-    window.__cf = {
-      units: units,
-      queue: function () { return rageQueue.map(function (q) { return q.id; }); },
-      start: startBattle,
-      step: step,
-    };
-  }
-
-  buildScene();
-  buildSlots();
-  render();
+  renderLevels();
+  renderTeam();
+  if (/[?&]edit=1/.test(location.search)) openEditor();
+})();
 </script>
 </body>
 </html>

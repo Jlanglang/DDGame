@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卡牌战斗 · 英雄详情</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  #app {
+    position: absolute; left: 50%; top: 50%;
+    width: 1280px; height: 720px; overflow: hidden;
+    transform-origin: center center;
+    background: #0c0a10;
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.85);
+  }
+  /* 立绘尽量铺满：整张 contain 放左边，右边用虚化放大版补底 */
+  .art-blur {
+    position: absolute; inset: -50px;
+    background-image: var(--face);
+    background-position: center 22%;
+    background-size: cover;
+    background-repeat: no-repeat;
+    filter: blur(28px) brightness(0.3) saturate(0.9);
+  }
+  .art {
+    position: absolute; inset: 0;
+    background-image: var(--face);
+    background-position: 23% 50%;
+    background-size: contain;
+    background-repeat: no-repeat;
+  }
+  .art::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(10, 8, 14, 0) 0%, rgba(10, 8, 14, 0) 42%, rgba(10, 8, 14, 0.72) 55%, rgba(10, 8, 14, 0.95) 64%),
+      linear-gradient(0deg, rgba(10, 8, 14, 0.88), transparent 38%);
+  }
+  .tint {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 74% 26%, var(--qglow), transparent 58%);
+    pointer-events: none;
+  }
+  .back {
+    position: absolute; left: 34px; top: 26px; z-index: 4;
+    font-size: 12px; color: #c8ae86; text-decoration: none; letter-spacing: 0.1em;
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid rgba(207, 169, 111, 0.28);
+    background: rgba(14, 10, 16, 0.6);
+  }
+  .back:hover { color: var(--gold); border-color: rgba(255, 209, 102, 0.5); }
+
+  .panel {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 560px;
+    padding: 74px 44px 28px 30px;
+    display: flex; flex-direction: column;
+  }
+  .kicker { font-size: 10px; letter-spacing: 0.3em; color: #b99a6d; }
+  .name-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 4px; }
+  .name { font-size: 40px; font-weight: 800; letter-spacing: 0.06em; line-height: 1.1; }
+  .role { font-size: 12px; color: #b9a68d; letter-spacing: 0.06em; }
+
+  .tags { display: flex; gap: 8px; margin: 14px 0 18px; flex-wrap: wrap; }
+  .tags span {
+    padding: 3px 9px; border-radius: 6px; font-size: 10px; letter-spacing: 0.08em;
+    border: 1px solid rgba(214, 176, 112, 0.3);
+    background: rgba(214, 176, 112, 0.07);
+    color: #d9c19b;
+  }
+  .tags .q { border-color: var(--qline); color: var(--qc); background: transparent; font-weight: 700; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .stat {
+    padding: 10px 14px; border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .stat .k { font-size: 10px; color: #8f7d67; letter-spacing: 0.14em; }
+  .stat .v { margin-top: 3px; font-size: 20px; font-weight: 800; color: #f2ddb8; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 11px; color: #8f7d67; font-weight: 400; margin-left: 4px; }
+
+  h3 {
+    margin: 0 0 10px; font-size: 11px; letter-spacing: 0.22em; color: #b99a6d;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h3::after { content: ""; flex: 1; height: 1px; background: rgba(207, 169, 111, 0.16); }
+
+  .equip { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .slot {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px;
+    border: 1px dashed rgba(214, 176, 112, 0.22);
+    background: rgba(255, 255, 255, 0.02);
+    min-height: 56px;
+  }
+  .slot.has { border-style: solid; border-color: var(--qline); background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)); }
+  .slot .ic {
+    width: 30px; height: 30px; border-radius: 8px; flex: 0 0 30px;
+    display: grid; place-items: center; font-size: 13px; font-weight: 800;
+    color: #17110b; background: var(--qbg, rgba(255,255,255,0.06));
+    opacity: 0.95;
+  }
+  .slot.empty .ic { background: rgba(255, 255, 255, 0.05); color: #6f6154; }
+  .slot .txt { min-width: 0; }
+  .slot .k { font-size: 9px; letter-spacing: 0.16em; color: #8f7d67; }
+  .slot .v { font-size: 13px; color: var(--qc, #d8c4a5); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slot.empty .v { color: #6f6154; }
+  .slot .lv { margin-left: auto; font-size: 10px; color: #b99a6d; }
+
+  .desc {
+    margin: 18px 0 0; font-size: 12px; line-height: 1.8; color: #b6a48d;
+    padding: 12px 14px; border-radius: 10px;
+    border: 1px solid rgba(214, 176, 112, 0.16);
+    background: rgba(214, 176, 112, 0.04);
+  }
+  .foot { margin-top: 12px; padding-top: 8px; display: flex; gap: 10px; }
+  .upgrade { margin-top: auto; padding-top: 14px; display: flex; align-items: center; gap: 12px; }
+  .upgrade .btn { width: 220px; height: 40px; flex: 0 0 220px; }
+  .gold-line { font-size: 11px; color: #8f7d67; letter-spacing: 0.04em; }
+  .gold-line b { color: var(--gold); font-size: 13px; }
+  .btn[disabled] { opacity: 0.45; cursor: default; }
+  .btn {
+    flex: 1; height: 44px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(217, 176, 106, 0.45);
+    background: linear-gradient(180deg, rgba(63, 38, 28, 0.94), rgba(34, 20, 16, 0.94));
+    color: #f2ddb8; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.14em;
+    text-decoration: none; display: grid; place-items: center;
+  }
+  .btn.primary { background: linear-gradient(180deg, #dfb15f, #a76a2e); border-color: #f4d494; color: #24130a; }
+  .btn:active { transform: translateY(1px); }
+
+  .locked-tip {
+    position: absolute; left: 30%; top: 50%; transform: translate(-50%, -50%);
+    text-align: center; z-index: 5; display: none;
+  }
+  .locked-tip .ic { font-size: 40px; opacity: 0.8; }
+  .locked-tip p { margin: 8px 0 0; font-size: 13px; color: #e0cba4; letter-spacing: 0.08em; text-shadow: 0 2px 8px #000; }
+  body.locked .art { filter: grayscale(0.7) brightness(0.55); }
+  body.locked .art-blur { filter: blur(28px) brightness(0.18) grayscale(0.6); }
+  body.locked .locked-tip { display: block; }
+  body.locked #tagUnlock { border-color: rgba(255, 140, 120, 0.45); color: #ffb3a3; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="art-blur"></div>
+  <div class="art" id="art"></div>
+  <div class="tint" id="tint"></div>
+
+  <a class="back" href="heroes.html">← 英雄池</a>
+
+  <section class="panel">
+    <div class="kicker">HERO DETAIL</div>
+    <div class="name-row">
+      <div class="name q-name" id="name">极光</div>
+    </div>
+    <div class="role" id="role">后排 · 狙击</div>
+
+    <div class="tags">
+      <span class="q" id="tagQ">SS 品质</span>
+      <span id="tagLv">Lv.12</span>
+      <span id="tagUnlock">已解锁</span>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">攻击</div><div class="v" id="atk">30</div></div>
+      <div class="stat"><div class="k">生命</div><div class="v" id="hp">100</div></div>
+      <div class="stat"><div class="k">等级</div><div class="v" id="lv">12<small>级</small></div></div>
+      <div class="stat"><div class="k">品质</div><div class="v q-name" id="qv">SS</div></div>
+    </div>
+
+    <h3>装备</h3>
+    <div class="equip" id="equip"></div>
+
+    <p class="desc" id="desc"></p>
+
+    <div class="upgrade">
+      <button class="btn primary" id="btnUp" type="button">升级</button>
+      <div class="gold-line">金币 <b id="goldVal">0</b> · 升级只花金币，不打怪涨经验</div>
+    </div>
+
+    <div class="foot">
+      <a class="btn" href="heroes.html">返回英雄池</a>
+      <a class="btn" href="index.html">回主页面</a>
+    </div>
+  </section>
+
+  <div class="locked-tip" id="lockedTip">
+    <div class="ic">🔒</div>
+    <p id="lockedText">未解锁</p>
+  </div>
+</div>
+
+<script src="formation.js"></script>
+<script src="heroes.js"></script>
+<script src="economy.js"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  function fit() {
+    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    app.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  var m = /[?&]id=([a-z0-9_]+)/i.exec(location.search);
+  var id = m ? m[1] : 'aurora';
+  var h = HERO_DB[id];
+  if (!h) { location.replace('heroes.html'); return; }
+
+  document.body.classList.add('q-' + h.q);
+  var unlocked = HeroPool.isUnlocked(id);
+
+  document.getElementById('app').style.setProperty('--face', 'url("' + h.face + '")');
+  document.getElementById('tint').className = 'tint q-' + h.q;
+  document.getElementById('name').textContent = h.name;
+  document.getElementById('role').textContent = h.role;
+  document.getElementById('tagQ').textContent = h.q + ' 品质';
+  document.getElementById('tagUnlock').textContent = unlocked ? '已解锁' : '未解锁 · ' + HeroPool.lockText(id);
+  document.getElementById('atk').textContent = h.atk || '—';
+  document.getElementById('hp').textContent = h.hp || '—';
+  document.getElementById('qv').textContent = h.q;
+  document.getElementById('desc').textContent = h.desc;
+
+  /* 等级：只能花金币升（战斗只给金币，不给经验） */
+  var btnUp = document.getElementById('btnUp');
+  var goldVal = document.getElementById('goldVal');
+
+  function refreshLevel() {
+    var lv = window.ECO ? ECO.levelOf(id) : h.lv;
+    document.getElementById('tagLv').textContent = 'Lv.' + lv;
+    document.getElementById('lv').innerHTML = lv + '<small>级</small>';
+    if (window.ECO) {
+      goldVal.textContent = ECO.gold();
+      var cost = ECO.cost(id);
+      btnUp.textContent = unlocked ? ('升级 · ' + cost + ' 金币') : '未解锁';
+      btnUp.disabled = !unlocked;
+    } else {
+      btnUp.textContent = '升级';
+      btnUp.disabled = true;
+    }
+  }
+  refreshLevel();
+
+  btnUp.addEventListener('click', function () {
+    if (!window.ECO || !unlocked) return;
+    var r = ECO.upgrade(id);
+    if (!r.ok) {
+      btnUp.textContent = r.reason;
+      setTimeout(refreshLevel, 1100);
+      return;
+    }
+    refreshLevel();
+  });
+
+  var equip = document.getElementById('equip');
+  var slots = h.equip && h.equip.length ? h.equip : [
+    { slot: '武器', name: null }, { slot: '护甲', name: null },
+    { slot: '饰品', name: null }, { slot: '靴子', name: null }
+  ];
+  if (!unlocked) {
+    slots = [
+      { slot: '武器', name: null }, { slot: '护甲', name: null },
+      { slot: '饰品', name: null }, { slot: '靴子', name: null }
+    ];
+  }
+  slots.forEach(function (s) {
+    var d = document.createElement('div');
+    var has = !!s.name;
+    d.className = 'slot ' + (has ? 'has q-' + s.q : 'empty');
+    d.innerHTML =
+      '<div class="ic">' + (has ? '装' : '空') + '</div>' +
+      '<div class="txt"><div class="k">' + s.slot + '</div>' +
+      '<div class="v">' + (has ? s.name : (unlocked ? '未装备' : '未解锁')) + '</div></div>' +
+      (has ? '<div class="lv">+' + s.lv + '</div>' : '');
+    equip.appendChild(d);
+  });
+
+  if (!unlocked) {
+    document.body.classList.add('locked');
+    document.getElementById('lockedText').textContent = HeroPool.lockText(id);
+  }
+
+  document.title = '卡牌战斗 · ' + h.name;
+})();
+</script>
+</body>
+</html>

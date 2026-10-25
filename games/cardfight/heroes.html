@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卡牌战斗 · 英雄池</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-user-select: none; user-select: none;
+  }
+  #app {
+    position: absolute; left: 50%; top: 50%;
+    width: 1280px; height: 720px; overflow: hidden;
+    transform-origin: center center;
+    background: radial-gradient(120% 90% at 50% 0%, #2a2143 0%, #1a1220 55%, #0b0810 100%);
+    box-shadow: 0 0 80px rgba(0, 0, 0, 0.85);
+  }
+  .glow {
+    position: absolute; left: 50%; top: -200px; width: 900px; height: 520px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, rgba(255, 190, 120, 0.16), transparent 65%);
+    pointer-events: none;
+  }
+  header {
+    position: relative; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 34px 8px;
+  }
+  .left { display: flex; align-items: baseline; gap: 14px; }
+  .back { font-size: 11px; color: var(--dim); text-decoration: none; letter-spacing: 0.08em; }
+  .back:hover { color: var(--gold); }
+  h1 { margin: 0; font-size: 24px; letter-spacing: 0.18em; color: #f6e2bb; }
+  small { font-size: 11px; letter-spacing: 0.22em; color: var(--dim); }
+  .right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: #c8ae86; }
+  .right b { color: var(--gold); font-size: 15px; }
+
+  .grid-wrap {
+    position: relative; z-index: 2;
+    padding: 10px 34px 26px;
+    height: calc(100% - 78px);
+  }
+  .pool {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+    height: 100%;
+    align-content: center;
+  }
+  .card {
+    position: relative;
+    display: block;
+    height: 286px;
+    border-radius: 14px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid transparent;
+    background: linear-gradient(180deg, rgba(40, 30, 40, 0.95), rgba(16, 12, 18, 0.95));
+    box-shadow: 0 0 var(--qglow-r, 12px) var(--qglow, transparent), 0 12px 28px rgba(0, 0, 0, 0.45);
+    transition: transform 0.14s, box-shadow 0.14s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 0 calc(var(--qglow-r, 12px) * 1.6) var(--qglow, transparent), 0 18px 34px rgba(0, 0, 0, 0.55); }
+  .card .portrait {
+    position: absolute; inset: 0;
+    overflow: hidden;
+  }
+  .card .portrait img {
+    width: 100%; height: 100%; object-fit: cover; object-position: 50% 14%;
+    transform: scale(1.02);
+    transition: transform 0.3s;
+  }
+  .card:hover .portrait img { transform: scale(1.06); }
+  .card .portrait::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(10, 8, 14, 0.05) 30%, rgba(10, 8, 14, 0.55) 62%, rgba(10, 8, 14, 0.95) 100%);
+  }
+  .card .lv {
+    position: absolute; right: 10px; top: 10px; z-index: 2;
+    font-size: 10px; color: #e8d5b5; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 5px;
+    background: rgba(10, 8, 12, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .card .foot {
+    position: absolute; left: 12px; right: 10px; bottom: 10px; z-index: 2;
+  }
+  .card .nm { font-size: 17px; font-weight: 800; letter-spacing: 0.06em; }
+  .card .role { display: block; margin-top: 2px; font-size: 10px; color: #a89681; letter-spacing: 0.04em; }
+
+  .card.locked .portrait img { filter: grayscale(0.8) brightness(0.55); }
+  .card.locked .lock {
+    position: absolute; inset: 0; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; text-align: center;
+    background: linear-gradient(180deg, rgba(8, 6, 10, 0.35), rgba(8, 6, 10, 0.72));
+    font-size: 11px; color: #c8ae86; letter-spacing: 0.06em;
+  }
+  .card.locked .lock .ic { font-size: 22px; opacity: 0.85; }
+  .card.locked .lock small { font-size: 10px; color: #a2907a; letter-spacing: 0.02em; }
+  .card.locked .foot { z-index: 4; }
+  .card.locked:hover { transform: none; }
+
+  .legend {
+    position: absolute; left: 34px; bottom: 8px; z-index: 2;
+    display: flex; gap: 16px; font-size: 10px; color: var(--dim); letter-spacing: 0.08em;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="glow"></div>
+  <header>
+    <div class="left">
+      <a class="back" href="index.html">← 主页面</a>
+      <h1>英雄池</h1>
+      <small>HERO POOL</small>
+    </div>
+    <div class="right">
+      <span>已解锁 <b id="unlockCount">0 / 12</b></span>
+      <span>关卡进度 <b id="progText">0 / 20</b></span>
+    </div>
+  </header>
+
+  <div class="grid-wrap">
+    <div class="pool" id="pool"></div>
+  </div>
+  <div class="legend">
+    <span><i class="q-dot" style="--qc:#b07cff;--qglow:rgba(176,124,255,.22)"></i>A 紫</span>
+    <span><i class="q-dot" style="--qc:#ffc451;--qglow:rgba(255,196,81,.22)"></i>S 橙黄</span>
+    <span><i class="q-dot" style="--qc:#63e89a;--qglow:rgba(99,232,154,.2)"></i>SS 绿</span>
+  </div>
+</div>
+
+<script src="formation.js"></script>
+<script src="heroes.js"></script>
+<script src="economy.js"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  function fit() {
+    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    app.style.transform = 'translate(-50%, -50%) scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  var pool = document.getElementById('pool');
+  var ordered = HERO_LIST.slice().sort(function (a, b) {
+    var ua = HeroPool.isUnlocked(a) ? 0 : 1;
+    var ub = HeroPool.isUnlocked(b) ? 0 : 1;
+    if (ua !== ub) return ua - ub;              // 已解锁排前面
+    return HERO_DB[b].lv - HERO_DB[a].lv;       // 再按等级从高到低
+  });
+  ordered.forEach(function (id) {
+    var h = HERO_DB[id];
+    var unlocked = HeroPool.isUnlocked(id);
+    var el = document.createElement(unlocked ? 'a' : 'div');
+    el.className = 'card q-edge q-' + h.q + (unlocked ? '' : ' locked');
+    if (unlocked) el.href = 'hero.html?id=' + id;
+    el.innerHTML =
+      '<div class="portrait"><img src="' + h.face + '" alt=""></div>' +
+      '<div class="lv">Lv.' + (window.ECO ? ECO.levelOf(id) : h.lv) + '</div>' +
+      '<div class="foot"><span class="nm q-name">' + h.name + '</span>' +
+      '<span class="role">' + h.role + '</span></div>' +
+      (unlocked ? '' :
+        '<div class="lock"><div class="ic">🔒</div><div>未解锁</div>' +
+        '<small>' + HeroPool.lockText(id) + '</small></div>');
+    pool.appendChild(el);
+  });
+
+  document.getElementById('unlockCount').textContent = HeroPool.unlockedCount() + ' / ' + HERO_LIST.length;
+  var prog = CF.loadProgress();
+  document.getElementById('progText').textContent = prog.cleared.length + ' / ' + CF.LEVELS.length;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+/* 品质配色：A 紫 / S 橙黄 / SS 绿（名字 + 边框统一走这几个变量）
+   边框「递增感」：A → S → SS 逐档变强
+     --qedge   描边粗细（1 / 1.5 / 2px）
+     --qfade   品质色沿边缘延伸的长度（45% / 70% / 95%）
+     --qglow-r 外发光半径（5 / 14 / 26px）
+   渐变方向是从左上角的品质色化到右下角透明 */
+:root {
+  --bg: #0a0810;
+  --panel: linear-gradient(180deg, rgba(28, 21, 32, 0.92), rgba(14, 10, 18, 0.94));
+  --line: rgba(207, 169, 111, 0.2);
+  --gold: #ffd166;
+  --text: #f4e7d2;
+  --dim: #8f7d67;
+}
+
+.q-A {
+  --qc: #b07cff;
+  --qline: rgba(176, 124, 255, 0.4);
+  --qglow: rgba(176, 124, 255, 0.12);
+  --qbg: linear-gradient(180deg, #7b4bd8, #4a2a8f);
+  --qedge: 1px;
+  --qfade: 45%;
+  --qglow-r: 5px;
+}
+.q-S {
+  --qc: #ffc451;
+  --qline: rgba(255, 196, 81, 0.62);
+  --qglow: rgba(255, 196, 81, 0.2);
+  --qbg: linear-gradient(180deg, #ffb14a, #c9761d);
+  --qedge: 1.5px;
+  --qfade: 70%;
+  --qglow-r: 14px;
+}
+.q-SS {
+  --qc: #63e89a;
+  --qline: rgba(99, 232, 154, 0.85);
+  --qglow: rgba(99, 232, 154, 0.26);
+  --qbg: linear-gradient(180deg, #45c97a, #1f7a46);
+  --qedge: 2px;
+  --qfade: 95%;
+  --qglow-r: 26px;
+}
+
+.q-name { color: var(--qc); }
+
+/* 递增描边：任意圆角容器加 .q-edge，会盖一层渐变描边（不影响点击） */
+.q-edge { position: relative; }
+.q-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--qedge, 1px);
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(155deg, var(--qc) 0%, var(--qline) 28%, transparent var(--qfade, 70%));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* 外发光强度也跟着档位走 */
+.q-glow { box-shadow: 0 0 var(--qglow-r, 12px) var(--qglow), 0 12px 28px rgba(0, 0, 0, 0.45); }
+
+.q-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--qc); box-shadow: 0 0 8px var(--qglow); }

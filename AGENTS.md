@@ -54,6 +54,7 @@
 | 守护豆豆 `games/doudou` | `node games/doudou/win-time.js 40 feed` | 胜负时长 |
 | 单词塔 `games/wordtower` | `node games/wordtower/headless.js --runs 40 --acc 0.8` | 数值模拟（无渲染） |
 | 单词塔 `games/wordtower` | `node games/wordtower/test-words.mjs` | 词库自检（重复/长度/buff 覆盖） |
+| 单词塔 `games/wordtower` | `node games/wordtower/test-page.js` | 真浏览器两页流程（18 项） |
 | 豆豆勇者 `games/hero` | `node games/hero/test-input.js` | 真浏览器输入（11 项） |
 | 豆豆勇者 `games/hero` | `test-stage.js` / `test-save.js` / `test-shop.js` | 真浏览器流程（6 / 13 / 8 项） |
 
@@ -89,6 +90,10 @@
 - 看每波耗时：`node games/doudou/wave-time.js 16 feed`；看胜负时长：`node games/doudou/win-time.js 40 feed`。
 
 ## 5. 豆豆单词塔（games/wordtower）
+
+**两页流程**：`index.html` 里 `#home` 选模式/难度 → 点「开始战斗」进 `#battle`；战斗页右上角「← 回主页」随时退出。
+单文件两个 `<section class="page">`，用 `G.state = 'home' | 'playing'` 切换，`frame()` 在 home 直接早退。
+**难度只在主页能改**（`setGrade` 里 `if (G.state === 'playing') return`），战斗页没有年级按钮。
 
 **固定炮台 + 升级选卡 + 拼词拿卡**：塔不动，怪成群冲下来；击杀攒经验，升级时暂停弹三张卡，
 点开一张把上面的单词补全才算拿到（答错这级就空过）。
@@ -130,7 +135,7 @@
   `pep-1-6.json` 是覆盖基准（3-6 教材单字 + 一年级起点常用词；短语、缩写、2 字母词不进题库）。
   15 个 buff 每个 62~65 词；抽词避开本局最近 90 个词（`wordRecent`），同局基本不重复。
   `test-words.mjs` 会校验「教材表 ↔ 词库」一一对应，改词漏了会 FAIL。
-- **年级难度**：顶栏按钮 `1-6 / 1-4 / 1-2`（键盘 `G` 也切），存在 `wordtower-grade`；
+- **年级难度**：主页三个按钮 `1-6 / 1-4 / 1-2`，存在 `wordtower-grade`；战斗中点不动（`setGrade` 会拒绝）。
   `G.gradeMax` 只筛单词（`wordsWithBuff` 里 `w.grade <= gradeMax`），**不改怪物数值**。
   词库按年级标签统计：1-2 年级 238 词、1-4 年级 585 词、1-6 年级 962 词。
   低年级段如果 S 卡找不到够长的 hard 词，会按 `hard → mid → easy` 回退到该年级段内可用的词。

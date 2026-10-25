@@ -9,63 +9,102 @@
 <body>
 
 <div id="stage">
-  <canvas id="game"></canvas>
 
-  <a class="hub-back" href="../../index.html">← 游戏库</a>
+  <!-- ========== 主页：选模式 / 难度 ========== -->
+  <section class="page home" id="home">
+    <a class="hub-back" href="../../index.html">← 游戏库</a>
 
-  <header class="topbar">
-    <button class="pause" id="pause" type="button" aria-label="暂停">
-      <i></i><i></i>
-    </button>
-    <button class="speed" id="speed" type="button" aria-label="倍速">×1</button>
-    <button class="speed" id="grade" type="button" aria-label="年级难度">1-6</button>
-    <div class="stage-name" id="stageName">第 1 波</div>
-  </header>
+    <div class="home-inner">
+      <header class="home-head">
+        <h1>豆豆单词塔</h1>
+        <p>怪物成群压下来 · 补全单词才拿得到卡</p>
+      </header>
 
-  <!-- 当前强化 -->
-  <div class="stats" id="stats"></div>
+      <div class="sec">
+        <p class="sec-k">模式</p>
+        <button class="mode on" type="button" data-mode="endless">
+          <span class="mode-name">无尽挑战</span>
+          <span class="mode-desc">200 波 · 每 20 波一只 BOSS</span>
+        </button>
+      </div>
 
-  <!-- 底部：塔血 + 等级经验 -->
-  <div class="bars">
-    <div class="bar hp">
-      <div class="bar-fill hp-fill" id="hpFill"></div>
+      <div class="sec">
+        <p class="sec-k">单词难度</p>
+        <div class="grade-row" id="gradeRow">
+          <button class="grade-btn" type="button" data-grade="6">1-6 年级</button>
+          <button class="grade-btn" type="button" data-grade="4">1-4 年级</button>
+          <button class="grade-btn" type="button" data-grade="2">1-2 年级</button>
+        </div>
+        <p class="sec-tip">只影响单词，不影响怪物强度</p>
+      </div>
+
+      <button class="start-btn" id="startBtn" type="button">开始战斗</button>
+      <p class="home-best" id="homeBest"></p>
     </div>
-    <div class="bar exp">
-      <div class="bar-fill exp-fill" id="expFill"></div>
-      <span class="lv" id="lv">Lv.1</span>
-    </div>
-  </div>
+  </section>
 
-  <div class="hint" id="hint">击杀攒经验 → 升级选卡 → 补全单词才拿得到</div>
+  <!-- ========== 战斗页 ========== -->
+  <section class="page battle" id="battle" hidden>
+    <canvas id="game"></canvas>
 
-  <!-- 升级选卡面板：打开即暂停 -->
-  <div class="cards" id="cards" hidden>
-    <div class="cards-card">
-      <p class="cards-k" id="cardsK">升级 Lv.2</p>
-      <p class="cards-tip" id="cardsTip">三选一 · 补全单词才能拿到</p>
+    <button class="exit" id="exitBtn" type="button">← 回主页</button>
 
-      <div class="card-list" id="cardList"></div>
+    <header class="topbar">
+      <button class="pause" id="pause" type="button" aria-label="暂停">
+        <i></i><i></i>
+      </button>
+      <button class="speed" id="speed" type="button" aria-label="倍速">×1</button>
+      <div class="stage-name" id="stageName">第 1 波</div>
+    </header>
 
-      <div class="puzzle" id="puzzle" hidden>
-        <p class="puzzle-name" id="puzzleName">强化弹头</p>
-        <p class="puzzle-zh" id="puzzleZh">火</p>
-        <div class="puzzle-word" id="puzzleWord"></div>
-        <div class="puzzle-letters" id="puzzleLetters"></div>
-        <p class="puzzle-tip" id="puzzleTip">拼错这张卡就没了</p>
-        <button class="puzzle-next" id="puzzleNext" type="button" hidden>继续</button>
+    <!-- 当前强化 -->
+    <div class="stats" id="stats"></div>
+
+    <!-- 底部：塔血 + 等级经验 -->
+    <div class="bars">
+      <div class="bar hp">
+        <div class="bar-fill hp-fill" id="hpFill"></div>
+      </div>
+      <div class="bar exp">
+        <div class="bar-fill exp-fill" id="expFill"></div>
+        <span class="lv" id="lv">Lv.1</span>
       </div>
     </div>
-  </div>
 
-  <!-- 结算 -->
-  <div class="over" id="over" hidden>
-    <div class="over-card">
-      <p class="over-k" id="overK">失守</p>
-      <h2 class="over-title" id="overTitle">豆豆塔被推平了</h2>
-      <p class="over-sub" id="overSub"></p>
-      <button class="over-btn" id="again" type="button">再来一次</button>
+    <div class="hint" id="hint">击杀攒经验 → 升级选卡 → 补全单词才拿得到</div>
+
+    <!-- 升级选卡面板：打开即暂停 -->
+    <div class="cards" id="cards" hidden>
+      <div class="cards-card">
+        <p class="cards-k" id="cardsK">升级 Lv.2</p>
+        <p class="cards-tip" id="cardsTip">三选一 · 补全单词才能拿到</p>
+
+        <div class="card-list" id="cardList"></div>
+
+        <div class="puzzle" id="puzzle" hidden>
+          <p class="puzzle-name" id="puzzleName">强化弹头</p>
+          <p class="puzzle-zh" id="puzzleZh">火</p>
+          <div class="puzzle-word" id="puzzleWord"></div>
+          <div class="puzzle-letters" id="puzzleLetters"></div>
+          <p class="puzzle-tip" id="puzzleTip">拼错这张卡就没了</p>
+          <button class="puzzle-next" id="puzzleNext" type="button" hidden>继续</button>
+        </div>
+      </div>
     </div>
-  </div>
+
+    <!-- 结算 -->
+    <div class="over" id="over" hidden>
+      <div class="over-card">
+        <p class="over-k" id="overK">失守</p>
+        <h2 class="over-title" id="overTitle">豆豆塔被推平了</h2>
+        <p class="over-sub" id="overSub"></p>
+        <div class="over-actions">
+          <button class="over-btn" id="again" type="button">再来一次</button>
+          <button class="over-btn ghost" id="overHome" type="button">回主页</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script src="words.js"></script>

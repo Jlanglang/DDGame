@@ -263,7 +263,7 @@
   }
 
   const G = {
-    state: 'playing',
+    state: 'home',
     paused: false,
     result: null,
     bal: BAL,
@@ -334,8 +334,15 @@
   const overSub = document.getElementById('overSub');
   const pauseBtn = document.getElementById('pause');
   const speedEl = document.getElementById('speed');
-  const gradeEl = document.getElementById('grade');
   const hintEl = document.getElementById('hint');
+
+  const homeEl = document.getElementById('home');
+  const battleEl = document.getElementById('battle');
+  const startBtn = document.getElementById('startBtn');
+  const exitBtn = document.getElementById('exitBtn');
+  const gradeRow = document.getElementById('gradeRow');
+  const homeBest = document.getElementById('homeBest');
+  const overHome = document.getElementById('overHome');
 
   let hintShown = false;
   function hideHint() {
@@ -1224,6 +1231,7 @@
   function win() {
     G.state = 'over';
     G.result = 'win';
+    saveBestWave();
     document.getElementById('overK').textContent = '守住了';
     document.getElementById('overK').classList.remove('lost');
     document.getElementById('overTitle').textContent = '豆豆塔还在';
@@ -1234,6 +1242,7 @@
   function lose() {
     G.state = 'over';
     G.result = 'lose';
+    saveBestWave();
     document.getElementById('overK').textContent = '失守';
     document.getElementById('overK').classList.add('lost');
     document.getElementById('overTitle').textContent = '豆豆塔被推平了';
@@ -1767,25 +1776,67 @@
     applySpeed();
   }
 
-  function applyGrade() {
-    gradeEl.textContent = `1-${G.gradeMax}`;
-    gradeEl.classList.toggle('on', G.gradeMax < 6);
+  /* ----------------------------------------------------------
+     主页 / 战斗页
+     ---------------------------------------------------------- */
+
+  function bestWave() {
+    try { return Number(window.localStorage.getItem('wordtower-best-wave')) || 0; } catch (err) { return 0; }
   }
 
-  function cycleGrade() {
-    const i = GRADE_STEPS.indexOf(G.gradeMax);
-    G.gradeMax = GRADE_STEPS[(i + 1) % GRADE_STEPS.length];
+  function saveBestWave() {
     try {
-      window.localStorage.setItem('wordtower-grade', String(G.gradeMax));
-    } catch (err) { /* 无痕模式不存也没关系 */ }
-    applyGrade();
-    if (G.state === 'playing') {
-      floatText(TOWER_Y - 210, `年级 1-${G.gradeMax}`, '#ffd166');
+      if (G.wave > bestWave()) window.localStorage.setItem('wordtower-best-wave', String(G.wave));
+    } catch (err) { /* 无痕模式 */ }
+  }
+
+  function renderHomeBest() {
+    const v = bestWave();
+    homeBest.textContent = v ? `最高到过第 ${v} 波` : '还没打过 · 试试能撑多久';
+  }
+
+  function renderGradeButtons() {
+    const btns = document.querySelectorAll('.grade-btn');
+    for (let i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', Number(btns[i].dataset.grade) === G.gradeMax);
     }
+  }
+
+  function setGrade(v) {
+    if (G.state === 'playing') return;   // 战斗中不能改难度
+    if (GRADE_STEPS.indexOf(v) < 0) return;
+    G.gradeMax = v;
+    try { window.localStorage.setItem('wordtower-grade', String(v)); } catch (err) { /* 同上 */ }
+    renderGradeButtons();
+  }
+
+  function showHome() {
+    G.state = 'home';
+    G.paused = false;
+    battleEl.hidden = true;
+    homeEl.hidden = false;
+    overEl.hidden = true;
+    cardsEl.hidden = true;
+    pauseBtn.classList.remove('paused');
+    renderGradeButtons();
+    renderHomeBest();
+  }
+
+  function startBattle() {
+    homeEl.hidden = true;
+    battleEl.hidden = false;
+    overEl.hidden = true;
+    resize();
+    reset();
+  }
+
+  function exitBattle() {
+    showHome();
   }
 
   function frame(now) {
     if (!last) last = now;
+    if (G.state === 'home') { last = now; requestAnimationFrame(frame); return; }
     let dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     dt *= speed;
@@ -1821,17 +1872,23 @@
 
   pauseBtn.addEventListener('click', () => setPaused(!G.paused));
   speedEl.addEventListener('click', cycleSpeed);
-  gradeEl.addEventListener('click', cycleGrade);
   puzzleNext.addEventListener('click', () => closeCards());
   document.getElementById('again').addEventListener('click', reset);
+  exitBtn.addEventListener('click', exitBattle);
+  overHome.addEventListener('click', exitBattle);
+  startBtn.addEventListener('click', startBattle);
+  gradeRow.addEventListener('click', (e) => {
+    const b = e.target.closest ? e.target.closest('.grade-btn') : null;
+    if (b) setGrade(Number(b.dataset.grade));
+  });
 
   window.addEventListener('keydown', (e) => {
+    if (G.state !== 'playing') return;
     if (e.key === ' ' || e.key === 'p' || e.key === 'P') {
       e.preventDefault();
       setPaused(!G.paused);
     }
     if (e.key === 'f' || e.key === 'F') cycleSpeed();
-    if (e.key === 'g' || e.key === 'G') cycleGrade();
   });
 
   /* ----------------------------------------------------------
@@ -1839,9 +1896,8 @@
      ---------------------------------------------------------- */
 
   resize();
-  reset();
+  showHome();
   applySpeed();
-  applyGrade();
   if (QS.has('debug')) {
     window.__g = G;
     window.__api = {
@@ -1850,7 +1906,10 @@
       answerLetter,
       closeCards,
       reset,
-      cycleGrade,
+      startBattle,
+      exitBattle,
+      setGrade,
+      bestWave,
       goal: () => ({
         wave: G.wave,
         level: G.level,

@@ -127,6 +127,7 @@ function run(seed) {
   if (!g || !api) throw new Error('没有 __g / __api（debug 没开？）');
 
   const frame = getFrame();
+  if (g.state === 'home' && api.startBattle) api.startBattle();
 
   // 玩家模型：每个单词掷一次"认不认识"；认识就挑认识的卡，不认识就瞎猜一个字母
   // 用局内种子单独起一个随机源，保证同一配置跑出来的结果可复现（方便 A/B）

@@ -606,3 +606,181 @@ body {
 }
 
 .over-btn:active { transform: scale(0.97); }
+
+/* ==========================================================
+   两页：主页 / 战斗页
+   ========================================================== */
+
+.page { position: absolute; inset: 0; }
+.page[hidden] { display: none; }
+
+/* ---------------- 主页 ---------------- */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  padding: 10% 7% 8%;
+  background:
+    radial-gradient(70% 40% at 50% 0%, rgba(90, 120, 190, 0.22), transparent 70%),
+    radial-gradient(80% 50% at 50% 100%, rgba(255, 158, 196, 0.07), transparent 70%),
+    linear-gradient(180deg, #070b14, #05070c);
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.home-inner {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3.2vh, 34px);
+}
+
+.home-head h1 {
+  margin: 0;
+  font-size: clamp(28px, 7.4vw, 44px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #ffffff, #ffd166);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.home-head p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: clamp(12px, 3.2vw, 15px);
+  letter-spacing: 0.06em;
+}
+
+.sec-k {
+  margin: 0 0 10px;
+  font-size: clamp(11px, 2.9vw, 13px);
+  color: #93a1bd;
+  letter-spacing: 0.18em;
+}
+
+.mode {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(18, 25, 38, 0.8);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mode.on {
+  border-color: rgba(255, 209, 102, 0.65);
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.16), rgba(255, 209, 102, 0.05));
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.22) inset;
+}
+
+.mode-name {
+  font-size: clamp(16px, 4.4vw, 22px);
+  font-weight: 800;
+}
+
+.mode-desc {
+  font-size: clamp(11px, 2.9vw, 13px);
+  color: var(--muted);
+}
+
+.grade-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.grade-btn {
+  padding: 15px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(18, 25, 38, 0.8);
+  color: #cfd8ea;
+  font: inherit;
+  font-size: clamp(13px, 3.4vw, 16px);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.12s, background 0.12s;
+}
+
+.grade-btn.on {
+  border-color: rgba(255, 209, 102, 0.7);
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffe3a0;
+}
+
+.grade-btn:active { transform: scale(0.97); }
+
+.sec-tip {
+  margin: 10px 0 0;
+  font-size: clamp(10px, 2.7vw, 12px);
+  color: #6f7c96;
+  letter-spacing: 0.04em;
+}
+
+.start-btn {
+  margin-top: 6px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 0;
+  background: linear-gradient(180deg, #f0d24a, #d9b02e);
+  color: #1a1c14;
+  font: inherit;
+  font-size: clamp(18px, 4.8vw, 24px);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  box-shadow: 0 14px 30px -14px rgba(240, 210, 74, 0.7);
+}
+
+.start-btn:active { transform: scale(0.98); }
+
+.home-best {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(11px, 2.9vw, 13px);
+  color: #8d99b5;
+  letter-spacing: 0.08em;
+}
+
+/* ---------------- 战斗页 ---------------- */
+
+.exit {
+  position: absolute;
+  top: 2.6%;
+  right: 4%;
+  z-index: 7;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(20, 26, 38, 0.72);
+  border: 1px solid rgba(150, 176, 220, 0.18);
+  color: #cfd8ea;
+  font: inherit;
+  font-size: clamp(11px, 3vw, 14px);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.exit:active { transform: scale(0.96); }
+
+.over-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.over-btn.ghost {
+  border-color: rgba(150, 176, 220, 0.4);
+  background: rgba(150, 176, 220, 0.1);
+  color: #cfd8ea;
+}

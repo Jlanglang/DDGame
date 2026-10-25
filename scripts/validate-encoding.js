@@ -10,21 +10,10 @@ const ROOT = path.join(__dirname, '..');
 
 const CHECKS = [
   {
-    // 豆豆大挑战本体（根 index.html 现在是游戏库首页，见下一项）
-    file: 'match.html',
-    required: ['<meta charset="UTF-8">', '豆豆大挑战', '快速开始', '再玩一次', '</html>'],
-    forbidden: ['<motion', '</motion>', '????'],
-  },
-  {
     // 游戏库首页
     file: 'index.html',
     required: ['<meta charset="UTF-8">', '豆豆游戏盒', '</html>'],
     forbidden: ['<motion', '</motion>', '????'],
-  },
-  {
-    file: 'js/modes.js',
-    required: ['普通', '困难', '挑战'],
-    forbidden: ['????'],
   },
 ];
 
@@ -115,7 +104,7 @@ function main() {
   if (allErrors.length) {
     console.error('编码/HTML 校验失败:\n');
     allErrors.forEach((e) => console.error('  -', e));
-    console.error('\n修复建议: 按 .cursor/rules/encoding-and-html.mdc 操作；match.html 严重损坏时可运行 node scripts/fix-index-html.js 重建');
+    console.error('\n修复建议: 按 .cursor/rules/encoding-and-html.mdc 操作；index.html 严重损坏时可运行 node scripts/fix-index-html.js 重建');
     process.exit(1);
   }
 

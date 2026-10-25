@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>豆豆魔方</title>
+<meta name="description" content="豆豆魔方：3D 三阶魔方，拖动转层、拖空白转视角，打乱后计时复原。">
+<meta name="theme-color" content="#070a11">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧊</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="board" aria-label="三阶魔方"></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>豆豆魔方 <b>3D</b></h1>
+      <p>打乱它，再拼回去</p>
+    </div>
+    <a class="hub-back" href="../../index.html">← 游戏库</a>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><span>时间</span><b id="time">0.0</b></div>
+    <div class="stat"><span>步数</span><b id="moves">0</b></div>
+    <div class="stat"><span>最佳</span><b id="best">--</b></div>
+  </div>
+
+  <p class="hint" id="hint">点「打乱」开始</p>
+
+  <footer class="dock">
+    <div class="pad" id="pad">
+      <button class="face" data-move="U" type="button" aria-label="上层 U 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>上</em><b>U</b></span><i class="cw">↻</i>
+      </button>
+      <button class="face" data-move="D" type="button" aria-label="下层 D 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>下</em><b>D</b></span><i class="cw">↻</i>
+      </button>
+      <button class="face" data-move="L" type="button" aria-label="左层 L 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>左</em><b>L</b></span><i class="cw">↻</i>
+      </button>
+      <button class="face" data-move="R" type="button" aria-label="右层 R 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>右</em><b>R</b></span><i class="cw">↻</i>
+      </button>
+      <button class="face" data-move="F" type="button" aria-label="前层 F 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>前</em><b>F</b></span><i class="cw">↻</i>
+      </button>
+      <button class="face" data-move="B" type="button" aria-label="后层 B 逆时针 / 顺时针">
+        <i class="ccw">↺</i><span class="nm"><em>后</em><b>B</b></span><i class="cw">↻</i>
+      </button>
+    </div>
+    <div class="tools">
+      <button class="tool lock on" data-act="lock" id="lockBtn" type="button" aria-label="拖动锁：锁定时拖魔方转层，解锁后拖动只转视角">🔒 锁定</button>
+      <button class="tool" data-act="shuffle" type="button">打乱</button>
+      <button class="tool" data-act="hint" type="button">提示</button>
+      <button class="tool" data-act="undo" type="button">撤销</button>
+      <button class="tool" data-act="reset" type="button">重置</button>
+      <button class="tool" data-act="view" type="button">视角</button>
+    </div>
+  </footer>
+
+  <div class="win" id="win" hidden>
+    <div class="win-card">
+      <p class="win-k">拼回来了</p>
+      <h2 class="win-title">魔方复原</h2>
+      <p class="win-sub" id="winSub"></p>
+      <button class="win-btn" id="winAgain" type="button">再打乱一局</button>
+    </div>
+  </div>
+</div>
+
+<script src="cube-core.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

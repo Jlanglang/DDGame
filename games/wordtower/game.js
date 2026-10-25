@@ -28,6 +28,8 @@
 
     hpBase: 10,         // 第 1 波小怪血量
     hpGrowth: 1.105,    // 每波 ×1.105（200 波无尽）
+    surgeFrom: 15,      // 第 15 波之后额外加速，防止后期清得动就永远不死
+    surge: 1.2,         // 额外每波 ×1.2
     speed: 84,          // 小怪推进速度（像素/秒）
     waves: 200,         // 无尽模式：200 波，每 20 波一个 BOSS
     spawnGap: 0.26,     // 同一波里两只怪的间隔（越小越挤）
@@ -52,6 +54,15 @@
     shotsMax: 5,
     burnMax: 3,
     slowMax: 3,
+
+    // 新词缀
+    splashRange: 72,    // 溅射半径（像素）
+    splashMax: 0.9,     // 溅射倍率上限
+    chainRange: 190,    // 连锁找下一个目标的半径
+    chainMax: 4,        // 连锁跳数上限
+    chainFalloff: 0.65, // 每跳伤害衰减
+    stunMax: 0.25,      // 定身触发概率上限
+    regenEvery: 18,     // 自动修复间隔（秒）
   }, (typeof globalThis !== 'undefined' && globalThis.__BALANCE) || {});
 
   /* ----------------------------------------------------------
@@ -108,6 +119,17 @@
     S: { key: 'S', mul: 2.2, color: '#ff9ec4' },
   };
 
+  /** 年级难度：1-2 / 1-4 / 1-6（只筛单词，不改怪物数值） */
+  const GRADE_STEPS = [6, 4, 2]; // 点一下降一档：1-6 → 1-4 → 1-2 → 1-6
+  function storedGrade() {
+    try {
+      const v = Number(window.localStorage.getItem('wordtower-grade'));
+      return GRADE_STEPS.indexOf(v) >= 0 ? v : 6;
+    } catch (err) {
+      return 6;
+    }
+  }
+
   function gradeWeights(wave) {
     if (wave <= 4) return { B: 80, A: 20, S: 0 };      // 前期：B 多 A 少
     if (wave <= 8) return { B: 55, A: 35, S: 10 };     // 中期：三种都有
@@ -131,16 +153,18 @@
 
   const CARDS = [
     { id: 'dmg', name: '强化弹头', icon: '✦', buff: 'dmg',
-      desc: (m) => `攻击 +${Math.round(22 * m)}%`,
-      apply: (t, m) => { t.dmgMul *= 1 + 0.22 * m; } },
+      desc: (m) => `攻击 +${Math.round(10 * m)}%`,
+      apply: (t, m) => { t.dmgMul *= 1 + 0.1 * m; } },
 
     { id: 'rate', name: '速射机匣', icon: '⇈', buff: 'rate',
       desc: (m) => `攻速 +${(0.35 * m).toFixed(2)}`,
-      apply: (t, m) => { t.rate = Math.min(BAL.rateMax, t.rate + BAL.buffRate * m); } },
+      apply: (t, m) => { t.rate = Math.min(BAL.rateMax, t.rate + BAL.buffRate * m); },
+      maxed: (t) => t.rate >= BAL.rateMax - 1e-6 },
 
     { id: 'split', name: '分裂弹道', icon: '⌇', buff: 'split',
       desc: (m) => `弹道 +${stepOf(m)}`,
-      apply: (t, m) => { t.shots = Math.min(BAL.shotsMax, t.shots + stepOf(m)); } },
+      apply: (t, m) => { t.shots = Math.min(BAL.shotsMax, t.shots + stepOf(m)); },
+      maxed: (t) => t.shots >= BAL.shotsMax },
 
     { id: 'shield', name: '护盾装甲', icon: '◈', buff: 'shield',
       desc: (m) => `回血 +${stepOf(m)}`,
@@ -153,11 +177,13 @@
 
     { id: 'slow', name: '冰冻弹', icon: '❄', buff: 'slow',
       desc: (m) => `减速 ×${stepOf(m)}`,
-      apply: (t, m) => { t.slowLevel = Math.min(BAL.slowMax, t.slowLevel + stepOf(m)); } },
+      apply: (t, m) => { t.slowLevel = Math.min(BAL.slowMax, t.slowLevel + stepOf(m)); },
+      maxed: (t) => t.slowLevel >= BAL.slowMax },
 
     { id: 'burn', name: '燃烧弹', icon: '♨', buff: 'burn',
       desc: (m) => `燃烧 ×${stepOf(m)}`,
-      apply: (t, m) => { t.burnLevel = Math.min(BAL.burnMax, t.burnLevel + stepOf(m)); } },
+      apply: (t, m) => { t.burnLevel = Math.min(BAL.burnMax, t.burnLevel + stepOf(m)); },
+      maxed: (t) => t.burnLevel >= BAL.burnMax },
 
     { id: 'pierce', name: '穿甲弹', icon: '➤', buff: 'pierce',
       desc: (m) => `穿透 +${stepOf(m)}`,
@@ -165,12 +191,76 @@
 
     { id: 'crit', name: '瞄准镜', icon: '◎', buff: 'crit',
       desc: (m) => `暴击 +${Math.round(10 * m)}%`,
-      apply: (t, m) => { t.crit = Math.min(0.75, t.crit + BAL.buffCrit * m); } },
+      apply: (t, m) => { t.crit = Math.min(0.75, t.crit + BAL.buffCrit * m); },
+      maxed: (t) => t.crit >= 0.75 - 1e-6 },
+
+    { id: 'splash', name: '溅射弹头', icon: '✸', buff: 'splash',
+      desc: (m) => `溅射 ${Math.round(45 * m)}%`,
+      apply: (t, m) => { t.splash = Math.min(BAL.splashMax, t.splash + 0.45 * m); },
+      maxed: (t) => t.splash >= BAL.splashMax - 1e-6 },
+
+    { id: 'chain', name: '连锁闪电', icon: '⚡', buff: 'chain',
+      desc: (m) => `连锁 +${stepOf(m)}`,
+      apply: (t, m) => { t.chain = Math.min(BAL.chainMax, t.chain + stepOf(m)); },
+      maxed: (t) => t.chain >= BAL.chainMax },
+
+    { id: 'stun', name: '眩晕弹', icon: '✶', buff: 'stun',
+      desc: (m) => `定身 ${Math.round(9 * m)}%`,
+      apply: (t, m) => { t.stun = Math.min(BAL.stunMax, t.stun + 0.09 * m); },
+      maxed: (t) => t.stun >= BAL.stunMax - 1e-6 },
+
+    { id: 'bounty', name: '战地赏金', icon: '¥', buff: 'bounty',
+      desc: (m) => `经验 +${Math.round(25 * m)}%`,
+      apply: (t, m) => { t.expMul = Math.min(4, t.expMul + 0.25 * m); },
+      maxed: (t) => t.expMul >= 4 - 1e-6 },
+
+    { id: 'regen', name: '自动修复', icon: '✚', buff: 'regen',
+      desc: (m) => `每 ${BAL.regenEvery} 秒回 ${stepOf(m)} 血`,
+      apply: (t, m) => { t.regen += stepOf(m); },
+      maxed: (t) => t.regen >= 12 },
+
+    { id: 'critdmg', name: '致命瞄具', icon: '⊙', buff: 'critdmg',
+      desc: (m) => `暴伤 +${Math.round(30 * m)}%`,
+      apply: (t, m) => { t.critMul = Math.min(4, t.critMul + 0.3 * m); },
+      maxed: (t) => t.critMul >= 4 - 1e-6 },
+
+    { id: 'armorpen', name: '破甲弹芯', icon: '⛏', buff: 'armorpen',
+      desc: (m) => `无视 ${Math.round(12 * m)}% 护甲`,
+      apply: (t, m) => { t.armorPen = Math.min(0.8, t.armorPen + 0.12 * m); },
+      maxed: (t) => t.armorPen >= 0.8 - 1e-6 },
   ];
 
   /* ----------------------------------------------------------
      状态
      ---------------------------------------------------------- */
+
+  function newTower() {
+    return {
+      x: W / 2,
+      y: TOWER_Y,
+      angle: -Math.PI / 2,
+      cd: 0,
+      damage: BAL.damage,
+      dmgMul: 1,
+      rate: BAL.rate,
+      shots: BAL.shots,
+      slowLevel: 0,
+      burnLevel: 0,
+      pierce: 0,
+      crit: 0,
+      shield: 0,
+      kick: 0,
+      // 新词缀
+      splash: 0,
+      chain: 0,
+      stun: 0,
+      expMul: 1,
+      regen: 0,
+      regenT: 0,
+      critMul: 1,
+      armorPen: 0,
+    };
+  }
 
   const G = {
     state: 'playing',
@@ -188,34 +278,23 @@
     exp: 0,
     expNext: BAL.levelBase + BAL.levelStep,
     pendingLevels: 0,
+    pendingQueue: [],   // 每次升级对应的目标等级，选卡面板按顺序消费
+    wordRecent: [],     // 本局最近抽过的单词，避免短时间内重复
+    gradeMax: storedGrade(), // 年级难度：2 / 4 / 6（单词只抽这个年级以内的）
 
     enemies: [],
     bullets: [],
     ebullets: [],
     particles: [],
     floaters: [],
+    zaps: [],
     queue: [],
     spawnTimer: 0,
     waveGap: 0,
     bossSpawned: false,
     bossPending: false,
 
-    tower: {
-      x: W / 2,
-      y: TOWER_Y,
-      angle: -Math.PI / 2,
-      cd: 0,
-      damage: BAL.damage,
-      dmgMul: 1,
-      rate: BAL.rate,
-      shots: BAL.shots,
-      slowLevel: 0,
-      burnLevel: 0,
-      pierce: 0,
-      crit: 0,
-      shield: 0,
-      kick: 0,
-    },
+    tower: newTower(),
 
     cards: {
       open: false,
@@ -224,6 +303,8 @@
       hold: 0,
       solved: 0,
       lost: 0,
+      targetLv: 0,
+      lastIds: '',
     },
   };
 
@@ -253,6 +334,7 @@
   const overSub = document.getElementById('overSub');
   const pauseBtn = document.getElementById('pause');
   const speedEl = document.getElementById('speed');
+  const gradeEl = document.getElementById('grade');
   const hintEl = document.getElementById('hint');
 
   let hintShown = false;
@@ -326,9 +408,16 @@
     ];
     if (t.pierce) rows.push(['穿透', t.pierce]);
     if (t.crit) rows.push(['暴击', `${Math.round(t.crit * 100)}%`]);
+    if (t.critMul > 1) rows.push(['暴伤', `${Math.round(t.critMul * 100)}%`]);
     if (t.slowLevel) rows.push(['减速', t.slowLevel]);
     if (t.burnLevel) rows.push(['燃烧', t.burnLevel]);
     if (t.shield) rows.push(['回血', t.shield]);
+    if (t.regen) rows.push(['修复', `+${t.regen}/${BAL.regenEvery}s`]);
+    if (t.splash) rows.push(['溅射', `${Math.round(t.splash * 100)}%`]);
+    if (t.chain) rows.push(['连锁', t.chain]);
+    if (t.stun) rows.push(['定身', `${Math.round(t.stun * 100)}%`]);
+    if (t.armorPen) rows.push(['破甲', `${Math.round(t.armorPen * 100)}%`]);
+    if (t.expMul > 1) rows.push(['经验', `+${Math.round((t.expMul - 1) * 100)}%`]);
 
     const key = rows.map((r) => r.join(':')).join('|');
     if (key === lastStatsKey) return;
@@ -346,13 +435,19 @@
      经验 / 升级
      ---------------------------------------------------------- */
 
+  /** 升级只在这一处发生：加一级 + 记一次待选卡（目标等级进队列） */
+  function levelUp() {
+    G.level += 1;
+    G.expNext = BAL.levelBase + G.level * BAL.levelStep;
+    G.pendingLevels += 1;
+    G.pendingQueue.push(G.level);
+  }
+
   function addExp(n) {
     G.exp += n;
     while (G.exp >= G.expNext) {
       G.exp -= G.expNext;
-      G.level += 1;
-      G.expNext = BAL.levelBase + G.level * BAL.levelStep;
-      G.pendingLevels += 1;
+      levelUp();
     }
     syncHud();
   }
@@ -361,41 +456,69 @@
      选卡
      ---------------------------------------------------------- */
 
+  /** 卡面等级 ↔ 单词长度档位：B 短词 / A 中词 / S 长词 */
+  const GRADE_TIER = { B: 'easy', A: 'mid', S: 'hard' };
+
+  /** 按当前年级难度筛词；某个 buff 在这个年级段一个词都没有时，退回全量 */
   function wordsWithBuff(buff) {
     const bank = window.WORD_BANK || {};
-    const out = [];
-    for (const tier of ['easy', 'mid', 'hard']) {
-      for (const w of bank[tier] || []) {
-        if (w.buff === buff) out.push(w);
+    const maxGrade = G.gradeMax || 6;
+
+    const gather = (limit) => {
+      const out = { easy: [], mid: [], hard: [] };
+      for (const tier of ['easy', 'mid', 'hard']) {
+        for (const w of bank[tier] || []) {
+          if (w.buff !== buff) continue;
+          if (limit && (w.grade || 6) > limit) continue;
+          out[tier].push({ w: w.w, zh: w.zh, grade: w.grade || 6, buff, tier });
+        }
       }
-    }
+      return out;
+    };
+
+    const out = gather(maxGrade);
+    if (!out.easy.length && !out.mid.length && !out.hard.length) return gather(0);
     return out;
   }
 
-  function wordForCard(buff) {
-    const all = wordsWithBuff(buff);
-    if (!all.length) return { w: 'POWER', zh: '力量', buff };
-    // 等级越高，越可能抽到长词
-    const tier =
-      G.level >= 9 ? 0.15 : G.level >= 6 ? 0.45 : G.level >= 4 ? 0.25 : 0.1;
-    const longs = all.filter((x) => x.w.length >= 5);
-    if (longs.length && Math.random() < tier) return pick(longs);
-    return pick(all);
-  }
+  /**
+   * 抽一个单词：词长档位直接跟卡面等级走（B→短词 / A→中词 / S→长词），
+   * 所以「S 卡更强」也意味着「S 卡要拼的词更长」。
+   * 同时优先避开本局已经出现过的词。
+   */
+  function wordForCard(buff, grade) {
+    const tiers = wordsWithBuff(buff);
+    const all = tiers.easy.concat(tiers.mid, tiers.hard);
+    if (!all.length) return { w: 'POWER', zh: '力量', buff, tier: 'mid' };
 
-  function rollGrade() {
-    const keys = ['B', 'A', 'S'];
-    const total = keys.reduce((s, k) => s + GRADES[k].weight, 0);
-    let r = Math.random() * total;
-    for (const k of keys) {
-      r -= GRADES[k].weight;
-      if (r <= 0) return GRADES[k];
+    const recent = new Set(G.wordRecent);
+    let pool = all.filter((x) => !recent.has(x.w));
+    if (!pool.length) {
+      // 这个词缀的词全抽过了，只把这个词缀从历史里放出来
+      G.wordRecent = G.wordRecent.filter((w) => !all.some((x) => x.w === w));
+      pool = all;
     }
-    return GRADES.B;
+
+    const wanted = GRADE_TIER[grade && grade.key] || 'easy';
+    const order =
+      wanted === 'hard' ? ['hard', 'mid', 'easy'] :
+      wanted === 'mid' ? ['mid', 'easy', 'hard'] :
+      ['easy', 'mid', 'hard'];
+
+    let item = null;
+    for (const t of order) {
+      const cand = pool.filter((x) => x.tier === t);
+      if (cand.length) { item = pick(cand); break; }
+    }
+    if (!item) item = pick(pool);
+
+    G.wordRecent.push(item.w);
+    if (G.wordRecent.length > 90) G.wordRecent.shift();
+    return item;
   }
 
   function buildOption(card, grade) {
-    const item = wordForCard(card.buff);
+    const item = wordForCard(card.buff, grade);
     const w = item.w;
     const blank = w.length <= 3 ? w.length - 1 : 1 + Math.floor(Math.random() * (w.length - 2));
     const correct = w[blank];
@@ -413,6 +536,7 @@
       desc: card.desc(grade.mul),
       word: w,
       zh: item.zh,
+      wordGrade: item.grade || 6,
       blank,
       correct,
       letters: shuffle([correct, d1, d2]),
@@ -420,28 +544,64 @@
     };
   }
 
+  /** 三张卡里至少给一张输出卡，免得 15 张卡池把伤害稀释得太狠 */
+  const CORE_CARDS = ['dmg', 'rate', 'split'];
+
+  /** 抽三张：已经满级的卡不再出现；连续两次不出现一模一样的三张 */
+  function pickOffer() {
+    let pool = CARDS.filter((c) => !c.maxed || !c.maxed(G.tower));
+    if (pool.length < 3) pool = CARDS.slice();
+
+    let picks = pool.slice(0, 3);
+    for (let tries = 0; tries < 12; tries++) {
+      const chosen = [];
+      const cores = pool.filter((c) => CORE_CARDS.indexOf(c.id) !== -1);
+      if (cores.length) chosen.push(pick(cores));
+
+      const rest = shuffle(pool.filter((c) => chosen.indexOf(c) === -1));
+      for (const c of rest) {
+        if (chosen.length >= 3) break;
+        chosen.push(c);
+      }
+      if (chosen.length < 3) chosen.push(pool[0]);
+      picks = chosen.slice(0, 3);
+
+      const key = picks.map((c) => c.id).sort().join(',');
+      if (key !== G.cards.lastIds) {
+        G.cards.lastIds = key;
+        return picks;
+      }
+    }
+    G.cards.lastIds = picks.map((c) => c.id).sort().join(',');
+    return picks;
+  }
+
   function openCards() {
     if (G.state !== 'playing') return;
+    const targetLv = G.pendingQueue.length ? G.pendingQueue.shift() : G.level;
     G.pendingLevels = Math.max(0, G.pendingLevels - 1);
     G.cards.open = true;
     G.cards.picked = -1;
     G.cards.hold = 0;
+    G.cards.targetLv = targetLv;
     G.paused = true;
     hideHint();
 
     // 固定三张，但每张卡自己掷等级（前期多 B，后期多 S）
-    const pool = shuffle(CARDS.slice()).slice(0, 3);
-    const picks = pool.map((c) => buildOption(c, rollGrade(G.wave)));
-    G.cards.options = picks;
+    const pool = pickOffer();
+    G.cards.options = pool.map((c) => buildOption(c, rollGrade(G.wave)));
 
     renderCardPanel();
     cardsEl.hidden = false;
   }
 
   function renderCardPanel() {
-    cardsK.textContent = `升级 Lv.${G.level}`;
+    cardsK.textContent = `升级 Lv.${G.cards.targetLv || G.level}`;
     cardsK.style.color = '';
-    cardsTip.textContent = '三选一 · 每张卡自带 B/A/S 等级，越高越强';
+    const left = G.pendingLevels;
+    cardsTip.textContent = left > 0
+      ? `三选一 · 连续升 ${left + 1} 级，还有 ${left} 次选卡`
+      : '三选一 · B 短词 / A 中词 / S 长词，等级越高越强';
 
     cardList.hidden = false;
     puzzleEl.hidden = true;
@@ -506,9 +666,11 @@
     puzzleName.textContent = `${opt.card.name} · ${opt.desc}`;
     puzzleZh.textContent = opt.zh;
     puzzleWord.innerHTML = blankHtml(opt);
-    // 单词不再逐字母空格，长词按长度缩字号
+    // 单词不再逐字母空格，长词按长度缩字号（词库最长 12 字母）
     const n = opt.word.length;
-    puzzleWord.style.fontSize = n >= 9 ? '32px' : n === 8 ? '35px' : n === 7 ? '39px' : '44px';
+    const size = n >= 12 ? 26 : n === 11 ? 28 : n === 10 ? 30
+      : n === 9 ? 32 : n === 8 ? 35 : n === 7 ? 39 : 44;
+    puzzleWord.style.fontSize = `${size}px`;
     puzzleWord.style.letterSpacing = '0.06em';
     puzzleTip.textContent = '拼错这级就拿不到卡';
     puzzleTip.className = 'puzzle-tip';
@@ -572,7 +734,8 @@
      ---------------------------------------------------------- */
 
   function enemyHp(wave) {
-    return Math.round(BAL.hpBase * Math.pow(BAL.hpGrowth, wave - 1));
+    const surge = wave > BAL.surgeFrom ? Math.pow(BAL.surge, wave - BAL.surgeFrom) : 1;
+    return Math.round(BAL.hpBase * Math.pow(BAL.hpGrowth, wave - 1) * surge);
   }
 
   function startWave() {
@@ -587,6 +750,8 @@
 
   function makeEnemy(kind, hp, x, y, gen, maxGen) {
     const t = TYPES[kind] || TYPES.grunt;
+    // 波数越高，怪走得越快（最多 +60%）：不然后期清得动就永远死不了，变成无限磨
+    const rush = 1 + Math.min(0.6, Math.max(0, (G.wave - 1) * 0.005));
     return {
       kind,
       x,
@@ -594,13 +759,14 @@
       r: t.r,
       hp,
       maxHp: hp,
-      speed: BAL.speed * t.spd,
+      speed: BAL.speed * t.spd * rush,
       exp: t.exp,
       dead: false,
       hitFlash: 0,
       slowT: 0,
       burnT: 0,
       burnDps: 0,
+      stunT: 0,
       wob: Math.random() * Math.PI * 2,
       gen: gen || 0,
       maxGen: maxGen || 0,
@@ -718,7 +884,7 @@
         y: oy,
         vx: Math.cos(a) * BAL.bulletSpeed,
         vy: Math.sin(a) * BAL.bulletSpeed,
-        damage: crit ? base * 2 : base,
+        damage: crit ? base * 2 * (t.critMul || 1) : base,
         crit,
         pierce: t.pierce,
         hit: [],
@@ -751,13 +917,14 @@
       floatText(e.y - 20, '分裂！', '#ffd166');
     }
 
-    // 升级怪：打死直接升一级
+    // 升级怪：打死真的升一级（以前只加了一次选卡，等级没变，所以面板会重复弹）
     if (e.kind === 'leveler') {
-      G.pendingLevels += 1;
-      floatText(e.y - 20, '升级！', '#7ee0a0');
+      levelUp();
+      floatText(e.y - 20, `升级 Lv.${G.level}`, '#7ee0a0');
     }
 
-    addExp(e.exp != null ? e.exp : TYPES[e.kind] ? TYPES[e.kind].exp : 1);
+    const baseExp = e.exp != null ? e.exp : TYPES[e.kind] ? TYPES[e.kind].exp : 1;
+    addExp(baseExp * (G.tower.expMul || 1));
   }
 
   function updateEnemies(dt) {
@@ -775,36 +942,41 @@
 
       e.wob += dt * 6;
 
-      // 远程怪：走到中途停下来朝塔开火
-      if (e.kind === 'ranged') {
-        if (!e.stopped && e.y >= e.stopY) e.stopped = true;
-        if (e.stopped) {
-          e.shotCd -= dt;
-          if (e.shotCd <= 0) {
-            e.shotCd = 2;
-            enemyShoot(e);
+      // 被眩晕：这一帧不动、不开火、不回血
+      if (e.stunT > 0) {
+        e.stunT = Math.max(0, e.stunT - dt);
+      } else {
+        // 远程怪：走到中途停下来朝塔开火
+        if (e.kind === 'ranged') {
+          if (!e.stopped && e.y >= e.stopY) e.stopped = true;
+          if (e.stopped) {
+            e.shotCd -= dt;
+            if (e.shotCd <= 0) {
+              e.shotCd = 2;
+              enemyShoot(e);
+            }
           }
         }
-      }
 
-      // 奶妈：定期给周围 220px 内的怪回血
-      if (e.kind === 'healer') {
-        e.healCd -= dt;
-        if (e.healCd <= 0) {
-          e.healCd = 3;
-          e.healPulse = 1;
-          for (const o of G.enemies) {
-            if (o.dead || o === e) continue;
-            if (Math.hypot(o.x - e.x, o.y - e.y) > 220) continue;
-            o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.12);
+        // 奶妈：定期给周围 220px 内的怪回血
+        if (e.kind === 'healer') {
+          e.healCd -= dt;
+          if (e.healCd <= 0) {
+            e.healCd = 3;
+            e.healPulse = 1;
+            for (const o of G.enemies) {
+              if (o.dead || o === e) continue;
+              if (Math.hypot(o.x - e.x, o.y - e.y) > 220) continue;
+              o.hp = Math.min(o.maxHp, o.hp + o.maxHp * 0.12);
+            }
           }
+        }
+
+        if (!(e.kind === 'ranged' && e.stopped)) {
+          e.y += e.speed * dt * (e.slowT > 0 ? 0.62 : 1);
         }
       }
       if (e.healPulse > 0) e.healPulse = Math.max(0, e.healPulse - dt * 2);
-
-      if (!(e.kind === 'ranged' && e.stopped)) {
-        e.y += e.speed * dt * (e.slowT > 0 ? 0.62 : 1);
-      }
 
       if (e.y >= TOWER_Y) {
         e.dead = true;
@@ -867,8 +1039,55 @@
     G.bullets = G.bullets.filter((b) => !b.dead);
   }
 
+  /** 结算一次伤害（含破甲），不触发溅射/连锁，避免递归 */
+  function damageRaw(e, dmg) {
+    const t = G.tower;
+    const real = dmg * (1 - Math.max(0, (e.armor || 0) - (t.armorPen || 0)));
+    e.hp -= real;
+    e.hitFlash = 1;
+    if (e.hp <= 0) killEnemy(e);
+    return real;
+  }
+
+  /** 溅射：命中点周围一圈吃 45%×层数 的伤害 */
+  function splashDamage(src, dmg, mul) {
+    const R = BAL.splashRange;
+    for (const o of G.enemies) {
+      if (o === src || o.dead) continue;
+      if (Math.hypot(o.x - src.x, o.y - src.y) > R) continue;
+      damageRaw(o, dmg * mul);
+      puff(o.x, o.y, '#ffb347', 4);
+    }
+  }
+
+  /** 连锁：从命中点跳向最近的怪，每跳衰减 */
+  function chainDamage(src, dmg, jumps) {
+    let from = src;
+    let cur = dmg * 0.6;
+    const hit = new Set([src]);
+
+    for (let i = 0; i < jumps; i++) {
+      let best = null;
+      let bestD = Infinity;
+      for (const o of G.enemies) {
+        if (o.dead || hit.has(o)) continue;
+        const d = Math.hypot(o.x - from.x, o.y - from.y);
+        if (d < bestD && d <= BAL.chainRange) { bestD = d; best = o; }
+      }
+      if (!best) break;
+
+      hit.add(best);
+      G.zaps.push({ x1: from.x, y1: from.y, x2: best.x, y2: best.y, life: 0.16, max: 0.16 });
+      damageRaw(best, cur);
+      puff(best.x, best.y, '#9fd0ff', 3);
+      from = best;
+      cur *= BAL.chainFalloff;
+    }
+  }
+
   function hitEnemy(e, b) {
-    const dmg = b.damage * (1 - (e.armor || 0));
+    const t = G.tower;
+    const dmg = b.damage * (1 - Math.max(0, (e.armor || 0) - (t.armorPen || 0)));
     e.hp -= dmg;
     e.hitFlash = 1;
 
@@ -878,14 +1097,20 @@
       puff(b.x, b.y, '#ffd166', 3);
     }
 
-    if (G.tower.slowLevel > 0) e.slowT = 0.9;
+    if (t.slowLevel > 0) e.slowT = 0.9;
 
-    if (G.tower.burnLevel > 0) {
+    if (t.burnLevel > 0) {
       e.burnT = 2;
-      e.burnDps = dmg * BAL.buffBurn * G.tower.burnLevel;
+      e.burnDps = dmg * BAL.buffBurn * t.burnLevel;
+    }
+
+    if (t.stun > 0 && Math.random() < t.stun) {
+      e.stunT = Math.max(e.stunT, 0.6);
     }
 
     if (e.hp <= 0) killEnemy(e);
+    if (t.splash > 0) splashDamage(e, dmg, t.splash);
+    if (t.chain > 0) chainDamage(e, b.damage, t.chain);
   }
 
   /** 远程怪朝塔开火 */
@@ -927,6 +1152,23 @@
     G.ebullets = G.ebullets.filter((b) => !b.dead);
   }
 
+  /** 自动修复：每 regenEvery 秒回一次血 */
+  function updateRegen(dt) {
+    const t = G.tower;
+    if (t.regen <= 0 || G.hp >= G.maxHp) {
+      t.regenT = 0;
+      return;
+    }
+    t.regenT += dt;
+    if (t.regenT < BAL.regenEvery) return;
+
+    t.regenT -= BAL.regenEvery;
+    const heal = Math.min(t.regen, G.maxHp - G.hp);
+    G.hp += heal;
+    floatText(TOWER_Y - 170, `+${heal} HP`, '#7ee0a0');
+    syncHud();
+  }
+
   /* ----------------------------------------------------------
      粒子 / 飘字
      ---------------------------------------------------------- */
@@ -960,6 +1202,9 @@
       p.life -= dt;
     }
     G.particles = G.particles.filter((p) => p.life > 0);
+
+    for (const z of G.zaps) z.life -= dt;
+    G.zaps = G.zaps.filter((z) => z.life > 0);
 
     for (const f of G.floaters) {
       f.y -= dt * 46;
@@ -1009,33 +1254,24 @@
     G.exp = 0;
     G.expNext = BAL.levelBase + G.level * BAL.levelStep;
     G.pendingLevels = 0;
+    G.pendingQueue = [];
+    G.wordRecent = [];
     G.enemies = [];
     G.bullets = [];
     G.ebullets = [];
     G.particles = [];
     G.floaters = [];
+    G.zaps = [];
     G.queue = [];
     G.spawnTimer = 0;
     G.waveGap = 0;
     G.bossSpawned = false;
     G.bossPending = false;
-    G.tower = {
-      x: W / 2,
-      y: TOWER_Y,
-      angle: -Math.PI / 2,
-      cd: 0,
-      damage: BAL.damage,
-      dmgMul: 1,
-      rate: BAL.rate,
-      shots: BAL.shots,
-      slowLevel: 0,
-      burnLevel: 0,
-      pierce: 0,
-      crit: 0,
-      shield: 0,
-      kick: 0,
+    G.tower = newTower();
+    G.cards = {
+      open: false, options: [], picked: -1, hold: 0, solved: 0, lost: 0,
+      targetLv: 0, lastIds: '',
     };
-    G.cards = { open: false, options: [], picked: -1, hold: 0, solved: 0, lost: 0 };
 
     cardsEl.hidden = true;
     puzzleEl.hidden = true;
@@ -1088,6 +1324,7 @@
     updateTower(dt);
     updateBullets(dt);
     updateEnemyBullets(dt);
+    updateRegen(dt);
     updateParticles(dt);
   }
 
@@ -1119,6 +1356,7 @@
     drawBackdrop();
     drawBridge();
     drawEnemies();
+    drawZaps();
     drawTower();
     drawBullets();
     drawEnemyBullets();
@@ -1303,6 +1541,23 @@
         ctx.stroke();
       }
 
+      // 定身：头顶 z + 虚线环
+      if (e.stunT > 0) {
+        ctx.save();
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath();
+        ctx.arc(e.x, y, e.r + 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(180, 214, 255, 0.7)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+        ctx.font = '800 16px "PingFang SC", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#cfe4ff';
+        ctx.fillText('z', e.x + e.r * 0.55, y - e.r - 12);
+      }
+
       const eyeR = isBoss ? 9 : 4.5;
       const eyeY = y - e.r * 0.12;
       ctx.fillStyle = '#10161f';
@@ -1328,6 +1583,27 @@
         ctx.fillStyle = ratio > 0.4 ? '#7ee0a0' : '#ff7a6b';
         ctx.fillRect(e.x - wBar / 2, y + e.r + 6, wBar * ratio, 5);
       }
+    }
+  }
+
+  /** 连锁闪电的折线 */
+  function drawZaps() {
+    for (const z of G.zaps) {
+      const a = Math.max(0, z.life / z.max);
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#cfe8ff';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(z.x1, z.y1);
+      ctx.lineTo(
+        (z.x1 + z.x2) / 2 + (Math.random() - 0.5) * 20,
+        (z.y1 + z.y2) / 2 + (Math.random() - 0.5) * 20
+      );
+      ctx.lineTo(z.x2, z.y2);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -1491,6 +1767,23 @@
     applySpeed();
   }
 
+  function applyGrade() {
+    gradeEl.textContent = `1-${G.gradeMax}`;
+    gradeEl.classList.toggle('on', G.gradeMax < 6);
+  }
+
+  function cycleGrade() {
+    const i = GRADE_STEPS.indexOf(G.gradeMax);
+    G.gradeMax = GRADE_STEPS[(i + 1) % GRADE_STEPS.length];
+    try {
+      window.localStorage.setItem('wordtower-grade', String(G.gradeMax));
+    } catch (err) { /* 无痕模式不存也没关系 */ }
+    applyGrade();
+    if (G.state === 'playing') {
+      floatText(TOWER_Y - 210, `年级 1-${G.gradeMax}`, '#ffd166');
+    }
+  }
+
   function frame(now) {
     if (!last) last = now;
     let dt = Math.min((now - last) / 1000, 0.05);
@@ -1528,6 +1821,7 @@
 
   pauseBtn.addEventListener('click', () => setPaused(!G.paused));
   speedEl.addEventListener('click', cycleSpeed);
+  gradeEl.addEventListener('click', cycleGrade);
   puzzleNext.addEventListener('click', () => closeCards());
   document.getElementById('again').addEventListener('click', reset);
 
@@ -1537,6 +1831,7 @@
       setPaused(!G.paused);
     }
     if (e.key === 'f' || e.key === 'F') cycleSpeed();
+    if (e.key === 'g' || e.key === 'G') cycleGrade();
   });
 
   /* ----------------------------------------------------------
@@ -1546,6 +1841,7 @@
   resize();
   reset();
   applySpeed();
+  applyGrade();
   if (QS.has('debug')) {
     window.__g = G;
     window.__api = {
@@ -1554,6 +1850,7 @@
       answerLetter,
       closeCards,
       reset,
+      cycleGrade,
       goal: () => ({
         wave: G.wave,
         level: G.level,
@@ -1562,9 +1859,12 @@
         pending: G.pendingLevels,
         open: G.cards.open,
         picked: G.cards.picked,
+        gradeMax: G.gradeMax,
         options: G.cards.options.map((o) => ({
           word: o.word, correct: o.correct, dead: o.dead,
           letters: o.letters.slice(),
+          grade: o.grade.key, mul: o.mul,
+          wordGrade: o.wordGrade,
         })),
         state: G.state,
       }),

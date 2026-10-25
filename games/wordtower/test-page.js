@@ -93,11 +93,11 @@ async function main() {
 
   const st = () => ev(`JSON.stringify({
     state: __g.state,
-    grade: __g.gradeMax,
+    grade: __g.gradeRange.key,
     wave: __g.wave,
     homeHidden: document.getElementById('home').hidden,
     battleHidden: document.getElementById('battle').hidden,
-    ls: localStorage.getItem('wordtower-grade'),
+    ls: localStorage.getItem('wordtower-grade-range'),
     onBtns: Array.prototype.map.call(document.querySelectorAll('.grade-btn.on'), function (b) { return b.dataset.grade; })
   })`).then(JSON.parse);
   const click = async (sel) => {
@@ -120,14 +120,14 @@ async function main() {
   ok('初始显示主页', s0.homeHidden === false, s0);
   ok('战斗页隐藏', s0.battleHidden === true, s0);
   ok('初始不是战斗状态', s0.state === 'home', s0.state);
-  ok('默认难度 1-6', s0.grade === 6, s0.grade);
+  ok('默认难度 3-4', s0.grade === '3-4', s0.grade);
 
   /* 2. 选难度 */
-  await click('.grade-btn[data-grade="4"]');
+  await click('.grade-btn[data-grade="3-5"]');
   const s1 = await st();
-  ok('点 1-4 年级后难度变 4', s1.grade === 4, s1.grade);
-  ok('难度写进 localStorage', String(s1.ls) === '4', s1.ls);
-  ok('只有 1-4 按钮高亮', s1.onBtns.length === 1 && s1.onBtns[0] === '4', s1.onBtns);
+  ok('点 3-5 年级后难度变 3-5', s1.grade === '3-5', s1.grade);
+  ok('难度写进 localStorage', String(s1.ls) === '3-5', s1.ls);
+  ok('只有 3-5 按钮高亮', s1.onBtns.length === 1 && s1.onBtns[0] === '3-5', s1.onBtns);
 
   /* 3. 开始战斗 */
   await click('#startBtn');
@@ -138,9 +138,9 @@ async function main() {
   ok('第 1 波已开始', s2.wave >= 1, s2.wave);
 
   /* 4. 战斗中改不了难度 */
-  await ev('__api.setGrade(2)');
+  await ev('__api.setGrade("3-6")');
   const s3 = await st();
-  ok('战斗中 setGrade 被拒绝', s3.grade === 4, s3.grade);
+  ok('战斗中 setGrade 被拒绝', s3.grade === '3-5', s3.grade);
   ok('战斗中难度按钮不可见', s3.homeHidden === true, s3.homeHidden);
 
   /* 5. 退出回主页 */
@@ -148,14 +148,14 @@ async function main() {
   const s4 = await st();
   ok('点回主页切回主页', s4.homeHidden === false && s4.battleHidden === true, s4);
   ok('退出后状态是 home', s4.state === 'home', s4.state);
-  ok('难度保持不变', s4.grade === 4, s4.grade);
+  ok('难度保持不变', s4.grade === '3-5', s4.grade);
 
   /* 6. 再开一局 */
   await click('#startBtn');
   await wait(400);
   const s5 = await st();
   ok('能再开一局', s5.state === 'playing' && s5.wave >= 1, s5);
-  ok('再开一局仍是第 4 档', s5.grade === 4, s5.grade);
+  ok('再开一局仍是 3-5 档', s5.grade === '3-5', s5.grade);
 
   ok('没有页面异常', errors.length === 0, errors.slice(0, 3));
 

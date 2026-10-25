@@ -1,4812 +1,4812 @@
 [
- {
-  "w": "ABLE",
-  "zh": "能",
-  "grade": 2
- },
- {
-  "w": "AGO",
-  "zh": "以前",
-  "grade": 6
- },
- {
-  "w": "AIR",
-  "zh": "空气",
-  "grade": 2
- },
- {
-  "w": "ALL",
-  "zh": "全部的",
-  "grade": 5
- },
- {
-  "w": "ALSO",
-  "zh": "也",
-  "grade": 5
- },
- {
-  "w": "AND",
-  "zh": "和",
-  "grade": 1
- },
- {
-  "w": "ANT",
-  "zh": "蚂蚁",
-  "grade": 6
- },
- {
-  "w": "ANY",
-  "zh": "任何的",
-  "grade": 5
- },
- {
-  "w": "ARE",
-  "zh": "是",
-  "grade": 1
- },
- {
-  "w": "ARM",
-  "zh": "手臂",
-  "grade": 3
- },
- {
-  "w": "ART",
-  "zh": "美术",
-  "grade": 3
- },
- {
-  "w": "ASK",
-  "zh": "问",
-  "grade": 6
- },
- {
-  "w": "ATE",
-  "zh": "吃",
-  "grade": 6
- },
- {
-  "w": "AUNT",
-  "zh": "姑",
-  "grade": 3
- },
- {
-  "w": "BABY",
-  "zh": "婴儿",
-  "grade": 2
- },
- {
-  "w": "BACK",
-  "zh": "回来",
-  "grade": 2
- },
- {
-  "w": "BAD",
-  "zh": "坏的",
-  "grade": 3
- },
- {
-  "w": "BAG",
-  "zh": "袋子",
-  "grade": 3
- },
- {
-  "w": "BALL",
-  "zh": "球",
-  "grade": 1
- },
- {
-  "w": "BANK",
-  "zh": "银行",
-  "grade": 4
- },
- {
-  "w": "BEAR",
-  "zh": "熊",
-  "grade": 1
- },
- {
-  "w": "BED",
-  "zh": "床",
-  "grade": 1
- },
- {
-  "w": "BEE",
-  "zh": "蜜蜂",
-  "grade": 5
- },
- {
-  "w": "BEEF",
-  "zh": "牛肉",
-  "grade": 4
- },
- {
-  "w": "BEST",
-  "zh": "最好的",
-  "grade": 5
- },
- {
-  "w": "BIG",
-  "zh": "大的",
-  "grade": 2
- },
- {
-  "w": "BIKE",
-  "zh": "自行车",
-  "grade": 5
- },
- {
-  "w": "BIRD",
-  "zh": "鸟",
-  "grade": 1
- },
- {
-  "w": "BLUE",
-  "zh": "蓝色的",
-  "grade": 1
- },
- {
-  "w": "BOAT",
-  "zh": "小船",
-  "grade": 2
- },
- {
-  "w": "BODY",
-  "zh": "身体",
-  "grade": 3
- },
- {
-  "w": "BOOK",
-  "zh": "书",
-  "grade": 1
- },
- {
-  "w": "BOTH",
-  "zh": "两者",
-  "grade": 6
- },
- {
-  "w": "BOWL",
-  "zh": "碗",
-  "grade": 4
- },
- {
-  "w": "BOX",
-  "zh": "箱子",
-  "grade": 1
- },
- {
-  "w": "BOY",
-  "zh": "男孩",
-  "grade": 2
- },
- {
-  "w": "BUS",
-  "zh": "公共汽车",
-  "grade": 6
- },
- {
-  "w": "BUSY",
-  "zh": "忙碌的",
-  "grade": 4
- },
- {
-  "w": "BUT",
-  "zh": "但是",
-  "grade": 4
- },
- {
-  "w": "BUY",
-  "zh": "买",
-  "grade": 3
- },
- {
-  "w": "BYE",
-  "zh": "再见",
-  "grade": 2
- },
- {
-  "w": "CAKE",
-  "zh": "蛋糕",
-  "grade": 3
- },
- {
-  "w": "CAMP",
-  "zh": "营地",
-  "grade": 6
- },
- {
-  "w": "CAN",
-  "zh": "能够",
-  "grade": 1
- },
- {
-  "w": "CAP",
-  "zh": "帽子",
-  "grade": 3
- },
- {
-  "w": "CAR",
-  "zh": "小汽车",
-  "grade": 1
- },
- {
-  "w": "CAT",
-  "zh": "猫",
-  "grade": 1
- },
- {
-  "w": "CAVE",
-  "zh": "洞穴",
-  "grade": 5
- },
- {
-  "w": "CITY",
-  "zh": "城市",
-  "grade": 4
- },
- {
-  "w": "CLUB",
-  "zh": "俱乐部",
-  "grade": 6
- },
- {
-  "w": "COAT",
-  "zh": "大衣",
-  "grade": 3
- },
- {
-  "w": "COCK",
-  "zh": "公鸡",
-  "grade": 2
- },
- {
-  "w": "COKE",
-  "zh": "可乐",
-  "grade": 2
- },
- {
-  "w": "COLD",
-  "zh": "寒冷",
-  "grade": 2
- },
- {
-  "w": "COME",
-  "zh": "快",
-  "grade": 4
- },
- {
-  "w": "COOK",
-  "zh": "做饭",
-  "grade": 4
- },
- {
-  "w": "COOL",
-  "zh": "凉的",
-  "grade": 2
- },
- {
-  "w": "COW",
-  "zh": "母牛",
-  "grade": 4
- },
- {
-  "w": "CUTE",
-  "zh": "可爱的",
-  "grade": 4
- },
- {
-  "w": "DAD",
-  "zh": "爸爸",
-  "grade": 3
- },
- {
-  "w": "DATE",
-  "zh": "日期",
-  "grade": 2
- },
- {
-  "w": "DAY",
-  "zh": "日",
-  "grade": 4
- },
- {
-  "w": "DEAR",
-  "zh": "亲爱的",
-  "grade": 3
- },
- {
-  "w": "DEEP",
-  "zh": "深的",
-  "grade": 6
- },
- {
-  "w": "DEER",
-  "zh": "鹿",
-  "grade": 2
- },
- {
-  "w": "DESK",
-  "zh": "桌子",
-  "grade": 1
- },
- {
-  "w": "DIVE",
-  "zh": "跳水",
-  "grade": 2
- },
- {
-  "w": "DOG",
-  "zh": "狗",
-  "grade": 1
- },
- {
-  "w": "DOLL",
-  "zh": "玩具娃娃",
-  "grade": 1
- },
- {
-  "w": "DOOR",
-  "zh": "门",
-  "grade": 1
- },
- {
-  "w": "DOWN",
-  "zh": "向下",
-  "grade": 6
- },
- {
-  "w": "DRAW",
-  "zh": "画",
-  "grade": 5
- },
- {
-  "w": "DROP",
-  "zh": "水滴",
-  "grade": 2
- },
- {
-  "w": "DUCK",
-  "zh": "鸭",
-  "grade": 3
- },
- {
-  "w": "EACH",
-  "zh": "各自的",
-  "grade": 5
- },
- {
-  "w": "EAR",
-  "zh": "耳朵",
-  "grade": 1
- },
- {
-  "w": "EAST",
-  "zh": "东",
-  "grade": 6
- },
- {
-  "w": "EASY",
-  "zh": "容易的",
-  "grade": 6
- },
- {
-  "w": "EAT",
-  "zh": "吃",
-  "grade": 4
- },
- {
-  "w": "EGG",
-  "zh": "蛋",
-  "grade": 1
- },
- {
-  "w": "ELSE",
-  "zh": "别的",
-  "grade": 5
- },
- {
-  "w": "END",
-  "zh": "最后部分",
-  "grade": 2
- },
- {
-  "w": "EVEN",
-  "zh": "甚至",
-  "grade": 2
- },
- {
-  "w": "EYE",
-  "zh": "眼睛",
-  "grade": 1
- },
- {
-  "w": "FACE",
-  "zh": "脸",
-  "grade": 1
- },
- {
-  "w": "FAIL",
-  "zh": "不及格",
-  "grade": 2
- },
- {
-  "w": "FALL",
-  "zh": "秋天",
-  "grade": 5
- },
- {
-  "w": "FAN",
-  "zh": "风扇",
-  "grade": 4
- },
- {
-  "w": "FAR",
-  "zh": "远",
-  "grade": 6
- },
- {
-  "w": "FARM",
-  "zh": "农场",
-  "grade": 4
- },
- {
-  "w": "FAST",
-  "zh": "快的",
-  "grade": 5
- },
- {
-  "w": "FAT",
-  "zh": "肥的",
-  "grade": 3
- },
- {
-  "w": "FEED",
-  "zh": "喂养",
-  "grade": 2
- },
- {
-  "w": "FEEL",
-  "zh": "感到",
-  "grade": 6
- },
- {
-  "w": "FEET",
-  "zh": "脚",
-  "grade": 3
- },
- {
-  "w": "FELL",
-  "zh": "落下",
-  "grade": 6
- },
- {
-  "w": "FELT",
-  "zh": "感到",
-  "grade": 6
- },
- {
-  "w": "FEW",
-  "zh": "几个",
-  "grade": 5
- },
- {
-  "w": "FILM",
-  "zh": "电影",
-  "grade": 4
- },
- {
-  "w": "FIND",
-  "zh": "找",
-  "grade": 4
- },
- {
-  "w": "FINE",
-  "zh": "好的",
-  "grade": 2
- },
- {
-  "w": "FISH",
-  "zh": "鱼",
-  "grade": 1
- },
- {
-  "w": "FIVE",
-  "zh": "五",
-  "grade": 1
- },
- {
-  "w": "FLAT",
-  "zh": "公寓",
-  "grade": 2
- },
- {
-  "w": "FLU",
-  "zh": "流感",
-  "grade": 2
- },
- {
-  "w": "FLY",
-  "zh": "飞翔",
-  "grade": 4
- },
- {
-  "w": "FOOD",
-  "zh": "食物",
-  "grade": 5
- },
- {
-  "w": "FOOL",
-  "zh": "傻瓜",
-  "grade": 5
- },
- {
-  "w": "FOOT",
-  "zh": "脚",
-  "grade": 3
- },
- {
-  "w": "FOR",
-  "zh": "为",
-  "grade": 2
- },
- {
-  "w": "FORK",
-  "zh": "叉子",
-  "grade": 4
- },
- {
-  "w": "FOUR",
-  "zh": "四",
-  "grade": 1
- },
- {
-  "w": "FOX",
-  "zh": "狐狸",
-  "grade": 2
- },
- {
-  "w": "FROM",
-  "zh": "从",
-  "grade": 2
- },
- {
-  "w": "FUN",
-  "zh": "玩笑",
-  "grade": 4
- },
- {
-  "w": "FUR",
-  "zh": "毛皮",
-  "grade": 5
- },
- {
-  "w": "GAME",
-  "zh": "游戏",
-  "grade": 5
- },
- {
-  "w": "GAVE",
-  "zh": "给予",
-  "grade": 6
- },
- {
-  "w": "GET",
-  "zh": "得到",
-  "grade": 4
- },
- {
-  "w": "GIFT",
-  "zh": "礼物",
-  "grade": 6
- },
- {
-  "w": "GIRL",
-  "zh": "女孩",
-  "grade": 2
- },
- {
-  "w": "GOAL",
-  "zh": "目标",
-  "grade": 6
- },
- {
-  "w": "GOAT",
-  "zh": "山羊",
-  "grade": 4
- },
- {
-  "w": "GOES",
-  "zh": "去",
-  "grade": 2
- },
- {
-  "w": "GOOD",
-  "zh": "好的",
-  "grade": 2
- },
- {
-  "w": "GYM",
-  "zh": "健身房",
-  "grade": 6
- },
- {
-  "w": "HAD",
-  "zh": "有",
-  "grade": 6
- },
- {
-  "w": "HAIR",
-  "zh": "头发",
-  "grade": 3
- },
- {
-  "w": "HALF",
-  "zh": "一半",
-  "grade": 6
- },
- {
-  "w": "HALL",
-  "zh": "大厅",
-  "grade": 6
- },
- {
-  "w": "HAND",
-  "zh": "手",
-  "grade": 3
- },
- {
-  "w": "HAS",
-  "zh": "有",
-  "grade": 5
- },
- {
-  "w": "HAT",
-  "zh": "帽子",
-  "grade": 4
- },
- {
-  "w": "HAVE",
-  "zh": "有",
-  "grade": 1
- },
- {
-  "w": "HEAD",
-  "zh": "头",
-  "grade": 3
- },
- {
-  "w": "HEAR",
-  "zh": "听",
-  "grade": 6
- },
- {
-  "w": "HELP",
-  "zh": "帮助",
-  "grade": 3
- },
- {
-  "w": "HEN",
-  "zh": "母鸡",
-  "grade": 4
- },
- {
-  "w": "HER",
-  "zh": "她的",
-  "grade": 2
- },
- {
-  "w": "HERE",
-  "zh": "这儿",
-  "grade": 2
- },
- {
-  "w": "HERS",
-  "zh": "她的",
-  "grade": 5
- },
- {
-  "w": "HIGH",
-  "zh": "高的",
-  "grade": 5
- },
- {
-  "w": "HILL",
-  "zh": "丘陵",
-  "grade": 2
- },
- {
-  "w": "HIM",
-  "zh": "他",
-  "grade": 5
- },
- {
-  "w": "HIS",
-  "zh": "他的",
-  "grade": 2
- },
- {
-  "w": "HOT",
-  "zh": "热的",
-  "grade": 2
- },
- {
-  "w": "HOW",
-  "zh": "多么",
-  "grade": 1
- },
- {
-  "w": "HURT",
-  "zh": "受伤",
-  "grade": 3
- },
- {
-  "w": "ICE",
-  "zh": "冰",
-  "grade": 2
- },
- {
-  "w": "IDEA",
-  "zh": "主意",
-  "grade": 6
- },
- {
-  "w": "ILL",
-  "zh": "有病的",
-  "grade": 6
- },
- {
-  "w": "INTO",
-  "zh": "进入",
-  "grade": 5
- },
- {
-  "w": "ITS",
-  "zh": "它的",
-  "grade": 5
- },
- {
-  "w": "JEEP",
-  "zh": "吉普车",
-  "grade": 2
- },
- {
-  "w": "JOB",
-  "zh": "工作",
-  "grade": 4
- },
- {
-  "w": "JOIN",
-  "zh": "加入",
-  "grade": 6
- },
- {
-  "w": "JULY",
-  "zh": "七月",
-  "grade": 3
- },
- {
-  "w": "JUMP",
-  "zh": "跳",
-  "grade": 2
- },
- {
-  "w": "JUNE",
-  "zh": "六月",
-  "grade": 3
- },
- {
-  "w": "JUST",
-  "zh": "只是",
-  "grade": 4
- },
- {
-  "w": "KEEP",
-  "zh": "继续",
-  "grade": 5
- },
- {
-  "w": "KEY",
-  "zh": "钥匙",
-  "grade": 4
- },
- {
-  "w": "KICK",
-  "zh": "踢",
-  "grade": 3
- },
- {
-  "w": "KID",
-  "zh": "小孩",
-  "grade": 4
- },
- {
-  "w": "KIND",
-  "zh": "种类",
-  "grade": 5
- },
- {
-  "w": "KITE",
-  "zh": "风筝",
-  "grade": 3
- },
- {
-  "w": "KNOW",
-  "zh": "知道",
-  "grade": 3
- },
- {
-  "w": "LADY",
-  "zh": "女士",
-  "grade": 2
- },
- {
-  "w": "LAKE",
-  "zh": "湖",
-  "grade": 2
- },
- {
-  "w": "LAMB",
-  "zh": "小羊",
-  "grade": 2
- },
- {
-  "w": "LAMP",
-  "zh": "灯",
-  "grade": 6
- },
- {
-  "w": "LAST",
-  "zh": "最后的",
-  "grade": 5
- },
- {
-  "w": "LATE",
-  "zh": "晚的",
-  "grade": 4
- },
- {
-  "w": "LEAF",
-  "zh": "叶",
-  "grade": 5
- },
- {
-  "w": "LEFT",
-  "zh": "左边",
-  "grade": 5
- },
- {
-  "w": "LEG",
-  "zh": "腿部",
-  "grade": 3
- },
- {
-  "w": "LIKE",
-  "zh": "喜欢",
-  "grade": 1
- },
- {
-  "w": "LION",
-  "zh": "狮子",
-  "grade": 2
- },
- {
-  "w": "LIVE",
-  "zh": "生活",
-  "grade": 5
- },
- {
-  "w": "LOCK",
-  "zh": "锁",
-  "grade": 2
- },
- {
-  "w": "LONG",
-  "zh": "长的",
-  "grade": 3
- },
- {
-  "w": "LOOK",
-  "zh": "看上去",
-  "grade": 2
- },
- {
-  "w": "LOST",
-  "zh": "丢失的",
-  "grade": 3
- },
- {
-  "w": "LOT",
-  "zh": "许多",
-  "grade": 5
- },
- {
-  "w": "LOTS",
-  "zh": "大量",
-  "grade": 2
- },
- {
-  "w": "LOUD",
-  "zh": "响亮的",
-  "grade": 6
- },
- {
-  "w": "LOVE",
-  "zh": "爱",
-  "grade": 4
- },
- {
-  "w": "MAKE",
-  "zh": "堆雪人",
-  "grade": 2
- },
- {
-  "w": "MAN",
-  "zh": "男人",
-  "grade": 2
- },
- {
-  "w": "MANY",
-  "zh": "许多的",
-  "grade": 1
- },
- {
-  "w": "MAP",
-  "zh": "地图",
-  "grade": 3
- },
- {
-  "w": "MATH",
-  "zh": "数学",
-  "grade": 2
- },
- {
-  "w": "MAY",
-  "zh": "五月",
-  "grade": 3
- },
- {
-  "w": "MEAN",
-  "zh": "意思是",
-  "grade": 2
- },
- {
-  "w": "MEET",
-  "zh": "遇见",
-  "grade": 5
- },
- {
-  "w": "MENU",
-  "zh": "菜单",
-  "grade": 2
- },
- {
-  "w": "MICE",
-  "zh": "老鼠",
-  "grade": 6
- },
- {
-  "w": "MILK",
-  "zh": "奶",
-  "grade": 1
- },
- {
-  "w": "MINE",
-  "zh": "我的",
-  "grade": 4
- },
- {
-  "w": "MISS",
-  "zh": "小姐",
-  "grade": 2
- },
- {
-  "w": "MOM",
-  "zh": "妈妈",
-  "grade": 2
- },
- {
-  "w": "MOON",
-  "zh": "月亮",
-  "grade": 6
- },
- {
-  "w": "MORE",
-  "zh": "更多的",
-  "grade": 4
- },
- {
-  "w": "MOVE",
-  "zh": "移动",
-  "grade": 5
- },
- {
-  "w": "MRS",
-  "zh": "太太",
-  "grade": 6
- },
- {
-  "w": "MUCH",
-  "zh": "非常地",
-  "grade": 3
- },
- {
-  "w": "MUD",
-  "zh": "泥",
-  "grade": 6
- },
- {
-  "w": "MULE",
-  "zh": "骡子",
-  "grade": 6
- },
- {
-  "w": "MUM",
-  "zh": "沉默的",
-  "grade": 3
- },
- {
-  "w": "MUST",
-  "zh": "必须",
-  "grade": 6
- },
- {
-  "w": "NAME",
-  "zh": "名字",
-  "grade": 2
- },
- {
-  "w": "NEAR",
-  "zh": "近的",
-  "grade": 1
- },
- {
-  "w": "NEED",
-  "zh": "需要",
-  "grade": 5
- },
- {
-  "w": "NEST",
-  "zh": "鸟窝",
-  "grade": 2
- },
- {
-  "w": "NEW",
-  "zh": "新的",
-  "grade": 2
- },
- {
-  "w": "NEXT",
-  "zh": "下一个的",
-  "grade": 5
- },
- {
-  "w": "NICE",
-  "zh": "令人愉快的",
-  "grade": 4
- },
- {
-  "w": "NINE",
-  "zh": "九",
-  "grade": 1
- },
- {
-  "w": "NOON",
-  "zh": "中午",
-  "grade": 2
- },
- {
-  "w": "NOSE",
-  "zh": "鼻子",
-  "grade": 1
- },
- {
-  "w": "NOT",
-  "zh": "不",
-  "grade": 2
- },
- {
-  "w": "NOW",
-  "zh": "现在",
-  "grade": 4
- },
- {
-  "w": "OFF",
-  "zh": "离开",
-  "grade": 6
- },
- {
-  "w": "OLD",
-  "zh": "老的",
-  "grade": 3
- },
- {
-  "w": "ONE",
-  "zh": "一",
-  "grade": 1
- },
- {
-  "w": "ONLY",
-  "zh": "只有",
-  "grade": 5
- },
- {
-  "w": "OPEN",
-  "zh": "打开",
-  "grade": 5
- },
- {
-  "w": "OUR",
-  "zh": "我们的",
-  "grade": 3
- },
- {
-  "w": "OURS",
-  "zh": "我们的人或物",
-  "grade": 5
- },
- {
-  "w": "OVER",
-  "zh": "结束",
-  "grade": 4
- },
- {
-  "w": "OWN",
-  "zh": "自己的",
-  "grade": 2
- },
- {
-  "w": "PACK",
-  "zh": "包装",
-  "grade": 4
- },
- {
-  "w": "PAIR",
-  "zh": "一双",
-  "grade": 2
- },
- {
-  "w": "PAL",
-  "zh": "朋友",
-  "grade": 2
- },
- {
-  "w": "PARK",
-  "zh": "公园",
-  "grade": 2
- },
- {
-  "w": "PART",
-  "zh": "部分",
-  "grade": 6
- },
- {
-  "w": "PASS",
-  "zh": "通过",
-  "grade": 4
- },
- {
-  "w": "PATH",
-  "zh": "路",
-  "grade": 2
- },
- {
-  "w": "PAY",
-  "zh": "注意",
-  "grade": 2
- },
- {
-  "w": "PEAR",
-  "zh": "梨子",
-  "grade": 1
- },
- {
-  "w": "PEN",
-  "zh": "钢笔",
-  "grade": 3
- },
- {
-  "w": "PICK",
-  "zh": "选择",
-  "grade": 5
- },
- {
-  "w": "PIG",
-  "zh": "猪",
-  "grade": 3
- },
- {
-  "w": "PINK",
-  "zh": "粉红色",
-  "grade": 5
- },
- {
-  "w": "PLAY",
-  "zh": "玩",
-  "grade": 5
- },
- {
-  "w": "POEM",
-  "zh": "诗",
-  "grade": 6
- },
- {
-  "w": "PORK",
-  "zh": "猪肉",
-  "grade": 2
- },
- {
-  "w": "POST",
-  "zh": "邮寄",
-  "grade": 2
- },
- {
-  "w": "POT",
-  "zh": "锅",
-  "grade": 2
- },
- {
-  "w": "PULL",
-  "zh": "拉",
-  "grade": 6
- },
- {
-  "w": "PUT",
-  "zh": "放",
-  "grade": 2
- },
- {
-  "w": "RACE",
-  "zh": "种族",
-  "grade": 6
- },
- {
-  "w": "RAIN",
-  "zh": "雨",
-  "grade": 2
- },
- {
-  "w": "READ",
-  "zh": "读",
-  "grade": 5
- },
- {
-  "w": "RED",
-  "zh": "红的",
-  "grade": 1
- },
- {
-  "w": "RICE",
-  "zh": "米饭",
-  "grade": 1
- },
- {
-  "w": "ROAD",
-  "zh": "公路",
-  "grade": 2
- },
- {
-  "w": "RODE",
-  "zh": "骑",
-  "grade": 6
- },
- {
-  "w": "ROLL",
-  "zh": "滚动",
-  "grade": 5
- },
- {
-  "w": "ROOM",
-  "zh": "房间",
-  "grade": 3
- },
- {
-  "w": "ROW",
-  "zh": "划",
-  "grade": 2
- },
- {
-  "w": "RUN",
-  "zh": "跑",
-  "grade": 3
- },
- {
-  "w": "SAD",
-  "zh": "伤心的",
-  "grade": 5
- },
- {
-  "w": "SALE",
-  "zh": "销售",
-  "grade": 4
- },
- {
-  "w": "SAME",
-  "zh": "相同的",
-  "grade": 2
- },
- {
-  "w": "SAW",
-  "zh": "看见",
-  "grade": 6
- },
- {
-  "w": "SAY",
-  "zh": "说",
-  "grade": 5
- },
- {
-  "w": "SEA",
-  "zh": "海",
-  "grade": 4
- },
- {
-  "w": "SEAL",
-  "zh": "海豹",
-  "grade": 2
- },
- {
-  "w": "SEAT",
-  "zh": "座位",
-  "grade": 2
- },
- {
-  "w": "SEE",
-  "zh": "看见",
-  "grade": 2
- },
- {
-  "w": "SEED",
-  "zh": "种子",
-  "grade": 2
- },
- {
-  "w": "SEND",
-  "zh": "发送",
-  "grade": 4
- },
- {
-  "w": "SHE",
-  "zh": "她",
-  "grade": 2
- },
- {
-  "w": "SHIP",
-  "zh": "船",
-  "grade": 6
- },
- {
-  "w": "SHOE",
-  "zh": "鞋",
-  "grade": 4
- },
- {
-  "w": "SHOP",
-  "zh": "商店",
-  "grade": 4
- },
- {
-  "w": "SHOW",
-  "zh": "展示",
-  "grade": 5
- },
- {
-  "w": "SHY",
-  "zh": "腼腆的",
-  "grade": 5
- },
- {
-  "w": "SICK",
-  "zh": "不舒服的",
-  "grade": 4
- },
- {
-  "w": "SIDE",
-  "zh": "边",
-  "grade": 2
- },
- {
-  "w": "SING",
-  "zh": "唱歌",
-  "grade": 5
- },
- {
-  "w": "SIR",
-  "zh": "先生",
-  "grade": 6
- },
- {
-  "w": "SIT",
-  "zh": "坐",
-  "grade": 6
- },
- {
-  "w": "SIX",
-  "zh": "六",
-  "grade": 1
- },
- {
-  "w": "SIZE",
-  "zh": "大小",
-  "grade": 4
- },
- {
-  "w": "SKY",
-  "zh": "天空",
-  "grade": 2
- },
- {
-  "w": "SLED",
-  "zh": "雪橇",
-  "grade": 6
- },
- {
-  "w": "SLOW",
-  "zh": "缓慢的",
-  "grade": 6
- },
- {
-  "w": "SNOW",
-  "zh": "下雪",
-  "grade": 4
- },
- {
-  "w": "SOCK",
-  "zh": "短袜",
-  "grade": 4
- },
- {
-  "w": "SOFA",
-  "zh": "沙发",
-  "grade": 3
- },
- {
-  "w": "SOIL",
-  "zh": "土壤",
-  "grade": 2
- },
- {
-  "w": "SOME",
-  "zh": "一些",
-  "grade": 2
- },
- {
-  "w": "SON",
-  "zh": "儿子",
-  "grade": 2
- },
- {
-  "w": "SONG",
-  "zh": "歌",
-  "grade": 5
- },
- {
-  "w": "SOON",
-  "zh": "不久",
-  "grade": 3
- },
- {
-  "w": "SORE",
-  "zh": "疼的",
-  "grade": 2
- },
- {
-  "w": "SOUP",
-  "zh": "汤",
-  "grade": 4
- },
- {
-  "w": "SOUR",
-  "zh": "酸的",
-  "grade": 2
- },
- {
-  "w": "STAR",
-  "zh": "星",
-  "grade": 4
- },
- {
-  "w": "STAY",
-  "zh": "停留",
-  "grade": 4
- },
- {
-  "w": "STOP",
-  "zh": "停止",
-  "grade": 4
- },
- {
-  "w": "SUN",
-  "zh": "太阳",
-  "grade": 2
- },
- {
-  "w": "SURE",
-  "zh": "当然",
-  "grade": 1
- },
- {
-  "w": "SWIM",
-  "zh": "游泳",
-  "grade": 2
- },
- {
-  "w": "TAIL",
-  "zh": "尾巴",
-  "grade": 3
- },
- {
-  "w": "TAKE",
-  "zh": "拿",
-  "grade": 5
- },
- {
-  "w": "TALK",
-  "zh": "讲话",
-  "grade": 5
- },
- {
-  "w": "TALL",
-  "zh": "高的",
-  "grade": 2
- },
- {
-  "w": "TAXI",
-  "zh": "出租车",
-  "grade": 6
- },
- {
-  "w": "TEA",
-  "zh": "茶",
-  "grade": 1
- },
- {
-  "w": "TELL",
-  "zh": "告诉",
-  "grade": 6
- },
- {
-  "w": "TEN",
-  "zh": "十",
-  "grade": 1
- },
- {
-  "w": "TEST",
-  "zh": "测试",
-  "grade": 6
- },
- {
-  "w": "THAN",
-  "zh": "比",
-  "grade": 6
- },
- {
-  "w": "THAT",
-  "zh": "那",
-  "grade": 3
- },
- {
-  "w": "THEM",
-  "zh": "他们",
-  "grade": 4
- },
- {
-  "w": "THEN",
-  "zh": "然后",
-  "grade": 2
- },
- {
-  "w": "THEY",
-  "zh": "他们",
-  "grade": 3
- },
- {
-  "w": "THIN",
-  "zh": "瘦的",
-  "grade": 2
- },
- {
-  "w": "THIS",
-  "zh": "这",
-  "grade": 1
- },
- {
-  "w": "TILL",
-  "zh": "直到…为止",
-  "grade": 6
- },
- {
-  "w": "TIP",
-  "zh": "小费",
-  "grade": 2
- },
- {
-  "w": "TOFU",
-  "zh": "豆腐",
-  "grade": 2
- },
- {
-  "w": "TON",
-  "zh": "吨",
-  "grade": 2
- },
- {
-  "w": "TOO",
-  "zh": "也",
-  "grade": 2
- },
- {
-  "w": "TOOK",
-  "zh": "拿",
-  "grade": 6
- },
- {
-  "w": "TOY",
-  "zh": "玩具",
-  "grade": 3
- },
- {
-  "w": "TREE",
-  "zh": "树",
-  "grade": 2
- },
- {
-  "w": "TRIP",
-  "zh": "旅行",
-  "grade": 5
- },
- {
-  "w": "TRY",
-  "zh": "尝试",
-  "grade": 4
- },
- {
-  "w": "TURN",
-  "zh": "转",
-  "grade": 5
- },
- {
-  "w": "TWIN",
-  "zh": "双胞胎之一",
-  "grade": 2
- },
- {
-  "w": "TWO",
-  "zh": "二",
-  "grade": 1
- },
- {
-  "w": "TYPE",
-  "zh": "类型",
-  "grade": 6
- },
- {
-  "w": "USE",
-  "zh": "使用",
-  "grade": 4
- },
- {
-  "w": "VERY",
-  "zh": "很",
-  "grade": 2
- },
- {
-  "w": "VEST",
-  "zh": "背心",
-  "grade": 2
- },
- {
-  "w": "WAIT",
-  "zh": "等待",
-  "grade": 4
- },
- {
-  "w": "WALK",
-  "zh": "行走",
-  "grade": 5
- },
- {
-  "w": "WALL",
-  "zh": "墙壁",
-  "grade": 4
- },
- {
-  "w": "WANT",
-  "zh": "想要",
-  "grade": 1
- },
- {
-  "w": "WARM",
-  "zh": "温暖的",
-  "grade": 2
- },
- {
-  "w": "WASH",
-  "zh": "洗",
-  "grade": 5
- },
- {
-  "w": "WAY",
-  "zh": "道路",
-  "grade": 4
- },
- {
-  "w": "WEAR",
-  "zh": "穿",
-  "grade": 3
- },
- {
-  "w": "WEEK",
-  "zh": "一星期",
-  "grade": 3
- },
- {
-  "w": "WELL",
-  "zh": "好",
-  "grade": 6
- },
- {
-  "w": "WENT",
-  "zh": "走",
-  "grade": 6
- },
- {
-  "w": "WEST",
-  "zh": "西",
-  "grade": 6
- },
- {
-  "w": "WHAT",
-  "zh": "什么",
-  "grade": 1
- },
- {
-  "w": "WHEN",
-  "zh": "什么时候",
-  "grade": 2
- },
- {
-  "w": "WHO",
-  "zh": "谁",
-  "grade": 2
- },
- {
-  "w": "WHY",
-  "zh": "为什么",
-  "grade": 5
- },
- {
-  "w": "WILL",
-  "zh": "将会",
-  "grade": 5
- },
- {
-  "w": "WIN",
-  "zh": "赢",
-  "grade": 5
- },
- {
-  "w": "WIND",
-  "zh": "风",
-  "grade": 2
- },
- {
-  "w": "WITH",
-  "zh": "和…一起",
-  "grade": 5
- },
- {
-  "w": "WOKE",
-  "zh": "醒来",
-  "grade": 6
- },
- {
-  "w": "WORD",
-  "zh": "词",
-  "grade": 6
- },
- {
-  "w": "WORK",
-  "zh": "工作",
-  "grade": 5
- },
- {
-  "w": "WOW",
-  "zh": "哇",
-  "grade": 2
- },
- {
-  "w": "YEAH",
-  "zh": "是",
-  "grade": 2
- },
- {
-  "w": "YEAR",
-  "zh": "年",
-  "grade": 3
- },
- {
-  "w": "YES",
-  "zh": "是；好的",
-  "grade": 1
- },
- {
-  "w": "YOU",
-  "zh": "你",
-  "grade": 1
- },
- {
-  "w": "YOUR",
-  "zh": "你的",
-  "grade": 1
- },
- {
-  "w": "YUM",
-  "zh": "美味的",
-  "grade": 4
- },
- {
-  "w": "ZOO",
-  "zh": "动物园",
-  "grade": 2
- },
- {
-  "w": "ABOUT",
-  "zh": "关于",
-  "grade": 4
- },
- {
-  "w": "ABOVE",
-  "zh": "在上面",
-  "grade": 5
- },
- {
-  "w": "ACTIVE",
-  "zh": "积极的",
-  "grade": 5
- },
- {
-  "w": "ACTOR",
-  "zh": "男演员",
-  "grade": 4
- },
- {
-  "w": "AFRAID",
-  "zh": "害怕的",
-  "grade": 6
- },
- {
-  "w": "AFTER",
-  "zh": "以后",
-  "grade": 5
- },
- {
-  "w": "AGAIN",
-  "zh": "再一次",
-  "grade": 4
- },
- {
-  "w": "ALASKA",
-  "zh": "阿拉斯加",
-  "grade": 6
- },
- {
-  "w": "ALWAYS",
-  "zh": "总是",
-  "grade": 4
- },
- {
-  "w": "ANGRY",
-  "zh": "生气的",
-  "grade": 6
- },
- {
-  "w": "ANIMAL",
-  "zh": "动物",
-  "grade": 4
- },
- {
-  "w": "APPLE",
-  "zh": "苹果",
-  "grade": 1
- },
- {
-  "w": "APRIL",
-  "zh": "四月",
-  "grade": 3
- },
- {
-  "w": "ARTIST",
-  "zh": "画家",
-  "grade": 6
- },
- {
-  "w": "AUGUST",
-  "zh": "八月",
-  "grade": 3
- },
- {
-  "w": "AUTUMN",
-  "zh": "秋季",
-  "grade": 2
- },
- {
-  "w": "BAMBOO",
-  "zh": "竹子",
-  "grade": 5
- },
- {
-  "w": "BANANA",
-  "zh": "香蕉",
-  "grade": 1
- },
- {
-  "w": "BASKET",
-  "zh": "篮子",
-  "grade": 6
- },
- {
-  "w": "BEACH",
-  "zh": "海滩",
-  "grade": 6
- },
- {
-  "w": "BECOME",
-  "zh": "变成",
-  "grade": 6
- },
- {
-  "w": "BEFORE",
-  "zh": "在…之前",
-  "grade": 4
- },
- {
-  "w": "BEHIND",
-  "zh": "在…后面",
-  "grade": 1
- },
- {
-  "w": "BESIDE",
-  "zh": "在旁边",
-  "grade": 5
- },
- {
-  "w": "BETTER",
-  "zh": "更好的",
-  "grade": 6
- },
- {
-  "w": "BIGGER",
-  "zh": "更大的",
-  "grade": 6
- },
- {
-  "w": "BLACK",
-  "zh": "黑色的",
-  "grade": 1
- },
- {
-  "w": "BOARD",
-  "zh": "写字板",
-  "grade": 4
- },
- {
-  "w": "BOOTS",
-  "zh": "靴子",
-  "grade": 4
- },
- {
-  "w": "BORED",
-  "zh": "无聊的",
-  "grade": 4
- },
- {
-  "w": "BOTTLE",
-  "zh": "瓶子",
-  "grade": 5
- },
- {
-  "w": "BOUGHT",
-  "zh": "买",
-  "grade": 6
- },
- {
-  "w": "BOUNCE",
-  "zh": "反弹",
-  "grade": 4
- },
- {
-  "w": "BREAD",
-  "zh": "面包",
-  "grade": 3
- },
- {
-  "w": "BREATH",
-  "zh": "呼吸",
-  "grade": 6
- },
- {
-  "w": "BRIDGE",
-  "zh": "桥",
-  "grade": 5
- },
- {
-  "w": "BROKEN",
-  "zh": "破损的",
-  "grade": 6
- },
- {
-  "w": "BROWN",
-  "zh": "褐色的",
-  "grade": 3
- },
- {
-  "w": "BUNNY",
-  "zh": "小兔子",
-  "grade": 5
- },
- {
-  "w": "CANADA",
-  "zh": "加拿大",
-  "grade": 3
- },
- {
-  "w": "CANDY",
-  "zh": "糖果",
-  "grade": 4
- },
- {
-  "w": "CARROT",
-  "zh": "胡萝卜",
-  "grade": 4
- },
- {
-  "w": "CHAIR",
-  "zh": "椅子",
-  "grade": 1
- },
- {
-  "w": "CHART",
-  "zh": "图表",
-  "grade": 4
- },
- {
-  "w": "CHASE",
-  "zh": "追逐",
-  "grade": 6
- },
- {
-  "w": "CHEAP",
-  "zh": "便宜的",
-  "grade": 4
- },
- {
-  "w": "CHINA",
-  "zh": "中国",
-  "grade": 3
- },
- {
-  "w": "CINEMA",
-  "zh": "电影院",
-  "grade": 6
- },
- {
-  "w": "CLASS",
-  "zh": "班级",
-  "grade": 3
- },
- {
-  "w": "CLEAN",
-  "zh": "打扫",
-  "grade": 4
- },
- {
-  "w": "CLEVER",
-  "zh": "聪明的",
-  "grade": 5
- },
- {
-  "w": "CLIMB",
-  "zh": "爬",
-  "grade": 4
- },
- {
-  "w": "CLOCK",
-  "zh": "时钟",
-  "grade": 5
- },
- {
-  "w": "CLOSE",
-  "zh": "关上",
-  "grade": 4
- },
- {
-  "w": "CLOSET",
-  "zh": "壁橱",
-  "grade": 4
- },
- {
-  "w": "CLOUD",
-  "zh": "云",
-  "grade": 4
- },
- {
-  "w": "CLOUDY",
-  "zh": "多云的",
-  "grade": 2
- },
- {
-  "w": "COACH",
-  "zh": "教练",
-  "grade": 6
- },
- {
-  "w": "COFFEE",
-  "zh": "咖啡",
-  "grade": 4
- },
- {
-  "w": "COLOUR",
-  "zh": "颜色",
-  "grade": 1
- },
- {
-  "w": "COMIC",
-  "zh": "喜剧的",
-  "grade": 6
- },
- {
-  "w": "COULD",
-  "zh": "能够",
-  "grade": 6
- },
- {
-  "w": "COUNT",
-  "zh": "计算",
-  "grade": 6
- },
- {
-  "w": "COUSIN",
-  "zh": "堂兄弟",
-  "grade": 3
- },
- {
-  "w": "CRAYON",
-  "zh": "蜡笔",
-  "grade": 3
- },
- {
-  "w": "DANCE",
-  "zh": "舞蹈",
-  "grade": 3
- },
- {
-  "w": "DEGREE",
-  "zh": "度",
-  "grade": 4
- },
- {
-  "w": "DESIGN",
-  "zh": "设计",
-  "grade": 4
- },
- {
-  "w": "DIARY",
-  "zh": "日记",
-  "grade": 5
- },
- {
-  "w": "DINING",
-  "zh": "用餐",
-  "grade": 4
- },
- {
-  "w": "DINNER",
-  "zh": "晚餐",
-  "grade": 4
- },
- {
-  "w": "DIRTY",
-  "zh": "肮脏的",
-  "grade": 4
- },
- {
-  "w": "DIVING",
-  "zh": "跳水",
-  "grade": 4
- },
- {
-  "w": "DOCTOR",
-  "zh": "医生",
-  "grade": 4
- },
- {
-  "w": "DOING",
-  "zh": "做",
-  "grade": 4
- },
- {
-  "w": "DOLLAR",
-  "zh": "美元",
-  "grade": 4
- },
- {
-  "w": "DONKEY",
-  "zh": "驴子",
-  "grade": 4
- },
- {
-  "w": "DRANK",
-  "zh": "喝",
-  "grade": 6
- },
- {
-  "w": "DREAM",
-  "zh": "梦",
-  "grade": 4
- },
- {
-  "w": "DRESS",
-  "zh": "连衣裙",
-  "grade": 1
- },
- {
-  "w": "DRINK",
-  "zh": "喝",
-  "grade": 5
- },
- {
-  "w": "DRIVE",
-  "zh": "驾驶",
-  "grade": 4
- },
- {
-  "w": "DRIVER",
-  "zh": "司机",
-  "grade": 4
- },
- {
-  "w": "EARLY",
-  "zh": "提早地",
-  "grade": 5
- },
- {
-  "w": "EASTER",
-  "zh": "复活节",
-  "grade": 5
- },
- {
-  "w": "EATING",
-  "zh": "吃",
-  "grade": 5
- },
- {
-  "w": "EIGHT",
-  "zh": "八",
-  "grade": 1
- },
- {
-  "w": "EIGHTH",
-  "zh": "第八",
-  "grade": 4
- },
- {
-  "w": "EIGHTY",
-  "zh": "八十",
-  "grade": 4
- },
- {
-  "w": "EITHER",
-  "zh": "也",
-  "grade": 4
- },
- {
-  "w": "ELEVEN",
-  "zh": "十一",
-  "grade": 2
- },
- {
-  "w": "EMAIL",
-  "zh": "电子邮件",
-  "grade": 5
- },
- {
-  "w": "ENJOY",
-  "zh": "享受",
-  "grade": 4
- },
- {
-  "w": "ERASER",
-  "zh": "橡皮擦",
-  "grade": 3
- },
- {
-  "w": "EVERY",
-  "zh": "每个",
-  "grade": 5
- },
- {
-  "w": "FAMILY",
-  "zh": "家庭",
-  "grade": 3
- },
- {
-  "w": "FARMER",
-  "zh": "农民",
-  "grade": 4
- },
- {
-  "w": "FASTER",
-  "zh": "更快的",
-  "grade": 6
- },
- {
-  "w": "FATHER",
-  "zh": "父亲",
-  "grade": 2
- },
- {
-  "w": "FERRY",
-  "zh": "渡船",
-  "grade": 6
- },
- {
-  "w": "FIFTH",
-  "zh": "第五",
-  "grade": 5
- },
- {
-  "w": "FIFTY",
-  "zh": "五十",
-  "grade": 2
- },
- {
-  "w": "FIGHT",
-  "zh": "打架",
-  "grade": 4
- },
- {
-  "w": "FINGER",
-  "zh": "手指",
-  "grade": 4
- },
- {
-  "w": "FINISH",
-  "zh": "完成",
-  "grade": 5
- },
- {
-  "w": "FIRST",
-  "zh": "第一",
-  "grade": 3
- },
- {
-  "w": "FIXED",
-  "zh": "固定的",
-  "grade": 6
- },
- {
-  "w": "FLOOR",
-  "zh": "地板",
-  "grade": 3
- },
- {
-  "w": "FLOWER",
-  "zh": "花",
-  "grade": 2
- },
- {
-  "w": "FOLLOW",
-  "zh": "跟随",
-  "grade": 6
- },
- {
-  "w": "FOREST",
-  "zh": "森林",
-  "grade": 5
- },
- {
-  "w": "FORTY",
-  "zh": "四十",
-  "grade": 2
- },
- {
-  "w": "FOURTH",
-  "zh": "第四个",
-  "grade": 5
- },
- {
-  "w": "FRENCH",
-  "zh": "法国的",
-  "grade": 6
- },
- {
-  "w": "FRESH",
-  "zh": "新鲜的",
-  "grade": 5
- },
- {
-  "w": "FRIDAY",
-  "zh": "星期五",
-  "grade": 2
- },
- {
-  "w": "FRIDGE",
-  "zh": "冰箱",
-  "grade": 4
- },
- {
-  "w": "FRIEND",
-  "zh": "朋友",
-  "grade": 2
- },
- {
-  "w": "FRONT",
-  "zh": "前面",
-  "grade": 5
- },
- {
-  "w": "FRUIT",
-  "zh": "水果",
-  "grade": 3
- },
- {
-  "w": "FUNNY",
-  "zh": "滑稽的",
-  "grade": 3
- },
- {
-  "w": "GARDEN",
-  "zh": "花园",
-  "grade": 4
- },
- {
-  "w": "GLOVE",
-  "zh": "手套",
-  "grade": 4
- },
- {
-  "w": "GLOVES",
-  "zh": "手套",
-  "grade": 3
- },
- {
-  "w": "GOOSE",
-  "zh": "鹅",
-  "grade": 4
- },
- {
-  "w": "GRAPE",
-  "zh": "葡萄",
-  "grade": 3
- },
- {
-  "w": "GRASS",
-  "zh": "草",
-  "grade": 2
- },
- {
-  "w": "GREAT",
-  "zh": "很好的",
-  "grade": 4
- },
- {
-  "w": "GREEN",
-  "zh": "绿色的",
-  "grade": 1
- },
- {
-  "w": "GUESS",
-  "zh": "猜测",
-  "grade": 5
- },
- {
-  "w": "HAPPY",
-  "zh": "快乐的",
-  "grade": 2
- },
- {
-  "w": "HARDLY",
-  "zh": "几乎没有",
-  "grade": 4
- },
- {
-  "w": "HEAVY",
-  "zh": "重的",
-  "grade": 4
- },
- {
-  "w": "HELLO",
-  "zh": "喂",
-  "grade": 4
- },
- {
-  "w": "HELMET",
-  "zh": "头盔",
-  "grade": 6
- },
- {
-  "w": "HIKING",
-  "zh": "远足",
-  "grade": 6
- },
- {
-  "w": "HOBBY",
-  "zh": "爱好",
-  "grade": 4
- },
- {
-  "w": "HONEY",
-  "zh": "蜂蜜",
-  "grade": 4
- },
- {
-  "w": "HORSE",
-  "zh": "马",
-  "grade": 4
- },
- {
-  "w": "HOTEL",
-  "zh": "旅馆",
-  "grade": 4
- },
- {
-  "w": "HOUSE",
-  "zh": "房子",
-  "grade": 4
- },
- {
-  "w": "HUNGRY",
-  "zh": "饥饿的",
-  "grade": 1
- },
- {
-  "w": "HURRY",
-  "zh": "抓紧",
-  "grade": 4
- },
- {
-  "w": "ISLAND",
-  "zh": "岛",
-  "grade": 5
- },
- {
-  "w": "JACKET",
-  "zh": "夹克衫",
-  "grade": 3
- },
- {
-  "w": "JEANS",
-  "zh": "牛仔裤",
-  "grade": 4
- },
- {
-  "w": "JUICE",
-  "zh": "果汁",
-  "grade": 1
- },
- {
-  "w": "KITTEN",
-  "zh": "小猫",
-  "grade": 5
- },
- {
-  "w": "KNIFE",
-  "zh": "刀",
-  "grade": 4
- },
- {
-  "w": "LABOUR",
-  "zh": "劳动节",
-  "grade": 4
- },
- {
-  "w": "LEARN",
-  "zh": "学习",
-  "grade": 5
- },
- {
-  "w": "LESSON",
-  "zh": "课",
-  "grade": 6
- },
- {
-  "w": "LETTER",
-  "zh": "信",
-  "grade": 5
- },
- {
-  "w": "LICKED",
-  "zh": "舔",
-  "grade": 6
- },
- {
-  "w": "LIGHT",
-  "zh": "光",
-  "grade": 1
- },
- {
-  "w": "LISTEN",
-  "zh": "听",
-  "grade": 4
- },
- {
-  "w": "LITTLE",
-  "zh": "少的",
-  "grade": 4
- },
- {
-  "w": "LIVES",
-  "zh": "居住",
-  "grade": 4
- },
- {
-  "w": "LIVING",
-  "zh": "客厅",
-  "grade": 4
- },
- {
-  "w": "LONDON",
-  "zh": "伦敦",
-  "grade": 4
- },
- {
-  "w": "LONGER",
-  "zh": "更长的",
-  "grade": 6
- },
- {
-  "w": "LOVELY",
-  "zh": "可爱的",
-  "grade": 5
- },
- {
-  "w": "LOWER",
-  "zh": "降低",
-  "grade": 6
- },
- {
-  "w": "LUNCH",
-  "zh": "午餐",
-  "grade": 4
- },
- {
-  "w": "MARCH",
-  "zh": "三月",
-  "grade": 3
- },
- {
-  "w": "MATCH",
-  "zh": "比赛",
-  "grade": 4
- },
- {
-  "w": "MATHS",
-  "zh": "数学测试",
-  "grade": 3
- },
- {
-  "w": "MATTER",
-  "zh": "事情",
-  "grade": 4
- },
- {
-  "w": "MEMBER",
-  "zh": "成员",
-  "grade": 4
- },
- {
-  "w": "METER",
-  "zh": "米",
-  "grade": 6
- },
- {
-  "w": "METRE",
-  "zh": "米",
-  "grade": 6
- },
- {
-  "w": "MIGHT",
-  "zh": "可以",
-  "grade": 4
- },
- {
-  "w": "MINUTE",
-  "zh": "分钟",
-  "grade": 4
- },
- {
-  "w": "MIRROR",
-  "zh": "镜子",
-  "grade": 4
- },
- {
-  "w": "MONDAY",
-  "zh": "星期一",
-  "grade": 2
- },
- {
-  "w": "MONEY",
-  "zh": "钱",
-  "grade": 4
- },
- {
-  "w": "MONKEY",
-  "zh": "猴子",
-  "grade": 1
- },
- {
-  "w": "MONTH",
-  "zh": "月份",
-  "grade": 4
- },
- {
-  "w": "MOSCOW",
-  "zh": "莫斯科",
-  "grade": 4
- },
- {
-  "w": "MOTHER",
-  "zh": "母亲",
-  "grade": 2
- },
- {
-  "w": "MOUSE",
-  "zh": "老鼠",
-  "grade": 5
- },
- {
-  "w": "MOUTH",
-  "zh": "嘴",
-  "grade": 1
- },
- {
-  "w": "MUNICH",
-  "zh": "慕尼黑",
-  "grade": 6
- },
- {
-  "w": "MUSEUM",
-  "zh": "博物馆",
-  "grade": 4
- },
- {
-  "w": "MUSIC",
-  "zh": "音乐",
-  "grade": 3
- },
- {
-  "w": "MUTTON",
-  "zh": "羊肉",
-  "grade": 4
- },
- {
-  "w": "NATURE",
-  "zh": "自然",
-  "grade": 5
- },
- {
-  "w": "NIGHT",
-  "zh": "夜晚",
-  "grade": 4
- },
- {
-  "w": "NINTH",
-  "zh": "第九",
-  "grade": 4
- },
- {
-  "w": "NOISE",
-  "zh": "噪声",
-  "grade": 5
- },
- {
-  "w": "NORTH",
-  "zh": "北方",
-  "grade": 6
- },
- {
-  "w": "NURSE",
-  "zh": "护士",
-  "grade": 4
- },
- {
-  "w": "OFTEN",
-  "zh": "常常地",
-  "grade": 4
- },
- {
-  "w": "OLDER",
-  "zh": "更老的",
-  "grade": 6
- },
- {
-  "w": "ONION",
-  "zh": "洋葱",
-  "grade": 5
- },
- {
-  "w": "ORANGE",
-  "zh": "橙色的",
-  "grade": 1
- },
- {
-  "w": "OTHER",
-  "zh": "其他的",
-  "grade": 5
- },
- {
-  "w": "PAINT",
-  "zh": "刷油漆",
-  "grade": 4
- },
- {
-  "w": "PANDA",
-  "zh": "熊猫",
-  "grade": 3
- },
- {
-  "w": "PANTS",
-  "zh": "裤子",
-  "grade": 4
- },
- {
-  "w": "PARTY",
-  "zh": "聚会",
-  "grade": 3
- },
- {
-  "w": "PEACH",
-  "zh": "桃",
-  "grade": 4
- },
- {
-  "w": "PENCIL",
-  "zh": "铅笔",
-  "grade": 1
- },
- {
-  "w": "PEOPLE",
-  "zh": "人们",
-  "grade": 4
- },
- {
-  "w": "PHONE",
-  "zh": "电话",
-  "grade": 4
- },
- {
-  "w": "PHOTO",
-  "zh": "照片",
-  "grade": 5
- },
- {
-  "w": "PICNIC",
-  "zh": "野餐",
-  "grade": 5
- },
- {
-  "w": "PILOT",
-  "zh": "飞行员",
-  "grade": 6
- },
- {
-  "w": "PIZZA",
-  "zh": "比萨饼",
-  "grade": 6
- },
- {
-  "w": "PLANE",
-  "zh": "飞机",
-  "grade": 1
- },
- {
-  "w": "PLANT",
-  "zh": "植物",
-  "grade": 5
- },
- {
-  "w": "PLATE",
-  "zh": "盘子",
-  "grade": 3
- },
- {
-  "w": "PLEASE",
-  "zh": "请",
-  "grade": 4
- },
- {
-  "w": "POLICE",
-  "zh": "警察",
-  "grade": 4
- },
- {
-  "w": "POLITE",
-  "zh": "有礼貌的",
-  "grade": 5
- },
- {
-  "w": "POTATO",
-  "zh": "土豆",
-  "grade": 3
- },
- {
-  "w": "PRETTY",
-  "zh": "漂亮的",
-  "grade": 2
- },
- {
-  "w": "PRICE",
-  "zh": "价格",
-  "grade": 6
- },
- {
-  "w": "PUPIL",
-  "zh": "小学生",
-  "grade": 3
- },
- {
-  "w": "PUPPY",
-  "zh": "小狗",
-  "grade": 4
- },
- {
-  "w": "PURPLE",
-  "zh": "紫色的",
-  "grade": 4
- },
- {
-  "w": "PUZZLE",
-  "zh": "谜",
-  "grade": 6
- },
- {
-  "w": "QUEEN",
-  "zh": "女王",
-  "grade": 4
- },
- {
-  "w": "QUIET",
-  "zh": "安静的",
-  "grade": 4
- },
- {
-  "w": "RABBIT",
-  "zh": "兔子",
-  "grade": 3
- },
- {
-  "w": "RAINY",
-  "zh": "多雨的",
-  "grade": 2
- },
- {
-  "w": "READS",
-  "zh": "读",
-  "grade": 4
- },
- {
-  "w": "READY",
-  "zh": "准备好的",
-  "grade": 4
- },
- {
-  "w": "REALLY",
-  "zh": "真正地",
-  "grade": 3
- },
- {
-  "w": "RELAX",
-  "zh": "放松",
-  "grade": 4
- },
- {
-  "w": "RETURN",
-  "zh": "送回",
-  "grade": 4
- },
- {
-  "w": "RIGHT",
-  "zh": "右边的",
-  "grade": 4
- },
- {
-  "w": "RIVER",
-  "zh": "河",
-  "grade": 5
- },
- {
-  "w": "ROBOT",
-  "zh": "机器人",
-  "grade": 5
- },
- {
-  "w": "RULER",
-  "zh": "尺子",
-  "grade": 1
- },
- {
-  "w": "SALAD",
-  "zh": "色拉",
-  "grade": 5
- },
- {
-  "w": "SALTY",
-  "zh": "咸的",
-  "grade": 4
- },
- {
-  "w": "SCARF",
-  "zh": "围巾",
-  "grade": 4
- },
- {
-  "w": "SCHOOL",
-  "zh": "学校",
-  "grade": 2
- },
- {
-  "w": "SEASON",
-  "zh": "季节",
-  "grade": 2
- },
- {
-  "w": "SECOND",
-  "zh": "第二",
-  "grade": 3
- },
- {
-  "w": "SEVEN",
-  "zh": "七",
-  "grade": 1
- },
- {
-  "w": "SHADOW",
-  "zh": "影子",
-  "grade": 6
- },
- {
-  "w": "SHALL",
-  "zh": "将要",
-  "grade": 6
- },
- {
-  "w": "SHARE",
-  "zh": "共享",
-  "grade": 6
- },
- {
-  "w": "SHARK",
-  "zh": "鲨鱼",
-  "grade": 6
- },
- {
-  "w": "SHEEP",
-  "zh": "绵羊",
-  "grade": 4
- },
- {
-  "w": "SHELF",
-  "zh": "书架",
-  "grade": 4
- },
- {
-  "w": "SHINE",
-  "zh": "照耀",
-  "grade": 4
- },
- {
-  "w": "SHIRT",
-  "zh": "衬衫",
-  "grade": 1
- },
- {
-  "w": "SHOES",
-  "zh": "鞋子",
-  "grade": 3
- },
- {
-  "w": "SHORT",
-  "zh": "短的",
-  "grade": 2
- },
- {
-  "w": "SHORTS",
-  "zh": "短裤",
-  "grade": 1
- },
- {
-  "w": "SHOULD",
-  "zh": "应该",
-  "grade": 3
- },
- {
-  "w": "SINGER",
-  "zh": "歌唱家",
-  "grade": 4
- },
- {
-  "w": "SISTER",
-  "zh": "姐妹",
-  "grade": 2
- },
- {
-  "w": "SIXTH",
-  "zh": "第六",
-  "grade": 4
- },
- {
-  "w": "SIXTY",
-  "zh": "六十",
-  "grade": 4
- },
- {
-  "w": "SKATE",
-  "zh": "滑冰",
-  "grade": 4
- },
- {
-  "w": "SKIRT",
-  "zh": "裙子",
-  "grade": 1
- },
- {
-  "w": "SLEEP",
-  "zh": "睡觉",
-  "grade": 4
- },
- {
-  "w": "SLEPT",
-  "zh": "睡觉",
-  "grade": 5
- },
- {
-  "w": "SMALL",
-  "zh": "小的",
-  "grade": 3
- },
- {
-  "w": "SMART",
-  "zh": "聪明的",
-  "grade": 6
- },
- {
-  "w": "SMELL",
-  "zh": "闻",
-  "grade": 4
- },
- {
-  "w": "SNAKE",
-  "zh": "蛇",
-  "grade": 3
- },
- {
-  "w": "SNOWY",
-  "zh": "下雪的",
-  "grade": 2
- },
- {
-  "w": "SOCKS",
-  "zh": "袜子",
-  "grade": 1
- },
- {
-  "w": "SORRY",
-  "zh": "对不起",
-  "grade": 1
- },
- {
-  "w": "SOUND",
-  "zh": "声音",
-  "grade": 4
- },
- {
-  "w": "SOUTH",
-  "zh": "南",
-  "grade": 6
- },
- {
-  "w": "SPACE",
-  "zh": "空间",
-  "grade": 6
- },
- {
-  "w": "SPAIN",
-  "zh": "西班牙",
-  "grade": 5
- },
- {
-  "w": "SPEAK",
-  "zh": "讲话",
-  "grade": 5
- },
- {
-  "w": "SPOON",
-  "zh": "勺子",
-  "grade": 4
- },
- {
-  "w": "SPORT",
-  "zh": "体育运动",
-  "grade": 5
- },
- {
-  "w": "SPORTS",
-  "zh": "体育运动",
-  "grade": 4
- },
- {
-  "w": "SPRING",
-  "zh": "春天",
-  "grade": 2
- },
- {
-  "w": "SPROUT",
-  "zh": "苗",
-  "grade": 4
- },
- {
-  "w": "SQUID",
-  "zh": "鱿鱼",
-  "grade": 4
- },
- {
-  "w": "STAND",
-  "zh": "站立",
-  "grade": 4
- },
- {
-  "w": "START",
-  "zh": "开始",
-  "grade": 5
- },
- {
-  "w": "STAYED",
-  "zh": "停留",
-  "grade": 6
- },
- {
-  "w": "STILL",
-  "zh": "仍然",
-  "grade": 5
- },
- {
-  "w": "STREAM",
-  "zh": "河",
-  "grade": 4
- },
- {
-  "w": "STREET",
-  "zh": "街道",
-  "grade": 4
- },
- {
-  "w": "STRICT",
-  "zh": "严格的",
-  "grade": 5
- },
- {
-  "w": "STRONG",
-  "zh": "强壮的",
-  "grade": 4
- },
- {
-  "w": "STUCK",
-  "zh": "卡住的",
-  "grade": 6
- },
- {
-  "w": "STUDY",
-  "zh": "学习",
-  "grade": 3
- },
- {
-  "w": "SUBWAY",
-  "zh": "地铁",
-  "grade": 6
- },
- {
-  "w": "SUMMER",
-  "zh": "夏季",
-  "grade": 2
- },
- {
-  "w": "SUNDAY",
-  "zh": "星期日",
-  "grade": 2
- },
- {
-  "w": "SUNNY",
-  "zh": "阳光灿烂的",
-  "grade": 2
- },
- {
-  "w": "SUPER",
-  "zh": "太棒了太",
-  "grade": 4
- },
- {
-  "w": "SUSHI",
-  "zh": "寿司",
-  "grade": 5
- },
- {
-  "w": "SWEET",
-  "zh": "甜的",
-  "grade": 5
- },
- {
-  "w": "SWING",
-  "zh": "荡",
-  "grade": 4
- },
- {
-  "w": "SYDNEY",
-  "zh": "悉尼",
-  "grade": 4
- },
- {
-  "w": "TABLE",
-  "zh": "桌子",
-  "grade": 4
- },
- {
-  "w": "TALLER",
-  "zh": "更高的",
-  "grade": 6
- },
- {
-  "w": "TASTE",
-  "zh": "品尝",
-  "grade": 6
- },
- {
-  "w": "TASTY",
-  "zh": "好吃的",
-  "grade": 4
- },
- {
-  "w": "TEACH",
-  "zh": "教",
-  "grade": 4
- },
- {
-  "w": "TENTH",
-  "zh": "第十",
-  "grade": 5
- },
- {
-  "w": "THANK",
-  "zh": "谢谢",
-  "grade": 2
- },
- {
-  "w": "THANKS",
-  "zh": "多谢",
-  "grade": 1
- },
- {
-  "w": "THEIR",
-  "zh": "他们的",
-  "grade": 4
- },
- {
-  "w": "THEIRS",
-  "zh": "他们的",
-  "grade": 5
- },
- {
-  "w": "THERE",
-  "zh": "在那里",
-  "grade": 1
- },
- {
-  "w": "THESE",
-  "zh": "这些",
-  "grade": 4
- },
- {
-  "w": "THING",
-  "zh": "东西",
-  "grade": 4
- },
- {
-  "w": "THINK",
-  "zh": "想",
-  "grade": 4
- },
- {
-  "w": "THIRD",
-  "zh": "三分之一",
-  "grade": 3
- },
- {
-  "w": "THIRTY",
-  "zh": "三十",
-  "grade": 2
- },
- {
-  "w": "THOSE",
-  "zh": "那些的",
-  "grade": 4
- },
- {
-  "w": "THREE",
-  "zh": "三",
-  "grade": 1
- },
- {
-  "w": "TIGER",
-  "zh": "老虎",
-  "grade": 1
- },
- {
-  "w": "TIRED",
-  "zh": "疲倦的",
-  "grade": 5
- },
- {
-  "w": "TODAY",
-  "zh": "今天",
-  "grade": 2
- },
- {
-  "w": "TOMATO",
-  "zh": "西红柿",
-  "grade": 3
- },
- {
-  "w": "TOMOTO",
-  "zh": "西红柿",
-  "grade": 4
- },
- {
-  "w": "TOUCH",
-  "zh": "触摸",
-  "grade": 4
- },
- {
-  "w": "TRAIN",
-  "zh": "火车",
-  "grade": 1
- },
- {
-  "w": "TRAVEL",
-  "zh": "旅游",
-  "grade": 4
- },
- {
-  "w": "TRIED",
-  "zh": "疲劳的",
-  "grade": 4
- },
- {
-  "w": "TRUCK",
-  "zh": "象鼻",
-  "grade": 4
- },
- {
-  "w": "TURPAN",
-  "zh": "吐鲁番",
-  "grade": 6
- },
- {
-  "w": "TWELVE",
-  "zh": "十二",
-  "grade": 2
- },
- {
-  "w": "TWENTY",
-  "zh": "二十",
-  "grade": 2
- },
- {
-  "w": "UNCLE",
-  "zh": "叔父",
-  "grade": 3
- },
- {
-  "w": "UNDER",
-  "zh": "在…下面",
-  "grade": 1
- },
- {
-  "w": "VAPOUR",
-  "zh": "蒸气",
-  "grade": 4
- },
- {
-  "w": "VIOLIN",
-  "zh": "小提琴",
-  "grade": 4
- },
- {
-  "w": "VISIT",
-  "zh": "访问",
-  "grade": 6
- },
- {
-  "w": "WAITER",
-  "zh": "侍者",
-  "grade": 4
- },
- {
-  "w": "WASHED",
-  "zh": "洗",
-  "grade": 6
- },
- {
-  "w": "WATCH",
-  "zh": "观看",
-  "grade": 5
- },
- {
-  "w": "WATER",
-  "zh": "水",
-  "grade": 1
- },
- {
-  "w": "WHERE",
-  "zh": "在哪里",
-  "grade": 1
- },
- {
-  "w": "WHICH",
-  "zh": "哪个",
-  "grade": 5
- },
- {
-  "w": "WHITE",
-  "zh": "白色的",
-  "grade": 3
- },
- {
-  "w": "WHOSE",
-  "zh": "谁的",
-  "grade": 4
- },
- {
-  "w": "WINDOW",
-  "zh": "窗口",
-  "grade": 4
- },
- {
-  "w": "WINDY",
-  "zh": "有风的",
-  "grade": 2
- },
- {
-  "w": "WINTER",
-  "zh": "冬季",
-  "grade": 2
- },
- {
-  "w": "WOMAN",
-  "zh": "女人",
-  "grade": 2
- },
- {
-  "w": "WOODS",
-  "zh": "树林",
-  "grade": 4
- },
- {
-  "w": "WORKER",
-  "zh": "工人",
-  "grade": 4
- },
- {
-  "w": "WORLD",
-  "zh": "世界",
-  "grade": 4
- },
- {
-  "w": "WORRY",
-  "zh": "担心",
-  "grade": 6
- },
- {
-  "w": "WRITE",
-  "zh": "写",
-  "grade": 4
- },
- {
-  "w": "WRITER",
-  "zh": "作家",
-  "grade": 6
- },
- {
-  "w": "WRONG",
-  "zh": "错误的",
-  "grade": 6
- },
- {
-  "w": "YELLOW",
-  "zh": "黄色的",
-  "grade": 1
- },
- {
-  "w": "YOUNG",
-  "zh": "年轻的",
-  "grade": 5
- },
- {
-  "w": "YOURS",
-  "zh": "属于你的",
-  "grade": 4
- },
- {
-  "w": "YUMMY",
-  "zh": "好吃的",
-  "grade": 4
- },
- {
-  "w": "ACCOUNTANT",
-  "zh": "会计",
-  "grade": 6
- },
- {
-  "w": "ACTRESS",
-  "zh": "女演员",
-  "grade": 6
- },
- {
-  "w": "AFTERNOON",
-  "zh": "下午午后",
-  "grade": 3
- },
- {
-  "w": "AMAZING",
-  "zh": "令人惊异的",
-  "grade": 6
- },
- {
-  "w": "AMERICA",
-  "zh": "美国",
-  "grade": 6
- },
- {
-  "w": "AMERICAN",
-  "zh": "美国人",
-  "grade": 5
- },
- {
-  "w": "ANOTHER",
-  "zh": "另一个",
-  "grade": 6
- },
- {
-  "w": "ANYTHING",
-  "zh": "任何东西",
-  "grade": 5
- },
- {
-  "w": "ATTENTION",
-  "zh": "注意",
-  "grade": 6
- },
- {
-  "w": "AUSTRALIA",
-  "zh": "澳大利亚",
-  "grade": 4
- },
- {
-  "w": "BADMINTON",
-  "zh": "羽毛球运动",
-  "grade": 5
- },
- {
-  "w": "BALLOON",
-  "zh": "气球",
-  "grade": 6
- },
- {
-  "w": "BASKETBALL",
-  "zh": "篮球",
-  "grade": 4
- },
- {
-  "w": "BATHROOM",
-  "zh": "浴室",
-  "grade": 3
- },
- {
-  "w": "BEAUTIFUL",
-  "zh": "漂亮的",
-  "grade": 3
- },
- {
-  "w": "BECAUSE",
-  "zh": "因为",
-  "grade": 5
- },
- {
-  "w": "BEDROOM",
-  "zh": "卧室",
-  "grade": 3
- },
- {
-  "w": "BETWEEN",
-  "zh": "在…之间",
-  "grade": 4
- },
- {
-  "w": "BIRTHDAY",
-  "zh": "生日",
-  "grade": 3
- },
- {
-  "w": "BLACKBOARD",
-  "zh": "黑板",
-  "grade": 1
- },
- {
-  "w": "BOATING",
-  "zh": "划船",
-  "grade": 5
- },
- {
-  "w": "BOOKSTORE",
-  "zh": "书店",
-  "grade": 6
- },
- {
-  "w": "BREAKFAST",
-  "zh": "早餐",
-  "grade": 4
- },
- {
-  "w": "BROTHER",
-  "zh": "兄弟",
-  "grade": 2
- },
- {
-  "w": "BUILDING",
-  "zh": "建筑物",
-  "grade": 5
- },
- {
-  "w": "BUSINESSMAN",
-  "zh": "商人",
-  "grade": 6
- },
- {
-  "w": "CABBAGE",
-  "zh": "洋白菜",
-  "grade": 6
- },
- {
-  "w": "CANADIAN",
-  "zh": "加拿大人",
-  "grade": 5
- },
- {
-  "w": "CANBERRA",
-  "zh": "堪培拉",
-  "grade": 6
- },
- {
-  "w": "CANTEEN",
-  "zh": "食堂",
-  "grade": 6
- },
- {
-  "w": "CARTOON",
-  "zh": "卡通片",
-  "grade": 5
- },
- {
-  "w": "CERTAINLY",
-  "zh": "当然",
-  "grade": 6
- },
- {
-  "w": "CHEETAH",
-  "zh": "猎豹",
-  "grade": 6
- },
- {
-  "w": "CHICKEN",
-  "zh": "鸡肉",
-  "grade": 1
- },
- {
-  "w": "CHILDREN",
-  "zh": "儿童",
-  "grade": 3
- },
- {
-  "w": "CHINESE",
-  "zh": "中文",
-  "grade": 3
- },
- {
-  "w": "CHOCOLATE",
-  "zh": "巧克力",
-  "grade": 5
- },
- {
-  "w": "CHOPSTICKS",
-  "zh": "筷子",
-  "grade": 4
- },
- {
-  "w": "CHRISTMAS",
-  "zh": "圣诞节",
-  "grade": 2
- },
- {
-  "w": "CLASSMATE",
-  "zh": "同学",
-  "grade": 2
- },
- {
-  "w": "CLASSROOM",
-  "zh": "教室",
-  "grade": 3
- },
- {
-  "w": "CLEANED",
-  "zh": "打扫",
-  "grade": 6
- },
- {
-  "w": "CLEANER",
-  "zh": "清洁工",
-  "grade": 6
- },
- {
-  "w": "CLIMBER",
-  "zh": "攀登者",
-  "grade": 6
- },
- {
-  "w": "CLIMBING",
-  "zh": "攀爬",
-  "grade": 5
- },
- {
-  "w": "CLOTHES",
-  "zh": "衣服",
-  "grade": 4
- },
- {
-  "w": "COLOURFUL",
-  "zh": "色彩丰富的",
-  "grade": 6
- },
- {
-  "w": "COMPANY",
-  "zh": "公司",
-  "grade": 6
- },
- {
-  "w": "COMPUTER",
-  "zh": "计算机",
-  "grade": 4
- },
- {
-  "w": "CONTEST",
-  "zh": "比赛",
-  "grade": 5
- },
- {
-  "w": "COOKING",
-  "zh": "烹饪",
-  "grade": 5
- },
- {
-  "w": "COUNTRY",
-  "zh": "国家",
-  "grade": 4
- },
- {
-  "w": "COUNTRYSIDE",
-  "zh": "农村",
-  "grade": 6
- },
- {
-  "w": "CROSSING",
-  "zh": "交会处",
-  "grade": 6
- },
- {
-  "w": "CUCUMBER",
-  "zh": "黄瓜",
-  "grade": 6
- },
- {
-  "w": "CURTAIN",
-  "zh": "窗帘",
-  "grade": 6
- },
- {
-  "w": "CYCLING",
-  "zh": "骑自行车",
-  "grade": 6
- },
- {
-  "w": "DANCING",
-  "zh": "跳舞",
-  "grade": 4
- },
- {
-  "w": "DECEMBER",
-  "zh": "十二月",
-  "grade": 3
- },
- {
-  "w": "DELICIOUS",
-  "zh": "美味的",
-  "grade": 3
- },
- {
-  "w": "DICTIONARY",
-  "zh": "词典",
-  "grade": 6
- },
- {
-  "w": "DIFFERENCE",
-  "zh": "不同",
-  "grade": 6
- },
- {
-  "w": "DIFFERENT",
-  "zh": "不同的",
-  "grade": 4
- },
- {
-  "w": "DINOSAUR",
-  "zh": "恐龙",
-  "grade": 6
- },
- {
-  "w": "DRINKING",
-  "zh": "喝",
-  "grade": 5
- },
- {
-  "w": "EGGPLANT",
-  "zh": "茄子",
-  "grade": 6
- },
- {
-  "w": "EIGHTEEN",
-  "zh": "十八",
-  "grade": 3
- },
- {
-  "w": "ELEPHANT",
-  "zh": "大象",
-  "grade": 3
- },
- {
-  "w": "ELEVENTH",
-  "zh": "第十一",
-  "grade": 6
- },
- {
-  "w": "ENGINEER",
-  "zh": "工程师",
-  "grade": 6
- },
- {
-  "w": "ENGLAND",
-  "zh": "英格兰",
-  "grade": 6
- },
- {
-  "w": "ENGLISH",
-  "zh": "英国的",
-  "grade": 3
- },
- {
-  "w": "EVENING",
-  "zh": "晚上",
-  "grade": 4
- },
- {
-  "w": "EVERYONE",
-  "zh": "每个人",
-  "grade": 3
- },
- {
-  "w": "EVERYWHERE",
-  "zh": "到处",
-  "grade": 5
- },
- {
-  "w": "EXCITED",
-  "zh": "激动的",
-  "grade": 5
- },
- {
-  "w": "EXERCISE",
-  "zh": "练习",
-  "grade": 5
- },
- {
-  "w": "EXHIBITION",
-  "zh": "展览",
-  "grade": 5
- },
- {
-  "w": "EXPENSIVE",
-  "zh": "昂贵的",
-  "grade": 4
- },
- {
-  "w": "FACTORY",
-  "zh": "工厂",
-  "grade": 6
- },
- {
-  "w": "FAVORITE",
-  "zh": "特别喜爱的",
-  "grade": 6
- },
- {
-  "w": "FAVOURITE",
-  "zh": "特别受喜爱的",
-  "grade": 2
- },
- {
-  "w": "FEATURE",
-  "zh": "特征",
-  "grade": 6
- },
- {
-  "w": "FEBRUARY",
-  "zh": "二月",
-  "grade": 3
- },
- {
-  "w": "FESTIVAL",
-  "zh": "节日",
-  "grade": 6
- },
- {
-  "w": "FIFTEEN",
-  "zh": "十五",
-  "grade": 2
- },
- {
-  "w": "FISHERMAN",
-  "zh": "渔夫",
-  "grade": 6
- },
- {
-  "w": "FOOTBALL",
-  "zh": "足球",
-  "grade": 6
- },
- {
-  "w": "FOURTEEN",
-  "zh": "十四",
-  "grade": 2
- },
- {
-  "w": "FRIENDLY",
-  "zh": "友好的",
-  "grade": 4
- },
- {
-  "w": "FUNNIER",
-  "zh": "更滑稽的",
-  "grade": 6
- },
- {
-  "w": "GERMANY",
-  "zh": "德国",
-  "grade": 6
- },
- {
-  "w": "GIRAFFE",
-  "zh": "长颈鹿",
-  "grade": 3
- },
- {
-  "w": "GLASSES",
-  "zh": "眼镜",
-  "grade": 4
- },
- {
-  "w": "GOODBYE",
-  "zh": "再见",
-  "grade": 6
- },
- {
-  "w": "GRANDFATHER",
-  "zh": "祖父",
-  "grade": 2
- },
- {
-  "w": "GRANDMA",
-  "zh": "祖母",
-  "grade": 3
- },
- {
-  "w": "GRANDMOTHER",
-  "zh": "祖母",
-  "grade": 2
- },
- {
-  "w": "GRANDPA",
-  "zh": "爷爷",
-  "grade": 3
- },
- {
-  "w": "GRANDPARENT",
-  "zh": "祖父",
-  "grade": 5
- },
- {
-  "w": "HALLOWEEN",
-  "zh": "万圣节前夕",
-  "grade": 6
- },
- {
-  "w": "HAMBURGER",
-  "zh": "汉堡包",
-  "grade": 4
- },
- {
-  "w": "HEALTHY",
-  "zh": "健康的",
-  "grade": 5
- },
- {
-  "w": "HEAVIER",
-  "zh": "更重的",
-  "grade": 6
- },
- {
-  "w": "HELPFUL",
-  "zh": "有益的",
-  "grade": 5
- },
- {
-  "w": "HOLIDAY",
-  "zh": "假日",
-  "grade": 5
- },
- {
-  "w": "HOMEWORK",
-  "zh": "家庭作业",
-  "grade": 4
- },
- {
-  "w": "HOSPITAL",
-  "zh": "医院",
-  "grade": 2
- },
- {
-  "w": "HOWEVER",
-  "zh": "但是",
-  "grade": 6
- },
- {
-  "w": "HUNDRED",
-  "zh": "百",
-  "grade": 6
- },
- {
-  "w": "INTERESTING",
-  "zh": "有趣的",
-  "grade": 4
- },
- {
-  "w": "INTERNET",
-  "zh": "因特网",
-  "grade": 6
- },
- {
-  "w": "ITALIAN",
-  "zh": "意大利语",
-  "grade": 6
- },
- {
-  "w": "JANUARY",
-  "zh": "一月",
-  "grade": 3
- },
- {
-  "w": "JASMINE",
-  "zh": "茉莉",
-  "grade": 6
- },
- {
-  "w": "JUMPING",
-  "zh": "跳跃",
-  "grade": 5
- },
- {
-  "w": "KANGAROO",
-  "zh": "袋鼠",
-  "grade": 6
- },
- {
-  "w": "KILOGRAM",
-  "zh": "公斤",
-  "grade": 6
- },
- {
-  "w": "KITCHEN",
-  "zh": "厨房",
-  "grade": 3
- },
- {
-  "w": "LAUGHED",
-  "zh": "笑",
-  "grade": 6
- },
- {
-  "w": "LIBRARY",
-  "zh": "图书馆",
-  "grade": 3
- },
- {
-  "w": "LISTENING",
-  "zh": "听",
-  "grade": 6
- },
- {
-  "w": "LOBSTER",
-  "zh": "龙虾",
-  "grade": 6
- },
- {
-  "w": "MAGAZINE",
-  "zh": "杂志",
-  "grade": 6
- },
- {
-  "w": "MEDICINE",
-  "zh": "药",
-  "grade": 6
- },
- {
-  "w": "MOONCAKE",
-  "zh": "月饼",
-  "grade": 6
- },
- {
-  "w": "MORNING",
-  "zh": "早晨",
-  "grade": 3
- },
- {
-  "w": "MOUNTAIN",
-  "zh": "山",
-  "grade": 5
- },
- {
-  "w": "NATIONAL",
-  "zh": "国家的",
-  "grade": 5
- },
- {
-  "w": "NEIGHBOUR",
-  "zh": "邻居",
-  "grade": 6
- },
- {
-  "w": "NEWSPAPER",
-  "zh": "报纸",
-  "grade": 6
- },
- {
-  "w": "NINETEEN",
-  "zh": "十九",
-  "grade": 3
- },
- {
-  "w": "NOODLES",
-  "zh": "面条",
-  "grade": 1
- },
- {
-  "w": "NOTEBOOK",
-  "zh": "笔记本",
-  "grade": 4
- },
- {
-  "w": "NOTHING",
-  "zh": "没有什么",
-  "grade": 6
- },
- {
-  "w": "NOVEMBER",
-  "zh": "十一月",
-  "grade": 3
- },
- {
-  "w": "OCTOBER",
-  "zh": "十月",
-  "grade": 3
- },
- {
-  "w": "OUTSIDE",
-  "zh": "在外面",
-  "grade": 4
- },
- {
-  "w": "PAINTING",
-  "zh": "绘画",
-  "grade": 6
- },
- {
-  "w": "PARENTS",
-  "zh": "父母",
-  "grade": 4
- },
- {
-  "w": "PICTURE",
-  "zh": "图画",
-  "grade": 4
- },
- {
-  "w": "PLAYGROUND",
-  "zh": "操场",
-  "grade": 3
- },
- {
-  "w": "PLAYING",
-  "zh": "玩",
-  "grade": 5
- },
- {
-  "w": "POLICEMAN",
-  "zh": "警察",
-  "grade": 6
- },
- {
-  "w": "POLICEWOMAN",
-  "zh": "女警察",
-  "grade": 6
- },
- {
-  "w": "POSTCARD",
-  "zh": "明信片",
-  "grade": 6
- },
- {
-  "w": "POSTMAN",
-  "zh": "邮递员",
-  "grade": 6
- },
- {
-  "w": "PREPARE",
-  "zh": "准备",
-  "grade": 6
- },
- {
-  "w": "PRESENT",
-  "zh": "礼物",
-  "grade": 2
- },
- {
-  "w": "PRINCIPAL",
-  "zh": "校长",
-  "grade": 6
- },
- {
-  "w": "PROBLEM",
-  "zh": "难题",
-  "grade": 5
- },
- {
-  "w": "QUICKLY",
-  "zh": "迅速地",
-  "grade": 6
- },
- {
-  "w": "RAINBOW",
-  "zh": "彩虹",
-  "grade": 6
- },
- {
-  "w": "READING",
-  "zh": "阅读",
-  "grade": 4
- },
- {
-  "w": "REMEMBER",
-  "zh": "记住",
-  "grade": 6
- },
- {
-  "w": "REPORTER",
-  "zh": "记者",
-  "grade": 6
- },
- {
-  "w": "RESTAURANT",
-  "zh": "餐厅",
-  "grade": 4
- },
- {
-  "w": "SALESPERSON",
-  "zh": "售货员",
-  "grade": 6
- },
- {
-  "w": "SANDALS",
-  "zh": "凉鞋",
-  "grade": 6
- },
- {
-  "w": "SANDWICH",
-  "zh": "三明治",
-  "grade": 5
- },
- {
-  "w": "SATURDAY",
-  "zh": "星期六",
-  "grade": 2
- },
- {
-  "w": "SCHEDULE",
-  "zh": "日程表",
-  "grade": 5
- },
- {
-  "w": "SCHOOLBAG",
-  "zh": "书包",
-  "grade": 1
- },
- {
-  "w": "SCIENCE",
-  "zh": "科学",
-  "grade": 3
- },
- {
-  "w": "SCIENTIST",
-  "zh": "科学家",
-  "grade": 6
- },
- {
-  "w": "SCOTLAND",
-  "zh": "苏格兰",
-  "grade": 6
- },
- {
-  "w": "SECRETARY",
-  "zh": "秘书",
-  "grade": 6
- },
- {
-  "w": "SEPTEMBER",
-  "zh": "九月",
-  "grade": 3
- },
- {
-  "w": "SEVENTEEN",
-  "zh": "十七",
-  "grade": 3
- },
- {
-  "w": "SEVENTH",
-  "zh": "第七",
-  "grade": 6
- },
- {
-  "w": "SEVENTY",
-  "zh": "七十",
-  "grade": 6
- },
- {
-  "w": "SEVERAL",
-  "zh": "一些",
-  "grade": 6
- },
- {
-  "w": "SHARPENER",
-  "zh": "卷笔刀",
-  "grade": 6
- },
- {
-  "w": "SHORTER",
-  "zh": "更短的",
-  "grade": 6
- },
- {
-  "w": "SINGAPORE",
-  "zh": "新加坡",
-  "grade": 4
- },
- {
-  "w": "SIXTEEN",
-  "zh": "十六",
-  "grade": 3
- },
- {
-  "w": "SLEEPING",
-  "zh": "睡着的",
-  "grade": 5
- },
- {
-  "w": "SLIPPERS",
-  "zh": "拖鞋",
-  "grade": 6
- },
- {
-  "w": "SMALLER",
-  "zh": "更小的",
-  "grade": 6
- },
- {
-  "w": "SMARTER",
-  "zh": "更聪明的",
-  "grade": 6
- },
- {
-  "w": "SNEAKERS",
-  "zh": "胶底帆布鞋",
-  "grade": 6
- },
- {
-  "w": "SNOWMAN",
-  "zh": "雪人",
-  "grade": 5
- },
- {
-  "w": "SOMETHING",
-  "zh": "某事物",
-  "grade": 6
- },
- {
-  "w": "SOMETIMES",
-  "zh": "有时",
-  "grade": 5
- },
- {
-  "w": "SPANISH",
-  "zh": "西班牙的",
-  "grade": 5
- },
- {
-  "w": "SPECIAL",
-  "zh": "特别的",
-  "grade": 5
- },
- {
-  "w": "SQUIRREL",
-  "zh": "松鼠",
-  "grade": 6
- },
- {
-  "w": "STORYBOOK",
-  "zh": "故事书",
-  "grade": 4
- },
- {
-  "w": "STRAIGHT",
-  "zh": "直的",
-  "grade": 5
- },
- {
-  "w": "STRAWBERRY",
-  "zh": "草莓",
-  "grade": 3
- },
- {
-  "w": "STRONGER",
-  "zh": "更强壮的",
-  "grade": 6
- },
- {
-  "w": "STUDENT",
-  "zh": "学生",
-  "grade": 3
- },
- {
-  "w": "STUDIES",
-  "zh": "学习",
-  "grade": 6
- },
- {
-  "w": "SUNGLASSES",
-  "zh": "太阳镜",
-  "grade": 4
- },
- {
-  "w": "SUPERMARKET",
-  "zh": "超市",
-  "grade": 2
- },
- {
-  "w": "SWEATER",
-  "zh": "毛衣",
-  "grade": 3
- },
- {
-  "w": "TEACHER",
-  "zh": "教师",
-  "grade": 1
- },
- {
-  "w": "TEACHERS",
-  "zh": "老师们",
-  "grade": 6
- },
- {
-  "w": "TEACHES",
-  "zh": "教",
-  "grade": 6
- },
- {
-  "w": "THANKSGIVING",
-  "zh": "感恩节",
-  "grade": 5
- },
- {
-  "w": "THINNER",
-  "zh": "更瘦的",
-  "grade": 6
- },
- {
-  "w": "THIRSTY",
-  "zh": "口渴的",
-  "grade": 1
- },
- {
-  "w": "THIRTEEN",
-  "zh": "十三",
-  "grade": 2
- },
- {
-  "w": "THIRTIETH",
-  "zh": "第三十",
-  "grade": 5
- },
- {
-  "w": "THOUGHT",
-  "zh": "思想",
-  "grade": 6
- },
- {
-  "w": "THURSDAY",
-  "zh": "星期四",
-  "grade": 2
- },
- {
-  "w": "TOGETHER",
-  "zh": "一起",
-  "grade": 5
- },
- {
-  "w": "TOMORROW",
-  "zh": "在明天",
-  "grade": 3
- },
- {
-  "w": "TONIGHT",
-  "zh": "今晚",
-  "grade": 6
- },
- {
-  "w": "TOURIST",
-  "zh": "旅行者",
-  "grade": 6
- },
- {
-  "w": "TRAFFIC",
-  "zh": "交通",
-  "grade": 6
- },
- {
-  "w": "TUESDAY",
-  "zh": "星期二",
-  "grade": 2
- },
- {
-  "w": "TWELFTH",
-  "zh": "第十二",
-  "grade": 5
- },
- {
-  "w": "TWENTIETH",
-  "zh": "第二十",
-  "grade": 5
- },
- {
-  "w": "UMBRELLA",
-  "zh": "伞",
-  "grade": 2
- },
- {
-  "w": "UNIVERSITY",
-  "zh": "大学",
-  "grade": 6
- },
- {
-  "w": "USUALLY",
-  "zh": "通常",
-  "grade": 4
- },
- {
-  "w": "VACATION",
-  "zh": "假期",
-  "grade": 5
- },
- {
-  "w": "VEGETABLE",
-  "zh": "蔬菜",
-  "grade": 1
- },
- {
-  "w": "VILLAGE",
-  "zh": "村庄",
-  "grade": 5
- },
- {
-  "w": "VISITOR",
-  "zh": "客人",
-  "grade": 6
- },
- {
-  "w": "WALKMAN",
-  "zh": "随身听",
-  "grade": 6
- },
- {
-  "w": "WASHROOM",
-  "zh": "卫生间",
-  "grade": 6
- },
- {
-  "w": "WATCHED",
-  "zh": "观看",
-  "grade": 6
- },
- {
-  "w": "WATCHES",
-  "zh": "看",
-  "grade": 6
- },
- {
-  "w": "WATERMELON",
-  "zh": "西瓜",
-  "grade": 3
- },
- {
-  "w": "WEATHER",
-  "zh": "天气",
-  "grade": 2
- },
- {
-  "w": "WEDNESDAY",
-  "zh": "星期三",
-  "grade": 2
- },
- {
-  "w": "WEEKEND",
-  "zh": "周末",
-  "grade": 5
- },
- {
-  "w": "WELCOME",
-  "zh": "欢迎",
-  "grade": 3
- },
- {
-  "w": "WONDERFUL",
-  "zh": "精彩的",
-  "grade": 5
- },
- {
-  "w": "WORRIED",
-  "zh": "担忧的",
-  "grade": 6
- },
- {
-  "w": "YESTERDAY",
-  "zh": "昨天",
-  "grade": 6
- },
- {
-  "w": "YOUNGER",
-  "zh": "更年轻的",
-  "grade": 6
- }
+  {
+    "w": "ABLE",
+    "zh": "能",
+    "grade": 3
+  },
+  {
+    "w": "AGO",
+    "zh": "以前",
+    "grade": 6
+  },
+  {
+    "w": "AIR",
+    "zh": "空气",
+    "grade": 3
+  },
+  {
+    "w": "ALL",
+    "zh": "全部的",
+    "grade": 5
+  },
+  {
+    "w": "ALSO",
+    "zh": "也",
+    "grade": 5
+  },
+  {
+    "w": "AND",
+    "zh": "和",
+    "grade": 3
+  },
+  {
+    "w": "ANT",
+    "zh": "蚂蚁",
+    "grade": 6
+  },
+  {
+    "w": "ANY",
+    "zh": "任何的",
+    "grade": 5
+  },
+  {
+    "w": "ARE",
+    "zh": "是",
+    "grade": 3
+  },
+  {
+    "w": "ARM",
+    "zh": "手臂",
+    "grade": 3
+  },
+  {
+    "w": "ART",
+    "zh": "美术",
+    "grade": 3
+  },
+  {
+    "w": "ASK",
+    "zh": "问",
+    "grade": 6
+  },
+  {
+    "w": "ATE",
+    "zh": "吃",
+    "grade": 6
+  },
+  {
+    "w": "AUNT",
+    "zh": "姑",
+    "grade": 3
+  },
+  {
+    "w": "BABY",
+    "zh": "婴儿",
+    "grade": 3
+  },
+  {
+    "w": "BACK",
+    "zh": "回来",
+    "grade": 3
+  },
+  {
+    "w": "BAD",
+    "zh": "坏的",
+    "grade": 3
+  },
+  {
+    "w": "BAG",
+    "zh": "袋子",
+    "grade": 3
+  },
+  {
+    "w": "BALL",
+    "zh": "球",
+    "grade": 3
+  },
+  {
+    "w": "BANK",
+    "zh": "银行",
+    "grade": 4
+  },
+  {
+    "w": "BEAR",
+    "zh": "熊",
+    "grade": 3
+  },
+  {
+    "w": "BED",
+    "zh": "床",
+    "grade": 3
+  },
+  {
+    "w": "BEE",
+    "zh": "蜜蜂",
+    "grade": 5
+  },
+  {
+    "w": "BEEF",
+    "zh": "牛肉",
+    "grade": 4
+  },
+  {
+    "w": "BEST",
+    "zh": "最好的",
+    "grade": 5
+  },
+  {
+    "w": "BIG",
+    "zh": "大的",
+    "grade": 3
+  },
+  {
+    "w": "BIKE",
+    "zh": "自行车",
+    "grade": 5
+  },
+  {
+    "w": "BIRD",
+    "zh": "鸟",
+    "grade": 3
+  },
+  {
+    "w": "BLUE",
+    "zh": "蓝色的",
+    "grade": 3
+  },
+  {
+    "w": "BOAT",
+    "zh": "小船",
+    "grade": 3
+  },
+  {
+    "w": "BODY",
+    "zh": "身体",
+    "grade": 3
+  },
+  {
+    "w": "BOOK",
+    "zh": "书",
+    "grade": 3
+  },
+  {
+    "w": "BOTH",
+    "zh": "两者",
+    "grade": 6
+  },
+  {
+    "w": "BOWL",
+    "zh": "碗",
+    "grade": 4
+  },
+  {
+    "w": "BOX",
+    "zh": "箱子",
+    "grade": 3
+  },
+  {
+    "w": "BOY",
+    "zh": "男孩",
+    "grade": 3
+  },
+  {
+    "w": "BUS",
+    "zh": "公共汽车",
+    "grade": 6
+  },
+  {
+    "w": "BUSY",
+    "zh": "忙碌的",
+    "grade": 4
+  },
+  {
+    "w": "BUT",
+    "zh": "但是",
+    "grade": 4
+  },
+  {
+    "w": "BUY",
+    "zh": "买",
+    "grade": 3
+  },
+  {
+    "w": "BYE",
+    "zh": "再见",
+    "grade": 3
+  },
+  {
+    "w": "CAKE",
+    "zh": "蛋糕",
+    "grade": 3
+  },
+  {
+    "w": "CAMP",
+    "zh": "营地",
+    "grade": 6
+  },
+  {
+    "w": "CAN",
+    "zh": "能够",
+    "grade": 3
+  },
+  {
+    "w": "CAP",
+    "zh": "帽子",
+    "grade": 3
+  },
+  {
+    "w": "CAR",
+    "zh": "小汽车",
+    "grade": 3
+  },
+  {
+    "w": "CAT",
+    "zh": "猫",
+    "grade": 3
+  },
+  {
+    "w": "CAVE",
+    "zh": "洞穴",
+    "grade": 5
+  },
+  {
+    "w": "CITY",
+    "zh": "城市",
+    "grade": 4
+  },
+  {
+    "w": "CLUB",
+    "zh": "俱乐部",
+    "grade": 6
+  },
+  {
+    "w": "COAT",
+    "zh": "大衣",
+    "grade": 3
+  },
+  {
+    "w": "COCK",
+    "zh": "公鸡",
+    "grade": 3
+  },
+  {
+    "w": "COKE",
+    "zh": "可乐",
+    "grade": 3
+  },
+  {
+    "w": "COLD",
+    "zh": "寒冷",
+    "grade": 3
+  },
+  {
+    "w": "COME",
+    "zh": "快",
+    "grade": 4
+  },
+  {
+    "w": "COOK",
+    "zh": "做饭",
+    "grade": 4
+  },
+  {
+    "w": "COOL",
+    "zh": "凉的",
+    "grade": 3
+  },
+  {
+    "w": "COW",
+    "zh": "母牛",
+    "grade": 4
+  },
+  {
+    "w": "CUTE",
+    "zh": "可爱的",
+    "grade": 4
+  },
+  {
+    "w": "DAD",
+    "zh": "爸爸",
+    "grade": 3
+  },
+  {
+    "w": "DATE",
+    "zh": "日期",
+    "grade": 3
+  },
+  {
+    "w": "DAY",
+    "zh": "日",
+    "grade": 4
+  },
+  {
+    "w": "DEAR",
+    "zh": "亲爱的",
+    "grade": 3
+  },
+  {
+    "w": "DEEP",
+    "zh": "深的",
+    "grade": 6
+  },
+  {
+    "w": "DEER",
+    "zh": "鹿",
+    "grade": 3
+  },
+  {
+    "w": "DESK",
+    "zh": "桌子",
+    "grade": 3
+  },
+  {
+    "w": "DIVE",
+    "zh": "跳水",
+    "grade": 3
+  },
+  {
+    "w": "DOG",
+    "zh": "狗",
+    "grade": 3
+  },
+  {
+    "w": "DOLL",
+    "zh": "玩具娃娃",
+    "grade": 3
+  },
+  {
+    "w": "DOOR",
+    "zh": "门",
+    "grade": 3
+  },
+  {
+    "w": "DOWN",
+    "zh": "向下",
+    "grade": 6
+  },
+  {
+    "w": "DRAW",
+    "zh": "画",
+    "grade": 5
+  },
+  {
+    "w": "DROP",
+    "zh": "水滴",
+    "grade": 3
+  },
+  {
+    "w": "DUCK",
+    "zh": "鸭",
+    "grade": 3
+  },
+  {
+    "w": "EACH",
+    "zh": "各自的",
+    "grade": 5
+  },
+  {
+    "w": "EAR",
+    "zh": "耳朵",
+    "grade": 3
+  },
+  {
+    "w": "EAST",
+    "zh": "东",
+    "grade": 6
+  },
+  {
+    "w": "EASY",
+    "zh": "容易的",
+    "grade": 6
+  },
+  {
+    "w": "EAT",
+    "zh": "吃",
+    "grade": 4
+  },
+  {
+    "w": "EGG",
+    "zh": "蛋",
+    "grade": 3
+  },
+  {
+    "w": "ELSE",
+    "zh": "别的",
+    "grade": 5
+  },
+  {
+    "w": "END",
+    "zh": "最后部分",
+    "grade": 3
+  },
+  {
+    "w": "EVEN",
+    "zh": "甚至",
+    "grade": 3
+  },
+  {
+    "w": "EYE",
+    "zh": "眼睛",
+    "grade": 3
+  },
+  {
+    "w": "FACE",
+    "zh": "脸",
+    "grade": 3
+  },
+  {
+    "w": "FAIL",
+    "zh": "不及格",
+    "grade": 3
+  },
+  {
+    "w": "FALL",
+    "zh": "秋天",
+    "grade": 5
+  },
+  {
+    "w": "FAN",
+    "zh": "风扇",
+    "grade": 4
+  },
+  {
+    "w": "FAR",
+    "zh": "远",
+    "grade": 6
+  },
+  {
+    "w": "FARM",
+    "zh": "农场",
+    "grade": 4
+  },
+  {
+    "w": "FAST",
+    "zh": "快的",
+    "grade": 5
+  },
+  {
+    "w": "FAT",
+    "zh": "肥的",
+    "grade": 3
+  },
+  {
+    "w": "FEED",
+    "zh": "喂养",
+    "grade": 3
+  },
+  {
+    "w": "FEEL",
+    "zh": "感到",
+    "grade": 6
+  },
+  {
+    "w": "FEET",
+    "zh": "脚",
+    "grade": 3
+  },
+  {
+    "w": "FELL",
+    "zh": "落下",
+    "grade": 6
+  },
+  {
+    "w": "FELT",
+    "zh": "感到",
+    "grade": 6
+  },
+  {
+    "w": "FEW",
+    "zh": "几个",
+    "grade": 5
+  },
+  {
+    "w": "FILM",
+    "zh": "电影",
+    "grade": 4
+  },
+  {
+    "w": "FIND",
+    "zh": "找",
+    "grade": 4
+  },
+  {
+    "w": "FINE",
+    "zh": "好的",
+    "grade": 3
+  },
+  {
+    "w": "FISH",
+    "zh": "鱼",
+    "grade": 3
+  },
+  {
+    "w": "FIVE",
+    "zh": "五",
+    "grade": 3
+  },
+  {
+    "w": "FLAT",
+    "zh": "公寓",
+    "grade": 3
+  },
+  {
+    "w": "FLU",
+    "zh": "流感",
+    "grade": 3
+  },
+  {
+    "w": "FLY",
+    "zh": "飞翔",
+    "grade": 4
+  },
+  {
+    "w": "FOOD",
+    "zh": "食物",
+    "grade": 5
+  },
+  {
+    "w": "FOOL",
+    "zh": "傻瓜",
+    "grade": 5
+  },
+  {
+    "w": "FOOT",
+    "zh": "脚",
+    "grade": 3
+  },
+  {
+    "w": "FOR",
+    "zh": "为",
+    "grade": 3
+  },
+  {
+    "w": "FORK",
+    "zh": "叉子",
+    "grade": 4
+  },
+  {
+    "w": "FOUR",
+    "zh": "四",
+    "grade": 3
+  },
+  {
+    "w": "FOX",
+    "zh": "狐狸",
+    "grade": 3
+  },
+  {
+    "w": "FROM",
+    "zh": "从",
+    "grade": 3
+  },
+  {
+    "w": "FUN",
+    "zh": "玩笑",
+    "grade": 4
+  },
+  {
+    "w": "FUR",
+    "zh": "毛皮",
+    "grade": 5
+  },
+  {
+    "w": "GAME",
+    "zh": "游戏",
+    "grade": 5
+  },
+  {
+    "w": "GAVE",
+    "zh": "给予",
+    "grade": 6
+  },
+  {
+    "w": "GET",
+    "zh": "得到",
+    "grade": 4
+  },
+  {
+    "w": "GIFT",
+    "zh": "礼物",
+    "grade": 6
+  },
+  {
+    "w": "GIRL",
+    "zh": "女孩",
+    "grade": 3
+  },
+  {
+    "w": "GOAL",
+    "zh": "目标",
+    "grade": 6
+  },
+  {
+    "w": "GOAT",
+    "zh": "山羊",
+    "grade": 4
+  },
+  {
+    "w": "GOES",
+    "zh": "去",
+    "grade": 3
+  },
+  {
+    "w": "GOOD",
+    "zh": "好的",
+    "grade": 3
+  },
+  {
+    "w": "GYM",
+    "zh": "健身房",
+    "grade": 6
+  },
+  {
+    "w": "HAD",
+    "zh": "有",
+    "grade": 6
+  },
+  {
+    "w": "HAIR",
+    "zh": "头发",
+    "grade": 3
+  },
+  {
+    "w": "HALF",
+    "zh": "一半",
+    "grade": 6
+  },
+  {
+    "w": "HALL",
+    "zh": "大厅",
+    "grade": 6
+  },
+  {
+    "w": "HAND",
+    "zh": "手",
+    "grade": 3
+  },
+  {
+    "w": "HAS",
+    "zh": "有",
+    "grade": 5
+  },
+  {
+    "w": "HAT",
+    "zh": "帽子",
+    "grade": 4
+  },
+  {
+    "w": "HAVE",
+    "zh": "有",
+    "grade": 3
+  },
+  {
+    "w": "HEAD",
+    "zh": "头",
+    "grade": 3
+  },
+  {
+    "w": "HEAR",
+    "zh": "听",
+    "grade": 6
+  },
+  {
+    "w": "HELP",
+    "zh": "帮助",
+    "grade": 3
+  },
+  {
+    "w": "HEN",
+    "zh": "母鸡",
+    "grade": 4
+  },
+  {
+    "w": "HER",
+    "zh": "她的",
+    "grade": 3
+  },
+  {
+    "w": "HERE",
+    "zh": "这儿",
+    "grade": 3
+  },
+  {
+    "w": "HERS",
+    "zh": "她的",
+    "grade": 5
+  },
+  {
+    "w": "HIGH",
+    "zh": "高的",
+    "grade": 5
+  },
+  {
+    "w": "HILL",
+    "zh": "丘陵",
+    "grade": 3
+  },
+  {
+    "w": "HIM",
+    "zh": "他",
+    "grade": 5
+  },
+  {
+    "w": "HIS",
+    "zh": "他的",
+    "grade": 3
+  },
+  {
+    "w": "HOT",
+    "zh": "热的",
+    "grade": 3
+  },
+  {
+    "w": "HOW",
+    "zh": "多么",
+    "grade": 3
+  },
+  {
+    "w": "HURT",
+    "zh": "受伤",
+    "grade": 3
+  },
+  {
+    "w": "ICE",
+    "zh": "冰",
+    "grade": 3
+  },
+  {
+    "w": "IDEA",
+    "zh": "主意",
+    "grade": 6
+  },
+  {
+    "w": "ILL",
+    "zh": "有病的",
+    "grade": 6
+  },
+  {
+    "w": "INTO",
+    "zh": "进入",
+    "grade": 5
+  },
+  {
+    "w": "ITS",
+    "zh": "它的",
+    "grade": 5
+  },
+  {
+    "w": "JEEP",
+    "zh": "吉普车",
+    "grade": 3
+  },
+  {
+    "w": "JOB",
+    "zh": "工作",
+    "grade": 4
+  },
+  {
+    "w": "JOIN",
+    "zh": "加入",
+    "grade": 6
+  },
+  {
+    "w": "JULY",
+    "zh": "七月",
+    "grade": 3
+  },
+  {
+    "w": "JUMP",
+    "zh": "跳",
+    "grade": 3
+  },
+  {
+    "w": "JUNE",
+    "zh": "六月",
+    "grade": 3
+  },
+  {
+    "w": "JUST",
+    "zh": "只是",
+    "grade": 4
+  },
+  {
+    "w": "KEEP",
+    "zh": "继续",
+    "grade": 5
+  },
+  {
+    "w": "KEY",
+    "zh": "钥匙",
+    "grade": 4
+  },
+  {
+    "w": "KICK",
+    "zh": "踢",
+    "grade": 3
+  },
+  {
+    "w": "KID",
+    "zh": "小孩",
+    "grade": 4
+  },
+  {
+    "w": "KIND",
+    "zh": "种类",
+    "grade": 5
+  },
+  {
+    "w": "KITE",
+    "zh": "风筝",
+    "grade": 3
+  },
+  {
+    "w": "KNOW",
+    "zh": "知道",
+    "grade": 3
+  },
+  {
+    "w": "LADY",
+    "zh": "女士",
+    "grade": 3
+  },
+  {
+    "w": "LAKE",
+    "zh": "湖",
+    "grade": 3
+  },
+  {
+    "w": "LAMB",
+    "zh": "小羊",
+    "grade": 3
+  },
+  {
+    "w": "LAMP",
+    "zh": "灯",
+    "grade": 6
+  },
+  {
+    "w": "LAST",
+    "zh": "最后的",
+    "grade": 5
+  },
+  {
+    "w": "LATE",
+    "zh": "晚的",
+    "grade": 4
+  },
+  {
+    "w": "LEAF",
+    "zh": "叶",
+    "grade": 5
+  },
+  {
+    "w": "LEFT",
+    "zh": "左边",
+    "grade": 5
+  },
+  {
+    "w": "LEG",
+    "zh": "腿部",
+    "grade": 3
+  },
+  {
+    "w": "LIKE",
+    "zh": "喜欢",
+    "grade": 3
+  },
+  {
+    "w": "LION",
+    "zh": "狮子",
+    "grade": 3
+  },
+  {
+    "w": "LIVE",
+    "zh": "生活",
+    "grade": 5
+  },
+  {
+    "w": "LOCK",
+    "zh": "锁",
+    "grade": 3
+  },
+  {
+    "w": "LONG",
+    "zh": "长的",
+    "grade": 3
+  },
+  {
+    "w": "LOOK",
+    "zh": "看上去",
+    "grade": 3
+  },
+  {
+    "w": "LOST",
+    "zh": "丢失的",
+    "grade": 3
+  },
+  {
+    "w": "LOT",
+    "zh": "许多",
+    "grade": 5
+  },
+  {
+    "w": "LOTS",
+    "zh": "大量",
+    "grade": 3
+  },
+  {
+    "w": "LOUD",
+    "zh": "响亮的",
+    "grade": 6
+  },
+  {
+    "w": "LOVE",
+    "zh": "爱",
+    "grade": 4
+  },
+  {
+    "w": "MAKE",
+    "zh": "堆雪人",
+    "grade": 3
+  },
+  {
+    "w": "MAN",
+    "zh": "男人",
+    "grade": 3
+  },
+  {
+    "w": "MANY",
+    "zh": "许多的",
+    "grade": 3
+  },
+  {
+    "w": "MAP",
+    "zh": "地图",
+    "grade": 3
+  },
+  {
+    "w": "MATH",
+    "zh": "数学",
+    "grade": 3
+  },
+  {
+    "w": "MAY",
+    "zh": "五月",
+    "grade": 3
+  },
+  {
+    "w": "MEAN",
+    "zh": "意思是",
+    "grade": 3
+  },
+  {
+    "w": "MEET",
+    "zh": "遇见",
+    "grade": 5
+  },
+  {
+    "w": "MENU",
+    "zh": "菜单",
+    "grade": 3
+  },
+  {
+    "w": "MICE",
+    "zh": "老鼠",
+    "grade": 6
+  },
+  {
+    "w": "MILK",
+    "zh": "奶",
+    "grade": 3
+  },
+  {
+    "w": "MINE",
+    "zh": "我的",
+    "grade": 4
+  },
+  {
+    "w": "MISS",
+    "zh": "小姐",
+    "grade": 3
+  },
+  {
+    "w": "MOM",
+    "zh": "妈妈",
+    "grade": 3
+  },
+  {
+    "w": "MOON",
+    "zh": "月亮",
+    "grade": 6
+  },
+  {
+    "w": "MORE",
+    "zh": "更多的",
+    "grade": 4
+  },
+  {
+    "w": "MOVE",
+    "zh": "移动",
+    "grade": 5
+  },
+  {
+    "w": "MRS",
+    "zh": "太太",
+    "grade": 6
+  },
+  {
+    "w": "MUCH",
+    "zh": "非常地",
+    "grade": 3
+  },
+  {
+    "w": "MUD",
+    "zh": "泥",
+    "grade": 6
+  },
+  {
+    "w": "MULE",
+    "zh": "骡子",
+    "grade": 6
+  },
+  {
+    "w": "MUM",
+    "zh": "沉默的",
+    "grade": 3
+  },
+  {
+    "w": "MUST",
+    "zh": "必须",
+    "grade": 6
+  },
+  {
+    "w": "NAME",
+    "zh": "名字",
+    "grade": 3
+  },
+  {
+    "w": "NEAR",
+    "zh": "近的",
+    "grade": 3
+  },
+  {
+    "w": "NEED",
+    "zh": "需要",
+    "grade": 5
+  },
+  {
+    "w": "NEST",
+    "zh": "鸟窝",
+    "grade": 3
+  },
+  {
+    "w": "NEW",
+    "zh": "新的",
+    "grade": 3
+  },
+  {
+    "w": "NEXT",
+    "zh": "下一个的",
+    "grade": 5
+  },
+  {
+    "w": "NICE",
+    "zh": "令人愉快的",
+    "grade": 4
+  },
+  {
+    "w": "NINE",
+    "zh": "九",
+    "grade": 3
+  },
+  {
+    "w": "NOON",
+    "zh": "中午",
+    "grade": 3
+  },
+  {
+    "w": "NOSE",
+    "zh": "鼻子",
+    "grade": 3
+  },
+  {
+    "w": "NOT",
+    "zh": "不",
+    "grade": 3
+  },
+  {
+    "w": "NOW",
+    "zh": "现在",
+    "grade": 4
+  },
+  {
+    "w": "OFF",
+    "zh": "离开",
+    "grade": 6
+  },
+  {
+    "w": "OLD",
+    "zh": "老的",
+    "grade": 3
+  },
+  {
+    "w": "ONE",
+    "zh": "一",
+    "grade": 3
+  },
+  {
+    "w": "ONLY",
+    "zh": "只有",
+    "grade": 5
+  },
+  {
+    "w": "OPEN",
+    "zh": "打开",
+    "grade": 5
+  },
+  {
+    "w": "OUR",
+    "zh": "我们的",
+    "grade": 3
+  },
+  {
+    "w": "OURS",
+    "zh": "我们的人或物",
+    "grade": 5
+  },
+  {
+    "w": "OVER",
+    "zh": "结束",
+    "grade": 4
+  },
+  {
+    "w": "OWN",
+    "zh": "自己的",
+    "grade": 3
+  },
+  {
+    "w": "PACK",
+    "zh": "包装",
+    "grade": 4
+  },
+  {
+    "w": "PAIR",
+    "zh": "一双",
+    "grade": 3
+  },
+  {
+    "w": "PAL",
+    "zh": "朋友",
+    "grade": 3
+  },
+  {
+    "w": "PARK",
+    "zh": "公园",
+    "grade": 3
+  },
+  {
+    "w": "PART",
+    "zh": "部分",
+    "grade": 6
+  },
+  {
+    "w": "PASS",
+    "zh": "通过",
+    "grade": 4
+  },
+  {
+    "w": "PATH",
+    "zh": "路",
+    "grade": 3
+  },
+  {
+    "w": "PAY",
+    "zh": "注意",
+    "grade": 3
+  },
+  {
+    "w": "PEAR",
+    "zh": "梨子",
+    "grade": 3
+  },
+  {
+    "w": "PEN",
+    "zh": "钢笔",
+    "grade": 3
+  },
+  {
+    "w": "PICK",
+    "zh": "选择",
+    "grade": 5
+  },
+  {
+    "w": "PIG",
+    "zh": "猪",
+    "grade": 3
+  },
+  {
+    "w": "PINK",
+    "zh": "粉红色",
+    "grade": 5
+  },
+  {
+    "w": "PLAY",
+    "zh": "玩",
+    "grade": 5
+  },
+  {
+    "w": "POEM",
+    "zh": "诗",
+    "grade": 6
+  },
+  {
+    "w": "PORK",
+    "zh": "猪肉",
+    "grade": 3
+  },
+  {
+    "w": "POST",
+    "zh": "邮寄",
+    "grade": 3
+  },
+  {
+    "w": "POT",
+    "zh": "锅",
+    "grade": 3
+  },
+  {
+    "w": "PULL",
+    "zh": "拉",
+    "grade": 6
+  },
+  {
+    "w": "PUT",
+    "zh": "放",
+    "grade": 3
+  },
+  {
+    "w": "RACE",
+    "zh": "种族",
+    "grade": 6
+  },
+  {
+    "w": "RAIN",
+    "zh": "雨",
+    "grade": 3
+  },
+  {
+    "w": "READ",
+    "zh": "读",
+    "grade": 5
+  },
+  {
+    "w": "RED",
+    "zh": "红的",
+    "grade": 3
+  },
+  {
+    "w": "RICE",
+    "zh": "米饭",
+    "grade": 3
+  },
+  {
+    "w": "ROAD",
+    "zh": "公路",
+    "grade": 3
+  },
+  {
+    "w": "RODE",
+    "zh": "骑",
+    "grade": 6
+  },
+  {
+    "w": "ROLL",
+    "zh": "滚动",
+    "grade": 5
+  },
+  {
+    "w": "ROOM",
+    "zh": "房间",
+    "grade": 3
+  },
+  {
+    "w": "ROW",
+    "zh": "划",
+    "grade": 3
+  },
+  {
+    "w": "RUN",
+    "zh": "跑",
+    "grade": 3
+  },
+  {
+    "w": "SAD",
+    "zh": "伤心的",
+    "grade": 5
+  },
+  {
+    "w": "SALE",
+    "zh": "销售",
+    "grade": 4
+  },
+  {
+    "w": "SAME",
+    "zh": "相同的",
+    "grade": 3
+  },
+  {
+    "w": "SAW",
+    "zh": "看见",
+    "grade": 6
+  },
+  {
+    "w": "SAY",
+    "zh": "说",
+    "grade": 5
+  },
+  {
+    "w": "SEA",
+    "zh": "海",
+    "grade": 4
+  },
+  {
+    "w": "SEAL",
+    "zh": "海豹",
+    "grade": 3
+  },
+  {
+    "w": "SEAT",
+    "zh": "座位",
+    "grade": 3
+  },
+  {
+    "w": "SEE",
+    "zh": "看见",
+    "grade": 3
+  },
+  {
+    "w": "SEED",
+    "zh": "种子",
+    "grade": 3
+  },
+  {
+    "w": "SEND",
+    "zh": "发送",
+    "grade": 4
+  },
+  {
+    "w": "SHE",
+    "zh": "她",
+    "grade": 3
+  },
+  {
+    "w": "SHIP",
+    "zh": "船",
+    "grade": 6
+  },
+  {
+    "w": "SHOE",
+    "zh": "鞋",
+    "grade": 4
+  },
+  {
+    "w": "SHOP",
+    "zh": "商店",
+    "grade": 4
+  },
+  {
+    "w": "SHOW",
+    "zh": "展示",
+    "grade": 5
+  },
+  {
+    "w": "SHY",
+    "zh": "腼腆的",
+    "grade": 5
+  },
+  {
+    "w": "SICK",
+    "zh": "不舒服的",
+    "grade": 4
+  },
+  {
+    "w": "SIDE",
+    "zh": "边",
+    "grade": 3
+  },
+  {
+    "w": "SING",
+    "zh": "唱歌",
+    "grade": 5
+  },
+  {
+    "w": "SIR",
+    "zh": "先生",
+    "grade": 6
+  },
+  {
+    "w": "SIT",
+    "zh": "坐",
+    "grade": 6
+  },
+  {
+    "w": "SIX",
+    "zh": "六",
+    "grade": 3
+  },
+  {
+    "w": "SIZE",
+    "zh": "大小",
+    "grade": 4
+  },
+  {
+    "w": "SKY",
+    "zh": "天空",
+    "grade": 3
+  },
+  {
+    "w": "SLED",
+    "zh": "雪橇",
+    "grade": 6
+  },
+  {
+    "w": "SLOW",
+    "zh": "缓慢的",
+    "grade": 6
+  },
+  {
+    "w": "SNOW",
+    "zh": "下雪",
+    "grade": 4
+  },
+  {
+    "w": "SOCK",
+    "zh": "短袜",
+    "grade": 4
+  },
+  {
+    "w": "SOFA",
+    "zh": "沙发",
+    "grade": 3
+  },
+  {
+    "w": "SOIL",
+    "zh": "土壤",
+    "grade": 3
+  },
+  {
+    "w": "SOME",
+    "zh": "一些",
+    "grade": 3
+  },
+  {
+    "w": "SON",
+    "zh": "儿子",
+    "grade": 3
+  },
+  {
+    "w": "SONG",
+    "zh": "歌",
+    "grade": 5
+  },
+  {
+    "w": "SOON",
+    "zh": "不久",
+    "grade": 3
+  },
+  {
+    "w": "SORE",
+    "zh": "疼的",
+    "grade": 3
+  },
+  {
+    "w": "SOUP",
+    "zh": "汤",
+    "grade": 4
+  },
+  {
+    "w": "SOUR",
+    "zh": "酸的",
+    "grade": 3
+  },
+  {
+    "w": "STAR",
+    "zh": "星",
+    "grade": 4
+  },
+  {
+    "w": "STAY",
+    "zh": "停留",
+    "grade": 4
+  },
+  {
+    "w": "STOP",
+    "zh": "停止",
+    "grade": 4
+  },
+  {
+    "w": "SUN",
+    "zh": "太阳",
+    "grade": 3
+  },
+  {
+    "w": "SURE",
+    "zh": "当然",
+    "grade": 3
+  },
+  {
+    "w": "SWIM",
+    "zh": "游泳",
+    "grade": 3
+  },
+  {
+    "w": "TAIL",
+    "zh": "尾巴",
+    "grade": 3
+  },
+  {
+    "w": "TAKE",
+    "zh": "拿",
+    "grade": 5
+  },
+  {
+    "w": "TALK",
+    "zh": "讲话",
+    "grade": 5
+  },
+  {
+    "w": "TALL",
+    "zh": "高的",
+    "grade": 3
+  },
+  {
+    "w": "TAXI",
+    "zh": "出租车",
+    "grade": 6
+  },
+  {
+    "w": "TEA",
+    "zh": "茶",
+    "grade": 3
+  },
+  {
+    "w": "TELL",
+    "zh": "告诉",
+    "grade": 6
+  },
+  {
+    "w": "TEN",
+    "zh": "十",
+    "grade": 3
+  },
+  {
+    "w": "TEST",
+    "zh": "测试",
+    "grade": 6
+  },
+  {
+    "w": "THAN",
+    "zh": "比",
+    "grade": 6
+  },
+  {
+    "w": "THAT",
+    "zh": "那",
+    "grade": 3
+  },
+  {
+    "w": "THEM",
+    "zh": "他们",
+    "grade": 4
+  },
+  {
+    "w": "THEN",
+    "zh": "然后",
+    "grade": 3
+  },
+  {
+    "w": "THEY",
+    "zh": "他们",
+    "grade": 3
+  },
+  {
+    "w": "THIN",
+    "zh": "瘦的",
+    "grade": 3
+  },
+  {
+    "w": "THIS",
+    "zh": "这",
+    "grade": 3
+  },
+  {
+    "w": "TILL",
+    "zh": "直到…为止",
+    "grade": 6
+  },
+  {
+    "w": "TIP",
+    "zh": "小费",
+    "grade": 3
+  },
+  {
+    "w": "TOFU",
+    "zh": "豆腐",
+    "grade": 3
+  },
+  {
+    "w": "TON",
+    "zh": "吨",
+    "grade": 3
+  },
+  {
+    "w": "TOO",
+    "zh": "也",
+    "grade": 3
+  },
+  {
+    "w": "TOOK",
+    "zh": "拿",
+    "grade": 6
+  },
+  {
+    "w": "TOY",
+    "zh": "玩具",
+    "grade": 3
+  },
+  {
+    "w": "TREE",
+    "zh": "树",
+    "grade": 3
+  },
+  {
+    "w": "TRIP",
+    "zh": "旅行",
+    "grade": 5
+  },
+  {
+    "w": "TRY",
+    "zh": "尝试",
+    "grade": 4
+  },
+  {
+    "w": "TURN",
+    "zh": "转",
+    "grade": 5
+  },
+  {
+    "w": "TWIN",
+    "zh": "双胞胎之一",
+    "grade": 3
+  },
+  {
+    "w": "TWO",
+    "zh": "二",
+    "grade": 3
+  },
+  {
+    "w": "TYPE",
+    "zh": "类型",
+    "grade": 6
+  },
+  {
+    "w": "USE",
+    "zh": "使用",
+    "grade": 4
+  },
+  {
+    "w": "VERY",
+    "zh": "很",
+    "grade": 3
+  },
+  {
+    "w": "VEST",
+    "zh": "背心",
+    "grade": 3
+  },
+  {
+    "w": "WAIT",
+    "zh": "等待",
+    "grade": 4
+  },
+  {
+    "w": "WALK",
+    "zh": "行走",
+    "grade": 5
+  },
+  {
+    "w": "WALL",
+    "zh": "墙壁",
+    "grade": 4
+  },
+  {
+    "w": "WANT",
+    "zh": "想要",
+    "grade": 3
+  },
+  {
+    "w": "WARM",
+    "zh": "温暖的",
+    "grade": 3
+  },
+  {
+    "w": "WASH",
+    "zh": "洗",
+    "grade": 5
+  },
+  {
+    "w": "WAY",
+    "zh": "道路",
+    "grade": 4
+  },
+  {
+    "w": "WEAR",
+    "zh": "穿",
+    "grade": 3
+  },
+  {
+    "w": "WEEK",
+    "zh": "一星期",
+    "grade": 3
+  },
+  {
+    "w": "WELL",
+    "zh": "好",
+    "grade": 6
+  },
+  {
+    "w": "WENT",
+    "zh": "走",
+    "grade": 6
+  },
+  {
+    "w": "WEST",
+    "zh": "西",
+    "grade": 6
+  },
+  {
+    "w": "WHAT",
+    "zh": "什么",
+    "grade": 3
+  },
+  {
+    "w": "WHEN",
+    "zh": "什么时候",
+    "grade": 3
+  },
+  {
+    "w": "WHO",
+    "zh": "谁",
+    "grade": 3
+  },
+  {
+    "w": "WHY",
+    "zh": "为什么",
+    "grade": 5
+  },
+  {
+    "w": "WILL",
+    "zh": "将会",
+    "grade": 5
+  },
+  {
+    "w": "WIN",
+    "zh": "赢",
+    "grade": 5
+  },
+  {
+    "w": "WIND",
+    "zh": "风",
+    "grade": 3
+  },
+  {
+    "w": "WITH",
+    "zh": "和…一起",
+    "grade": 5
+  },
+  {
+    "w": "WOKE",
+    "zh": "醒来",
+    "grade": 6
+  },
+  {
+    "w": "WORD",
+    "zh": "词",
+    "grade": 6
+  },
+  {
+    "w": "WORK",
+    "zh": "工作",
+    "grade": 5
+  },
+  {
+    "w": "WOW",
+    "zh": "哇",
+    "grade": 3
+  },
+  {
+    "w": "YEAH",
+    "zh": "是",
+    "grade": 3
+  },
+  {
+    "w": "YEAR",
+    "zh": "年",
+    "grade": 3
+  },
+  {
+    "w": "YES",
+    "zh": "是；好的",
+    "grade": 3
+  },
+  {
+    "w": "YOU",
+    "zh": "你",
+    "grade": 3
+  },
+  {
+    "w": "YOUR",
+    "zh": "你的",
+    "grade": 3
+  },
+  {
+    "w": "YUM",
+    "zh": "美味的",
+    "grade": 4
+  },
+  {
+    "w": "ZOO",
+    "zh": "动物园",
+    "grade": 3
+  },
+  {
+    "w": "ABOUT",
+    "zh": "关于",
+    "grade": 4
+  },
+  {
+    "w": "ABOVE",
+    "zh": "在上面",
+    "grade": 5
+  },
+  {
+    "w": "ACTIVE",
+    "zh": "积极的",
+    "grade": 5
+  },
+  {
+    "w": "ACTOR",
+    "zh": "男演员",
+    "grade": 4
+  },
+  {
+    "w": "AFRAID",
+    "zh": "害怕的",
+    "grade": 6
+  },
+  {
+    "w": "AFTER",
+    "zh": "以后",
+    "grade": 5
+  },
+  {
+    "w": "AGAIN",
+    "zh": "再一次",
+    "grade": 4
+  },
+  {
+    "w": "ALASKA",
+    "zh": "阿拉斯加",
+    "grade": 6
+  },
+  {
+    "w": "ALWAYS",
+    "zh": "总是",
+    "grade": 4
+  },
+  {
+    "w": "ANGRY",
+    "zh": "生气的",
+    "grade": 6
+  },
+  {
+    "w": "ANIMAL",
+    "zh": "动物",
+    "grade": 4
+  },
+  {
+    "w": "APPLE",
+    "zh": "苹果",
+    "grade": 3
+  },
+  {
+    "w": "APRIL",
+    "zh": "四月",
+    "grade": 3
+  },
+  {
+    "w": "ARTIST",
+    "zh": "画家",
+    "grade": 6
+  },
+  {
+    "w": "AUGUST",
+    "zh": "八月",
+    "grade": 3
+  },
+  {
+    "w": "AUTUMN",
+    "zh": "秋季",
+    "grade": 3
+  },
+  {
+    "w": "BAMBOO",
+    "zh": "竹子",
+    "grade": 5
+  },
+  {
+    "w": "BANANA",
+    "zh": "香蕉",
+    "grade": 3
+  },
+  {
+    "w": "BASKET",
+    "zh": "篮子",
+    "grade": 6
+  },
+  {
+    "w": "BEACH",
+    "zh": "海滩",
+    "grade": 6
+  },
+  {
+    "w": "BECOME",
+    "zh": "变成",
+    "grade": 6
+  },
+  {
+    "w": "BEFORE",
+    "zh": "在…之前",
+    "grade": 4
+  },
+  {
+    "w": "BEHIND",
+    "zh": "在…后面",
+    "grade": 3
+  },
+  {
+    "w": "BESIDE",
+    "zh": "在旁边",
+    "grade": 5
+  },
+  {
+    "w": "BETTER",
+    "zh": "更好的",
+    "grade": 6
+  },
+  {
+    "w": "BIGGER",
+    "zh": "更大的",
+    "grade": 6
+  },
+  {
+    "w": "BLACK",
+    "zh": "黑色的",
+    "grade": 3
+  },
+  {
+    "w": "BOARD",
+    "zh": "写字板",
+    "grade": 4
+  },
+  {
+    "w": "BOOTS",
+    "zh": "靴子",
+    "grade": 4
+  },
+  {
+    "w": "BORED",
+    "zh": "无聊的",
+    "grade": 4
+  },
+  {
+    "w": "BOTTLE",
+    "zh": "瓶子",
+    "grade": 5
+  },
+  {
+    "w": "BOUGHT",
+    "zh": "买",
+    "grade": 6
+  },
+  {
+    "w": "BOUNCE",
+    "zh": "反弹",
+    "grade": 4
+  },
+  {
+    "w": "BREAD",
+    "zh": "面包",
+    "grade": 3
+  },
+  {
+    "w": "BREATH",
+    "zh": "呼吸",
+    "grade": 6
+  },
+  {
+    "w": "BRIDGE",
+    "zh": "桥",
+    "grade": 5
+  },
+  {
+    "w": "BROKEN",
+    "zh": "破损的",
+    "grade": 6
+  },
+  {
+    "w": "BROWN",
+    "zh": "褐色的",
+    "grade": 3
+  },
+  {
+    "w": "BUNNY",
+    "zh": "小兔子",
+    "grade": 5
+  },
+  {
+    "w": "CANADA",
+    "zh": "加拿大",
+    "grade": 3
+  },
+  {
+    "w": "CANDY",
+    "zh": "糖果",
+    "grade": 4
+  },
+  {
+    "w": "CARROT",
+    "zh": "胡萝卜",
+    "grade": 4
+  },
+  {
+    "w": "CHAIR",
+    "zh": "椅子",
+    "grade": 3
+  },
+  {
+    "w": "CHART",
+    "zh": "图表",
+    "grade": 4
+  },
+  {
+    "w": "CHASE",
+    "zh": "追逐",
+    "grade": 6
+  },
+  {
+    "w": "CHEAP",
+    "zh": "便宜的",
+    "grade": 4
+  },
+  {
+    "w": "CHINA",
+    "zh": "中国",
+    "grade": 3
+  },
+  {
+    "w": "CINEMA",
+    "zh": "电影院",
+    "grade": 6
+  },
+  {
+    "w": "CLASS",
+    "zh": "班级",
+    "grade": 3
+  },
+  {
+    "w": "CLEAN",
+    "zh": "打扫",
+    "grade": 4
+  },
+  {
+    "w": "CLEVER",
+    "zh": "聪明的",
+    "grade": 5
+  },
+  {
+    "w": "CLIMB",
+    "zh": "爬",
+    "grade": 4
+  },
+  {
+    "w": "CLOCK",
+    "zh": "时钟",
+    "grade": 5
+  },
+  {
+    "w": "CLOSE",
+    "zh": "关上",
+    "grade": 4
+  },
+  {
+    "w": "CLOSET",
+    "zh": "壁橱",
+    "grade": 4
+  },
+  {
+    "w": "CLOUD",
+    "zh": "云",
+    "grade": 4
+  },
+  {
+    "w": "CLOUDY",
+    "zh": "多云的",
+    "grade": 3
+  },
+  {
+    "w": "COACH",
+    "zh": "教练",
+    "grade": 6
+  },
+  {
+    "w": "COFFEE",
+    "zh": "咖啡",
+    "grade": 4
+  },
+  {
+    "w": "COLOUR",
+    "zh": "颜色",
+    "grade": 3
+  },
+  {
+    "w": "COMIC",
+    "zh": "喜剧的",
+    "grade": 6
+  },
+  {
+    "w": "COULD",
+    "zh": "能够",
+    "grade": 6
+  },
+  {
+    "w": "COUNT",
+    "zh": "计算",
+    "grade": 6
+  },
+  {
+    "w": "COUSIN",
+    "zh": "堂兄弟",
+    "grade": 3
+  },
+  {
+    "w": "CRAYON",
+    "zh": "蜡笔",
+    "grade": 3
+  },
+  {
+    "w": "DANCE",
+    "zh": "舞蹈",
+    "grade": 3
+  },
+  {
+    "w": "DEGREE",
+    "zh": "度",
+    "grade": 4
+  },
+  {
+    "w": "DESIGN",
+    "zh": "设计",
+    "grade": 4
+  },
+  {
+    "w": "DIARY",
+    "zh": "日记",
+    "grade": 5
+  },
+  {
+    "w": "DINING",
+    "zh": "用餐",
+    "grade": 4
+  },
+  {
+    "w": "DINNER",
+    "zh": "晚餐",
+    "grade": 4
+  },
+  {
+    "w": "DIRTY",
+    "zh": "肮脏的",
+    "grade": 4
+  },
+  {
+    "w": "DIVING",
+    "zh": "跳水",
+    "grade": 4
+  },
+  {
+    "w": "DOCTOR",
+    "zh": "医生",
+    "grade": 4
+  },
+  {
+    "w": "DOING",
+    "zh": "做",
+    "grade": 4
+  },
+  {
+    "w": "DOLLAR",
+    "zh": "美元",
+    "grade": 4
+  },
+  {
+    "w": "DONKEY",
+    "zh": "驴子",
+    "grade": 4
+  },
+  {
+    "w": "DRANK",
+    "zh": "喝",
+    "grade": 6
+  },
+  {
+    "w": "DREAM",
+    "zh": "梦",
+    "grade": 4
+  },
+  {
+    "w": "DRESS",
+    "zh": "连衣裙",
+    "grade": 3
+  },
+  {
+    "w": "DRINK",
+    "zh": "喝",
+    "grade": 5
+  },
+  {
+    "w": "DRIVE",
+    "zh": "驾驶",
+    "grade": 4
+  },
+  {
+    "w": "DRIVER",
+    "zh": "司机",
+    "grade": 4
+  },
+  {
+    "w": "EARLY",
+    "zh": "提早地",
+    "grade": 5
+  },
+  {
+    "w": "EASTER",
+    "zh": "复活节",
+    "grade": 5
+  },
+  {
+    "w": "EATING",
+    "zh": "吃",
+    "grade": 5
+  },
+  {
+    "w": "EIGHT",
+    "zh": "八",
+    "grade": 3
+  },
+  {
+    "w": "EIGHTH",
+    "zh": "第八",
+    "grade": 4
+  },
+  {
+    "w": "EIGHTY",
+    "zh": "八十",
+    "grade": 4
+  },
+  {
+    "w": "EITHER",
+    "zh": "也",
+    "grade": 4
+  },
+  {
+    "w": "ELEVEN",
+    "zh": "十一",
+    "grade": 3
+  },
+  {
+    "w": "EMAIL",
+    "zh": "电子邮件",
+    "grade": 5
+  },
+  {
+    "w": "ENJOY",
+    "zh": "享受",
+    "grade": 4
+  },
+  {
+    "w": "ERASER",
+    "zh": "橡皮擦",
+    "grade": 3
+  },
+  {
+    "w": "EVERY",
+    "zh": "每个",
+    "grade": 5
+  },
+  {
+    "w": "FAMILY",
+    "zh": "家庭",
+    "grade": 3
+  },
+  {
+    "w": "FARMER",
+    "zh": "农民",
+    "grade": 4
+  },
+  {
+    "w": "FASTER",
+    "zh": "更快的",
+    "grade": 6
+  },
+  {
+    "w": "FATHER",
+    "zh": "父亲",
+    "grade": 3
+  },
+  {
+    "w": "FERRY",
+    "zh": "渡船",
+    "grade": 6
+  },
+  {
+    "w": "FIFTH",
+    "zh": "第五",
+    "grade": 5
+  },
+  {
+    "w": "FIFTY",
+    "zh": "五十",
+    "grade": 3
+  },
+  {
+    "w": "FIGHT",
+    "zh": "打架",
+    "grade": 4
+  },
+  {
+    "w": "FINGER",
+    "zh": "手指",
+    "grade": 4
+  },
+  {
+    "w": "FINISH",
+    "zh": "完成",
+    "grade": 5
+  },
+  {
+    "w": "FIRST",
+    "zh": "第一",
+    "grade": 3
+  },
+  {
+    "w": "FIXED",
+    "zh": "固定的",
+    "grade": 6
+  },
+  {
+    "w": "FLOOR",
+    "zh": "地板",
+    "grade": 3
+  },
+  {
+    "w": "FLOWER",
+    "zh": "花",
+    "grade": 3
+  },
+  {
+    "w": "FOLLOW",
+    "zh": "跟随",
+    "grade": 6
+  },
+  {
+    "w": "FOREST",
+    "zh": "森林",
+    "grade": 5
+  },
+  {
+    "w": "FORTY",
+    "zh": "四十",
+    "grade": 3
+  },
+  {
+    "w": "FOURTH",
+    "zh": "第四个",
+    "grade": 5
+  },
+  {
+    "w": "FRENCH",
+    "zh": "法国的",
+    "grade": 6
+  },
+  {
+    "w": "FRESH",
+    "zh": "新鲜的",
+    "grade": 5
+  },
+  {
+    "w": "FRIDAY",
+    "zh": "星期五",
+    "grade": 3
+  },
+  {
+    "w": "FRIDGE",
+    "zh": "冰箱",
+    "grade": 4
+  },
+  {
+    "w": "FRIEND",
+    "zh": "朋友",
+    "grade": 3
+  },
+  {
+    "w": "FRONT",
+    "zh": "前面",
+    "grade": 5
+  },
+  {
+    "w": "FRUIT",
+    "zh": "水果",
+    "grade": 3
+  },
+  {
+    "w": "FUNNY",
+    "zh": "滑稽的",
+    "grade": 3
+  },
+  {
+    "w": "GARDEN",
+    "zh": "花园",
+    "grade": 4
+  },
+  {
+    "w": "GLOVE",
+    "zh": "手套",
+    "grade": 4
+  },
+  {
+    "w": "GLOVES",
+    "zh": "手套",
+    "grade": 3
+  },
+  {
+    "w": "GOOSE",
+    "zh": "鹅",
+    "grade": 4
+  },
+  {
+    "w": "GRAPE",
+    "zh": "葡萄",
+    "grade": 3
+  },
+  {
+    "w": "GRASS",
+    "zh": "草",
+    "grade": 3
+  },
+  {
+    "w": "GREAT",
+    "zh": "很好的",
+    "grade": 4
+  },
+  {
+    "w": "GREEN",
+    "zh": "绿色的",
+    "grade": 3
+  },
+  {
+    "w": "GUESS",
+    "zh": "猜测",
+    "grade": 5
+  },
+  {
+    "w": "HAPPY",
+    "zh": "快乐的",
+    "grade": 3
+  },
+  {
+    "w": "HARDLY",
+    "zh": "几乎没有",
+    "grade": 4
+  },
+  {
+    "w": "HEAVY",
+    "zh": "重的",
+    "grade": 4
+  },
+  {
+    "w": "HELLO",
+    "zh": "喂",
+    "grade": 4
+  },
+  {
+    "w": "HELMET",
+    "zh": "头盔",
+    "grade": 6
+  },
+  {
+    "w": "HIKING",
+    "zh": "远足",
+    "grade": 6
+  },
+  {
+    "w": "HOBBY",
+    "zh": "爱好",
+    "grade": 4
+  },
+  {
+    "w": "HONEY",
+    "zh": "蜂蜜",
+    "grade": 4
+  },
+  {
+    "w": "HORSE",
+    "zh": "马",
+    "grade": 4
+  },
+  {
+    "w": "HOTEL",
+    "zh": "旅馆",
+    "grade": 4
+  },
+  {
+    "w": "HOUSE",
+    "zh": "房子",
+    "grade": 4
+  },
+  {
+    "w": "HUNGRY",
+    "zh": "饥饿的",
+    "grade": 3
+  },
+  {
+    "w": "HURRY",
+    "zh": "抓紧",
+    "grade": 4
+  },
+  {
+    "w": "ISLAND",
+    "zh": "岛",
+    "grade": 5
+  },
+  {
+    "w": "JACKET",
+    "zh": "夹克衫",
+    "grade": 3
+  },
+  {
+    "w": "JEANS",
+    "zh": "牛仔裤",
+    "grade": 4
+  },
+  {
+    "w": "JUICE",
+    "zh": "果汁",
+    "grade": 3
+  },
+  {
+    "w": "KITTEN",
+    "zh": "小猫",
+    "grade": 5
+  },
+  {
+    "w": "KNIFE",
+    "zh": "刀",
+    "grade": 4
+  },
+  {
+    "w": "LABOUR",
+    "zh": "劳动节",
+    "grade": 4
+  },
+  {
+    "w": "LEARN",
+    "zh": "学习",
+    "grade": 5
+  },
+  {
+    "w": "LESSON",
+    "zh": "课",
+    "grade": 6
+  },
+  {
+    "w": "LETTER",
+    "zh": "信",
+    "grade": 5
+  },
+  {
+    "w": "LICKED",
+    "zh": "舔",
+    "grade": 6
+  },
+  {
+    "w": "LIGHT",
+    "zh": "光",
+    "grade": 3
+  },
+  {
+    "w": "LISTEN",
+    "zh": "听",
+    "grade": 4
+  },
+  {
+    "w": "LITTLE",
+    "zh": "少的",
+    "grade": 4
+  },
+  {
+    "w": "LIVES",
+    "zh": "居住",
+    "grade": 4
+  },
+  {
+    "w": "LIVING",
+    "zh": "客厅",
+    "grade": 4
+  },
+  {
+    "w": "LONDON",
+    "zh": "伦敦",
+    "grade": 4
+  },
+  {
+    "w": "LONGER",
+    "zh": "更长的",
+    "grade": 6
+  },
+  {
+    "w": "LOVELY",
+    "zh": "可爱的",
+    "grade": 5
+  },
+  {
+    "w": "LOWER",
+    "zh": "降低",
+    "grade": 6
+  },
+  {
+    "w": "LUNCH",
+    "zh": "午餐",
+    "grade": 4
+  },
+  {
+    "w": "MARCH",
+    "zh": "三月",
+    "grade": 3
+  },
+  {
+    "w": "MATCH",
+    "zh": "比赛",
+    "grade": 4
+  },
+  {
+    "w": "MATHS",
+    "zh": "数学测试",
+    "grade": 3
+  },
+  {
+    "w": "MATTER",
+    "zh": "事情",
+    "grade": 4
+  },
+  {
+    "w": "MEMBER",
+    "zh": "成员",
+    "grade": 4
+  },
+  {
+    "w": "METER",
+    "zh": "米",
+    "grade": 6
+  },
+  {
+    "w": "METRE",
+    "zh": "米",
+    "grade": 6
+  },
+  {
+    "w": "MIGHT",
+    "zh": "可以",
+    "grade": 4
+  },
+  {
+    "w": "MINUTE",
+    "zh": "分钟",
+    "grade": 4
+  },
+  {
+    "w": "MIRROR",
+    "zh": "镜子",
+    "grade": 4
+  },
+  {
+    "w": "MONDAY",
+    "zh": "星期一",
+    "grade": 3
+  },
+  {
+    "w": "MONEY",
+    "zh": "钱",
+    "grade": 4
+  },
+  {
+    "w": "MONKEY",
+    "zh": "猴子",
+    "grade": 3
+  },
+  {
+    "w": "MONTH",
+    "zh": "月份",
+    "grade": 4
+  },
+  {
+    "w": "MOSCOW",
+    "zh": "莫斯科",
+    "grade": 4
+  },
+  {
+    "w": "MOTHER",
+    "zh": "母亲",
+    "grade": 3
+  },
+  {
+    "w": "MOUSE",
+    "zh": "老鼠",
+    "grade": 5
+  },
+  {
+    "w": "MOUTH",
+    "zh": "嘴",
+    "grade": 3
+  },
+  {
+    "w": "MUNICH",
+    "zh": "慕尼黑",
+    "grade": 6
+  },
+  {
+    "w": "MUSEUM",
+    "zh": "博物馆",
+    "grade": 4
+  },
+  {
+    "w": "MUSIC",
+    "zh": "音乐",
+    "grade": 3
+  },
+  {
+    "w": "MUTTON",
+    "zh": "羊肉",
+    "grade": 4
+  },
+  {
+    "w": "NATURE",
+    "zh": "自然",
+    "grade": 5
+  },
+  {
+    "w": "NIGHT",
+    "zh": "夜晚",
+    "grade": 4
+  },
+  {
+    "w": "NINTH",
+    "zh": "第九",
+    "grade": 4
+  },
+  {
+    "w": "NOISE",
+    "zh": "噪声",
+    "grade": 5
+  },
+  {
+    "w": "NORTH",
+    "zh": "北方",
+    "grade": 6
+  },
+  {
+    "w": "NURSE",
+    "zh": "护士",
+    "grade": 4
+  },
+  {
+    "w": "OFTEN",
+    "zh": "常常地",
+    "grade": 4
+  },
+  {
+    "w": "OLDER",
+    "zh": "更老的",
+    "grade": 6
+  },
+  {
+    "w": "ONION",
+    "zh": "洋葱",
+    "grade": 5
+  },
+  {
+    "w": "ORANGE",
+    "zh": "橙色的",
+    "grade": 3
+  },
+  {
+    "w": "OTHER",
+    "zh": "其他的",
+    "grade": 5
+  },
+  {
+    "w": "PAINT",
+    "zh": "刷油漆",
+    "grade": 4
+  },
+  {
+    "w": "PANDA",
+    "zh": "熊猫",
+    "grade": 3
+  },
+  {
+    "w": "PANTS",
+    "zh": "裤子",
+    "grade": 4
+  },
+  {
+    "w": "PARTY",
+    "zh": "聚会",
+    "grade": 3
+  },
+  {
+    "w": "PEACH",
+    "zh": "桃",
+    "grade": 4
+  },
+  {
+    "w": "PENCIL",
+    "zh": "铅笔",
+    "grade": 3
+  },
+  {
+    "w": "PEOPLE",
+    "zh": "人们",
+    "grade": 4
+  },
+  {
+    "w": "PHONE",
+    "zh": "电话",
+    "grade": 4
+  },
+  {
+    "w": "PHOTO",
+    "zh": "照片",
+    "grade": 5
+  },
+  {
+    "w": "PICNIC",
+    "zh": "野餐",
+    "grade": 5
+  },
+  {
+    "w": "PILOT",
+    "zh": "飞行员",
+    "grade": 6
+  },
+  {
+    "w": "PIZZA",
+    "zh": "比萨饼",
+    "grade": 6
+  },
+  {
+    "w": "PLANE",
+    "zh": "飞机",
+    "grade": 3
+  },
+  {
+    "w": "PLANT",
+    "zh": "植物",
+    "grade": 5
+  },
+  {
+    "w": "PLATE",
+    "zh": "盘子",
+    "grade": 3
+  },
+  {
+    "w": "PLEASE",
+    "zh": "请",
+    "grade": 4
+  },
+  {
+    "w": "POLICE",
+    "zh": "警察",
+    "grade": 4
+  },
+  {
+    "w": "POLITE",
+    "zh": "有礼貌的",
+    "grade": 5
+  },
+  {
+    "w": "POTATO",
+    "zh": "土豆",
+    "grade": 3
+  },
+  {
+    "w": "PRETTY",
+    "zh": "漂亮的",
+    "grade": 3
+  },
+  {
+    "w": "PRICE",
+    "zh": "价格",
+    "grade": 6
+  },
+  {
+    "w": "PUPIL",
+    "zh": "小学生",
+    "grade": 3
+  },
+  {
+    "w": "PUPPY",
+    "zh": "小狗",
+    "grade": 4
+  },
+  {
+    "w": "PURPLE",
+    "zh": "紫色的",
+    "grade": 4
+  },
+  {
+    "w": "PUZZLE",
+    "zh": "谜",
+    "grade": 6
+  },
+  {
+    "w": "QUEEN",
+    "zh": "女王",
+    "grade": 4
+  },
+  {
+    "w": "QUIET",
+    "zh": "安静的",
+    "grade": 4
+  },
+  {
+    "w": "RABBIT",
+    "zh": "兔子",
+    "grade": 3
+  },
+  {
+    "w": "RAINY",
+    "zh": "多雨的",
+    "grade": 3
+  },
+  {
+    "w": "READS",
+    "zh": "读",
+    "grade": 4
+  },
+  {
+    "w": "READY",
+    "zh": "准备好的",
+    "grade": 4
+  },
+  {
+    "w": "REALLY",
+    "zh": "真正地",
+    "grade": 3
+  },
+  {
+    "w": "RELAX",
+    "zh": "放松",
+    "grade": 4
+  },
+  {
+    "w": "RETURN",
+    "zh": "送回",
+    "grade": 4
+  },
+  {
+    "w": "RIGHT",
+    "zh": "右边的",
+    "grade": 4
+  },
+  {
+    "w": "RIVER",
+    "zh": "河",
+    "grade": 5
+  },
+  {
+    "w": "ROBOT",
+    "zh": "机器人",
+    "grade": 5
+  },
+  {
+    "w": "RULER",
+    "zh": "尺子",
+    "grade": 3
+  },
+  {
+    "w": "SALAD",
+    "zh": "色拉",
+    "grade": 5
+  },
+  {
+    "w": "SALTY",
+    "zh": "咸的",
+    "grade": 4
+  },
+  {
+    "w": "SCARF",
+    "zh": "围巾",
+    "grade": 4
+  },
+  {
+    "w": "SCHOOL",
+    "zh": "学校",
+    "grade": 3
+  },
+  {
+    "w": "SEASON",
+    "zh": "季节",
+    "grade": 3
+  },
+  {
+    "w": "SECOND",
+    "zh": "第二",
+    "grade": 3
+  },
+  {
+    "w": "SEVEN",
+    "zh": "七",
+    "grade": 3
+  },
+  {
+    "w": "SHADOW",
+    "zh": "影子",
+    "grade": 6
+  },
+  {
+    "w": "SHALL",
+    "zh": "将要",
+    "grade": 6
+  },
+  {
+    "w": "SHARE",
+    "zh": "共享",
+    "grade": 6
+  },
+  {
+    "w": "SHARK",
+    "zh": "鲨鱼",
+    "grade": 6
+  },
+  {
+    "w": "SHEEP",
+    "zh": "绵羊",
+    "grade": 4
+  },
+  {
+    "w": "SHELF",
+    "zh": "书架",
+    "grade": 4
+  },
+  {
+    "w": "SHINE",
+    "zh": "照耀",
+    "grade": 4
+  },
+  {
+    "w": "SHIRT",
+    "zh": "衬衫",
+    "grade": 3
+  },
+  {
+    "w": "SHOES",
+    "zh": "鞋子",
+    "grade": 3
+  },
+  {
+    "w": "SHORT",
+    "zh": "短的",
+    "grade": 3
+  },
+  {
+    "w": "SHORTS",
+    "zh": "短裤",
+    "grade": 3
+  },
+  {
+    "w": "SHOULD",
+    "zh": "应该",
+    "grade": 3
+  },
+  {
+    "w": "SINGER",
+    "zh": "歌唱家",
+    "grade": 4
+  },
+  {
+    "w": "SISTER",
+    "zh": "姐妹",
+    "grade": 3
+  },
+  {
+    "w": "SIXTH",
+    "zh": "第六",
+    "grade": 4
+  },
+  {
+    "w": "SIXTY",
+    "zh": "六十",
+    "grade": 4
+  },
+  {
+    "w": "SKATE",
+    "zh": "滑冰",
+    "grade": 4
+  },
+  {
+    "w": "SKIRT",
+    "zh": "裙子",
+    "grade": 3
+  },
+  {
+    "w": "SLEEP",
+    "zh": "睡觉",
+    "grade": 4
+  },
+  {
+    "w": "SLEPT",
+    "zh": "睡觉",
+    "grade": 5
+  },
+  {
+    "w": "SMALL",
+    "zh": "小的",
+    "grade": 3
+  },
+  {
+    "w": "SMART",
+    "zh": "聪明的",
+    "grade": 6
+  },
+  {
+    "w": "SMELL",
+    "zh": "闻",
+    "grade": 4
+  },
+  {
+    "w": "SNAKE",
+    "zh": "蛇",
+    "grade": 3
+  },
+  {
+    "w": "SNOWY",
+    "zh": "下雪的",
+    "grade": 3
+  },
+  {
+    "w": "SOCKS",
+    "zh": "袜子",
+    "grade": 3
+  },
+  {
+    "w": "SORRY",
+    "zh": "对不起",
+    "grade": 3
+  },
+  {
+    "w": "SOUND",
+    "zh": "声音",
+    "grade": 4
+  },
+  {
+    "w": "SOUTH",
+    "zh": "南",
+    "grade": 6
+  },
+  {
+    "w": "SPACE",
+    "zh": "空间",
+    "grade": 6
+  },
+  {
+    "w": "SPAIN",
+    "zh": "西班牙",
+    "grade": 5
+  },
+  {
+    "w": "SPEAK",
+    "zh": "讲话",
+    "grade": 5
+  },
+  {
+    "w": "SPOON",
+    "zh": "勺子",
+    "grade": 4
+  },
+  {
+    "w": "SPORT",
+    "zh": "体育运动",
+    "grade": 5
+  },
+  {
+    "w": "SPORTS",
+    "zh": "体育运动",
+    "grade": 4
+  },
+  {
+    "w": "SPRING",
+    "zh": "春天",
+    "grade": 3
+  },
+  {
+    "w": "SPROUT",
+    "zh": "苗",
+    "grade": 4
+  },
+  {
+    "w": "SQUID",
+    "zh": "鱿鱼",
+    "grade": 4
+  },
+  {
+    "w": "STAND",
+    "zh": "站立",
+    "grade": 4
+  },
+  {
+    "w": "START",
+    "zh": "开始",
+    "grade": 5
+  },
+  {
+    "w": "STAYED",
+    "zh": "停留",
+    "grade": 6
+  },
+  {
+    "w": "STILL",
+    "zh": "仍然",
+    "grade": 5
+  },
+  {
+    "w": "STREAM",
+    "zh": "河",
+    "grade": 4
+  },
+  {
+    "w": "STREET",
+    "zh": "街道",
+    "grade": 4
+  },
+  {
+    "w": "STRICT",
+    "zh": "严格的",
+    "grade": 5
+  },
+  {
+    "w": "STRONG",
+    "zh": "强壮的",
+    "grade": 4
+  },
+  {
+    "w": "STUCK",
+    "zh": "卡住的",
+    "grade": 6
+  },
+  {
+    "w": "STUDY",
+    "zh": "学习",
+    "grade": 3
+  },
+  {
+    "w": "SUBWAY",
+    "zh": "地铁",
+    "grade": 6
+  },
+  {
+    "w": "SUMMER",
+    "zh": "夏季",
+    "grade": 3
+  },
+  {
+    "w": "SUNDAY",
+    "zh": "星期日",
+    "grade": 3
+  },
+  {
+    "w": "SUNNY",
+    "zh": "阳光灿烂的",
+    "grade": 3
+  },
+  {
+    "w": "SUPER",
+    "zh": "太棒了太",
+    "grade": 4
+  },
+  {
+    "w": "SUSHI",
+    "zh": "寿司",
+    "grade": 5
+  },
+  {
+    "w": "SWEET",
+    "zh": "甜的",
+    "grade": 5
+  },
+  {
+    "w": "SWING",
+    "zh": "荡",
+    "grade": 4
+  },
+  {
+    "w": "SYDNEY",
+    "zh": "悉尼",
+    "grade": 4
+  },
+  {
+    "w": "TABLE",
+    "zh": "桌子",
+    "grade": 4
+  },
+  {
+    "w": "TALLER",
+    "zh": "更高的",
+    "grade": 6
+  },
+  {
+    "w": "TASTE",
+    "zh": "品尝",
+    "grade": 6
+  },
+  {
+    "w": "TASTY",
+    "zh": "好吃的",
+    "grade": 4
+  },
+  {
+    "w": "TEACH",
+    "zh": "教",
+    "grade": 4
+  },
+  {
+    "w": "TENTH",
+    "zh": "第十",
+    "grade": 5
+  },
+  {
+    "w": "THANK",
+    "zh": "谢谢",
+    "grade": 3
+  },
+  {
+    "w": "THANKS",
+    "zh": "多谢",
+    "grade": 3
+  },
+  {
+    "w": "THEIR",
+    "zh": "他们的",
+    "grade": 4
+  },
+  {
+    "w": "THEIRS",
+    "zh": "他们的",
+    "grade": 5
+  },
+  {
+    "w": "THERE",
+    "zh": "在那里",
+    "grade": 3
+  },
+  {
+    "w": "THESE",
+    "zh": "这些",
+    "grade": 4
+  },
+  {
+    "w": "THING",
+    "zh": "东西",
+    "grade": 4
+  },
+  {
+    "w": "THINK",
+    "zh": "想",
+    "grade": 4
+  },
+  {
+    "w": "THIRD",
+    "zh": "三分之一",
+    "grade": 3
+  },
+  {
+    "w": "THIRTY",
+    "zh": "三十",
+    "grade": 3
+  },
+  {
+    "w": "THOSE",
+    "zh": "那些的",
+    "grade": 4
+  },
+  {
+    "w": "THREE",
+    "zh": "三",
+    "grade": 3
+  },
+  {
+    "w": "TIGER",
+    "zh": "老虎",
+    "grade": 3
+  },
+  {
+    "w": "TIRED",
+    "zh": "疲倦的",
+    "grade": 5
+  },
+  {
+    "w": "TODAY",
+    "zh": "今天",
+    "grade": 3
+  },
+  {
+    "w": "TOMATO",
+    "zh": "西红柿",
+    "grade": 3
+  },
+  {
+    "w": "TOMOTO",
+    "zh": "西红柿",
+    "grade": 4
+  },
+  {
+    "w": "TOUCH",
+    "zh": "触摸",
+    "grade": 4
+  },
+  {
+    "w": "TRAIN",
+    "zh": "火车",
+    "grade": 3
+  },
+  {
+    "w": "TRAVEL",
+    "zh": "旅游",
+    "grade": 4
+  },
+  {
+    "w": "TRIED",
+    "zh": "疲劳的",
+    "grade": 4
+  },
+  {
+    "w": "TRUCK",
+    "zh": "象鼻",
+    "grade": 4
+  },
+  {
+    "w": "TURPAN",
+    "zh": "吐鲁番",
+    "grade": 6
+  },
+  {
+    "w": "TWELVE",
+    "zh": "十二",
+    "grade": 3
+  },
+  {
+    "w": "TWENTY",
+    "zh": "二十",
+    "grade": 3
+  },
+  {
+    "w": "UNCLE",
+    "zh": "叔父",
+    "grade": 3
+  },
+  {
+    "w": "UNDER",
+    "zh": "在…下面",
+    "grade": 3
+  },
+  {
+    "w": "VAPOUR",
+    "zh": "蒸气",
+    "grade": 4
+  },
+  {
+    "w": "VIOLIN",
+    "zh": "小提琴",
+    "grade": 4
+  },
+  {
+    "w": "VISIT",
+    "zh": "访问",
+    "grade": 6
+  },
+  {
+    "w": "WAITER",
+    "zh": "侍者",
+    "grade": 4
+  },
+  {
+    "w": "WASHED",
+    "zh": "洗",
+    "grade": 6
+  },
+  {
+    "w": "WATCH",
+    "zh": "观看",
+    "grade": 5
+  },
+  {
+    "w": "WATER",
+    "zh": "水",
+    "grade": 3
+  },
+  {
+    "w": "WHERE",
+    "zh": "在哪里",
+    "grade": 3
+  },
+  {
+    "w": "WHICH",
+    "zh": "哪个",
+    "grade": 5
+  },
+  {
+    "w": "WHITE",
+    "zh": "白色的",
+    "grade": 3
+  },
+  {
+    "w": "WHOSE",
+    "zh": "谁的",
+    "grade": 4
+  },
+  {
+    "w": "WINDOW",
+    "zh": "窗口",
+    "grade": 4
+  },
+  {
+    "w": "WINDY",
+    "zh": "有风的",
+    "grade": 3
+  },
+  {
+    "w": "WINTER",
+    "zh": "冬季",
+    "grade": 3
+  },
+  {
+    "w": "WOMAN",
+    "zh": "女人",
+    "grade": 3
+  },
+  {
+    "w": "WOODS",
+    "zh": "树林",
+    "grade": 4
+  },
+  {
+    "w": "WORKER",
+    "zh": "工人",
+    "grade": 4
+  },
+  {
+    "w": "WORLD",
+    "zh": "世界",
+    "grade": 4
+  },
+  {
+    "w": "WORRY",
+    "zh": "担心",
+    "grade": 6
+  },
+  {
+    "w": "WRITE",
+    "zh": "写",
+    "grade": 4
+  },
+  {
+    "w": "WRITER",
+    "zh": "作家",
+    "grade": 6
+  },
+  {
+    "w": "WRONG",
+    "zh": "错误的",
+    "grade": 6
+  },
+  {
+    "w": "YELLOW",
+    "zh": "黄色的",
+    "grade": 3
+  },
+  {
+    "w": "YOUNG",
+    "zh": "年轻的",
+    "grade": 5
+  },
+  {
+    "w": "YOURS",
+    "zh": "属于你的",
+    "grade": 4
+  },
+  {
+    "w": "YUMMY",
+    "zh": "好吃的",
+    "grade": 4
+  },
+  {
+    "w": "ACCOUNTANT",
+    "zh": "会计",
+    "grade": 6
+  },
+  {
+    "w": "ACTRESS",
+    "zh": "女演员",
+    "grade": 6
+  },
+  {
+    "w": "AFTERNOON",
+    "zh": "下午午后",
+    "grade": 3
+  },
+  {
+    "w": "AMAZING",
+    "zh": "令人惊异的",
+    "grade": 6
+  },
+  {
+    "w": "AMERICA",
+    "zh": "美国",
+    "grade": 6
+  },
+  {
+    "w": "AMERICAN",
+    "zh": "美国人",
+    "grade": 5
+  },
+  {
+    "w": "ANOTHER",
+    "zh": "另一个",
+    "grade": 6
+  },
+  {
+    "w": "ANYTHING",
+    "zh": "任何东西",
+    "grade": 5
+  },
+  {
+    "w": "ATTENTION",
+    "zh": "注意",
+    "grade": 6
+  },
+  {
+    "w": "AUSTRALIA",
+    "zh": "澳大利亚",
+    "grade": 4
+  },
+  {
+    "w": "BADMINTON",
+    "zh": "羽毛球运动",
+    "grade": 5
+  },
+  {
+    "w": "BALLOON",
+    "zh": "气球",
+    "grade": 6
+  },
+  {
+    "w": "BASKETBALL",
+    "zh": "篮球",
+    "grade": 4
+  },
+  {
+    "w": "BATHROOM",
+    "zh": "浴室",
+    "grade": 3
+  },
+  {
+    "w": "BEAUTIFUL",
+    "zh": "漂亮的",
+    "grade": 3
+  },
+  {
+    "w": "BECAUSE",
+    "zh": "因为",
+    "grade": 5
+  },
+  {
+    "w": "BEDROOM",
+    "zh": "卧室",
+    "grade": 3
+  },
+  {
+    "w": "BETWEEN",
+    "zh": "在…之间",
+    "grade": 4
+  },
+  {
+    "w": "BIRTHDAY",
+    "zh": "生日",
+    "grade": 3
+  },
+  {
+    "w": "BLACKBOARD",
+    "zh": "黑板",
+    "grade": 3
+  },
+  {
+    "w": "BOATING",
+    "zh": "划船",
+    "grade": 5
+  },
+  {
+    "w": "BOOKSTORE",
+    "zh": "书店",
+    "grade": 6
+  },
+  {
+    "w": "BREAKFAST",
+    "zh": "早餐",
+    "grade": 4
+  },
+  {
+    "w": "BROTHER",
+    "zh": "兄弟",
+    "grade": 3
+  },
+  {
+    "w": "BUILDING",
+    "zh": "建筑物",
+    "grade": 5
+  },
+  {
+    "w": "BUSINESSMAN",
+    "zh": "商人",
+    "grade": 6
+  },
+  {
+    "w": "CABBAGE",
+    "zh": "洋白菜",
+    "grade": 6
+  },
+  {
+    "w": "CANADIAN",
+    "zh": "加拿大人",
+    "grade": 5
+  },
+  {
+    "w": "CANBERRA",
+    "zh": "堪培拉",
+    "grade": 6
+  },
+  {
+    "w": "CANTEEN",
+    "zh": "食堂",
+    "grade": 6
+  },
+  {
+    "w": "CARTOON",
+    "zh": "卡通片",
+    "grade": 5
+  },
+  {
+    "w": "CERTAINLY",
+    "zh": "当然",
+    "grade": 6
+  },
+  {
+    "w": "CHEETAH",
+    "zh": "猎豹",
+    "grade": 6
+  },
+  {
+    "w": "CHICKEN",
+    "zh": "鸡肉",
+    "grade": 3
+  },
+  {
+    "w": "CHILDREN",
+    "zh": "儿童",
+    "grade": 3
+  },
+  {
+    "w": "CHINESE",
+    "zh": "中文",
+    "grade": 3
+  },
+  {
+    "w": "CHOCOLATE",
+    "zh": "巧克力",
+    "grade": 5
+  },
+  {
+    "w": "CHOPSTICKS",
+    "zh": "筷子",
+    "grade": 4
+  },
+  {
+    "w": "CHRISTMAS",
+    "zh": "圣诞节",
+    "grade": 3
+  },
+  {
+    "w": "CLASSMATE",
+    "zh": "同学",
+    "grade": 3
+  },
+  {
+    "w": "CLASSROOM",
+    "zh": "教室",
+    "grade": 3
+  },
+  {
+    "w": "CLEANED",
+    "zh": "打扫",
+    "grade": 6
+  },
+  {
+    "w": "CLEANER",
+    "zh": "清洁工",
+    "grade": 6
+  },
+  {
+    "w": "CLIMBER",
+    "zh": "攀登者",
+    "grade": 6
+  },
+  {
+    "w": "CLIMBING",
+    "zh": "攀爬",
+    "grade": 5
+  },
+  {
+    "w": "CLOTHES",
+    "zh": "衣服",
+    "grade": 4
+  },
+  {
+    "w": "COLOURFUL",
+    "zh": "色彩丰富的",
+    "grade": 6
+  },
+  {
+    "w": "COMPANY",
+    "zh": "公司",
+    "grade": 6
+  },
+  {
+    "w": "COMPUTER",
+    "zh": "计算机",
+    "grade": 4
+  },
+  {
+    "w": "CONTEST",
+    "zh": "比赛",
+    "grade": 5
+  },
+  {
+    "w": "COOKING",
+    "zh": "烹饪",
+    "grade": 5
+  },
+  {
+    "w": "COUNTRY",
+    "zh": "国家",
+    "grade": 4
+  },
+  {
+    "w": "COUNTRYSIDE",
+    "zh": "农村",
+    "grade": 6
+  },
+  {
+    "w": "CROSSING",
+    "zh": "交会处",
+    "grade": 6
+  },
+  {
+    "w": "CUCUMBER",
+    "zh": "黄瓜",
+    "grade": 6
+  },
+  {
+    "w": "CURTAIN",
+    "zh": "窗帘",
+    "grade": 6
+  },
+  {
+    "w": "CYCLING",
+    "zh": "骑自行车",
+    "grade": 6
+  },
+  {
+    "w": "DANCING",
+    "zh": "跳舞",
+    "grade": 4
+  },
+  {
+    "w": "DECEMBER",
+    "zh": "十二月",
+    "grade": 3
+  },
+  {
+    "w": "DELICIOUS",
+    "zh": "美味的",
+    "grade": 3
+  },
+  {
+    "w": "DICTIONARY",
+    "zh": "词典",
+    "grade": 6
+  },
+  {
+    "w": "DIFFERENCE",
+    "zh": "不同",
+    "grade": 6
+  },
+  {
+    "w": "DIFFERENT",
+    "zh": "不同的",
+    "grade": 4
+  },
+  {
+    "w": "DINOSAUR",
+    "zh": "恐龙",
+    "grade": 6
+  },
+  {
+    "w": "DRINKING",
+    "zh": "喝",
+    "grade": 5
+  },
+  {
+    "w": "EGGPLANT",
+    "zh": "茄子",
+    "grade": 6
+  },
+  {
+    "w": "EIGHTEEN",
+    "zh": "十八",
+    "grade": 3
+  },
+  {
+    "w": "ELEPHANT",
+    "zh": "大象",
+    "grade": 3
+  },
+  {
+    "w": "ELEVENTH",
+    "zh": "第十一",
+    "grade": 6
+  },
+  {
+    "w": "ENGINEER",
+    "zh": "工程师",
+    "grade": 6
+  },
+  {
+    "w": "ENGLAND",
+    "zh": "英格兰",
+    "grade": 6
+  },
+  {
+    "w": "ENGLISH",
+    "zh": "英国的",
+    "grade": 3
+  },
+  {
+    "w": "EVENING",
+    "zh": "晚上",
+    "grade": 4
+  },
+  {
+    "w": "EVERYONE",
+    "zh": "每个人",
+    "grade": 3
+  },
+  {
+    "w": "EVERYWHERE",
+    "zh": "到处",
+    "grade": 5
+  },
+  {
+    "w": "EXCITED",
+    "zh": "激动的",
+    "grade": 5
+  },
+  {
+    "w": "EXERCISE",
+    "zh": "练习",
+    "grade": 5
+  },
+  {
+    "w": "EXHIBITION",
+    "zh": "展览",
+    "grade": 5
+  },
+  {
+    "w": "EXPENSIVE",
+    "zh": "昂贵的",
+    "grade": 4
+  },
+  {
+    "w": "FACTORY",
+    "zh": "工厂",
+    "grade": 6
+  },
+  {
+    "w": "FAVORITE",
+    "zh": "特别喜爱的",
+    "grade": 6
+  },
+  {
+    "w": "FAVOURITE",
+    "zh": "特别受喜爱的",
+    "grade": 3
+  },
+  {
+    "w": "FEATURE",
+    "zh": "特征",
+    "grade": 6
+  },
+  {
+    "w": "FEBRUARY",
+    "zh": "二月",
+    "grade": 3
+  },
+  {
+    "w": "FESTIVAL",
+    "zh": "节日",
+    "grade": 6
+  },
+  {
+    "w": "FIFTEEN",
+    "zh": "十五",
+    "grade": 3
+  },
+  {
+    "w": "FISHERMAN",
+    "zh": "渔夫",
+    "grade": 6
+  },
+  {
+    "w": "FOOTBALL",
+    "zh": "足球",
+    "grade": 6
+  },
+  {
+    "w": "FOURTEEN",
+    "zh": "十四",
+    "grade": 3
+  },
+  {
+    "w": "FRIENDLY",
+    "zh": "友好的",
+    "grade": 4
+  },
+  {
+    "w": "FUNNIER",
+    "zh": "更滑稽的",
+    "grade": 6
+  },
+  {
+    "w": "GERMANY",
+    "zh": "德国",
+    "grade": 6
+  },
+  {
+    "w": "GIRAFFE",
+    "zh": "长颈鹿",
+    "grade": 3
+  },
+  {
+    "w": "GLASSES",
+    "zh": "眼镜",
+    "grade": 4
+  },
+  {
+    "w": "GOODBYE",
+    "zh": "再见",
+    "grade": 6
+  },
+  {
+    "w": "GRANDFATHER",
+    "zh": "祖父",
+    "grade": 3
+  },
+  {
+    "w": "GRANDMA",
+    "zh": "祖母",
+    "grade": 3
+  },
+  {
+    "w": "GRANDMOTHER",
+    "zh": "祖母",
+    "grade": 3
+  },
+  {
+    "w": "GRANDPA",
+    "zh": "爷爷",
+    "grade": 3
+  },
+  {
+    "w": "GRANDPARENT",
+    "zh": "祖父",
+    "grade": 5
+  },
+  {
+    "w": "HALLOWEEN",
+    "zh": "万圣节前夕",
+    "grade": 6
+  },
+  {
+    "w": "HAMBURGER",
+    "zh": "汉堡包",
+    "grade": 4
+  },
+  {
+    "w": "HEALTHY",
+    "zh": "健康的",
+    "grade": 5
+  },
+  {
+    "w": "HEAVIER",
+    "zh": "更重的",
+    "grade": 6
+  },
+  {
+    "w": "HELPFUL",
+    "zh": "有益的",
+    "grade": 5
+  },
+  {
+    "w": "HOLIDAY",
+    "zh": "假日",
+    "grade": 5
+  },
+  {
+    "w": "HOMEWORK",
+    "zh": "家庭作业",
+    "grade": 4
+  },
+  {
+    "w": "HOSPITAL",
+    "zh": "医院",
+    "grade": 3
+  },
+  {
+    "w": "HOWEVER",
+    "zh": "但是",
+    "grade": 6
+  },
+  {
+    "w": "HUNDRED",
+    "zh": "百",
+    "grade": 6
+  },
+  {
+    "w": "INTERESTING",
+    "zh": "有趣的",
+    "grade": 4
+  },
+  {
+    "w": "INTERNET",
+    "zh": "因特网",
+    "grade": 6
+  },
+  {
+    "w": "ITALIAN",
+    "zh": "意大利语",
+    "grade": 6
+  },
+  {
+    "w": "JANUARY",
+    "zh": "一月",
+    "grade": 3
+  },
+  {
+    "w": "JASMINE",
+    "zh": "茉莉",
+    "grade": 6
+  },
+  {
+    "w": "JUMPING",
+    "zh": "跳跃",
+    "grade": 5
+  },
+  {
+    "w": "KANGAROO",
+    "zh": "袋鼠",
+    "grade": 6
+  },
+  {
+    "w": "KILOGRAM",
+    "zh": "公斤",
+    "grade": 6
+  },
+  {
+    "w": "KITCHEN",
+    "zh": "厨房",
+    "grade": 3
+  },
+  {
+    "w": "LAUGHED",
+    "zh": "笑",
+    "grade": 6
+  },
+  {
+    "w": "LIBRARY",
+    "zh": "图书馆",
+    "grade": 3
+  },
+  {
+    "w": "LISTENING",
+    "zh": "听",
+    "grade": 6
+  },
+  {
+    "w": "LOBSTER",
+    "zh": "龙虾",
+    "grade": 6
+  },
+  {
+    "w": "MAGAZINE",
+    "zh": "杂志",
+    "grade": 6
+  },
+  {
+    "w": "MEDICINE",
+    "zh": "药",
+    "grade": 6
+  },
+  {
+    "w": "MOONCAKE",
+    "zh": "月饼",
+    "grade": 6
+  },
+  {
+    "w": "MORNING",
+    "zh": "早晨",
+    "grade": 3
+  },
+  {
+    "w": "MOUNTAIN",
+    "zh": "山",
+    "grade": 5
+  },
+  {
+    "w": "NATIONAL",
+    "zh": "国家的",
+    "grade": 5
+  },
+  {
+    "w": "NEIGHBOUR",
+    "zh": "邻居",
+    "grade": 6
+  },
+  {
+    "w": "NEWSPAPER",
+    "zh": "报纸",
+    "grade": 6
+  },
+  {
+    "w": "NINETEEN",
+    "zh": "十九",
+    "grade": 3
+  },
+  {
+    "w": "NOODLES",
+    "zh": "面条",
+    "grade": 3
+  },
+  {
+    "w": "NOTEBOOK",
+    "zh": "笔记本",
+    "grade": 4
+  },
+  {
+    "w": "NOTHING",
+    "zh": "没有什么",
+    "grade": 6
+  },
+  {
+    "w": "NOVEMBER",
+    "zh": "十一月",
+    "grade": 3
+  },
+  {
+    "w": "OCTOBER",
+    "zh": "十月",
+    "grade": 3
+  },
+  {
+    "w": "OUTSIDE",
+    "zh": "在外面",
+    "grade": 4
+  },
+  {
+    "w": "PAINTING",
+    "zh": "绘画",
+    "grade": 6
+  },
+  {
+    "w": "PARENTS",
+    "zh": "父母",
+    "grade": 4
+  },
+  {
+    "w": "PICTURE",
+    "zh": "图画",
+    "grade": 4
+  },
+  {
+    "w": "PLAYGROUND",
+    "zh": "操场",
+    "grade": 3
+  },
+  {
+    "w": "PLAYING",
+    "zh": "玩",
+    "grade": 5
+  },
+  {
+    "w": "POLICEMAN",
+    "zh": "警察",
+    "grade": 6
+  },
+  {
+    "w": "POLICEWOMAN",
+    "zh": "女警察",
+    "grade": 6
+  },
+  {
+    "w": "POSTCARD",
+    "zh": "明信片",
+    "grade": 6
+  },
+  {
+    "w": "POSTMAN",
+    "zh": "邮递员",
+    "grade": 6
+  },
+  {
+    "w": "PREPARE",
+    "zh": "准备",
+    "grade": 6
+  },
+  {
+    "w": "PRESENT",
+    "zh": "礼物",
+    "grade": 3
+  },
+  {
+    "w": "PRINCIPAL",
+    "zh": "校长",
+    "grade": 6
+  },
+  {
+    "w": "PROBLEM",
+    "zh": "难题",
+    "grade": 5
+  },
+  {
+    "w": "QUICKLY",
+    "zh": "迅速地",
+    "grade": 6
+  },
+  {
+    "w": "RAINBOW",
+    "zh": "彩虹",
+    "grade": 6
+  },
+  {
+    "w": "READING",
+    "zh": "阅读",
+    "grade": 4
+  },
+  {
+    "w": "REMEMBER",
+    "zh": "记住",
+    "grade": 6
+  },
+  {
+    "w": "REPORTER",
+    "zh": "记者",
+    "grade": 6
+  },
+  {
+    "w": "RESTAURANT",
+    "zh": "餐厅",
+    "grade": 4
+  },
+  {
+    "w": "SALESPERSON",
+    "zh": "售货员",
+    "grade": 6
+  },
+  {
+    "w": "SANDALS",
+    "zh": "凉鞋",
+    "grade": 6
+  },
+  {
+    "w": "SANDWICH",
+    "zh": "三明治",
+    "grade": 5
+  },
+  {
+    "w": "SATURDAY",
+    "zh": "星期六",
+    "grade": 3
+  },
+  {
+    "w": "SCHEDULE",
+    "zh": "日程表",
+    "grade": 5
+  },
+  {
+    "w": "SCHOOLBAG",
+    "zh": "书包",
+    "grade": 3
+  },
+  {
+    "w": "SCIENCE",
+    "zh": "科学",
+    "grade": 3
+  },
+  {
+    "w": "SCIENTIST",
+    "zh": "科学家",
+    "grade": 6
+  },
+  {
+    "w": "SCOTLAND",
+    "zh": "苏格兰",
+    "grade": 6
+  },
+  {
+    "w": "SECRETARY",
+    "zh": "秘书",
+    "grade": 6
+  },
+  {
+    "w": "SEPTEMBER",
+    "zh": "九月",
+    "grade": 3
+  },
+  {
+    "w": "SEVENTEEN",
+    "zh": "十七",
+    "grade": 3
+  },
+  {
+    "w": "SEVENTH",
+    "zh": "第七",
+    "grade": 6
+  },
+  {
+    "w": "SEVENTY",
+    "zh": "七十",
+    "grade": 6
+  },
+  {
+    "w": "SEVERAL",
+    "zh": "一些",
+    "grade": 6
+  },
+  {
+    "w": "SHARPENER",
+    "zh": "卷笔刀",
+    "grade": 6
+  },
+  {
+    "w": "SHORTER",
+    "zh": "更短的",
+    "grade": 6
+  },
+  {
+    "w": "SINGAPORE",
+    "zh": "新加坡",
+    "grade": 4
+  },
+  {
+    "w": "SIXTEEN",
+    "zh": "十六",
+    "grade": 3
+  },
+  {
+    "w": "SLEEPING",
+    "zh": "睡着的",
+    "grade": 5
+  },
+  {
+    "w": "SLIPPERS",
+    "zh": "拖鞋",
+    "grade": 6
+  },
+  {
+    "w": "SMALLER",
+    "zh": "更小的",
+    "grade": 6
+  },
+  {
+    "w": "SMARTER",
+    "zh": "更聪明的",
+    "grade": 6
+  },
+  {
+    "w": "SNEAKERS",
+    "zh": "胶底帆布鞋",
+    "grade": 6
+  },
+  {
+    "w": "SNOWMAN",
+    "zh": "雪人",
+    "grade": 5
+  },
+  {
+    "w": "SOMETHING",
+    "zh": "某事物",
+    "grade": 6
+  },
+  {
+    "w": "SOMETIMES",
+    "zh": "有时",
+    "grade": 5
+  },
+  {
+    "w": "SPANISH",
+    "zh": "西班牙的",
+    "grade": 5
+  },
+  {
+    "w": "SPECIAL",
+    "zh": "特别的",
+    "grade": 5
+  },
+  {
+    "w": "SQUIRREL",
+    "zh": "松鼠",
+    "grade": 6
+  },
+  {
+    "w": "STORYBOOK",
+    "zh": "故事书",
+    "grade": 4
+  },
+  {
+    "w": "STRAIGHT",
+    "zh": "直的",
+    "grade": 5
+  },
+  {
+    "w": "STRAWBERRY",
+    "zh": "草莓",
+    "grade": 3
+  },
+  {
+    "w": "STRONGER",
+    "zh": "更强壮的",
+    "grade": 6
+  },
+  {
+    "w": "STUDENT",
+    "zh": "学生",
+    "grade": 3
+  },
+  {
+    "w": "STUDIES",
+    "zh": "学习",
+    "grade": 6
+  },
+  {
+    "w": "SUNGLASSES",
+    "zh": "太阳镜",
+    "grade": 4
+  },
+  {
+    "w": "SUPERMARKET",
+    "zh": "超市",
+    "grade": 3
+  },
+  {
+    "w": "SWEATER",
+    "zh": "毛衣",
+    "grade": 3
+  },
+  {
+    "w": "TEACHER",
+    "zh": "教师",
+    "grade": 3
+  },
+  {
+    "w": "TEACHERS",
+    "zh": "老师们",
+    "grade": 6
+  },
+  {
+    "w": "TEACHES",
+    "zh": "教",
+    "grade": 6
+  },
+  {
+    "w": "THANKSGIVING",
+    "zh": "感恩节",
+    "grade": 5
+  },
+  {
+    "w": "THINNER",
+    "zh": "更瘦的",
+    "grade": 6
+  },
+  {
+    "w": "THIRSTY",
+    "zh": "口渴的",
+    "grade": 3
+  },
+  {
+    "w": "THIRTEEN",
+    "zh": "十三",
+    "grade": 3
+  },
+  {
+    "w": "THIRTIETH",
+    "zh": "第三十",
+    "grade": 5
+  },
+  {
+    "w": "THOUGHT",
+    "zh": "思想",
+    "grade": 6
+  },
+  {
+    "w": "THURSDAY",
+    "zh": "星期四",
+    "grade": 3
+  },
+  {
+    "w": "TOGETHER",
+    "zh": "一起",
+    "grade": 5
+  },
+  {
+    "w": "TOMORROW",
+    "zh": "在明天",
+    "grade": 3
+  },
+  {
+    "w": "TONIGHT",
+    "zh": "今晚",
+    "grade": 6
+  },
+  {
+    "w": "TOURIST",
+    "zh": "旅行者",
+    "grade": 6
+  },
+  {
+    "w": "TRAFFIC",
+    "zh": "交通",
+    "grade": 6
+  },
+  {
+    "w": "TUESDAY",
+    "zh": "星期二",
+    "grade": 3
+  },
+  {
+    "w": "TWELFTH",
+    "zh": "第十二",
+    "grade": 5
+  },
+  {
+    "w": "TWENTIETH",
+    "zh": "第二十",
+    "grade": 5
+  },
+  {
+    "w": "UMBRELLA",
+    "zh": "伞",
+    "grade": 3
+  },
+  {
+    "w": "UNIVERSITY",
+    "zh": "大学",
+    "grade": 6
+  },
+  {
+    "w": "USUALLY",
+    "zh": "通常",
+    "grade": 4
+  },
+  {
+    "w": "VACATION",
+    "zh": "假期",
+    "grade": 5
+  },
+  {
+    "w": "VEGETABLE",
+    "zh": "蔬菜",
+    "grade": 3
+  },
+  {
+    "w": "VILLAGE",
+    "zh": "村庄",
+    "grade": 5
+  },
+  {
+    "w": "VISITOR",
+    "zh": "客人",
+    "grade": 6
+  },
+  {
+    "w": "WALKMAN",
+    "zh": "随身听",
+    "grade": 6
+  },
+  {
+    "w": "WASHROOM",
+    "zh": "卫生间",
+    "grade": 6
+  },
+  {
+    "w": "WATCHED",
+    "zh": "观看",
+    "grade": 6
+  },
+  {
+    "w": "WATCHES",
+    "zh": "看",
+    "grade": 6
+  },
+  {
+    "w": "WATERMELON",
+    "zh": "西瓜",
+    "grade": 3
+  },
+  {
+    "w": "WEATHER",
+    "zh": "天气",
+    "grade": 3
+  },
+  {
+    "w": "WEDNESDAY",
+    "zh": "星期三",
+    "grade": 3
+  },
+  {
+    "w": "WEEKEND",
+    "zh": "周末",
+    "grade": 5
+  },
+  {
+    "w": "WELCOME",
+    "zh": "欢迎",
+    "grade": 3
+  },
+  {
+    "w": "WONDERFUL",
+    "zh": "精彩的",
+    "grade": 5
+  },
+  {
+    "w": "WORRIED",
+    "zh": "担忧的",
+    "grade": 6
+  },
+  {
+    "w": "YESTERDAY",
+    "zh": "昨天",
+    "grade": 6
+  },
+  {
+    "w": "YOUNGER",
+    "zh": "更年轻的",
+    "grade": 6
+  }
 ]

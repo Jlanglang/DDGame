@@ -77,12 +77,13 @@ check('每个词都有 1-6 年级标签', badGrade.length === 0, badGrade.slice(
 check('没有重复单词', dup.length === 0, dup.slice(0, 5).join(' '));
 check('词量够用（≥300）', total >= 300, `total=${total}`);
 
-const bandCount = (max) => Object.entries(gradeStats)
-  .filter(([g]) => Number(g) <= max)
+const bandRange = (min, max) => Object.entries(gradeStats)
+  .filter(([g]) => Number(g) >= min && Number(g) <= max)
   .reduce((s, [, n]) => s + n, 0);
-check('1-2 年级词量（≥200）', bandCount(2) >= 200, `n=${bandCount(2)}`);
-check('1-4 年级词量（≥500）', bandCount(4) >= 500, `n=${bandCount(4)}`);
-check('1-6 年级词量（≥900）', bandCount(6) >= 900, `n=${bandCount(6)}`);
+check('3-4 年级词量（≥500）', bandRange(3, 4) >= 500, `n=${bandRange(3, 4)}`);
+check('3-5 年级词量（≥700）', bandRange(3, 5) >= 700, `n=${bandRange(3, 5)}`);
+check('3-6 年级词量（≥900）', bandRange(3, 6) >= 900, `n=${bandRange(3, 6)}`);
+check('1-2 年级单词已并入 3 年级', bandRange(1, 2) === 0, `n=${bandRange(1, 2)}`);
 
 // 教材词表 ↔ 词库：两边必须一一对应，防止以后改词漏掉教材覆盖
 const pep = JSON.parse(fs.readFileSync(path.join(DIR, 'pep-1-6.json'), 'utf8'));
@@ -121,15 +122,15 @@ const thinHard = [...cardBuffs].filter((b) => (stats[b]?.hard || 0) < 3);
 check('每个 buff 至少有 3 个长词', thinHard.length === 0,
   thinHard.map((b) => `${b}=${stats[b]?.hard || 0}`).join(' '));
 
-const band2Buff = {};
+const band3Buff = {};
 for (const tier of Object.keys(tiers)) {
   for (const entry of bank[tier] || []) {
-    if (entry && entry.grade <= 2) band2Buff[entry.buff] = (band2Buff[entry.buff] || 0) + 1;
+    if (entry && entry.grade === 3) band3Buff[entry.buff] = (band3Buff[entry.buff] || 0) + 1;
   }
 }
-const thinBand = [...cardBuffs].filter((b) => (band2Buff[b] || 0) < 5);
-check('每个 buff 在 1-2 年级至少 5 个词', thinBand.length === 0,
-  thinBand.map((b) => `${b}=${band2Buff[b] || 0}`).join(' '));
+const thinBand = [...cardBuffs].filter((b) => (band3Buff[b] || 0) < 5);
+check('每个 buff 在 3 年级至少 5 个词', thinBand.length === 0,
+  thinBand.map((b) => `${b}=${band3Buff[b] || 0}`).join(' '));
 
 console.log('---');
 console.log(`词数 ${total}，卡池 ${cardBuffs.size} 种，buff 覆盖 ${Object.keys(stats).length} 种`);

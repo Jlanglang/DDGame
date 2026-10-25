@@ -27,11 +27,11 @@
     bulletSpeed: 1000,
 
     hpBase: 10,         // 第 1 波小怪血量
-    hpGrowth: 1.105,    // 每波 ×1.105（200 波无尽）
-    surgeFrom: 15,      // 第 15 波之后额外加速，防止后期清得动就永远不死
-    surge: 1.2,         // 额外每波 ×1.2
+    hpGrowth: 1.11,     // 每波 ×1.11（100 波通关，实测 75% 认识率约 55% 通关）
+    surgeFrom: 999,     // 额外加速已关掉（原来第 15 波 ×1.2 太陡，100 波撑不住）
+    surge: 1.2,         // 保留字段，surgeFrom 设很大就等于不触发
     speed: 84,          // 小怪推进速度（像素/秒）
-    waves: 200,         // 无尽模式：200 波，每 20 波一个 BOSS
+    waves: 100,         // 撑过 100 波算通关，每 20 波一个 BOSS
     spawnGap: 0.26,     // 同一波里两只怪的间隔（越小越挤）
     waveGap: 0.8,       // 清场后的休息
     bossMul: 14,        // BOSS 血量 = 当波血量 ×14
@@ -87,7 +87,7 @@
     if (wave >= 5) w.ranged = 22;
     if (wave >= 6) w.splitter = 20;
     if (wave >= 8) w.healer = 16;
-    if (wave >= 10) w.leveler = 7;
+    if (wave >= 10) w.leveler = 2;
     return w;
   }
 
@@ -119,15 +119,20 @@
     S: { key: 'S', mul: 2.2, color: '#ff9ec4' },
   };
 
-  /** 年级难度：1-2 / 1-4 / 1-6（只筛单词，不改怪物数值） */
-  const GRADE_STEPS = [6, 4, 2]; // 点一下降一档：1-6 → 1-4 → 1-2 → 1-6
-  function storedGrade() {
+  /** 年级难度：3-4 / 3-5 / 3-6（1、2 年级不学英语，单词已并入 3 年级） */
+  const GRADE_RANGES = [
+    { key: '3-4', min: 3, max: 4 },
+    { key: '3-5', min: 3, max: 5 },
+    { key: '3-6', min: 3, max: 6 },
+  ];
+
+  function storedRange() {
     try {
-      const v = Number(window.localStorage.getItem('wordtower-grade'));
-      return GRADE_STEPS.indexOf(v) >= 0 ? v : 6;
-    } catch (err) {
-      return 6;
-    }
+      const k = window.localStorage.getItem('wordtower-grade-range');
+      const found = GRADE_RANGES.find((r) => r.key === k);
+      if (found) return found;
+    } catch (err) { /* 无痕模式 */ }
+    return GRADE_RANGES[0];   // 默认 3-4（最简单）
   }
 
   function gradeWeights(wave) {
@@ -280,7 +285,7 @@
     pendingLevels: 0,
     pendingQueue: [],   // 每次升级对应的目标等级，选卡面板按顺序消费
     wordRecent: [],     // 本局最近抽过的单词，避免短时间内重复
-    gradeMax: storedGrade(), // 年级难度：2 / 4 / 6（单词只抽这个年级以内的）
+    gradeRange: storedRange(), // 年级难度：{key:'1-3', min, max}（单词只抽这个范围里的）
 
     enemies: [],
     bullets: [],
@@ -466,25 +471,26 @@
   /** 卡面等级 ↔ 单词长度档位：B 短词 / A 中词 / S 长词 */
   const GRADE_TIER = { B: 'easy', A: 'mid', S: 'hard' };
 
-  /** 按当前年级难度筛词；某个 buff 在这个年级段一个词都没有时，退回全量 */
+  /** 按当前年级范围筛词；某个 buff 在这个范围一个词都没有时，退回全量 */
   function wordsWithBuff(buff) {
     const bank = window.WORD_BANK || {};
-    const maxGrade = G.gradeMax || 6;
+    const range = G.gradeRange || GRADE_RANGES[0];
 
-    const gather = (limit) => {
+    const gather = (useRange) => {
       const out = { easy: [], mid: [], hard: [] };
       for (const tier of ['easy', 'mid', 'hard']) {
         for (const w of bank[tier] || []) {
           if (w.buff !== buff) continue;
-          if (limit && (w.grade || 6) > limit) continue;
-          out[tier].push({ w: w.w, zh: w.zh, grade: w.grade || 6, buff, tier });
+          const g = w.grade || 6;
+          if (useRange && (g < range.min || g > range.max)) continue;
+          out[tier].push({ w: w.w, zh: w.zh, grade: g, buff, tier });
         }
       }
       return out;
     };
 
-    const out = gather(maxGrade);
-    if (!out.easy.length && !out.mid.length && !out.hard.length) return gather(0);
+    const out = gather(true);
+    if (!out.easy.length && !out.mid.length && !out.hard.length) return gather(false);
     return out;
   }
 
@@ -1798,15 +1804,16 @@
   function renderGradeButtons() {
     const btns = document.querySelectorAll('.grade-btn');
     for (let i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('on', Number(btns[i].dataset.grade) === G.gradeMax);
+      btns[i].classList.toggle('on', btns[i].dataset.grade === G.gradeRange.key);
     }
   }
 
-  function setGrade(v) {
+  function setGrade(key) {
     if (G.state === 'playing') return;   // 战斗中不能改难度
-    if (GRADE_STEPS.indexOf(v) < 0) return;
-    G.gradeMax = v;
-    try { window.localStorage.setItem('wordtower-grade', String(v)); } catch (err) { /* 同上 */ }
+    const found = GRADE_RANGES.find((r) => r.key === key);
+    if (!found) return;
+    G.gradeRange = found;
+    try { window.localStorage.setItem('wordtower-grade-range', found.key); } catch (err) { /* 同上 */ }
     renderGradeButtons();
   }
 
@@ -1879,7 +1886,7 @@
   startBtn.addEventListener('click', startBattle);
   gradeRow.addEventListener('click', (e) => {
     const b = e.target.closest ? e.target.closest('.grade-btn') : null;
-    if (b) setGrade(Number(b.dataset.grade));
+    if (b) setGrade(b.dataset.grade);
   });
 
   window.addEventListener('keydown', (e) => {
@@ -1918,7 +1925,7 @@
         pending: G.pendingLevels,
         open: G.cards.open,
         picked: G.cards.picked,
-        gradeMax: G.gradeMax,
+        gradeMax: G.gradeRange.key,
         options: G.cards.options.map((o) => ({
           word: o.word, correct: o.correct, dead: o.dead,
           letters: o.letters.slice(),

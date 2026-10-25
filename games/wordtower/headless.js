@@ -21,6 +21,7 @@ const RUNS = Number(arg('runs', 40));
 const ACC = Number(arg('acc', 0.75));
 const BAL = arg('bal', null);
 const VERBOSE = process.argv.includes('--verbose');
+const GRADE = arg('grade', null);   // '1-3' / '3-5' / '3-6'，只影响抽词范围
 const DT = 1000 / 60;
 const MAXT = Number(arg('max', 600));
 
@@ -127,6 +128,7 @@ function run(seed) {
   if (!g || !api) throw new Error('没有 __g / __api（debug 没开？）');
 
   const frame = getFrame();
+  if (GRADE && api.setGrade) api.setGrade(GRADE);
   if (g.state === 'home' && api.startBattle) api.startBattle();
 
   // 玩家模型：每个单词掷一次"认不认识"；认识就挑认识的卡，不认识就瞎猜一个字母

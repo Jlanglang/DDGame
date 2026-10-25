@@ -179,6 +179,9 @@ body {
   padding: 0;
   overflow: hidden;
   touch-action: manipulation;
+  /* 统一提升成合成层：有气泡的卡片原来因为 backdrop-filter 走 GPU，名字的抗锯齿和
+     没气泡的卡片不一样，看起来一个粗一个细。全部合成之后渲染就一致了。 */
+  transform: translateZ(0);
 }
 
 .door .room {
@@ -260,9 +263,7 @@ body {
   margin: 0;
   padding: calc(3px * var(--fit)) 4px;
   border-radius: calc(8px * var(--fit));
-  background: rgba(247, 244, 238, 0.58);
-  -webkit-backdrop-filter: blur(12px) saturate(1.12);
-  backdrop-filter: blur(12px) saturate(1.12);
+  background: rgba(247, 244, 238, 0.9);
   color: #1c140c;
   font-size: calc(14px * var(--fit));
   font-weight: 700;
@@ -287,7 +288,7 @@ body {
   bottom: -5px;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: rgba(247, 244, 238, 0.58);
+  border-top-color: rgba(247, 244, 238, 0.9);
   border-bottom: 0;
 }
 
@@ -324,12 +325,7 @@ body {
 .door.is-open .avatar img {
   transform: scale(var(--img-scale, 1)) translateY(-5%);
 }
-.door.is-chat .bubble {
-  background: rgba(230, 235, 245, 0.58);
-  color: #3c465c;
-  font-weight: 500;
-}
-.door.is-chat .bubble::after { border-top-color: rgba(230, 235, 245, 0.58); }
+/* 线索和闲聊统一用同一种气泡：只保留内容差异，不再换色换字重 */
 .door.is-alien {
   background: #143024;
   border-color: rgba(141, 255, 176, 0.55);

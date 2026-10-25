@@ -674,9 +674,9 @@
     }
     if (atom.kind === 'edge') {
       return [
-        (atom.floor + 1) + '楼两边不是外星人。',
-        (atom.floor + 1) + '楼两头都是好人。',
-        (atom.floor + 1) + '楼最左最右那两户可以放心。',
+        (atom.floor + 1) + '楼最左边、最右边这两户不是外星人。',
+        (atom.floor + 1) + '楼最左、最右这两户可以放心。',
+        (atom.floor + 1) + '楼两头（最左和最右）那两户是好人。',
       ];
     }
     if (atom.kind === 'nonadj') {
@@ -1211,7 +1211,11 @@
           const isSocial = atom.kind === 'pair' || atom.kind === 'meal';
           const socialSoFar = chainKinds.filter(function (k) { return k === 'pair' || k === 'meal'; }).length;
           if (isSocial && socialSoFar >= 2) continue;
+          /* 同一种线索最多出现 2 次：否则一局里能看到 4 个"某楼最左最右" */
+          const sameKind = chainKinds.filter(function (k) { return k === atom.kind; }).length;
+          if (sameKind >= 2) continue;
           let nudge = atom.kind === 'rows' || atom.kind === 'cols' || atom.kind === 'role' ? 0 : 1;
+          nudge += sameKind * 300;
           let bucket = solo === 0 ? 0 : 1;
           if (isSocial) bucket = 2;
           if (atom.kind === 'diag') bucket = 3;

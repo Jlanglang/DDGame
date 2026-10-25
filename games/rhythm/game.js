@@ -826,7 +826,8 @@
       dx = Math.sin(pose.strike * Math.PI * 8) * 26 * pose.strike;
     }
 
-    const y = baseY + crouch - lift;
+    const idle = Math.sin(performance.now() / 700) * 4 * (1 - pose.strike);
+    const y = baseY + crouch - lift + idle;
 
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
@@ -836,7 +837,8 @@
     ctx.save();
     ctx.translate(x + dx, y);
     ctx.rotate(tilt);
-    ctx.scale(Math.abs(sx) < 0.02 ? 0.02 * Math.sign(sx || 1) : sx, sy);
+    const punch = 1 + pose.strike * 0.035;
+    ctx.scale((Math.abs(sx) < 0.02 ? 0.02 * Math.sign(sx || 1) : sx) * punch, sy * punch);
     ctx.translate(-x, -y);
 
     const headR = 44;
@@ -932,11 +934,22 @@
         ctx.stroke();
       }
     } else {
+      const blink = (performance.now() % 3200) < 110;
       for (const side of [-1, 1]) {
-        ctx.fillStyle = '#2f1d0d';
-        ctx.beginPath();
-        ctx.arc(x + side * ex, ey, 5, 0, Math.PI * 2);
-        ctx.fill();
+        if (blink) {
+          ctx.strokeStyle = '#2f1d0d';
+          ctx.lineWidth = 4;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x + side * ex - 7, ey);
+          ctx.lineTo(x + side * ex + 7, ey);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#2f1d0d';
+          ctx.beginPath();
+          ctx.arc(x + side * ex, ey, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
     ctx.strokeStyle = '#3a2412';
@@ -1358,9 +1371,10 @@
     const col = h.kind === 'perfect' ? '#ffd166'
       : h.kind === 'good' ? '#8fd0ff' : '#ff7f9c';
 
+    const pop = 1 + Math.max(0, 0.12 - h.age) * 4;
     ctx.globalAlpha = a;
     ctx.textAlign = 'center';
-    ctx.font = '900 64px "PingFang SC", "Microsoft YaHei", sans-serif';
+    ctx.font = `900 ${Math.round(64 * pop)}px "PingFang SC", "Microsoft YaHei", sans-serif`;
     ctx.fillStyle = col;
     ctx.fillText(txt, 360, 1062 - (1 - a) * 22);
 

@@ -1007,6 +1007,11 @@
 
   const SCENERY = {
     lift(ctx) {
+      const bg = window.RHYTHM_IMG && window.RHYTHM_IMG.bg;
+      if (bg && bg.complete && bg.naturalWidth) {
+        ctx.drawImage(bg, 0, 0, 720, 1600);
+        return;
+      }
       rect(ctx, 0, 320, 720, 760, '#f4e7cf');
       rect(ctx, 0, 780, 720, 300, '#e7d3b0');
       rect(ctx, 0, 848, 720, 28, '#c4894a');
@@ -1504,6 +1509,12 @@
   // 房间背景是静止的：每关只画一次，之后直接贴图，省下每帧几十个形状
   const roomCache = {};
   function drawRoomCached(ctx, id) {
+    // 第 1 关有 AI 素材：加载好就直接贴，只画场景区，别盖住顶栏和跑道
+    const bg = window.RHYTHM_IMG && window.RHYTHM_IMG.bg;
+    if (id === 'lift' && bg && bg.complete && bg.naturalWidth) {
+      ctx.drawImage(bg, 0, 300, 720, 870, 0, 300, 720, 870);
+      return;
+    }
     if (!roomCache[id]) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const off = document.createElement('canvas');

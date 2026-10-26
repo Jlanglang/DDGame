@@ -2796,7 +2796,19 @@
 
   /* ---------------- 启动 ---------------- */
 
+  // 图片素材：加载后挂在 window.RHYTHM_IMG，scene-draw.js 按需取
+  const IMG = {};
+  function loadAssets() {
+    for (const n of ['bg', 'doudou-idle', 'ball']) {
+      const img = new Image();
+      img.src = `assets/${n}.png`;
+      IMG[n] = img;
+    }
+    window.RHYTHM_IMG = IMG;
+  }
+
   function init() {
+    loadAssets();
     G.offset = loadOffset();
     G.showNotes = loadShowNotes();
     setupLevel(0);

@@ -2,402 +2,66 @@
    浏览器挂 window.RhythmCore；Node 里 require 可直接跑（test-core.mjs）。
    时间单位：秒（音频时间轴）；判定窗口：毫秒。
    谱面用 16 格 / 小节（十六分网格）：
-     x = 你要按，d = 豆豆示范（不判定、不计分，只做动作和出声），. = 空
+     x = 你要按，d = 旧的示范记号（现在的关不用），. = 空
 
-   节奏原则：
-     - 教学段（1-5 关）：普通段每小节 1 个，2 小节最多 3 个
-     - 进阶段（6-10 关）：每拍、反拍、八分（最多 1 小节）
-     - 反拍（弱拍）只在少数小节出现，用来拉难度
-   三种关卡类型（mode）：
-     echo = 模仿关：示范 2 小节 → 跟做 2 小节
-     beat = 卡点关：没有示范，开局听 2 小节，然后全程跟豆豆同步
-     rush = 连打关：密度递增，一直跟，不能断
+   分工不跟某一句走：数拍是 A 的动画，玩家只按「打」。
+   B、C、D 只在打之前那零点几秒进动画。没有豆豆示范。
+   开头 1 小节是空的，用来听拍子。
+   句子和进场跟着情景，不按 mode 盖成同一句。mode 只是选关页上的类型名。
 */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RhythmCore = factory();
-}(typeof self !== 'undefined' ? self : this, function () {
+  const scenes = (typeof module === 'object' && module.exports)
+    ? require('./scenes.js')
+    : root.RhythmScenes;
+  const api = factory(scenes);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.RhythmCore = api;
+}(typeof self !== 'undefined' ? self : this, function (Scenes) {
   'use strict';
 
-  // 判定窗口（毫秒）：网页 + 手机触摸抖动大，比原版放宽
-  const WIN = { perfect: 60, good: 120, miss: 200 };
+  // 判定窗口（毫秒）。短谱一关只有 7 到 12 下，窗口和 S 都按这个放宽。
+  // 不错仍算半分。S：准确率 ≥ 85% 且一次失误都没有。
+  const WIN = { perfect: 80, good: 150, miss: 220 };
 
-  const LEVELS = [
-    {
-      id: 'clap',
-      name: '拍手',
-      mode: 'echo',
-      diff: 1,
-      action: 'clap',
-      bpm: 110,
-      bars: 15,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#0b1220', glow: 'rgba(110,150,235,0.18)', accent: '#ffd166' },
-      music: {
-        kick: 0.5, snare: 0.24, hat: 0.1, lead: 0.055, style: 'soft',
-        chords: [-12, -16, -9, -14], scale: [0, 3, 5, 7, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'd...............',
-        'd...............',
-        'x...............',
-        'x...............',
-        'd.......d.......',
-        'd...............',
-        'x.......x.......',
-        'x...............',
-        'd...d...d...d...',
-        'd...d...d...d...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...............',
-      ],
-    },
-    {
-      id: 'nod',
-      name: '点头',
-      mode: 'beat',
-      diff: 1,
-      action: 'nod',
-      bpm: 96,
-      bars: 14,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#140f08', glow: 'rgba(255,190,110,0.18)', accent: '#ffc46b' },
-      music: {
-        kick: 0.46, snare: 0.2, hat: 0.08, lead: 0.06, style: 'warm',
-        chords: [-7, -11, -4, -9], scale: [0, 2, 3, 5, 7, 8, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...............',
-        'x...............',
-        'x...............',
-        'x...............',
-        'x.......x.......',
-        'x...............',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-      ],
-    },
-    {
-      id: 'jump',
-      name: '跳绳',
-      mode: 'echo',
-      diff: 2,
-      action: 'jump',
-      bpm: 132,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#061714', glow: 'rgba(90,230,190,0.16)', accent: '#7ff0cf' },
-      music: {
-        kick: 0.52, snare: 0.26, hat: 0.11, lead: 0.055, style: 'bright',
-        chords: [-5, -9, -2, -7], scale: [0, 2, 3, 5, 7, 8, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'd...............',
-        'd...............',
-        'x...............',
-        'x...............',
-        'd.......d.......',
-        'd...............',
-        'x.......x.......',
-        'x...............',
-        'd...d...d...d...',
-        'd...d...d...d...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'd...............',
-        'x...............',
-      ],
-    },
-    {
-      id: 'drum',
-      name: '打鼓',
-      mode: 'beat',
-      diff: 3,
-      action: 'hit',
-      bpm: 140,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#150a0c', glow: 'rgba(255,110,110,0.16)', accent: '#ff9a8a' },
-      music: {
-        kick: 0.6, snare: 0.3, hat: 0.12, lead: 0.05, style: 'heavy',
-        chords: [-9, -13, -6, -11], scale: [0, 3, 5, 6, 7, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...............',
-        'x...............',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...............',
-        'x...............',
-        'x...x...x.x.x...',
-        'x...x...x...x...',
-        'x...............',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-      ],
-    },
-    {
-      id: 'rush',
-      name: '冲刺',
-      mode: 'rush',
-      diff: 3,
-      action: 'jump',
-      bpm: 150,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 5,
-      theme: { sky: '#0d0a1a', glow: 'rgba(180,120,255,0.16)', accent: '#c9a6ff' },
-      music: {
-        kick: 0.55, snare: 0.28, hat: 0.13, lead: 0.05, style: 'rush',
-        chords: [-3, -7, 2, -5], scale: [0, 2, 3, 5, 7, 8, 11],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...............',
-        'x...............',
-        'x.......x.......',
-        'x...............',
-        'x...x...x.x.x...',
-        'x...x...x...x...',
-        'x...............',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x...............',
-        'x...............',
-      ],
-    },
 
-    /* ---------- 进阶：6-10 关 ---------- */
+  function countMarks(pattern, ch) {
+    let n = 0;
+    for (let i = 0; i < pattern.length; i++) {
+      const bar = pattern[i];
+      for (let j = 0; j < bar.length; j++) if (bar[j] === ch) n++;
+    }
+    return n;
+  }
 
-    {
-      id: 'spin',
-      name: '转圈',
-      mode: 'beat',
-      diff: 3,
-      action: 'spin',
-      bpm: 120,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 7,
-      theme: { sky: '#101a0c', glow: 'rgba(190,230,120,0.16)', accent: '#c8f07a' },
-      music: {
-        kick: 0.54, snare: 0.27, hat: 0.11, lead: 0.055, style: 'bright',
-        chords: [-2, -7, 0, -5], scale: [0, 2, 4, 7, 9],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-        'x...x...x.x.x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-      ],
-    },
-    {
-      id: 'lean',
-      name: '摇摆',
-      mode: 'beat',
-      diff: 3,
-      action: 'lean',
-      bpm: 130,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#0c1420', glow: 'rgba(120,200,255,0.16)', accent: '#8fd4ff' },
-      music: {
-        kick: 0.56, snare: 0.28, hat: 0.12, lead: 0.055, style: 'bright',
-        chords: [-10, -5, -12, -7], scale: [0, 2, 3, 5, 7, 9, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-        'x...x...x.x.x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-      ],
-    },
-    {
-      id: 'pulse',
-      name: '弹跳',
-      mode: 'rush',
-      diff: 3,
-      action: 'pulse',
-      bpm: 140,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#1a1008', glow: 'rgba(255,170,90,0.16)', accent: '#ffb066' },
-      music: {
-        kick: 0.58, snare: 0.29, hat: 0.12, lead: 0.05, style: 'heavy',
-        chords: [-4, -9, -2, -7], scale: [0, 2, 4, 5, 7, 9],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-      ],
-    },
-    {
-      id: 'shake',
-      name: '抖动',
-      mode: 'rush',
-      diff: 3,
-      action: 'shake',
-      bpm: 150,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 5,
-      theme: { sky: '#1a0a14', glow: 'rgba(255,120,200,0.16)', accent: '#ff8fd0' },
-      music: {
-        kick: 0.6, snare: 0.3, hat: 0.13, lead: 0.05, style: 'rush',
-        chords: [-7, -12, -5, -10], scale: [0, 1, 3, 5, 7, 8, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-      ],
-    },
-    {
-      id: 'crazy',
-      name: '疯狂',
-      mode: 'rush',
-      diff: 3,
-      action: 'spin',
-      bpm: 160,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 4,
-      theme: { sky: '#12061a', glow: 'rgba(200,120,255,0.18)', accent: '#d9a6ff' },
-      music: {
-        kick: 0.62, snare: 0.32, hat: 0.14, lead: 0.05, style: 'rush',
-        chords: [-6, -10, -3, -8], scale: [0, 1, 3, 5, 6, 8, 10],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x.x.x...x...',
-        'x...x...x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x...x.x.x...x...',
-        'x.x.x.x.x.x.x.x.',
-        'x...x...x...x...',
-        'x.......x.......',
-      ],
-    },
-    {
-      id: 'catch',
-      name: '接球',
-      mode: 'beat',
-      diff: 3,
-      action: 'catch',
-      bpm: 120,
-      bars: 16,
-      demoBars: 2,
-      rollBar: 9,
-      theme: { sky: '#0c1622', glow: 'rgba(120,200,255,0.16)', accent: '#9fd8ff' },
-      music: {
-        kick: 0.5, snare: 0.24, hat: 0.1, lead: 0.055, style: 'soft',
-        chords: [-8, -12, -5, -10], scale: [0, 2, 4, 6, 7, 9],
-      },
-      pattern: [
-        '................',
-        '................',
-        'x.......x.......',
-        'x...............',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-        'x.......x.......',
-        'x...............',
-        'x...x...x...x...',
-        'x...x...x...x...',
-      ],
-    },
-  ];
+  function stage(spec) {
+    const pattern = Scenes.patternOf(spec.chart);
+    const play = countMarks(pattern, 'x');
+    const demo = countMarks(pattern, 'd');
+    let intro = 0;
+    while (intro < pattern.length && !/[xd]/.test(pattern[intro])) intro++;
+    return {
+      id: spec.id,
+      name: spec.name,
+      mode: spec.mode,
+      diff: spec.diff,
+      action: spec.id,
+      btn: spec.btn,
+      bpm: spec.bpm,
+      bars: pattern.length,
+      demoBars: intro,
+      theme: spec.theme,
+      music: spec.music,
+      arc: !!spec.arc,
+      enter: spec.enter || 'fall',
+      notes: play,
+      notesTotal: play + demo,
+      scene: { face: 'side', part: spec.part, prop: spec.prop },
+      visual: spec.visual,
+      pattern: pattern,
+    };
+  }
+
+  const LEVELS = (Scenes.SCENES || []).map(stage);
 
   function levelAt(i) {
     const lv = LEVELS[i | 0];
@@ -448,7 +112,7 @@
   }
 
   function grade(acc, misses) {
-    if (acc >= 0.95 && misses === 0) return 'S';
+    if (acc >= 0.85 && misses === 0) return 'S';
     if (acc >= 0.85) return 'A';
     if (acc >= 0.70) return 'B';
     if (acc >= 0.50) return 'C';
@@ -486,9 +150,53 @@
     return Math.round(median(s));
   }
 
+  function clamp01(v) {
+    return Math.max(0, Math.min(1, v));
+  }
+
+  // 动作时钟：strike 在拍点上正好是 1（手落到位）。过冲发生在拍点之后。
+  // prevT / nextT 是相邻两个音符的时间；已经到点的音符算 prev，还没到的算 next。
+  function cuePose(t, prevT, nextT) {
+    let phase = 0;
+    if (nextT != null) {
+      const spanStart = prevT != null ? prevT : nextT - 0.42;
+      const span = nextT - spanStart;
+      phase = span > 1e-4 ? clamp01((t - spanStart) / span) : 1;
+    } else if (prevT != null) {
+      phase = 1;
+    }
+
+    if (nextT != null) {
+      const anchor = prevT != null ? prevT : nextT - 0.42;
+      const gap = Math.max(0.08, nextT - anchor);
+      const lead = Math.min(0.42, Math.max(0.12, gap * 0.92));
+      // 落点至少留 50ms。快拍如果立刻切下一拍的蓄力，手到位的那一帧会被吃掉。
+      let windAt = nextT - lead;
+      if (prevT != null) windAt = Math.max(windAt, prevT + 0.05);
+      if (windAt > nextT - 0.04) windAt = nextT - 0.04;
+      const windSpan = Math.max(0.04, nextT - windAt);
+      if (t >= windAt && t < nextT) {
+        const u = clamp01((t - windAt) / windSpan);
+        const swing = u < 0.32 ? 0 : (u - 0.32) / 0.68;
+        return { strike: swing, raise: 1 - swing, phase };
+      }
+    }
+
+    if (prevT != null && t >= prevT) {
+      const age = t - prevT;
+      let strike = 0;
+      if (age < 0.045) strike = 1 + (age / 0.045) * 0.16;
+      else if (age < 0.12) strike = 1.16 - ((age - 0.045) / 0.075) * 0.16;
+      else if (age < 0.28) strike = 1 - (age - 0.12) / 0.16;
+      return { strike, raise: 0, phase };
+    }
+
+    return { strike: 0, raise: 0, phase };
+  }
+
   return {
     WIN, LEVELS,
     levelAt, spbOf, beatsOf, totalOf, isDemoBar,
-    buildChart, playNotes, judge, grade, tally, median, calibrate,
+    buildChart, playNotes, judge, grade, tally, median, calibrate, cuePose,
   };
 }));

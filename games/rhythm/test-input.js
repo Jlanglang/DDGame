@@ -104,15 +104,20 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
   /* 1. 启动 */
   ok('页面加载出 __rhythm', await ev('!!window.__rhythm'));
   ok('初始在首页', (await ev('window.__rhythm.state()')) === 'home');
-  ok('首页列出 11 关', (await ev('document.querySelectorAll(".level").length')) === 11);
+  ok('首页列出 50 关', (await ev('document.querySelectorAll(".level").length')) === 50);
   ok('默认显示音符（先保证能玩）', (await ev('window.__rhythm.G.showNotes')) === true);
 
-  /* 2. 真触摸点第 1 关 */
+  /* 2. 选关后再点开始 */
   {
     const c = await centerOf('.level[data-lv="0"]');
     await touch(c.x, c.y);
+    await wait(200);
+    ok('点第 1 关还停在选关', (await ev('window.__rhythm.state()')) === 'home');
+    ok('选中第 1 关', (await ev('window.__rhythm.G.level')) === 0);
+    const start = await centerOf('#startBtn');
+    await touch(start.x, start.y);
     await wait(300);
-    ok('点第 1 关进入游戏', (await ev('window.__rhythm.state()')) === 'play');
+    ok('点开始进入游戏', (await ev('window.__rhythm.state()')) === 'play');
     ok('当前是第 1 关', (await ev('window.__rhythm.G.level')) === 0);
   }
 
@@ -125,12 +130,13 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
     ok('单指点击 +1', after === before + 1, { before, after });
   }
 
-  /* 4. 点节奏按钮有按下反馈 */
+  /* 4. 点节奏按钮有按下反馈。按下时刻立刻写上，不跟画面那一帧走。 */
   {
+    const before = await ev('window.__rhythm.G.pressAt || 0');
     await touch(360, 1430);
-    await wait(20);
-    const s = await ev('({ p: window.__rhythm.G.press, n: window.__rhythm.G.tapCount })');
-    ok('点节奏按钮有按下反馈', s.p > 0.1, s);
+    await wait(40);
+    const s = await ev('({ at: window.__rhythm.G.pressAt || 0, n: window.__rhythm.G.tapCount })');
+    ok('点节奏按钮有按下反馈', s.at > before && s.n >= 2, s);
   }
 
   /* 5. 双指只认第一根 */
@@ -161,7 +167,8 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
   ok('完美后连击 1', (await ev('window.__rhythm.G.combo')) === 1);
   ok('90ms 判不错', (await ev('window.__rhythm.testJudge(90)')) === 'good');
   ok('不错也续连击', (await ev('window.__rhythm.G.combo')) === 2);
-  ok('150ms 判失误', (await ev('window.__rhythm.testJudge(150)')) === 'miss');
+  ok('150ms 还是不错', (await ev('window.__rhythm.testJudge(150)')) === 'good');
+  ok('151ms 判失误', (await ev('window.__rhythm.testJudge(151)')) === 'miss');
   ok('失误断连击', (await ev('window.__rhythm.G.combo')) === 0);
   {
     const n = await ev('window.__rhythm.G.results.length');
@@ -169,16 +176,17 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
     ok('空按不产生判定记录', (await ev('window.__rhythm.G.results.length')) === n);
   }
 
-  /* 7. 真按在拍点上（第一关第一个跟做音符在 beat 16） */
-  await ev(`(() => {
+  /* 7. 真按在拍点上（跳到这一关的第一下） */
+  const firstBeat = await ev(`(() => {
     const G = window.__rhythm.G;
     G.notes.forEach((n) => { n.judged = null; });
     G.results = [];
     G.lastHit = null;
     G.combo = 0;
-    return true;
+    const n = G.notes.find((x) => !x.demo);
+    return n ? n.beat : 0;
   })()`);
-  await ev('window.__rhythm.skipTo(16)');
+  await ev('window.__rhythm.skipTo(' + firstBeat + ')');
   await touch(360, 800);
   await wait(120);
   {
@@ -208,7 +216,7 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
     const c = await centerOf('#homeBtn');
     await touch(c.x, c.y);
     await wait(250);
-    ok('点回首页', (await ev('window.__rhythm.state()')) === 'home');
+    ok('点回选关', (await ev('window.__rhythm.state()')) === 'home');
   }
 
   ok('页面没有异常', errors.length === 0, errors.slice(0, 3));

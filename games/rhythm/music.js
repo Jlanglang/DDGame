@@ -1,6 +1,6 @@
-/* 豆豆拍手 · 程序化音乐（Web Audio，零音频文件）
+/* 节奏豆豆 · 程序化音乐（Web Audio，零音频文件）
    - 所有声音都排在 AudioContext 的时间轴上，不靠 setTimeout 卡点
-   - 30 秒 15 小节：鼓 / 贝斯 / 琶音；玩家拍手音走 clap()，立刻响
+   - 每关一句 8 个八分音符的钩子，反复哼。玩家要按的音是这句里的重音
    - stop() 会换一个 master 并淡出旧的，重开不会拖着上一局的尾音
 */
 (function (global) {
@@ -12,6 +12,36 @@
 
   // 每小节根音（相对 A4 的半音）：Am / F / C / G
   const CHORDS = [-12, -16, -9, -14];
+
+  // 一句钩子，8 个八分音符，null 是休止。魔性靠这句反复，不靠每拍都响。
+  const HOOKS = {
+    soft:   [0, null, 7, 3, null, 7, 12, null],
+    warm:   [0, 3, null, 7, 5, null, 3, 0],
+    bright: [12, null, 7, null, 12, 7, 4, null],
+    heavy:  [0, null, 0, 7, null, 5, 7, null],
+    rush:   [0, 7, null, 12, 7, null, 12, 7],
+    water:  [12, null, 7, null, 14, null, 7, null],
+    wood:   [0, null, 0, 5, null, 7, 3, null],
+    metal:  [12, null, 16, null, 12, 7, null, 19],
+    paper:  [7, null, 3, null, 0, null, 5, null],
+    cloth:  [3, null, 7, 3, null, 0, 7, null],
+    kitchen:[0, null, 7, null, 5, 7, null, 3],
+  };
+
+  // 奇数小节换一句答句，同一条钩子不要从头循环到尾。
+  const ANSWERS = {
+    soft:   [12, null, 7, null, 3, 7, 0, null],
+    warm:   [7, null, 10, 7, null, 5, 3, 0],
+    bright: [7, null, 12, 16, null, 12, 7, null],
+    heavy:  [0, 3, null, 7, 5, null, 0, 7],
+    rush:   [12, null, 7, 12, null, 0, 7, null],
+    water:  [7, null, 14, null, 12, 7, null, 3],
+    wood:   [7, null, 3, 0, null, 5, 7, null],
+    metal:  [19, null, 12, null, 16, null, 12, 7],
+    paper:  [0, null, 5, null, 7, 3, null, 0],
+    cloth:  [7, null, 3, null, 10, 7, null, 3],
+    kitchen:[5, null, 0, 7, null, 3, 7, null],
+  };
 
   function Engine() {
     this.ctx = null;
@@ -133,15 +163,28 @@
     o.start(t); o.stop(t + 0.26);
   };
 
-  Engine.prototype.pluck = function (t, f, v) {
+  Engine.prototype.pluck = function (t, f, v, wave) {
     const c = this.ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = 'square';
+    o.type = wave || 'square';
     o.frequency.setValueAtTime(f, t);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(v || 0.055, t + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     o.connect(g).connect(this.master);
     o.start(t); o.stop(t + 0.24);
+  };
+
+  // 拍点上的「啵」：音高走钩子，短、往下甩，听得出来这一下就是该按的
+  Engine.prototype.bop = function (t, f, v) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(48, f * 0.55), t + 0.08);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.12, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + 0.11);
   };
 
   Engine.prototype.click = function (t, accent) {
@@ -213,37 +256,47 @@
     const spb = 60 / (opts.bpm || 120);
     const bars = opts.bars || 15;
     const chords = m.chords || CHORDS;
-    const scale = m.scale || [0, 3, 5, 7, 10];
     const ev = [];
+    const hook = HOOKS[m.style] || HOOKS.soft;
+    const noteTimes = (opts.notes || []).map((n) => startT + n.t);
+    const covered = (t) => noteTimes.some((nt) => Math.abs(nt - t) < 0.03);
 
     for (let bar = 0; bar < bars; bar++) {
       const t0 = startT + bar * 4 * spb;
-      ev.push({ t: t0, fn: 'kick', v: m.kick });
-      ev.push({ t: t0 + 2 * spb, fn: 'kick', v: m.kick });
-      ev.push({ t: t0 + spb, fn: 'snare', v: m.snare });
-      ev.push({ t: t0 + 3 * spb, fn: 'snare', v: m.snare });
-
-      // 冲刺关踩镲翻倍到十六分，听感上先「紧」起来
-      const div = m.style === 'rush' ? 16 : 8;
-      const step = 4 * spb / div;
-      for (let i = 0; i < div; i++) {
-        ev.push({ t: t0 + i * step, fn: 'hat', v: (i % 2 ? 0.55 : 0.95) * m.hat });
-      }
-
       const root = chords[bar % 4];
-      ev.push({ t: t0, fn: 'bass', n: root });
-      ev.push({ t: t0 + 2 * spb, fn: 'bass', n: root });
+      const bounce = m.style === 'bright' || m.style === 'heavy' || m.style === 'rush'
+        || m.style === 'wood' || m.style === 'metal' || m.style === 'kitchen';
 
-      // 每拍一个轻引导音：把拍子数出来（1、2、3、4），卡点位置会在上面再加一个重音
-      for (let i = 0; i < 4; i++) {
-        ev.push({ t: t0 + i * spb, fn: 'pluck', n: root + 12 + scale[i % scale.length], v: 0.028 });
+      ev.push({ t: t0, fn: 'kick', v: m.kick });
+      ev.push({ t: t0 + 2 * spb, fn: 'kick', v: m.kick * 0.9 });
+      if (bounce) ev.push({ t: t0 + 1.5 * spb, fn: 'kick', v: m.kick * 0.32 });
+      ev.push({ t: t0 + spb, fn: 'snare', v: m.snare });
+      ev.push({ t: t0 + 3 * spb, fn: 'snare', v: m.snare * 0.85 });
+
+      // 软的关只在反拍上给踩镲；连打关加密到十六分的反拍，不再每拍都铺满
+      const hats = m.style === 'rush' ? 8 : 4;
+      for (let i = 0; i < hats; i++) {
+        const off = (i + 0.5) * (4 / hats) * spb;
+        ev.push({ t: t0 + off, fn: 'hat', v: (i % 2 ? 0.55 : 0.9) * m.hat });
       }
-      // 前奏留一段固定琶音，正式段交给谱面引导音
-      if (bar < 2) {
-        const arp = [0, 7, 12, 7];
-        for (let i = 0; i < 4; i++) {
-          ev.push({ t: t0 + i * spb, fn: 'pluck', n: root + 12 + arp[i], v: m.lead });
-        }
+
+      ev.push({ t: t0, fn: 'bass', n: root });
+      ev.push({ t: t0 + 2.5 * spb, fn: 'bass', n: root + (bounce ? 7 : 0) });
+
+      const phrase = (bar % 2) ? (ANSWERS[m.style] || hook) : hook;
+      const step8 = spb / 2;
+      for (let i = 0; i < 8; i++) {
+        if (phrase[i] == null || covered(t0 + i * step8)) continue;
+        ev.push({
+          t: t0 + i * step8,
+          fn: 'pluck',
+          n: root + 12 + phrase[i],
+          v: bar < 2 ? m.lead * 1.35 : m.lead * 1.15,
+          wave: m.wave,
+        });
+      }
+      if (bar % 2 === 1) {
+        ev.push({ t: t0 + 2.5 * spb, fn: 'snare', v: m.snare * 0.42 });
       }
 
       // 变速之前的一小节：军鼓滚奏，预告下一段
@@ -254,19 +307,19 @@
       }
     }
 
-    // 引导音：每个该按的音符位置都响一下，音高走每关自己的音阶
+    // 谱面落在钩子的音高上。休止格用 7 度顶一下，避免和钩子各唱各的
     if (opts.notes) {
-      let k = 0;
       for (const n of opts.notes) {
         const root = chords[n.bar % 4];
-        const off = Math.abs((n.beat % 1) - 0.5) < 1e-6;
+        const idx = Math.round((n.beat % 4) * 2);
+        let deg = hook[((idx % 8) + 8) % 8];
+        if (deg == null) deg = 7;
         ev.push({
           t: startT + n.t,
-          fn: 'pluck',
-          n: root + 12 + (off ? 12 : scale[k % scale.length]),
-          v: off ? 0.1 : 0.085,
+          fn: 'bop',
+          n: root + 12 + deg,
+          v: n.demo ? 0.08 : 0.13,
         });
-        k++;
       }
     }
 
@@ -276,11 +329,12 @@
 
   Engine.prototype.playEvent = function (e) {
     switch (e.fn) {
-      case 'kick': this.kick(e.t); break;
-      case 'snare': this.snare(e.t); break;
+      case 'kick': this.kick(e.t, e.v); break;
+      case 'snare': this.snare(e.t, e.v); break;
       case 'hat': this.hat(e.t, e.v); break;
       case 'bass': this.bass(e.t, semi(e.n)); break;
-      case 'pluck': this.pluck(e.t, semi(e.n), e.v); break;
+      case 'pluck': this.pluck(e.t, semi(e.n), e.v, e.wave); break;
+      case 'bop': this.bop(e.t, semi(e.n), e.v); break;
       case 'click': this.click(e.t, e.accent); break;
     }
   };

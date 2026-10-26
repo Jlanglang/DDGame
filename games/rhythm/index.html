@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>节奏豆豆 · DDGame</title>
-<meta name="description" content="节奏豆豆：跟着鼓点按一下。拍准了动作才利落，拍歪了会落空。">
+<meta name="description" content="节奏豆豆：东西碰上的那一下再按。黄点只是提示。">
 <meta name="theme-color" content="#070a11">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👏</text></svg>">
 <link rel="stylesheet" href="style.css">
@@ -17,21 +17,28 @@
   <header class="topbar">
     <div class="brand">
       <h1>节奏豆豆 <b>RHYTHM</b></h1>
-      <p>跟着鼓点按一下</p>
+      <p>碰上的那一下再按</p>
     </div>
     <a class="hub-back" href="../../index.html">← 游戏库</a>
+    <button class="hub-back" id="quitBtn" type="button" hidden>选关</button>
   </header>
 
-  <div class="screen" id="home">
-    <div class="card">
-      <p class="kicker">节奏小游戏</p>
-      <h2>节奏豆豆</h2>
-      <p class="desc">点下方按钮，跟着豆豆拍。<br>黄点只是提示，听音乐更准。</p>
+  <div class="page" id="home">
+    <div class="sheet">
+      <p class="kicker">选关</p>
+      <div class="modes">
+        <button class="mode on" id="modeOne" type="button">单关</button>
+        <button class="mode" id="modeMix" type="button">混合</button>
+      </div>
+      <p class="desc" id="modeDesc">选一关，打完看评价。</p>
       <div class="levels" id="levelList"></div>
       <button class="ghost" id="notesToggle" type="button">音符提示：开</button>
       <button class="ghost" id="calibBtn" type="button">校准延迟</button>
       <p class="meta" id="offsetInfo">延迟补偿：0 ms</p>
       <p class="meta warn" id="audioWarn" hidden>没听到声音？检查一下静音键和音量。</p>
+    </div>
+    <div class="foot">
+      <button class="primary" id="startBtn" type="button">开始</button>
     </div>
   </div>
 
@@ -52,13 +59,15 @@
       <p class="desc" id="resultSub"></p>
       <button class="primary" id="againBtn" type="button">再来一次</button>
       <button class="ghost" id="nextBtn" type="button">下一关</button>
-      <button class="ghost" id="homeBtn" type="button">回首页</button>
+      <button class="ghost" id="homeBtn" type="button">回选关</button>
     </div>
   </div>
 </div>
 
+<script src="scenes.js"></script>
 <script src="rhythm-core.js"></script>
 <script src="music.js"></script>
+<script src="scene-draw.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

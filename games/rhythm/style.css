@@ -9,6 +9,7 @@
 * { box-sizing: border-box; }
 
 html, body {
+  width: 100%;
   height: 100%;
   margin: 0;
   background: #05070c;
@@ -27,23 +28,30 @@ body {
   touch-action: none;
 }
 
-/* 竖屏舞台：始终 720:1600，窗口多宽都不变形 */
+/* 竖屏铺满手机。宽窗口才收回成 720:1600 的一条，避免在桌上拉变形。 */
 #stage {
   position: fixed;
   inset: 0;
   margin: auto;
-  width: min(100vw, calc(100vh * 0.45));
-  height: min(100vh, calc(100vw / 0.45));
-  /* 手机浏览器地址栏会变，100vh 会抖；支持的浏览器用 dvh */
-  width: min(100vw, calc(100dvh * 0.45));
-  height: min(100dvh, calc(100vw / 0.45));
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   touch-action: none;
   background:
     radial-gradient(60% 32% at 50% 39%, rgba(88, 128, 210, 0.2), transparent 72%),
     radial-gradient(74% 40% at 50% 104%, rgba(255, 158, 196, 0.07), transparent 72%),
     linear-gradient(180deg, #0a0e17 0%, #070a11 56%, #05070c 100%);
-  box-shadow: 0 0 80px -20px rgba(0, 0, 0, 0.9);
+}
+
+@media (min-aspect-ratio: 3/4) {
+  #stage {
+    width: min(100vw, calc(100vh * 0.45));
+    height: min(100vh, calc(100vw / 0.45));
+    width: min(100vw, calc(100dvh * 0.45));
+    height: min(100dvh, calc(100vw / 0.45));
+    box-shadow: 0 0 80px -20px rgba(0, 0, 0, 0.9);
+  }
 }
 
 #cv {
@@ -72,7 +80,7 @@ body {
   justify-content: space-between;
   gap: 4%;
   padding: 3.4% 4.5% 0;
-  z-index: 3;
+  z-index: 8;
   pointer-events: none;
 }
 
@@ -115,7 +123,88 @@ body {
   white-space: nowrap;
 }
 
-.hub-back:active { transform: scale(0.96); }
+button.hub-back {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* 选关是一整页，不盖在对局上弹出来。 */
+#home {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  padding: 15% 5% 0;
+  background: linear-gradient(180deg, #0c1220 0%, #070a11 42%, #05070c 100%);
+}
+
+#home[hidden] { display: none; }
+
+#home .sheet {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  padding: 0 1% 12px;
+  text-align: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 176, 220, 0.3) transparent;
+}
+
+#home .sheet::-webkit-scrollbar { width: 5px; }
+#home .sheet::-webkit-scrollbar-thumb {
+  background: rgba(150, 176, 220, 0.3);
+  border-radius: 3px;
+}
+
+#home .kicker { margin-bottom: 14px; }
+#home .desc { margin-bottom: 16px; }
+
+.modes {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.mode {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(150, 176, 220, 0.22);
+  background: rgba(18, 25, 38, 0.7);
+  color: #cfd8ea;
+  font: inherit;
+  font-size: clamp(14px, 3.8vw, 16px);
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mode.on {
+  border-color: rgba(255, 209, 102, 0.7);
+  background: rgba(255, 209, 102, 0.16);
+  color: #ffe3a0;
+}
+
+#home .foot {
+  flex: none;
+  padding: 12px 2% 16px;
+  background: #070a11;
+  border-top: 1px solid rgba(150, 176, 220, 0.12);
+}
+
+#home .sheet {
+  -webkit-mask-image: linear-gradient(#000 0, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(#000 0, #000 calc(100% - 22px), transparent 100%);
+}
+
+#home .foot .primary { margin: 0; }
+
+.level.on {
+  border-color: rgba(255, 209, 102, 0.72);
+  background: linear-gradient(180deg, rgba(64, 48, 24, 0.92), rgba(24, 20, 14, 0.94));
+}
 
 /* ---------------- 覆盖层 ---------------- */
 
@@ -153,19 +242,7 @@ body {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* 10 关列表会超出屏幕，首页卡片内部滚动 */
-#home .card {
-  max-height: 86dvh;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(150, 176, 220, 0.3) transparent;
-}
-
-#home .card::-webkit-scrollbar { width: 5px; }
-#home .card::-webkit-scrollbar-thumb {
-  background: rgba(150, 176, 220, 0.3);
-  border-radius: 3px;
-}
+/* 关卡多了会超出屏幕，选关页内部滚动。舞台禁了触摸滚动，这里单独放开。 */
 
 .kicker {
   margin: 0 0 10px;
@@ -227,72 +304,83 @@ body {
 /* ---------------- 关卡列表 ---------------- */
 
 .levels {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  margin: 4px 0 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 4px 0 14px;
 }
 
 .level {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  padding: 11px 15px;
-  border-radius: 15px;
-  border: 1px solid rgba(150, 176, 220, 0.18);
-  background: linear-gradient(180deg, rgba(30, 40, 60, 0.9), rgba(16, 22, 34, 0.92));
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  touch-action: none;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform 0.08s, filter 0.12s, border-color 0.12s;
-}
-
-.level:active { transform: scale(0.985); filter: brightness(1.12); }
-
-.level b {
-  width: 36px;
-  height: 36px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  background: rgba(255, 209, 102, 0.14);
-  border: 1px solid rgba(255, 209, 102, 0.38);
-  color: #ffe3a0;
-  font-size: clamp(14px, 3.8vw, 17px);
-  font-variant-numeric: tabular-nums;
-}
-
-.level span {
-  flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 4px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(150, 176, 220, 0.18);
+  background: rgba(16, 22, 34, 0.92);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.level:active { filter: brightness(1.12); }
+
+.level .thumb {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  border-radius: 8px;
+  display: block;
+  background: #10151f;
+}
+
+.level b {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(8, 10, 16, 0.72);
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  color: #ffe3a0;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .level em {
   font-style: normal;
-  font-size: clamp(14px, 3.9vw, 17px);
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .level i {
   font-style: normal;
-  font-size: clamp(10px, 2.8vw, 12px);
-  letter-spacing: 0.2em;
+  font-size: 9px;
+  letter-spacing: 0.08em;
   color: var(--gold);
+  line-height: 1;
 }
 
 .level u {
+  position: absolute;
+  top: 7px;
+  right: 7px;
   text-decoration: none;
-  min-width: 26px;
-  text-align: right;
-  font-size: clamp(13px, 3.4vw, 15px);
+  font-size: 11px;
   font-weight: 800;
   color: #8fe3a8;
 }

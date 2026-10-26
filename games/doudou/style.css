@@ -355,3 +355,10 @@ body {
 }
 
 .hub-back:active { transform: scale(0.96); }
+
+/* 经典模式 → 小队模式的入口 */
+.hub-squad {
+  top: 8.6%;
+  border-color: rgba(255, 209, 102, 0.4);
+  color: #ffd166;
+}

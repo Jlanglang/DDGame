@@ -1,0 +1,9 @@
+/* 小队模式专用：只动这一页，经典模式的 style.css 一行不改 */
+
+/* 顶栏两个入口各靠一边，HUD 从 y≈100 才开始画 */
+.hub-left {
+  right: auto;
+  left: 3%;
+  padding: 6px 11px;
+  font-size: 11px;
+}

@@ -279,6 +279,7 @@
     G.result = null;
     G.lastBar = -1;
     G.sectionHint = null;
+    G.readyShown = false;
     G.state = 'cut';
     showScreen(null);
     if (audio.ctx) audio.stop();
@@ -291,7 +292,7 @@
       const endT = G.startT + G.total;
       audio.playTrack(audio.buildTrack(G.startT, {
         bpm: G.lv.bpm,
-        bars: G.lv.bars,
+        bars: G.lv.bars + 2,   // 谱面整体后移了 2 小节（练习段），音乐轨道也要跟上
         music: G.lv.music,
         notes: G.chart,
         rollBar: G.lv.rollBar,
@@ -424,6 +425,12 @@
 
   function onTap(ev) {
     if (G.state === 'calib') { calibTap(ev); return; }
+    // 练习段结束：等玩家按一下才进正式曲
+    if (G.state === 'ready') {
+      G.state = 'play';
+      if (audio.ctx) audio.ctx.resume();
+      return;
+    }
     if (G.state !== 'play') return;
     G.tapCount++;
     G.pressAt = performance.now();
@@ -578,6 +585,13 @@
 
     if (G.state === 'play') {
       const t = songT();
+      // 练习段（前 2 小节）结束：暂停，等玩家按一下再进正式曲
+      if (t >= 8 * G.spb && !G.readyShown) {
+        G.readyShown = true;
+        G.state = 'ready';
+        if (audio.ctx) audio.ctx.suspend();
+        return;
+      }
       reapMissed(t);
       updatePose();
       updateSection(t, dt);
@@ -661,26 +675,36 @@
       drawCombo();
     }
 
-    if (G.state === 'play' || G.state === 'calib' || G.state === 'cut') drawHud();
+    if (G.state === 'play' || G.state === 'ready' || G.state === 'calib' || G.state === 'cut') drawHud();
   }
 
+  // 背景也是静止的：每关烘焙一次，别每帧新建渐变
+  const bgCache = {};
   function drawBackdrop() {
-    const th = G.lv.theme;
-    ctx.fillStyle = '#05070c';
-    ctx.fillRect(0, 0, W, H);
+    const id = G.lv.id;
+    if (!bgCache[id]) {
+      const off = document.createElement('canvas');
+      off.width = W;
+      off.height = H;
+      const b = off.getContext('2d');
+      const th = G.lv.theme;
+      b.fillStyle = '#05070c';
+      b.fillRect(0, 0, W, H);
 
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, th.sky);
-    g.addColorStop(1, '#05070c');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+      const g = b.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, th.sky);
+      g.addColorStop(1, '#05070c');
+      b.fillStyle = g;
+      b.fillRect(0, 0, W, H);
 
-    // 背景保持静止。每拍闪全屏会把拍点从动作上抢走。
-    const s = ctx.createRadialGradient(360, 640, 20, 360, 700, 520);
-    s.addColorStop(0, th.glow);
-    s.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = s;
-    ctx.fillRect(0, 0, W, H);
+      const s = b.createRadialGradient(360, 640, 20, 360, 700, 520);
+      s.addColorStop(0, th.glow);
+      s.addColorStop(1, 'rgba(0,0,0,0)');
+      b.fillStyle = s;
+      b.fillRect(0, 0, W, H);
+      bgCache[id] = off;
+    }
+    ctx.drawImage(bgCache[id], 0, 0, W, H);
   }
 
   function drawDecor() {
@@ -768,7 +792,8 @@
 
   function drawFace(x, y, pose) {
     const mood = pose.judge;
-    const happy = mood === 'perfect' || mood === 'good';
+    // 连击 10 以上一直得意，不看单次判定
+    const happy = mood === 'perfect' || mood === 'good' || (G.combo || 0) >= 10;
     const sad = mood === 'miss' || mood === 'none';
     const ex = 64;
     const ey = y - 24;
@@ -1391,7 +1416,8 @@
     ctx.stroke();
 
     const mood = pose.judge;
-    const happy = mood === 'perfect' || mood === 'good';
+    // 连击 10 以上一直得意，不看单次判定
+    const happy = mood === 'perfect' || mood === 'good' || (G.combo || 0) >= 10;
     const sad = mood === 'miss' || mood === 'none';
     const blink = !happy && !sad && (performance.now() % 3200) < 110;
     ctx.fillStyle = '#2f1d0d';
@@ -2005,7 +2031,8 @@
     ctx.stroke();
 
     const mood = pose.judge;
-    const happy = mood === 'perfect' || mood === 'good';
+    // 连击 10 以上一直得意，不看单次判定
+    const happy = mood === 'perfect' || mood === 'good' || (G.combo || 0) >= 10;
     const sad = mood === 'miss' || mood === 'none';
     const ex = 18;
     const ey = -4;
@@ -2536,14 +2563,22 @@
     if (!G.showNotes) return;
     const t = songT();
     for (const n of G.notes) {
-      if (n.judged || n.demo) continue;
+      if (n.judged) continue;
+      // 练习段的 demo 也要有提示（灰点），正式段的 demo 不画
+      const practice = n.demo && n.beat < 8;
+      if (n.demo && !practice) continue;
       const x = HIT_X + (n.t - t) * SPEED;
       if (x < -110 || x > W + 110) continue;
 
       const near = Math.abs(x - HIT_X) < 48;
       const grd = ctx.createLinearGradient(x, LANE_Y - 19, x, LANE_Y + 19);
-      grd.addColorStop(0, '#fff8d8');
-      grd.addColorStop(1, '#ffc94d');
+      if (practice) {
+        grd.addColorStop(0, '#c3ccdb');
+        grd.addColorStop(1, '#8592a6');
+      } else {
+        grd.addColorStop(0, '#fff8d8');
+        grd.addColorStop(1, '#ffc94d');
+      }
       ctx.fillStyle = grd;
       ctx.beginPath();
       ctx.ellipse(x, LANE_Y, 24, 18, 0, 0, Math.PI * 2);
@@ -2609,11 +2644,34 @@
   }
 
   function drawIntroHint() {
+    if (G.state === 'ready') {
+      ctx.globalAlpha = 0.9;
+      ctx.textAlign = 'center';
+      ctx.font = '700 44px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = G.lv.theme.accent;
+      ctx.fillText('按一下开始', 360, 380);
+      ctx.globalAlpha = 1;
+      return;
+    }
     if (G.state !== 'play') return;
     const t = songT();
+    const spb = G.spb || 0.5;
+
+    // 练习段（前 2 小节）：demo 演一遍，不判定
+    if (t >= 0 && t < 8 * spb) {
+      const a = Math.min(1, t / 0.3, (8 * spb - t) / 0.3);
+      ctx.globalAlpha = Math.max(0, a) * 0.85;
+      ctx.textAlign = 'center';
+      ctx.font = '600 40px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = 'rgba(205,220,245,0.9)';
+      ctx.fillText('练习 · 先看一遍', 360, 380);
+      ctx.globalAlpha = 1;
+      return;
+    }
+
     if (t < -2.6 || t > 2.6) return;
 
-    const intro = (G.spb || 0.5) * 4 * ((G.lv && G.lv.demoBars) || 1);
+    const intro = spb * 4 * ((G.lv && G.lv.demoBars) || 1);
     if (t > intro - 0.2) return;
     const txt = t < 0 ? '准备好了吗' : '碰上再按';
 
@@ -2804,6 +2862,10 @@
     },
     skipTo(beat) {
       G.startT = ctxNow() - G.latency - G.offset / 1000 - beat * G.spb;
+      // 跳过练习段，直接进正式曲
+      G.readyShown = true;
+      G.state = 'play';
+      if (audio.ctx) audio.ctx.resume();
     },
   };
   if (testMode) window.__rhythm.testMode = true;

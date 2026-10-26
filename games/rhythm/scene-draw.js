@@ -684,6 +684,12 @@
     }
     const squash = strike >= 1 && strike < 1.22 ? 1 - (strike - 1) / 0.22 : 0;
     ctx.save();
+    // 漏拍：物件歪掉，不是原地不动
+    if (pose.judge === 'miss' || pose.judge === 'none') {
+      ctx.translate(pt.x, pt.y);
+      ctx.rotate(0.18);
+      ctx.translate(-pt.x, -pt.y);
+    }
     if (squash > 0) {
       ctx.translate(pt.x, pt.y);
       ctx.scale(1 + 0.22 * squash, Math.max(0.62, 1 - 0.34 * squash));
@@ -1495,11 +1501,27 @@
     if (fn) fn(ctx);
   }
 
+  // 房间背景是静止的：每关只画一次，之后直接贴图，省下每帧几十个形状
+  const roomCache = {};
+  function drawRoomCached(ctx, id) {
+    if (!roomCache[id]) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const off = document.createElement('canvas');
+      off.width = Math.round(720 * dpr);
+      off.height = Math.round(1600 * dpr);
+      const octx = off.getContext('2d');
+      octx.scale(dpr, dpr);
+      drawRoom(octx, id);
+      roomCache[id] = off;
+    }
+    ctx.drawImage(roomCache[id], 0, 0, 720, 1600);
+  }
+
   function draw(ctx, lv, pose) {
     const visual = lv && lv.visual;
     if (!visual) return;
     pose = pose || {};
-    drawRoom(ctx, lv.id);
+    drawRoomCached(ctx, lv.id);
     const u = S.cueU(visual, pose);
     const ends = S.propEnds(visual);
     const pt = lively(propPoint(visual, pose.arrive, ends));

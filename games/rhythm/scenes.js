@@ -68,13 +68,36 @@
     const p = [E];
     const push = (eighths) => p.push(barFromEighths(eighths, 'x'));
     if (chart.k === 'one') {
-      for (let i = 0; i < chart.n; i++) push(chart.hits);
+      // 一句 ×3 → 加花 → 呼吸 → 挪半拍 ×3 → 高潮 ×2 → 收
+      const b = chart.hits[0] || 0;
+      const early = [b, Math.min(7, b + 2), Math.min(7, b + 4)];
+      const peak = [b, Math.min(7, b + 2), Math.min(7, b + 4), Math.min(7, b + 6)];
+      const late = [1, 3, 5];
+      const latePeak = [1, 3, 5, 7];
+      push(early); push(early); push(early);
+      push(peak);
+      p.push(E);
+      push(early);
+      push(late); push(late); push(late);
+      push(latePeak); push(latePeak);
+      push(early);
       return p;
     }
     if (chart.k === 'phrase') {
-      for (let i = 0; i < chart.n; i++) {
-        for (let j = 0; j < chart.bars.length; j++) push(chart.bars[j]);
-      }
+      // 一句 ×3 → 加花 → 呼吸 → 挪半拍 ×3 → 高潮 ×2 → 收
+      const a = chart.bars[0][0];
+      const b = chart.bars[1][0];
+      const early = [a, b];
+      const peak = [a, b, (a + 4) % 8];
+      const late = [a + 1, b + 1];
+      const latePeak = [a + 1, b + 1, (a + 5) % 8];
+      push(early); push(early); push(early);
+      push(peak);
+      p.push(E);
+      push(early);
+      push(late); push(late); push(late);
+      push(latePeak); push(latePeak);
+      push(early);
       return p;
     }
     if (chart.k === 'rounds') {
@@ -97,6 +120,10 @@
       for (let i = 0; i < chart.n; i++) push(chart.late);
       return p;
     }
+    if (chart.k === 'mix') {
+      for (let i = 0; i < chart.n; i++) p.push(chart.bars[i % chart.bars.length]);
+      return p;
+    }
     return p;
   }
 
@@ -105,6 +132,15 @@
   function rounds(hits) { return { k: 'rounds', hits: hits, n: 6 }; }
   function tail(single, pair) { return { k: 'tail', single: single, s: 8, pair: pair, p: 2 }; }
   function half(early, late) { return { k: 'half', early: early, late: late, n: 6 }; }
+
+  // 节奏型库：16 格 / 小节（十六分网格），每拍 4 格
+  // 只用有停顿的型。十六分连打会变成「一直点」，不是卡点。
+  const CELL = {
+    pp: 'x.x.x.x.x.x.x.x.',   // 二八：每拍两个八分
+    off: 'x..x..x.x..x..x',   // 切分：正拍 + 反拍，间隔 2~3 格
+    dot: 'x..xx..xx..xx..x',  // 附点：附点八分 + 十六分
+  };
+  function groove(bars) { return { k: 'mix', bars: bars, n: 12 }; }
 
   function polar(x, y, ang, len) {
     return { x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len };

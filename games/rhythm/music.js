@@ -13,6 +13,16 @@
   // 每小节根音（相对 A4 的半音）：Am / F / C / G
   const CHORDS = [-12, -16, -9, -14];
 
+  // 每小节的 2、4 拍按材质换打击声
+  const SNARE_KIT = {
+    water: 'splash',
+    wood: 'tap',
+    metal: 'clank',
+    paper: 'rustle',
+    cloth: 'swish',
+    kitchen: 'bowl',
+  };
+
   // 一句钩子，8 个八分音符，null 是休止。魔性靠这句反复，不靠每拍都响。
   const HOOKS = {
     soft:   [0, null, 7, 3, null, 7, 12, null],
@@ -136,6 +146,99 @@
     og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
     o.connect(og).connect(this.master);
     o.start(t); o.stop(t + 0.1);
+  };
+
+  // 材质打击声：替换每小节 2、4 拍的 snare，让切菜像切菜、接雨像接雨
+  Engine.prototype.splash = function (t, v) {
+    const c = this.ctx;
+    const n = c.createBufferSource();
+    n.buffer = this.noise();
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 0.7;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.18, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    n.connect(bp).connect(g).connect(this.master);
+    n.start(t); n.stop(t + 0.14);
+  };
+
+  Engine.prototype.tap = function (t, v) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(760, t);
+    o.frequency.exponentialRampToValueAtTime(520, t + 0.05);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.22, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + 0.09);
+  };
+
+  Engine.prototype.ring = function (t, v) {
+    const c = this.ctx;
+    for (const f of [1600, 2390, 3170]) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime((v || 0.14) * (f === 1600 ? 1 : 0.5), t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+      o.connect(g).connect(this.master);
+      o.start(t); o.stop(t + 0.45);
+    }
+  };
+
+  Engine.prototype.rustle = function (t, v) {
+    const c = this.ctx;
+    const n = c.createBufferSource();
+    n.buffer = this.noise();
+    const hp = c.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 3200;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.16, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    n.connect(hp).connect(g).connect(this.master);
+    n.start(t); n.stop(t + 0.1);
+  };
+
+  Engine.prototype.swish = function (t, v) {
+    const c = this.ctx;
+    const n = c.createBufferSource();
+    n.buffer = this.noise();
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 1400;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.14, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    n.connect(lp).connect(g).connect(this.master);
+    n.start(t); n.stop(t + 0.18);
+  };
+
+  Engine.prototype.clank = function (t, v) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(320, t);
+    o.frequency.exponentialRampToValueAtTime(180, t + 0.08);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.16, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + 0.14);
+  };
+
+  Engine.prototype.bowl = function (t, v) {    const c = this.ctx;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1180, t);
+    o.frequency.exponentialRampToValueAtTime(980, t + 0.08);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(v || 0.18, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    o.connect(g).connect(this.master);
+    o.start(t); o.stop(t + 0.22);
   };
 
   Engine.prototype.hat = function (t, v) {
@@ -284,6 +387,7 @@
       const steps = [0, 4, 7, 12];
       for (let i = 0; i < opts.notes.length; i++) {
         const n = opts.notes[i];
+        if (n.demo) continue;   // 练习段不敲铃
         for (let k = opts.cue; k >= 1; k--) {
           const rt = startT + n.t - k * spb;
           if (rt < startT - 0.001) continue;
@@ -302,14 +406,15 @@
     for (let bar = 0; bar < bars; bar++) {
       const t0 = startT + bar * 4 * spb;
       const root = chords[bar % 4];
+      const snareFn = SNARE_KIT[m.style] || 'snare';
       const bounce = m.style === 'bright' || m.style === 'heavy' || m.style === 'rush'
         || m.style === 'wood' || m.style === 'metal' || m.style === 'kitchen';
 
       ev.push({ t: t0, fn: 'kick', v: m.kick });
       ev.push({ t: t0 + 2 * spb, fn: 'kick', v: m.kick * 0.9 });
       if (bounce) ev.push({ t: t0 + 1.5 * spb, fn: 'kick', v: m.kick * 0.32 });
-      ev.push({ t: t0 + spb, fn: 'snare', v: m.snare });
-      ev.push({ t: t0 + 3 * spb, fn: 'snare', v: m.snare * 0.85 });
+      ev.push({ t: t0 + spb, fn: snareFn, v: m.snare });
+      ev.push({ t: t0 + 3 * spb, fn: snareFn, v: m.snare * 0.85 });
 
       // 软的关只在反拍上给踩镲；连打关加密到十六分的反拍，不再每拍都铺满
       const hats = m.style === 'rush' ? 8 : 4;
@@ -322,19 +427,21 @@
       ev.push({ t: t0 + 2.5 * spb, fn: 'bass', n: root + (bounce ? 7 : 0) });
 
       const phrase = (bar % 2) ? (ANSWERS[m.style] || hook) : hook;
-      const step8 = spb / 2;
-      for (let i = 0; i < 8; i++) {
-        if (phrase[i] == null || covered(t0 + i * step8) || coveredRing(t0 + i * step8)) continue;
+      // 每拍一个四分音符，不再铺八分琶音
+      for (let i = 0; i < 4; i++) {
+        const t = t0 + i * spb;
+        const deg = phrase[i * 2];
+        if (deg == null || covered(t) || coveredRing(t)) continue;
         ev.push({
-          t: t0 + i * step8,
+          t,
           fn: 'pluck',
-          n: root + 12 + phrase[i],
+          n: root + 12 + deg,
           v: bar < 2 ? m.lead * 1.35 : m.lead * 1.15,
           wave: m.wave,
         });
       }
       if (bar % 2 === 1) {
-        ev.push({ t: t0 + 2.5 * spb, fn: 'snare', v: m.snare * 0.42 });
+        ev.push({ t: t0 + 2.5 * spb, fn: snareFn, v: m.snare * 0.42 });
       }
 
       // 变速之前的一小节：军鼓滚奏，预告下一段
@@ -369,6 +476,13 @@
     switch (e.fn) {
       case 'kick': this.kick(e.t, e.v); break;
       case 'snare': this.snare(e.t, e.v); break;
+      case 'splash': this.splash(e.t, e.v); break;
+      case 'tap': this.tap(e.t, e.v); break;
+      case 'ring': this.ring(e.t, e.v); break;
+      case 'rustle': this.rustle(e.t, e.v); break;
+      case 'swish': this.swish(e.t, e.v); break;
+      case 'bowl': this.bowl(e.t, e.v); break;
+      case 'clank': this.clank(e.t, e.v); break;
       case 'hat': this.hat(e.t, e.v); break;
       case 'bass': this.bass(e.t, semi(e.n)); break;
       case 'pluck': this.pluck(e.t, semi(e.n), e.v, e.wave); break;

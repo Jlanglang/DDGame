@@ -71,7 +71,7 @@
 
   function spbOf(lv) { return 60 / lv.bpm; }
   function beatsOf(lv) { return lv.bars * 4; }
-  function totalOf(lv) { return beatsOf(lv) * spbOf(lv); }
+  function totalOf(lv) { return (lv.bars + 2) * 4 * spbOf(lv); }
 
   function isDemoBar(lv, bar) {
     const pat = lv.pattern[bar];
@@ -82,12 +82,25 @@
     const lv = levelAt(level || 0);
     const spb = spbOf(lv);
     const notes = [];
+
+    // 练习段：2 小节，用第一句的节奏演一遍，demo 不判定、不计分
+    const first = lv.pattern[1] || '';
+    for (let bar = 0; bar < 2; bar++) {
+      for (let i = 0; i < 16; i++) {
+        const ch = first[i];
+        if (ch !== 'x' && ch !== 'd') continue;
+        const beat = bar * 4 + i * 0.25;
+        notes.push({ beat, t: +(beat * spb).toFixed(6), bar: 0, slot: i, demo: true });
+      }
+    }
+
+    // 正式谱面，整体后移 2 小节（练完再开始）
     for (let bar = 0; bar < lv.pattern.length; bar++) {
       const pat = lv.pattern[bar];
       for (let i = 0; i < 16; i++) {
         const ch = pat[i];
         if (ch !== 'x' && ch !== 'd') continue;
-        const beat = bar * 4 + i * 0.25;
+        const beat = (bar + 2) * 4 + i * 0.25;
         notes.push({
           beat,
           t: +(beat * spb).toFixed(6),

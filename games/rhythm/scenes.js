@@ -1,4 +1,4 @@
-/* 节奏豆豆 · 50 关情景
+/* 节奏豆豆 · 情景表。前 50 关的句子保持原样，新关只往后面加。
    浏览器挂 window.RhythmScenes；Node 里 require。
    A 是拍点上动的那一件，B 是把拍子带过来的东西，C 是场地，D 是碰上的那一下。
    地面线在 y=924（PLANT 908）。东西停在 y 960 以上，免得压到下面的黄点车道。
@@ -61,6 +61,7 @@
   // phrase 两小节一句，原样重复，用来跟着抄
   // rounds 一小节里隔开的两下，再空一小节
   // tail   前半每小节一下，后半才变成隔开的两下
+  // half   前半一句，后半同一句挪半拍。只给第 51 关以后用
   function patternOf(chart) {
     if (!chart) return [E];
     if (chart.raw) return chart.raw;
@@ -91,6 +92,11 @@
       }
       return p;
     }
+    if (chart.k === 'half') {
+      for (let i = 0; i < chart.n; i++) push(chart.early);
+      for (let i = 0; i < chart.n; i++) push(chart.late);
+      return p;
+    }
     return p;
   }
 
@@ -98,6 +104,7 @@
   function phrase(bars) { return { k: 'phrase', bars: bars, n: 6 }; }
   function rounds(hits) { return { k: 'rounds', hits: hits, n: 6 }; }
   function tail(single, pair) { return { k: 'tail', single: single, s: 8, pair: pair, p: 2 }; }
+  function half(early, late) { return { k: 'half', early: early, late: late, n: 6 }; }
 
   function polar(x, y, ang, len) {
     return { x: x + Math.cos(ang) * len, y: y + Math.sin(ang) * len };
@@ -318,6 +325,10 @@
       visual: V([{ k: 'ribbon', at: 'tip', w: 230, h: 20, f: '#ff8fb8', split: true }], { k: 'pinch', x: 400, y: 690, len: 120, open: 0.62, close: 0.04, f: '#d5dde8' }, null) },
     { id: 'candle', name: '吹烛', btn: '吹', mode: 'beat', diff: 3, bpm: 94, part: 'flame', prop: 'puff', theme: T.paper, music: M.paper, chart: { k: 'beat1', n: 7 },
       visual: V([{ k: 'candle', x: 430, y: 796, f: '#f6f1e6', flame: true }], { k: 'none' }, { k: 'puff', f: '#d7f4ff', r: 18, travel: 'x', dx: -180, pop: true }, [430, 760]) },
+    { id: 'phone', name: '接听', btn: '接', mode: 'beat', diff: 3, bpm: 100, part: 'phone', prop: 'handset', theme: T.metal, cue: 3,
+      music: Object.assign({}, M.metal, { kick: 0.22, snare: 0.08, hat: 0.04, lead: 0.02 }),
+      chart: { k: 'beat1', n: 7 },
+      visual: V([{ k: 'phone', x: 400, y: 830, f: '#f3e6c8' }], { k: 'none' }, { k: 'handset', f: '#2a241c', w: 108, h: 18, travel: 'y', dy: 78 }, [400, 748]) },
   ];
 
   // 每关一句、一种进场。不要再按 echo/beat/pair 盖成同一句。
@@ -376,6 +387,7 @@
     leaf: { chart: one([6]), enter: 'drift' },
     cut: { chart: phrase([[0], [6]]), enter: 'snap' },
     candle: { chart: one([2]), enter: 'dart' },
+    phone: { chart: half([6], [7]), enter: 'snap' },
   };
 
   SCENES.forEach((s) => {

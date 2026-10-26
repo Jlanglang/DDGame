@@ -53,6 +53,7 @@
       music: spec.music,
       arc: !!spec.arc,
       enter: spec.enter || 'fall',
+      cue: spec.cue || 0,
       notes: play,
       notesTotal: play + demo,
       scene: { face: 'side', part: spec.part, prop: spec.prop },

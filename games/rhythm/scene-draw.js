@@ -109,8 +109,10 @@
     const counting = !actor || !actor.k || actor.k === 'none';
     const g = pose && pose.groove;
     const arriving = pose && pose.arrive && pose.arrive.mode === 'approach';
-    if (counting && g && g.bounce > 0.02 && !arriving) {
-      const hop = g.bounce;
+    // 有 cue 的关只在铃声那几拍跳。没有 cue 的关仍是每一拍点一下。
+    const hopAmt = (pose && pose.cue) ? (pose.cue.bounce || 0) : (g && g.bounce || 0);
+    if (counting && hopAmt > 0.02 && !arriving) {
+      const hop = hopAmt;
       ctx.translate(x, y - hop * 28);
       ctx.scale(1 + hop * 0.1, Math.max(0.76, 1 - hop * 0.24));
       ctx.translate(-x, -y);
@@ -393,6 +395,23 @@
       ink(ctx, 5);
     } else if (p.k === 'bell') {
       drawBell(ctx, x, y, f, 28);
+    } else if (p.k === 'phone') {
+      roundRect(ctx, x - 74, y - 8, 148, 52, 16);
+      ctx.fill();
+      ink(ctx, 5);
+      ctx.fillStyle = f;
+      roundRect(ctx, x - 58, y - 28, 18, 30, 6);
+      ctx.fill();
+      ink(ctx, 4);
+      ctx.fillStyle = f;
+      roundRect(ctx, x + 40, y - 28, 18, 30, 6);
+      ctx.fill();
+      ink(ctx, 4);
+      ctx.fillStyle = '#c23b3b';
+      ctx.beginPath();
+      ctx.arc(x + 40, y + 12, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ink(ctx, 3);
     } else if (p.k === 'candle') {
       roundRect(ctx, x - 12, y - 10, 24, 70, 4);
       ctx.fill();
@@ -899,6 +918,18 @@
       ctx.fillStyle = fill;
       ctx.fill();
       ink(ctx, 4);
+    } else if (b.k === 'handset') {
+      const w = b.w || 108;
+      const h = b.h || 18;
+      roundRect(ctx, x - w / 2, y - h / 2, w, h, h / 2);
+      ctx.fill();
+      ink(ctx, 5);
+      ctx.fillStyle = '#1a1614';
+      ctx.beginPath();
+      ctx.arc(x - w / 2 + 8, y, 11, 0, Math.PI * 2);
+      ctx.arc(x + w / 2 - 8, y, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ink(ctx, 3);
     } else if (b.k === 'puff') {
       ctx.globalAlpha = 0.85;
       ctx.fillStyle = fill;
@@ -1437,6 +1468,25 @@
       oval(ctx, 200, 900, 50, 16, '#f6f1e6');
       oval(ctx, 250, 860, 14, 18, '#c23b3b');
       rect(ctx, 80, 800, 40, 60, '#6b4228');
+    },
+    phone(ctx) {
+      rect(ctx, 0, 320, 720, 500, '#1e2a44');
+      oval(ctx, 150, 500, 46, 46, '#f6f1e6');
+      ctx.strokeStyle = '#3a2416';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(150, 500);
+      ctx.lineTo(150, 468);
+      ctx.moveTo(150, 500);
+      ctx.lineTo(172, 500);
+      ctx.stroke();
+      rect(ctx, 0, 820, 720, 260, '#6b4228');
+      rect(ctx, 0, 820, 720, 16, '#c4894a');
+      rrect(ctx, 70, 860, 130, 96, '#f6f1e6', 6);
+      rect(ctx, 92, 888, 86, 4, '#c9bba6');
+      rect(ctx, 92, 908, 86, 4, '#c9bba6');
+      rect(ctx, 92, 928, 58, 4, '#c9bba6');
+      rect(ctx, 214, 900, 64, 8, '#e7b15a');
     },
   };
 

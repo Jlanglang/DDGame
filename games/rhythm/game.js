@@ -272,6 +272,8 @@
     G.pose = {
       raise: 0, strike: 0, phase: 0, whiff: 0, scale: 1, judge: null,
       arrive: { s: 1, show: false, mode: 'park' },
+      groove: { beat: 0, bounce: 0, sway: 0 },
+      cue: null,
     };
     G.trails = [[], []];
     G.result = null;
@@ -293,6 +295,7 @@
         music: G.lv.music,
         notes: G.chart,
         rollBar: G.lv.rollBar,
+        cue: G.lv.cue || 0,
       }), endT);
       G.state = 'play';
       dom.audioWarn.hidden = !!ok;
@@ -517,6 +520,22 @@
     };
   }
 
+  // 铃声：每个要按的音之前，隔一拍跳一下，一共 cue 下。不在的关仍用每一拍的点头。
+  function cueBounce(t, notes, beats) {
+    const spb = G.spb || 0.5;
+    let best = 0;
+    for (let i = 0; i < notes.length; i++) {
+      const nt = notes[i].t;
+      for (let k = 1; k <= beats; k++) {
+        const dt = t - (nt - k * spb);
+        if (dt < 0 || dt >= spb * 0.92) continue;
+        const b = Math.pow(1 - dt / spb, 2.4);
+        if (b > best) best = b;
+      }
+    }
+    return best;
+  }
+
   // 手落到点上的那一帧就是拍点。示范音符和玩家音符用同一套。
   function updatePose() {
     if (G.poseHold) return;
@@ -533,6 +552,7 @@
     G.pose.phase = pose.phase;
     G.pose.arrive = propArrive(t, prev ? prev.t : null, next ? next.t : null);
     G.pose.groove = grooveOf(t);
+    G.pose.cue = (G.lv && G.lv.cue) ? { bounce: cueBounce(t, G.notes, G.lv.cue) } : null;
     G.pose.whiff = 0;
     G.pose.scale = 1;
     G.pose.judge = (G.lastHit && G.lastHit.age < 0.35) ? G.lastHit.kind : null;
@@ -1448,6 +1468,7 @@
       judge: b.judge,
       arrive: b.arrive,
       groove: b.groove,
+      cue: b.cue,
     };
     if (window.SceneDraw && G.lv && G.lv.visual) {
       window.SceneDraw.draw(ctx, G.lv, pose);

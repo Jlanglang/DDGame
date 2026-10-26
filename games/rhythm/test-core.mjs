@@ -25,7 +25,7 @@ function ok(name, cond, extra) {
 }
 
 /* 1. 关卡表 */
-ok('一共 50 关', Core.LEVELS.length === 50, Core.LEVELS.length);
+ok('一共 51 关', Core.LEVELS.length === 51, Core.LEVELS.length);
 ok('难度不倒退', Core.LEVELS.every((lv, i) => i === 0 || lv.diff >= Core.LEVELS[i - 1].diff));
 ok('每关都有谱面', Core.LEVELS.every((lv) => lv.pattern.length === lv.bars));
 ok('越界关卡回落到第一关', Core.levelAt(99).id === Core.LEVELS[0].id);
@@ -41,7 +41,7 @@ function repeats(bars) {
   }
   return true;
 }
-ok('句子会重复；后段变密的关只在后段变', Core.LEVELS.every((lv) => {
+ok('前 50 关句子会重复；后段变密的关只在后段变', Core.LEVELS.slice(0, 50).every((lv) => {
   const body = lv.pattern.slice(1);
   if (body.length !== 12) return false;
   if (repeats(body)) return true;
@@ -102,20 +102,56 @@ ok('全关没有示范音符', Core.LEVELS.every((lv, i) => Core.buildChart(i).e
 
 ok('第 1 关仍是让球', Core.LEVELS[0].id === 'lift' && Core.LEVELS[0].name === '让球');
 ok('第 50 关是吹烛', Core.LEVELS[49].id === 'candle' && Core.LEVELS[49].name === '吹烛');
+ok('第 51 关是接听', Core.LEVELS[50].id === 'phone' && Core.LEVELS[50].name === '接听');
 
-/* 3. 每关谱面合法。清单锁住音符数，改谱面会在这里失败。 */
+/* 3. 每关谱面合法。前 50 关锁住 12 下。第 51 关单独查。 */
 for (let i = 0; i < Core.LEVELS.length; i++) {
   const lv = Core.levelAt(i);
   const chart = Core.buildChart(i);
   const play = chart.filter((n) => !n.demo);
   const total = Core.totalOf(lv);
-  ok(`第 ${i + 1} 关要按的音符 12 个`, play.length === 12, play.length);
-  ok(`第 ${i + 1} 关总音符 12 个`, chart.length === 12, chart.length);
+  if (i < 50) {
+    ok(`第 ${i + 1} 关要按的音符 12 个`, play.length === 12, play.length);
+    ok(`第 ${i + 1} 关总音符 12 个`, chart.length === 12, chart.length);
+  }
   ok(`第 ${i + 1} 关时间严格递增`, chart.every((n, k) => k === 0 || n.t > chart[k - 1].t));
   ok(`第 ${i + 1} 关最后一个拍子在时长内`, chart[chart.length - 1].t < total + 1e-6);
   ok(`第 ${i + 1} 关对齐十六分网格`, chart.every((n) => Number.isInteger(n.beat * 4)));
   ok(`第 ${i + 1} 关没有写进前奏`, chart.every((n) => n.beat >= lv.demoBars * 4));
   ok(`第 ${i + 1} 关时长合理（20~45 秒）`, total > 20 && total < 45, total);
+}
+
+{
+  const lv = Core.LEVELS[50];
+  const chart = Core.buildChart(50);
+  ok('接听 13 小节', lv.bars === 13 && lv.pattern.length === 13, lv.bars);
+  ok('接听要按 12 下', chart.length === 12, chart.length);
+  ok('接听前 6 下在第 4 拍', chart.slice(0, 6).every((n) => n.slot === 12));
+  ok('接听后 6 下挪了半拍', chart.slice(6).every((n) => n.slot === 14));
+  ok('接听听筒来得短', lv.enter === 'snap' && lv.cue === 3, { enter: lv.enter, cue: lv.cue });
+  ok('接听前奏没有铃声要按', !/[xd]/.test(lv.pattern[0]) && lv.demoBars === 1);
+  ok('接听伴奏让给铃声', lv.music.kick < 0.3 && lv.music.lead < 0.03, lv.music.kick);
+  const spb = 60 / lv.bpm;
+  require(path.join(__dirname, 'music.js'));
+  const eng = new globalThis.Music.Engine();
+  const ev = eng.buildTrack(10, {
+    bpm: lv.bpm,
+    bars: lv.bars,
+    music: lv.music,
+    notes: chart,
+    cue: lv.cue,
+  });
+  const rings = ev.filter((e) => e.fn === 'ring');
+  ok('接听每下之前三声铃', rings.length === 36, rings.length);
+  const first = chart[0].t;
+  const aligned = [3, 2, 1].every((k) => rings.some((e) => Math.abs(e.t - (10 + first - k * spb)) < 1e-4));
+  ok('第一下的三声铃对齐', aligned);
+  const seventh = chart[6].t;
+  const shifted = [3, 2, 1].every((k) => rings.some((e) => Math.abs(e.t - (10 + seventh - k * spb)) < 1e-4));
+  ok('后半的铃声跟着挪', shifted && Math.abs((seventh - first) - Math.round(seventh - first)) > 0.2);
+  ok('前奏没有铃声', rings.every((e) => e.t >= 10 + 4 * spb - 1e-6));
+  const quiet = eng.buildTrack(0, { bpm: 100, bars: 13, music: Core.LEVELS[0].music, notes: Core.buildChart(0) });
+  ok('没有 cue 的关不响铃', quiet.every((e) => e.fn !== 'ring'));
 }
 
 /* 4. 谱面里没有不判定的示范音 */
@@ -221,7 +257,7 @@ ok('全离谱 → 0', Core.calibrate([10, 10, 900, -900]) === 0);
 {
   const Scenes = require(path.join(__dirname, 'scenes.js'));
   const list = Scenes.SCENES;
-  ok('场景清单也是 50 关', list && list.length === 50, list && list.length);
+  ok('场景清单也是 51 关', list && list.length === 51, list && list.length);
   if (list) {
     let bone = true;
     let home = true;

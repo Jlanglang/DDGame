@@ -174,6 +174,25 @@
     o.start(t); o.stop(t + 0.24);
   };
 
+  // 铃声：短、亮，和「啵」不是同一种声音。只在有 cue 的关排。
+  Engine.prototype.ring = function (t, f, v) {
+    const c = this.ctx;
+    const tone = (freq, vol, dur) => {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(this.master);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    };
+    tone(f, v || 0.16, 0.18);
+    tone(f * 2.5, (v || 0.16) * 0.28, 0.08);
+  };
+
   // 拍点上的「啵」：音高走钩子，短、往下甩，听得出来这一下就是该按的
   Engine.prototype.bop = function (t, f, v) {
     const c = this.ctx, o = c.createOscillator(), g = c.createGain();
@@ -260,6 +279,25 @@
     const hook = HOOKS[m.style] || HOOKS.soft;
     const noteTimes = (opts.notes || []).map((n) => startT + n.t);
     const covered = (t) => noteTimes.some((nt) => Math.abs(nt - t) < 0.03);
+    const ringAt = [];
+    if (opts.cue && opts.notes) {
+      const steps = [0, 4, 7, 12];
+      for (let i = 0; i < opts.notes.length; i++) {
+        const n = opts.notes[i];
+        for (let k = opts.cue; k >= 1; k--) {
+          const rt = startT + n.t - k * spb;
+          if (rt < startT - 0.001) continue;
+          ringAt.push(rt);
+          ev.push({
+            t: rt,
+            fn: 'ring',
+            n: 12 + (steps[opts.cue - k] || 0),
+            v: 0.18,
+          });
+        }
+      }
+    }
+    const coveredRing = (t) => ringAt.some((rt) => Math.abs(rt - t) < 0.03);
 
     for (let bar = 0; bar < bars; bar++) {
       const t0 = startT + bar * 4 * spb;
@@ -286,7 +324,7 @@
       const phrase = (bar % 2) ? (ANSWERS[m.style] || hook) : hook;
       const step8 = spb / 2;
       for (let i = 0; i < 8; i++) {
-        if (phrase[i] == null || covered(t0 + i * step8)) continue;
+        if (phrase[i] == null || covered(t0 + i * step8) || coveredRing(t0 + i * step8)) continue;
         ev.push({
           t: t0 + i * step8,
           fn: 'pluck',
@@ -335,6 +373,7 @@
       case 'bass': this.bass(e.t, semi(e.n)); break;
       case 'pluck': this.pluck(e.t, semi(e.n), e.v, e.wave); break;
       case 'bop': this.bop(e.t, semi(e.n), e.v); break;
+      case 'ring': this.ring(e.t, semi(e.n), e.v); break;
       case 'click': this.click(e.t, e.accent); break;
     }
   };

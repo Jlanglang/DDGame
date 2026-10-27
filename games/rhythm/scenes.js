@@ -365,6 +365,17 @@
       music: Object.assign({}, M.metal, { kick: 0.22, snare: 0.08, hat: 0.04, lead: 0.02 }),
       chart: { k: 'beat1', n: 7 },
       visual: V([{ k: 'phone', x: 400, y: 830, f: '#f3e6c8' }], { k: 'none' }, { k: 'handset', f: '#2a241c', w: 108, h: 18, travel: 'y', dy: 78 }, [400, 748]) },
+
+    // 52-54：按 docs/节奏豆豆-五十关进度.md 的目录做，句子四条都不重复
+    { id: 'stack', name: '叠碗', btn: '叠', mode: 'beat', diff: 3, bpm: 108, part: 'stack', prop: 'bowl', theme: T.kitchen, music: M.kitchen,
+      chart: { raw: [E] },
+      visual: V([{ k: 'bowl', x: 400, y: 866, f: '#f6f1e6' }], { k: 'none' }, { k: 'lid', f: '#f6f1e6', r: 46, travel: 'y', dy: -300, ey: 4 }, [400, 858]) },
+    { id: 'wipe', name: '擦玻璃', btn: '擦', mode: 'beat', diff: 3, bpm: 104, part: 'cloth', prop: 'glass', theme: T.water, music: M.soft,
+      chart: { raw: [E] },
+      visual: V([], { k: 'pivot', x: 252, y: 772, len: 168, rest: -0.15, wind: -0.95, hit: 0.2, f: '#8ad0f0', head: 'swat' }, null, [400, 760]) },
+    { id: 'button', name: '钉扣', btn: '缝', mode: 'beat', diff: 3, bpm: 112, part: 'needle', prop: 'button', theme: T.cloth, music: M.cloth,
+      chart: { raw: [E] },
+      visual: V([], { k: 'needle', x: 400, y: 700, len: 150, rest: -0.35, wind: -1.05, hit: 0.4, f: '#d5dde8', head: 'stylus' }, null, [400, 812]) },
   ];
 
   // 每关一句、一种进场。不要再按 echo/beat/pair 盖成同一句。
@@ -372,6 +383,14 @@
   // pour 斜着倒，snap 没有外来物、手下得很短，dip 浮子沉，tug 绳坠很短，
   // drift 叶子慢落，open 扇面展开，close 盖上，pop 从下冒出，
   // arc 两下之间走弧，swing 两下之间荡过去。
+  // 八分下标 → 一小节；rep 用来把「一句 + 空一小节」重复若干遍（52-54 关用）
+  const S = (eighths) => barFromEighths(eighths, 'x');
+  const rep = (bars, n) => {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(...bars);
+    return out;
+  };
+
   const PLAN = {
     lift: { chart: phrase([[4], [2]]), enter: 'roll' },
     disc: { chart: phrase([[2], [4]]), enter: 'dart' },
@@ -424,6 +443,31 @@
     cut: { chart: phrase([[0], [6]]), enter: 'snap' },
     candle: { chart: one([2]), enter: 'dart' },
     phone: { chart: half([6], [7]), enter: 'snap' },
+
+    // 52 叠碗：第 1 拍一只、第 3 拍一只，下一小节第 4 拍盖上；3 遍后整句挪半拍
+    stack: {
+      enter: 'fall',
+      chart: { raw: [E].concat(
+        rep([S([0, 4]), S([6])], 3),
+        rep([S([1, 5]), S([7])], 3),
+      ) },
+    },
+    // 53 擦玻璃：从左抹到右、隔一拍抹回来、空一小节；4 遍后两下都晚一拍
+    wipe: {
+      enter: 'roll',
+      chart: { raw: [E].concat(
+        rep([S([2, 4]), E], 4),
+        rep([S([4, 6]), E], 4),
+      ) },
+    },
+    // 54 钉扣：连缝三针、第 4 拍停、空一小节；4 遍后从第 2 拍起针
+    button: {
+      enter: 'snap',
+      chart: { raw: [E].concat(
+        rep([S([0, 2, 4]), E], 4),
+        rep([S([2, 4, 6]), E], 4),
+      ) },
+    },
   };
 
   SCENES.forEach((s) => {

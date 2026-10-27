@@ -104,7 +104,7 @@ const PAGE = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/')
   /* 1. 启动 */
   ok('页面加载出 __rhythm', await ev('!!window.__rhythm'));
   ok('初始在首页', (await ev('window.__rhythm.state()')) === 'home');
-  ok('首页列出 51 关', (await ev('document.querySelectorAll(".level").length')) === 51);
+  ok('首页列出 54 关', (await ev('document.querySelectorAll(".level").length')) === 54);
   ok('默认显示音符（先保证能玩）', (await ev('window.__rhythm.G.showNotes')) === true);
 
   /* 2. 选关后再点开始 */

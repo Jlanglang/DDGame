@@ -284,7 +284,7 @@
     showScreen(null);
     if (audio.ctx) audio.stop();
     const lead = chain ? 0.45 : 2.4;
-    audio.unlock().then((ok) => {
+    audio.unlock().then((ok) => audio.ready().then(() => ok)).then((ok) => {
       audio.stop();
       G.latency = audio.latency();
       G.offset = loadOffset();
@@ -340,7 +340,7 @@
   /* ---------------- 校准 ---------------- */
 
   function startCalib() {
-    audio.unlock().then((ok) => {
+    audio.unlock().then((ok) => audio.ready().then(() => ok)).then((ok) => {
       audio.stop();
       G.latency = audio.latency();
       const startT = ctxNow() + 1.2;
@@ -2799,7 +2799,7 @@
   // 图片素材：加载后挂在 window.RHYTHM_IMG，scene-draw.js 按需取
   const IMG = {};
   function loadAssets() {
-    for (const n of ['bg', 'doudou-idle', 'ball']) {
+    for (const n of ['bg', 'doudou-idle', 'ball', 'kick-bg']) {
       const img = new Image();
       img.src = `assets/${n}.png`;
       IMG[n] = img;

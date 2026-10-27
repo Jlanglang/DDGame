@@ -53,11 +53,83 @@
     kitchen:[5, null, 0, 7, null, 3, 7, null],
   };
 
+  /* ---------- 总线 ---------- */
+
+  // 程序生成的混响脉冲：噪声 × 指数衰减，两头轻微压暗。
+  // 不引音频文件，也够给声音一层"房间"。
+  function makeIR(c, seconds) {
+    const n = Math.max(1, Math.floor(c.sampleRate * seconds));
+    const b = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = b.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < n; i++) {
+        const k = i / n;
+        const decay = Math.pow(1 - k, 2.8);
+        lp = lp * 0.72 + (Math.random() * 2 - 1) * 0.28;
+        d[i] = lp * decay;
+      }
+    }
+    return b;
+  }
+
+  // 软限幅：超过 ~0.85 的部分压圆，不让手机小喇叭硬削出破音
+  function softClipCurve(n) {
+    const size = n || 2048;
+    const curve = new Float32Array(size);
+    const k = 1.25;
+    const norm = Math.tanh(k);
+    for (let i = 0; i < size; i++) {
+      const x = (i / (size - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * k) / norm;
+    }
+    return curve;
+  }
+
+  // master → 压缩 → 补偿增益 → 软限幅 → 喇叭；另有一路送混响。
+  // 手机外放响度低，靠压缩把平均值抬上来（峰值反而更稳），不是靠调大 vol。
+  function makeChain(c) {
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -20;
+    comp.knee.value = 14;
+    comp.ratio.value = 5;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.16;
+    const makeup = c.createGain();
+    makeup.gain.value = 1.34;
+    if (c.createWaveShaper) {
+      const shaper = c.createWaveShaper();
+      shaper.curve = softClipCurve(2048);
+      shaper.oversample = '2x';
+      comp.connect(makeup).connect(shaper).connect(c.destination);
+    } else {
+      comp.connect(makeup).connect(c.destination);
+    }
+
+    const send = c.createGain();
+    send.gain.value = 0.15;
+    let conv = null;
+    let wet = null;
+    if (c.createConvolver) {
+      conv = c.createConvolver();
+      conv.buffer = makeIR(c, 1.1);
+      wet = c.createGain();
+      wet.gain.value = 0.85;
+      send.connect(conv).connect(wet).connect(comp);
+    }
+    return { comp, makeup, send, conv, wet };
+  }
+
   function Engine() {
     this.ctx = null;
     this.master = null;
+    this.chain = null;
     this.vol = 0.8;
     this._noiseBuf = null;
+    this._metalBuf = null;
+    this._samples = {};
+    this._samplesReady = null;
+    this.sampleBase = null;
     this._timer = null;
     this._cursor = 0;
     this._events = [];
@@ -65,14 +137,69 @@
     this._playing = false;
   }
 
-  Engine.prototype.init = function () {
+  Engine.prototype.init = function (ctxOverride) {
     if (this.ctx) return this.ctx;
-    if (!AC) return null;
-    this.ctx = new AC({ latencyHint: 'interactive' });
-    this.master = this.ctx.createGain();
+    const c = ctxOverride || (AC ? new AC({ latencyHint: 'interactive' }) : null);
+    if (!c) return null;
+    this.ctx = c;
+    this.chain = makeChain(c);
+    this.master = c.createGain();
     this.master.gain.value = this.vol;
-    this.master.connect(this.ctx.destination);
+    this.master.connect(this.chain.comp);
+    this.master.connect(this.chain.send);
+    this.loadSamples();
     return this.ctx;
+  };
+
+  // 真采样：鼓组用录音棚 one-shot（CC0，见 audio/README.md）。
+  // 没加载好之前一律回落到合成音色，所以首帧不会静音，也不会等网络。
+  Engine.prototype.loadSamples = function () {
+    if (this._samplesReady) return this._samplesReady;
+    const c = this.ctx;
+    const base = this.sampleBase || 'audio/';
+    const names = ['kick909', 'kick808', 'snare909', 'hatC', 'hatO', 'clap', 'mariC4', 'mariC6', 'claves', 'bell'];
+    const jobs = names.map((n) => fetch(base + n + '.wav')
+      .then((r) => (r.ok ? r.arrayBuffer() : null))
+      .then((b) => (b ? c.decodeAudioData(b) : null))
+      .then((buf) => { if (buf) this._samples[n] = buf; })
+      .catch(() => { /* 没文件就用合成音 */ }));
+    this._samplesReady = Promise.all(jobs);
+    return this._samplesReady;
+  };
+
+  // 采样解码完的 promise；game.js 起音乐前会 await 它，避免第一声还是合成音。
+  Engine.prototype.ready = function () {
+    return this._samplesReady || Promise.resolve();
+  };
+
+  // 放一个采样；返回 false 表示没有这个采样，调用方回落到合成音。
+  Engine.prototype.sample = function (name, t, v, opts) {
+    const buf = this._samples && this._samples[name];
+    if (!buf || !this.ctx) return false;
+    const o = opts || {};
+    const c = this.ctx;
+    const rate = o.rate || 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = c.createGain();
+    const length = Math.min(buf.duration / rate, o.dur || buf.duration / rate);
+    g.gain.setValueAtTime(v, t);
+    if (length < buf.duration / rate - 0.005) {
+      g.gain.setValueAtTime(v, t + Math.max(0.005, length - 0.012));
+      g.gain.linearRampToValueAtTime(0.0001, t + length);
+    }
+    src.connect(g);
+    if (o.pan && c.createStereoPanner) {
+      const pan = c.createStereoPanner();
+      pan.pan.value = o.pan;
+      g.connect(pan).connect(this.master);
+    } else {
+      g.connect(this.master);
+    }
+    src.start(t);
+    src.stop(t + length + 0.02);
+    return true;
   };
 
   Engine.prototype.unlock = function () {
@@ -115,37 +242,78 @@
   /* ---------- 音色 ---------- */
 
   Engine.prototype.kick = function (t, v) {
-    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    const c = this.ctx;
+    const amp = v || 0.55;
+    if (this.sample('kick909', t, amp * 0.78, { dur: 0.42 })) return;
+
+    // 主体：下落更快、衰减更长，才像鼓不像"啵"
+    const o = c.createOscillator(), g = c.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
+    o.frequency.setValueAtTime(190, t);
+    o.frequency.exponentialRampToValueAtTime(52, t + 0.05);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(v || 0.55, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    g.gain.linearRampToValueAtTime(amp, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     o.connect(g).connect(this.master);
-    o.start(t); o.stop(t + 0.22);
+    o.start(t); o.stop(t + 0.34);
+
+    // 低频那一层：耳机/外放都靠它给"重量"
+    const sub = c.createOscillator(), sg = c.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(60, t);
+    sub.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.linearRampToValueAtTime(amp * 0.45, t + 0.004);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    sub.connect(sg).connect(this.master);
+    sub.start(t); sub.stop(t + 0.26);
+
+    // 瞬态：手机喇叭听不见低频，靠这层 3kHz 的"咔"把拍点送出去
+    const n = c.createBufferSource();
+    n.buffer = this.noise();
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 0.8;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.linearRampToValueAtTime(amp * 0.5, t + 0.001);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
+    n.connect(bp).connect(ng).connect(this.master);
+    n.start(t); n.stop(t + 0.03);
   };
 
   Engine.prototype.snare = function (t, v) {
     const c = this.ctx;
+    const amp = v || 0.26;
+    if (this.sample('snare909', t, amp * 0.92, { dur: 0.3 })) return;
+
+    // 噪声层：带通 + 高通，收得紧
     const n = c.createBufferSource();
     n.buffer = this.noise();
     const bp = c.createBiquadFilter();
-    bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.8;
-    const g = c.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(v || 0.26, t + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
-    n.connect(bp).connect(g).connect(this.master);
-    n.start(t); n.stop(t + 0.14);
+    bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.6;
+    const hp = c.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 420;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, t);
+    ng.gain.linearRampToValueAtTime(amp, t + 0.001);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    n.connect(bp).connect(hp).connect(ng).connect(this.master);
+    n.start(t); n.stop(t + 0.16);
 
-    const o = c.createOscillator(), og = c.createGain();
-    o.type = 'triangle';
-    o.frequency.setValueAtTime(190, t);
-    og.gain.setValueAtTime(0.1, t);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-    o.connect(og).connect(this.master);
-    o.start(t); o.stop(t + 0.1);
+    // 鼓框：两个三角音，各自快速下坠，给"啪"一个实心
+    const frame = [[196, 0.22], [330, 0.12]];
+    for (let i = 0; i < frame.length; i++) {
+      const f = frame[i][0], k = frame[i][1];
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(f, t);
+      o.frequency.exponentialRampToValueAtTime(f * 0.86, t + 0.06);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(amp * k, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      o.connect(g).connect(this.master);
+      o.start(t); o.stop(t + 0.11);
+    }
   };
 
   // 材质打击声：替换每小节 2、4 拍的 snare，让切菜像切菜、接雨像接雨
@@ -241,18 +409,54 @@
     o.start(t); o.stop(t + 0.22);
   };
 
+  // 808 式金属声：六个方波叠在一起再高通，比白噪声"有金属味"。
+  // 只在 init 后算一次（0.25 秒），每个镲复用同一个 buffer。
+  Engine.prototype.metal = function () {
+    if (this._metalBuf) return this._metalBuf;
+    const c = this.ctx;
+    const sr = c.sampleRate;
+    const n = Math.floor(sr * 0.25);
+    const b = c.createBuffer(1, n, sr);
+    const d = b.getChannelData(0);
+    const ratios = [2, 3, 4.16, 5.43, 6.79, 8.21];
+    let prev = 0;
+    for (let i = 0; i < n; i++) {
+      const tt = i / sr;
+      let acc = 0;
+      for (let k = 0; k < ratios.length; k++) {
+        acc += Math.sin(2 * Math.PI * 40 * ratios[k] * tt) >= 0 ? 1 : -1;
+      }
+      acc /= ratios.length;
+      const hp = acc - prev;   // 一阶差分当高通，去掉 40~330Hz 的底
+      prev = acc;
+      d[i] = hp * (1 - i / n);
+    }
+    this._metalBuf = b;
+    return b;
+  };
+
   Engine.prototype.hat = function (t, v) {
+    if (this.sample('hatC', t, (v || 0.08) * 0.85, { dur: 0.07, pan: 0.22 })) return;
     const c = this.ctx;
     const n = c.createBufferSource();
-    n.buffer = this.noise();
+    n.buffer = this.metal();
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 9500; bp.Q.value = 0.7;
     const hp = c.createBiquadFilter();
-    hp.type = 'highpass'; hp.frequency.value = 7200;
+    hp.type = 'highpass'; hp.frequency.value = 6500;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(v || 0.08, t + 0.002);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    n.connect(hp).connect(g).connect(this.master);
-    n.start(t); n.stop(t + 0.05);
+    g.gain.linearRampToValueAtTime(v || 0.08, t + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.055);
+    n.connect(bp).connect(hp).connect(g);
+    if (c.createStereoPanner) {
+      const pan = c.createStereoPanner();
+      pan.pan.value = 0.22;
+      g.connect(pan).connect(this.master);
+    } else {
+      g.connect(this.master);
+    }
+    n.start(t); n.stop(t + 0.07);
   };
 
   Engine.prototype.bass = function (t, f) {
@@ -266,19 +470,45 @@
     o.start(t); o.stop(t + 0.26);
   };
 
+  // 旋律：锯齿 + 低通包络（起音亮、尾巴暗），比纯方波暖，也不那么扎耳
   Engine.prototype.pluck = function (t, f, v, wave) {
-    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = wave || 'square';
+    const low = f < 700;
+    const buf = this._samples && (low ? this._samples.mariC4 : this._samples.mariC6);
+    if (buf) {
+      this.sample(low ? 'mariC4' : 'mariC6', t, (v || 0.055) * 2.2, {
+        rate: f / (low ? 261.63 : 1046.5), dur: 0.3, pan: -0.12,
+      });
+      return;
+    }
+    const c = this.ctx;
+    const o = c.createOscillator(), g = c.createGain();
+    const lp = c.createBiquadFilter();
+    o.type = wave && wave !== 'square' ? wave : 'sawtooth';
     o.frequency.setValueAtTime(f, t);
+    lp.type = 'lowpass';
+    lp.Q.value = 0.9;
+    lp.frequency.setValueAtTime(Math.min(9000, f * 7), t);
+    lp.frequency.exponentialRampToValueAtTime(Math.max(420, f * 1.6), t + 0.14);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(v || 0.055, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
-    o.connect(g).connect(this.master);
-    o.start(t); o.stop(t + 0.24);
+    g.gain.linearRampToValueAtTime((v || 0.055) * 0.8, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+    o.connect(lp).connect(g);
+    if (c.createStereoPanner) {
+      const pan = c.createStereoPanner();
+      pan.pan.value = -0.12;
+      g.connect(pan).connect(this.master);
+    } else {
+      g.connect(this.master);
+    }
+    o.start(t); o.stop(t + 0.26);
   };
 
   // 铃声：短、亮，和「啵」不是同一种声音。只在有 cue 的关排。
   Engine.prototype.ring = function (t, f, v) {
+    if (this._samples && this._samples.bell && typeof f === 'number') {
+      this.sample('bell', t, (v || 0.16) * 1.2, { rate: 1, dur: 0.5 });
+      return;
+    }
     const c = this.ctx;
     const tone = (freq, vol, dur) => {
       const o = c.createOscillator();
@@ -298,6 +528,11 @@
 
   // 拍点上的「啵」：音高走钩子，短、往下甩，听得出来这一下就是该按的
   Engine.prototype.bop = function (t, f, v) {
+    if (this._samples && this._samples.claves) {
+      const rate = Math.max(0.55, Math.min(2.2, f / 880));
+      this.sample('claves', t, (v || 0.12) * 1.6, { rate, dur: 0.11 });
+      return;
+    }
     const c = this.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = 'square';
     o.frequency.setValueAtTime(f, t);
@@ -310,6 +545,10 @@
   };
 
   Engine.prototype.click = function (t, accent) {
+    if (this._samples && this._samples.claves) {
+      this.sample('claves', t, 0.16, { rate: accent ? 1.35 : 1, dur: 0.09 });
+      return;
+    }
     const c = this.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = 'square';
     o.frequency.setValueAtTime(accent ? 1760 : 1174, t);
@@ -325,6 +564,7 @@
     const c = this.ctx;
     if (!c) return;
     const t = c.currentTime;
+    if (this.sample('clap', t, (v || 0.3) * 0.8, { dur: 0.3 })) return;
     for (let i = 0; i < 3; i++) {
       const n = c.createBufferSource();
       n.buffer = this.noise();
@@ -520,7 +760,12 @@
     const now = this.ctx.currentTime;
     this.master = this.ctx.createGain();
     this.master.gain.value = this.vol;
-    this.master.connect(this.ctx.destination);
+    if (this.chain) {
+      this.master.connect(this.chain.comp);
+      this.master.connect(this.chain.send);
+    } else {
+      this.master.connect(this.ctx.destination);
+    }
     try {
       old.gain.setValueAtTime(old.gain.value, now);
       old.gain.linearRampToValueAtTime(0.0001, now + 0.04);

@@ -31,8 +31,12 @@
   let portalGroup = null;
   let lastStrike = 0;
   let spritesReady = false;
+  let groundPainted = '';
+  let tags = null;
+  let tagVec = null;
   let mini = null;
   let statsEl = null;
+  let glLost = false;
   let showStats = false;
   const textures = {};
   const frameCache = {};
@@ -95,18 +99,11 @@
 
   // ---------- 地面 ----------
 
-  function hash(x, y) {
-    let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    return (h ^ (h >>> 16)) >>> 0;
-  }
-
-  function shade(hex, d) {
-    const n = parseInt(hex.slice(1), 16);
-    const r = Math.max(0, Math.min(255, (n >> 16) + d));
-    const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + d));
-    const b = Math.max(0, Math.min(255, (n & 255) + d));
-    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  function groundSheet() {
+    const room = B && B.room ? B.room() : 'hub';
+    if (room === 'cave1' || room === 'cave2' || room === 'cave3' || room === 'field3b' || room === 'field4' || room === 'field6') return 'terrain-cave';
+    if (room === 'field4b' || room === 'field5' || room === 'field6b' || room === 'field7') return 'terrain-waste';
+    return 'terrain-field';
   }
 
   function paintGround() {
@@ -114,30 +111,58 @@
     const terrain = B.terrain && B.terrain();
     const W = map[0].length;
     const H = map.length;
-    const px = (W > 48 || H > 48) ? 4 : CELL;
+    const px = (W > 48 || H > 48) ? 16 : CELL;
     const c = document.createElement('canvas');
     c.width = W * px;
     c.height = H * px;
     const g = c.getContext('2d');
+    const im = DL.Assets && DL.Assets.image(groundSheet());
+    const cave = groundSheet() === 'terrain-cave';
+    if (im) {
+      const gw = Math.min(128, im.width);
+      const gh = 32;
+      for (let y = 0; y < c.height; y += gh) {
+        for (let x = 0; x < c.width; x += gw) {
+          g.drawImage(im, 0, 0, gw, gh, x, y, gw, gh);
+        }
+      }
+      if (cave) {
+        g.fillStyle = 'rgba(20, 28, 38, 0.45)';
+        g.fillRect(0, 0, c.width, c.height);
+      }
+    } else {
+      g.fillStyle = groundSheet() === 'terrain-cave' ? '#5a6874' : '#6fb446';
+      g.fillRect(0, 0, c.width, c.height);
+    }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
-        let base = '#6fb446';
-        if (terrain && terrain[y] && terrain[y][x] === 1) base = '#c6a15c';
-        if (map[y][x] === 1) base = '#7a766c';
-        if (map[y][x] === 2) base = '#d0a040';
-        const d = (hash(x, y) % 9) - 4;
-        g.fillStyle = shade(base, d * 2);
-        g.fillRect(x * px, y * px, px, px);
+        const dx = x * px;
+        const dy = y * px;
         if (map[y][x] === 1) {
-          g.strokeStyle = 'rgba(0,0,0,0.28)';
-          g.strokeRect(x * px + 1, y * px + 1, px - 2, px - 2);
+          g.fillStyle = cave ? '#6e675c' : '#b7b0a2';
+          g.fillRect(dx, dy, px, px);
+        } else if (map[y][x] === 2) {
+          g.fillStyle = '#e0b04a';
+          g.fillRect(dx, dy, px, px);
+        } else if (terrain && terrain[y] && terrain[y][x] === 1) {
+          g.fillStyle = cave ? '#5c564e' : '#c6a15c';
+          g.fillRect(dx, dy, px, px);
         }
       }
     }
-    // 地图外圈压暗一点，别直接切到天空色
-    g.strokeStyle = 'rgba(20,40,16,0.55)';
-    g.lineWidth = 8;
-    g.strokeRect(0, 0, c.width, c.height);
+    g.fillStyle = cave ? 'rgba(18, 14, 10, 0.7)' : 'rgba(70, 60, 48, 0.4)';
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (map[y][x] !== 1) continue;
+        const open = (nx, ny) => ny < 0 || nx < 0 || ny >= H || nx >= W || map[ny][nx] !== 1;
+        const dx = x * px;
+        const dy = y * px;
+        if (open(x, y - 1)) g.fillRect(dx, dy, px, 2);
+        if (open(x, y + 1)) g.fillRect(dx, dy + px - 2, px, 2);
+        if (open(x - 1, y)) g.fillRect(dx, dy, 2, px);
+        if (open(x + 1, y)) g.fillRect(dx + px - 2, dy, 2, px);
+      }
+    }
     return c;
   }
 
@@ -159,6 +184,8 @@
     ground.position.set(W / 2, 0, H / 2);
     ground.renderOrder = -10;
     scene.add(ground);
+    const sheet = groundSheet();
+    groundPainted = (DL.Assets && DL.Assets.image(sheet)) ? sheet : '';
   }
 
   // ---------- 道具 / NPC / 怪 ----------
@@ -331,12 +358,26 @@
     if (heroTex) {
       hero = billboard(heroTex, 128 / CELL, 128 / CELL, 4);
       hero.position.y -= 0.25;
+      hero.userData.foot = hero.position.y;
       scene.add(hero);
     }
     spritesReady = true;
   }
 
   // ---------- 相机 ----------
+
+  function clampLook() {
+    const map = B && B.map && B.map();
+    if (!map || !map[0]) return;
+    const W = map[0].length;
+    const H = map.length;
+    const halfX = (Pick.FRUSTUM_W / 2) / (zoom || 1);
+    const halfZ = ((Pick.FRUSTUM_H / 2) / (zoom || 1)) / Math.sin(Pick.PITCH);
+    if (W <= halfX * 2) look.x = W / 2;
+    else look.x = Math.max(halfX, Math.min(W - halfX, look.x));
+    if (H <= halfZ * 2) look.z = H / 2;
+    else look.z = Math.max(halfZ, Math.min(H - halfZ, look.z));
+  }
 
   function placeCamera() {
     const s = Math.sin(Pick.PITCH);
@@ -396,12 +437,19 @@
       }
     }
     const P = B.P();
+    const enemies = B.enemies ? B.enemies() : [];
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e || e.hp <= 0) continue;
+      g.fillStyle = e.boss ? '#ff5a5a' : '#ffd166';
+      g.fillRect(ox + e.x * s, oy + e.y * s, Math.max(2, s), Math.max(2, s));
+    }
     g.fillStyle = '#ffffff';
     g.fillRect(ox + P.x * s, oy + P.y * s, Math.max(2, s), Math.max(2, s));
   }
 
   function tick() {
-    if (!B) return;
+    if (!B || glLost) return;
     const t0 = performance.now();
     const P = B.P();
     const now = t0;
@@ -418,16 +466,40 @@
       spritesReady = true;
       rebuildRoom();
     }
+    const sheet = groundSheet();
+    if (DL.Assets && DL.Assets.image(sheet) && groundPainted !== sheet) {
+      groundPainted = sheet;
+      buildGround();
+    }
 
     // 相机平滑
     look.x += (P.x + 0.5 - look.x) * 0.2;
     look.z += (P.y + 0.5 - look.z) * 0.2;
+    clampLook();
     placeCamera();
+    if (renderer) renderer.setClearColor(groundSheet() === 'terrain-cave' ? '#1a2430' : '#7eb6e6', 1);
 
     // 主角位置/朝向
     if (hero) {
       hero.position.x = P.x + 0.5;
       hero.position.z = P.y + 0.5;
+      const moving = B.walking && B.walking();
+      const strike = now - (B.strikeAt ? B.strikeAt() : 0) < 260;
+      const bob = moving ? Math.sin(now / 1000 * 8) * (2 / 48) : Math.sin(now / 1000 * 2) * (1 / 48);
+      hero.position.y = (hero.userData.foot || hero.position.y) + bob;
+      hero.rotation.z = strike || !moving ? 0 : (P.dir === 'l' ? 0.035 : P.dir === 'r' ? -0.035 : P.dir === 'u' ? -0.02 : 0.02);
+      const dead = B.over && B.over() && P.hp <= 0;
+      if (dead) {
+        if (!hero.userData.dieAt) hero.userData.dieAt = now;
+        const t = Math.min(1, (now - hero.userData.dieAt) / 400);
+        hero.scale.set(1 - t * 0.7, 1 - t * 0.7, 1);
+        hero.material.opacity = 1 - t;
+        hero.material.transparent = true;
+      } else {
+        hero.userData.dieAt = 0;
+        hero.scale.set(1, 1, 1);
+        hero.material.opacity = 1;
+      }
       const row = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
       let col;
       if (now - (B.strikeAt ? B.strikeAt() : 0) < 260) col = 3;
@@ -450,6 +522,14 @@
         }
         m.position.x = e.x + 0.5;
         m.position.z = e.y + 0.5;
+        if (m.userData.hp == null) m.userData.hp = e.hp;
+        if (e.hp < m.userData.hp) {
+          m.userData.hp = e.hp;
+          m.userData.flash = now + 140;
+        }
+        if (m.material && m.material.color) {
+          m.material.color.set(m.userData.flash > now ? 0xfff1c2 : 0xffffff);
+        }
         const s = m.userData.sheet;
         if (!s.boss) {
           const col = Math.floor(now / 420) % 2;
@@ -486,13 +566,82 @@
         }
         if (!found) addBag(b);
       }
+      for (const m of group.children) {
+        if (!m.userData.bag) continue;
+        if (m.userData.baseY == null) m.userData.baseY = m.position.y;
+        m.position.y = m.userData.baseY + Math.sin(now / 380 + m.position.x) * 0.06;
+      }
     }
 
     drawMini();
     renderer.render(scene, camera);
+    drawTags();
     if (showStats && statsEl) {
       const info = renderer.info.render;
       statsEl.textContent = 'frame ' + (performance.now() - t0).toFixed(2) + ' ms  draws ' + info.calls + '  tris ' + info.triangles;
+    }
+  }
+
+  function drawTags() {
+    if (!canvas || !camera || !B) return;
+    if (!tags) {
+      tags = document.createElement('canvas');
+      tags.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;pointer-events:none;';
+      document.body.appendChild(tags);
+    }
+    if (!tagVec) tagVec = new THREE.Vector3();
+    const w = canvas.clientWidth || 1;
+    const h = canvas.clientHeight || 1;
+    if (tags.width !== w || tags.height !== h) {
+      tags.width = w;
+      tags.height = h;
+    }
+    tags.style.width = canvas.style.width;
+    tags.style.height = canvas.style.height;
+    const g = tags.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    const P = B.P();
+    const list = B.enemies() || [];
+    g.textAlign = 'center';
+    g.font = 'bold 12px sans-serif';
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      if (!e || e.hp <= 0) continue;
+      if (Math.abs(e.x - P.x) > 9 || Math.abs(e.y - P.y) > 7) continue;
+      tagVec.set(e.x + 0.5, e.boss ? 3.2 : 1.8, e.y + 0.5);
+      tagVec.project(camera);
+      if (tagVec.z < -1 || tagVec.z > 1) continue;
+      const sx = (tagVec.x * 0.5 + 0.5) * w;
+      const sy = (-tagVec.y * 0.5 + 0.5) * h;
+      const name = 'Lv.' + e.lv + ' ' + String(e.name || '').split('·')[0];
+      const tw = g.measureText(name).width;
+      g.fillStyle = 'rgba(6,10,18,0.75)';
+      g.fillRect(sx - tw / 2 - 4, sy - 16, tw + 8, 16);
+      g.fillStyle = e.boss ? '#ff6b6b' : e.rare ? '#ffb74d' : e.elite ? '#7ee0a0' : '#f2f6ff';
+      g.fillText(name, sx, sy - 4);
+      const bw = 32;
+      const hp = Math.max(0, Math.min(1, e.hp / (e.maxHp || 1)));
+      g.fillStyle = 'rgba(0,0,0,0.55)';
+      g.fillRect(sx - bw / 2, sy + 2, bw, 4);
+      g.fillStyle = '#e05a5a';
+      g.fillRect(sx - bw / 2, sy + 2, bw * hp, 4);
+    }
+    const floats = B.floaters ? B.floaters() : [];
+    g.font = 'bold 16px sans-serif';
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.life -= 0.02;
+      f.y -= 0.015;
+      if (f.life <= 0) { floats.splice(i, 1); continue; }
+      tagVec.set(f.x + 0.5, 1.4, f.y + 0.5);
+      tagVec.project(camera);
+      if (tagVec.z < -1 || tagVec.z > 1) continue;
+      const sx = (tagVec.x * 0.5 + 0.5) * w;
+      const sy = (-tagVec.y * 0.5 + 0.5) * h;
+      g.globalAlpha = Math.min(1, f.life * 2);
+      g.fillStyle = f.color || '#ffd166';
+      g.fillText(f.text, sx, sy);
+      g.globalAlpha = 1;
     }
   }
 
@@ -560,7 +709,14 @@
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
-      fail('3D 中断了。刷新，或加上 ?engine=canvas 回到原来的画面。');
+      glLost = true;
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      glLost = false;
+      groundPainted = '';
+      roomKey = '';
+      spritesReady = false;
+      fit();
     });
     global.addEventListener('resize', fit);
 

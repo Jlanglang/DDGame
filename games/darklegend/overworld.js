@@ -32,7 +32,7 @@
       for (let x = 0; x < N; x++) {
         const edge = x === 0 || y === 0 || x === N - 1 || y === N - 1;
         let wall = edge;
-        if (!edge && !inTown(x, y) && !onRoad(x, y) && (hash(x, y) % 47) === 0) wall = true;
+        if (!edge && !inTown(x, y) && !onRoad(x, y) && (hash(x, y) % 90) === 0) wall = true;
         row.push(wall ? 1 : 0);
       }
       map.push(row);
@@ -65,20 +65,29 @@
     add('town', 8, 15 + OX, 16 + OY);
     add('town', 9, 18 + OX, 12 + OY);
     add('flora', 0, 3 + OX, 5 + OY);
-    add('flora', 1, 90, 70);
-    add('flora', 2, 40, 100);
-    add('flora', 0, 20, 50);
-    add('flora', 8, 78, 96);
-    add('flora', 4, 30, 90);
-    add('flora', 6, 100, 40);
+    for (let y = 32; y <= 46; y += 4) {
+      add('flora', y % 8 === 0 ? 0 : 1, 60, y);
+      add('flora', y % 8 === 0 ? 1 : 2, 68, y);
+    }
+    let trees = 0;
+    for (let y = 10; y < N - 10 && trees < 64; y += 6) {
+      for (let x = 10; x < N - 10 && trees < 64; x += 8) {
+        if (map[y][x] === 1 || onRoad(x, y) || inTown(x, y)) continue;
+        if ((hash(x, y) % 3) !== 0) continue;
+        const idx = hash(x, y + 3) % 3;
+        const s = 100 + (hash(x, y) % 3) * 18;
+        add('flora', idx, x, y, { w: s, h: s + 16 });
+        trees += 1;
+      }
+    }
 
     const mobs = [
-      { id: 'chicken', x: 70, y: 96 },
-      { id: 'chicken', x: 78, y: 104 },
-      { id: 'chicken', x: 60, y: 108 },
-      { id: 'chicken', x: 88, y: 100 },
-      { id: 'scarecrow', x: 74, y: 112 },
-      { id: 'scarecrow', x: 52, y: 100 },
+      { id: 'chicken', x: 68, y: 86 },
+      { id: 'chicken', x: 60, y: 90 },
+      { id: 'chicken', x: 72, y: 98 },
+      { id: 'chicken', x: 58, y: 106 },
+      { id: 'scarecrow', x: 70, y: 94 },
+      { id: 'scarecrow', x: 52, y: 102 },
       { id: 'dog', x: 24, y: 60 },
       { id: 'dog', x: 18, y: 72 },
       { id: 'dog', x: 30, y: 48 },
@@ -101,5 +110,30 @@
     };
   }
 
-  DL.Overworld = { N: N, build: build };
+  function caveMap() {
+    const N = 64;
+    const map = [];
+    for (let y = 0; y < N; y++) {
+      const row = [];
+      for (let x = 0; x < N; x++) row.push(1);
+      map.push(row);
+    }
+    const carve = (x, y, w, h) => {
+      for (let j = y; j < y + h; j++) {
+        for (let i = x; i < x + w; i++) {
+          if (i > 0 && j > 0 && i < N - 1 && j < N - 1) map[j][i] = 0;
+        }
+      }
+    };
+    carve(2, 24, 16, 16);
+    carve(18, 30, 12, 4);
+    carve(28, 16, 16, 28);
+    carve(44, 28, 8, 6);
+    carve(50, 14, 12, 32);
+    const exit = { x: 2, y: 32 };
+    map[exit.y][exit.x] = 2;
+    return { map: map, spawn: { x: 5, y: 32 }, exit: exit };
+  }
+
+  DL.Overworld = { N: N, build: build, caveMap: caveMap };
 })(typeof window !== 'undefined' ? window : globalThis);

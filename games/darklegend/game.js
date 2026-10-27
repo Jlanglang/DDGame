@@ -350,6 +350,7 @@
   }
 
   let overworldAtCave = false;
+  let fieldSpawns = [];
 
   function useOverworld() {
     const q = (typeof location !== 'undefined' && location.search) || '';
@@ -368,6 +369,7 @@
     currentRoom = null;
     inCave = false;
     enemies = [];
+    fieldSpawns = ow.mobs;
     for (let i = 0; i < ow.mobs.length; i++) {
       const spot = ow.mobs[i];
       const mon = MON.find((m) => m.id === spot.id);
@@ -376,6 +378,8 @@
       const e = makeEnemy(mon, 'normal');
       e.x = spot.x;
       e.y = spot.y;
+      e.fieldHome = spot;
+      spot.alive = e;
       enemies.push(e);
     }
     if (overworldAtCave) {
@@ -500,7 +504,9 @@
       return false;
     }
     mapRng = mulberry32(worldSeed ^ hashId(roomId));
-    const r = DL.World.genRoom(spec, mapRng);
+    const r = (useOverworld() && roomId === 'cave1' && DL.Overworld.caveMap)
+      ? DL.Overworld.caveMap()
+      : DL.World.genRoom(spec, mapRng);
     map = r.map;
     seen = new Set();
     inCave = true;
@@ -1851,6 +1857,10 @@
 
   function kill(e) {
     e.hp = 0;
+    if (e.fieldHome) {
+      e.fieldHome.alive = null;
+      e.fieldHome.deadAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    }
     const crushed = isCrush(P.lv, e.lv, e.boss || e.elite || e.rare);
     killFromFarm = false;
     // 等级差：经验 EXP_GAP（≥4→0）；普通怪金币 GOLD_GAP_NORMAL（≥5→半、≥10→0）
@@ -2472,8 +2482,29 @@
       .sort((a, b) => dist(a, P) - dist(b, P))[0] || null;
   }
 
+  function respawnField() {
+    if (!useOverworld() || currentRoom || over) return;
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    for (let i = 0; i < fieldSpawns.length; i++) {
+      const spot = fieldSpawns[i];
+      if (spot.alive && spot.alive.hp > 0) continue;
+      if (!spot.deadAt || now - spot.deadAt < 8000) continue;
+      if (Math.max(Math.abs(spot.x - P.x), Math.abs(spot.y - P.y)) < 6) continue;
+      const mon = MON.find((m) => m.id === spot.id);
+      if (!mon || map[spot.y][spot.x] === 1) continue;
+      const e = makeEnemy(mon, 'normal');
+      e.x = spot.x;
+      e.y = spot.y;
+      e.fieldHome = spot;
+      spot.alive = e;
+      spot.deadAt = 0;
+      enemies.push(e);
+    }
+  }
+
   // allowAttack=false：玩家走路回合只追不砍（避免 0.18s 贴身狂飘伤害字）
   function enemiesTurn(opts) {
+    respawnField();
     if (over) return;
     const allowAttack = !opts || opts.allowAttack !== false;
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -4958,6 +4989,8 @@
       room: () => currentRoom || 'hub',
       walking: () => !!walkTimer,
       strikeAt: () => lastStrikeAt,
+      floaters: () => floaters,
+      over: () => over,
       clickCell: (x, y) => handleCellClick(x, y),
     };
     if (DL.ThreeView.bind) DL.ThreeView.bind(DL.ThreeBridge);
@@ -4965,6 +4998,7 @@
   draw();
   scheduleIdle();
   refreshTimer = setInterval(() => {
+    respawnField();
     if (autoDisabled || over || inCave || uiOpen()) return;
     if (document.hidden) return;
     spawnWild();

@@ -1,0 +1,86 @@
+{
+  "3": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": 28,
+      "cfg": 7.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    }
+  },
+  "4": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+    }
+  },
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "cute chibi monster design, big head small body, large glossy eyes, soft rounded shapes, thick clean outline, flat pastel colors, single creature, full body, centered, plain light background, {{prompt}}",
+      "clip": [
+        "4",
+        1
+      ]
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "realistic, photo, photograph, scary, grotesque, gore, blood, horror, grim, detailed texture, multiple characters, collage, grid, sprite sheet, text, letters, watermark, signature, frame, border, emblem, badge, logo, complex background, scenery, dark silhouette, blurry, low quality, jpeg artifacts, extra limbs, deformed, muscular, girl, woman, human, person, anime girl, human face, sticker sheet, grid of faces, color swatch panels",
+      "clip": [
+        "4",
+        1
+      ]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ch",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

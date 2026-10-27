@@ -707,6 +707,10 @@
       ctx.scale(1 + hop * 0.16, Math.max(0.62, 1 - hop * 0.28));
       ctx.translate(-x, -y);
     }
+    if (drawPropSprite(ctx, b, x, y)) {
+      ctx.restore();
+      return;
+    }
     ctx.fillStyle = fill;
     if (b.k === 'ball' || b.k === 'marble' || b.k === 'pebble' || b.k === 'bean') {
       const spin = pose.groove ? pose.groove.beat * 1.1 : 0;
@@ -1007,11 +1011,6 @@
 
   const SCENERY = {
     lift(ctx) {
-      const bg = window.RHYTHM_IMG && window.RHYTHM_IMG.bg;
-      if (bg && bg.complete && bg.naturalWidth) {
-        ctx.drawImage(bg, 0, 0, 720, 1600);
-        return;
-      }
       rect(ctx, 0, 320, 720, 760, '#f4e7cf');
       rect(ctx, 0, 780, 720, 300, '#e7d3b0');
       rect(ctx, 0, 848, 720, 28, '#c4894a');
@@ -1508,11 +1507,31 @@
 
   // 房间背景是静止的：每关只画一次，之后直接贴图，省下每帧几十个形状
   const roomCache = {};
+  // 插画只铺场景带，和让球同一刀：顶栏、黄点车道仍是原来的界面
+  function sceneImage(id) {
+    const bag = window.RHYTHM_IMG;
+    if (!bag) return null;
+    const img = id === 'lift' ? bag.bg : bag[id];
+    if (img && img.complete && img.naturalWidth) return img;
+    return null;
+  }
+
+  function drawPropSprite(ctx, b, x, y) {
+    if (!b || !b.sprite || !window.RHYTHM_IMG) return false;
+    const img = window.RHYTHM_IMG[b.sprite];
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const w = b.sw || (b.w ? b.w * 2.2 : (b.r || 18) * 4.4);
+    const h = b.sh || (b.h ? b.h * 2.2 : w * (img.naturalHeight / img.naturalWidth));
+    ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+    return true;
+  }
+
   function drawRoomCached(ctx, id) {
-    // 第 1 关有 AI 素材：加载好就直接贴，只画场景区，别盖住顶栏和跑道
-    const bg = window.RHYTHM_IMG && window.RHYTHM_IMG.bg;
-    if (id === 'lift' && bg && bg.complete && bg.naturalWidth) {
-      ctx.drawImage(bg, 0, 300, 720, 870, 0, 300, 720, 870);
+    const bg = sceneImage(id);
+    if (bg) {
+      // SVG 光栅结果就是这一条，倍率在加载时封顶
+      if (bg.artBand) ctx.drawImage(bg, 0, 300, 720, 870);
+      else ctx.drawImage(bg, 0, 300, 720, 870, 0, 300, 720, 870);
       return;
     }
     if (!roomCache[id]) {
@@ -1558,5 +1577,10 @@
     if ((pose.strike || 0) >= 1) spark(ctx, ends.home.x, ends.home.y, pose.strike, 1);
   }
 
-  window.SceneDraw = { draw };
+  function invalidateRoom(id) {
+    if (id) delete roomCache[id];
+    else Object.keys(roomCache).forEach((k) => { delete roomCache[k]; });
+  }
+
+  window.SceneDraw = { draw, invalidateRoom };
 })();

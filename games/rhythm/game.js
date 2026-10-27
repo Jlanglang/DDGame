@@ -201,6 +201,14 @@
     g.restore();
   }
 
+  function repaintThumbs() {
+    if (!dom.levelList) return;
+    dom.levelList.querySelectorAll('.level').forEach((btn) => {
+      const canvas = btn.querySelector('canvas');
+      if (canvas) paintThumb(canvas, Core.levelAt(+btn.dataset.lv));
+    });
+  }
+
   function renderLevels() {
     const starsOf = (lv) => '★'.repeat(lv.diff) + '☆'.repeat(3 - lv.diff);
     dom.levelList.innerHTML = Core.LEVELS.map((lv, i) => {
@@ -2796,14 +2804,148 @@
 
   /* ---------------- 启动 ---------------- */
 
-  // 图片素材：加载后挂在 window.RHYTHM_IMG，scene-draw.js 按需取
+  // 51 关都是描出来的 SVG。场景只光栅看得见的 720×870，倍率不超过 1.5；物件最长边 384、不超过 2 倍。
   const IMG = {};
+  const ART = {
+    bg: 'bg.svg',
+    ball: 'ball.svg',
+    disc: 'disc-bg.svg',
+    'disc-prop': 'disc-prop.svg',
+    kick: 'kick-bg.svg',
+    'kick-ball': 'kick-ball.svg',
+    drum: 'drum-bg.svg',
+    duck: 'duck-bg.svg',
+    'duck-branch': 'duck-branch.svg',
+    swat: 'swat-bg.svg',
+    'swat-fly': 'swat-fly.svg',
+    high: 'high-bg.svg',
+    'high-ball': 'high-ball.svg',
+    stone: 'stone-bg.svg',
+    'stone-prop': 'stone-prop.svg',
+    sash: 'sash-bg.svg',
+    'sash-prop': 'sash-prop.svg',
+    bump: 'bump-bg.svg',
+    'bump-ball': 'bump-ball.svg',
+    mole: 'mole-bg.svg',
+    'mole-prop': 'mole-prop.svg',
+    rain: 'rain-bg.svg',
+    'rain-prop': 'rain-prop.svg',
+    lamp: 'lamp-bg.svg',
+    'lamp-prop': 'lamp-prop.svg',
+    knife: 'knife-bg.svg',
+    'knife-prop': 'knife-prop.svg',
+    sling: 'sling-bg.svg',
+    'sling-prop': 'sling-prop.svg',
+    pour: 'pour-bg.svg',
+    'pour-prop': 'pour-prop.svg',
+    rod: 'rod-bg.svg',
+    'rod-prop': 'rod-prop.svg',
+    knock: 'knock-bg.svg',
+    'knock-prop': 'knock-prop.svg',
+    press: 'press-bg.svg',
+    'press-prop': 'press-prop.svg',
+    bubble: 'bubble-bg.svg',
+    'bubble-prop': 'bubble-prop.svg',
+    pinch: 'pinch-bg.svg',
+    'pinch-prop': 'pinch-prop.svg',
+    stamp: 'stamp-bg.svg',
+    'stamp-prop': 'stamp-prop.svg',
+    zip: 'zip-bg.svg',
+    'zip-prop': 'zip-prop.svg',
+    marble: 'marble-bg.svg',
+    'marble-prop': 'marble-prop.svg',
+    sprinkle: 'sprinkle-bg.svg',
+    'sprinkle-prop': 'sprinkle-prop.svg',
+    lid: 'lid-bg.svg',
+    'lid-prop': 'lid-prop.svg',
+    key: 'key-bg.svg',
+    'key-prop': 'key-prop.svg',
+    go: 'go-bg.svg',
+    'go-prop': 'go-prop.svg',
+    hanger: 'hanger-bg.svg',
+    'hanger-prop': 'hanger-prop.svg',
+    drawer: 'drawer-bg.svg',
+    'drawer-prop': 'drawer-prop.svg',
+    fan: 'fan-bg.svg',
+    'fan-prop': 'fan-prop.svg',
+    wax: 'wax-bg.svg',
+    'wax-prop': 'wax-prop.svg',
+    coin: 'coin-bg.svg',
+    'coin-prop': 'coin-prop.svg',
+    shell: 'shell-bg.svg',
+    'shell-prop': 'shell-prop.svg',
+    stylus: 'stylus-bg.svg',
+    bowl: 'bowl-bg.svg',
+    'bowl-prop': 'bowl-prop.svg',
+    swing: 'swing-bg.svg',
+    shuttle: 'shuttle-bg.svg',
+    'shuttle-prop': 'shuttle-prop.svg',
+    nail: 'nail-bg.svg',
+    cake: 'cake-bg.svg',
+    'cake-prop': 'cake-prop.svg',
+    arrow: 'arrow-bg.svg',
+    'arrow-prop': 'arrow-prop.svg',
+    book: 'book-bg.svg',
+    piano: 'piano-bg.svg',
+    egg: 'egg-bg.svg',
+    'egg-prop': 'egg-prop.svg',
+    latch: 'latch-bg.svg',
+    'latch-prop': 'latch-prop.svg',
+    mail: 'mail-bg.svg',
+    'mail-prop': 'mail-prop.svg',
+    bells: 'bells-bg.svg',
+    'bells-prop': 'bells-prop.svg',
+    leaf: 'leaf-bg.svg',
+    'leaf-prop': 'leaf-prop.svg',
+    cut: 'cut-bg.svg',
+    candle: 'candle-bg.svg',
+    'candle-prop': 'candle-prop.svg',
+    phone: 'phone-bg.svg',
+    'phone-prop': 'phone-prop.svg',
+  };
+  const SCENE_KEYS = {
+    bg: 1, disc: 1, kick: 1, drum: 1, duck: 1, swat: 1, high: 1, stone: 1, sash: 1, bump: 1,
+    mole: 1, rain: 1, lamp: 1, knife: 1, sling: 1, pour: 1, rod: 1, knock: 1, press: 1, bubble: 1,
+    pinch: 1, stamp: 1, zip: 1, marble: 1, sprinkle: 1, lid: 1, key: 1, go: 1, hanger: 1, drawer: 1,
+    fan: 1, wax: 1, coin: 1, shell: 1, stylus: 1, bowl: 1, swing: 1, shuttle: 1, nail: 1, cake: 1,
+    arrow: 1, book: 1, piano: 1, egg: 1, latch: 1, mail: 1, bells: 1, leaf: 1, cut: 1, candle: 1, phone: 1,
+  };
+  const SCENE_SCALE = Math.min(window.devicePixelRatio || 1, 1.5);
+  const PROP_MAX = 384;
+  let thumbTimer = 0;
+  function publishArt(name, canvas) {
+    canvas.complete = true;
+    canvas.naturalWidth = canvas.width;
+    canvas.naturalHeight = canvas.height;
+    IMG[name] = canvas;
+    const lv = name === 'bg' ? 'lift' : name;
+    if (window.SceneDraw && window.SceneDraw.invalidateRoom) window.SceneDraw.invalidateRoom(lv);
+    clearTimeout(thumbTimer);
+    thumbTimer = setTimeout(repaintThumbs, 40);
+  }
   function loadAssets() {
-    for (const n of ['bg', 'doudou-idle', 'ball']) {
+    Object.keys(ART).forEach((n) => {
       const img = new Image();
-      img.src = `assets/${n}.png`;
-      IMG[n] = img;
-    }
+      img.onload = () => {
+        const scene = !!SCENE_KEYS[n];
+        const c = document.createElement('canvas');
+        if (scene) {
+          c.width = Math.round(720 * SCENE_SCALE);
+          c.height = Math.round(870 * SCENE_SCALE);
+          c.artBand = true;
+        } else {
+          const edge = Math.max(img.naturalWidth, img.naturalHeight) || 1;
+          const s = Math.min(PROP_MAX / edge, window.devicePixelRatio || 1, 2);
+          c.width = Math.max(1, Math.round(img.naturalWidth * s));
+          c.height = Math.max(1, Math.round(img.naturalHeight * s));
+        }
+        const g = c.getContext('2d');
+        g.imageSmoothingEnabled = true;
+        g.drawImage(img, 0, 0, c.width, c.height);
+        publishArt(n, c);
+      };
+      img.src = 'assets/' + ART[n];
+    });
     window.RHYTHM_IMG = IMG;
   }
 

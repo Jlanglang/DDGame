@@ -74,8 +74,11 @@
   function texOfCanvas(c) {
     const t = new THREE.CanvasTexture(c);
     if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
+    // 2D 手绘感：线性过滤 + mipmap，去掉像素风的硬边
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true;
+    t.anisotropy = renderer && renderer.capabilities ? renderer.capabilities.getMaxAnisotropy() : 1;
     return t;
   }
 
@@ -88,8 +91,9 @@
     if (!textures[key]) {
       const t = new THREE.Texture(im);
       if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-      t.magFilter = THREE.NearestFilter;
-      t.minFilter = THREE.NearestFilter;
+      // 精灵图集：线性过滤，但不开 mipmap（相邻帧会串色）
+      t.magFilter = THREE.LinearFilter;
+      t.minFilter = THREE.LinearFilter;
       t.needsUpdate = true;
       textures[key] = t;
     }
@@ -415,7 +419,8 @@
     canvas.style.height = Math.round(h) + 'px';
     const hint = document.getElementById('turnHint');
     if (hint) hint.hidden = !(vh > vw + 40);
-    renderer.setPixelRatio(low ? 1 : Math.min(global.devicePixelRatio || 1, 2));
+    // 桌面上 2× 超采样，低配模式退回 1（1560 跑 2560×1440 没压力）
+    renderer.setPixelRatio(low ? 1 : 2);
     renderer.setSize(Pick.VIEW_W, Pick.VIEW_H, false);
   }
 

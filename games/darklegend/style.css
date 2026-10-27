@@ -223,6 +223,165 @@ canvas {
   cursor: crosshair;
 }
 
+#view3d {
+  image-rendering: auto;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  background: #7eb6e6;
+}
+
+body.engine-three #stage {
+  max-width: none;
+}
+
+#turnHint {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 7;
+  pointer-events: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.72);
+  color: #eef2fa;
+  font-size: 16px;
+}
+
+/* 3D 横屏：左上信息，右上按钮，左下摇杆和血条，右下技能 */
+body.engine-three .hud,
+body.engine-three .gear,
+body.engine-three .log-wrap,
+body.engine-three .controls,
+body.engine-three .bars-dock {
+  position: absolute;
+  z-index: 2;
+}
+
+body.engine-three .hud {
+  top: 0;
+  left: 0;
+  right: auto;
+  width: max-content;
+  max-width: calc(100% - 210px);
+  background: rgba(11, 16, 25, 0.78);
+  border: 0;
+  border-radius: 0 0 12px 0;
+  pointer-events: none;
+}
+
+body.engine-three .hud-left,
+body.engine-three .hud-right,
+body.engine-three .icon-btn,
+body.engine-three .log-toggle,
+body.engine-three .dpad.stick,
+body.engine-three .skill-pad.actions,
+body.engine-three .gear {
+  pointer-events: auto;
+}
+
+body.engine-three .hud-right {
+  padding-right: 8px;
+}
+
+body.engine-three .hud-btns {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 7;
+}
+
+body.engine-three .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+body.engine-three .gear {
+  top: 42px;
+  left: 0;
+  width: max-content;
+  max-width: min(280px, 40vw);
+  margin: 0;
+  border: 0;
+  border-radius: 0 0 12px 0;
+  background: rgba(11, 16, 25, 0.72);
+}
+
+body.engine-three .log-wrap {
+  top: 70px;
+  left: 0;
+  width: 240px;
+  max-width: 36vw;
+  border-radius: 0 0 12px 0;
+}
+
+body.engine-three .controls {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  pointer-events: none;
+  align-items: flex-end;
+}
+
+body.engine-three .dpad.stick {
+  width: 128px;
+  height: 128px;
+}
+
+body.engine-three .skill-pad.actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  max-width: none;
+  gap: 6px;
+  margin-left: auto;
+}
+
+body.engine-three .skill-pad.actions button {
+  width: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  flex: 0 0 56px;
+  padding: 4px 2px;
+}
+
+body.engine-three .bars-dock {
+  left: 152px;
+  bottom: 16px;
+  width: 200px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+body.engine-three .tips {
+  display: none;
+}
+
+body.engine-three .bars-side {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+body.engine-three .bar {
+  height: 12px;
+}
+
+body.engine-three .bar span {
+  font-size: 10px;
+}
+
+body.engine-three .shop-card {
+  width: min(92vw, 720px);
+}
+
 /* ---------- 日志：装备下方左侧，半宽；展开 5 条 / 折叠 1 条 ---------- */
 .log-wrap {
   align-self: flex-start;

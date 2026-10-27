@@ -11,6 +11,22 @@
     TILE: 32,
     VIEW_W: 720,
     VIEW_H: 1120,
+    /* 瓦片换皮（M1.64）：关掉就回到纯色块。图集 404 时同样走色块。 */
+    TILEMAP: {
+      enabled: true,
+      atlasDir: 'assets/tiles/',
+      smoothing: false,
+      decorDensity: 0.06,
+      theme: 'field',
+      atlasVer: 169,
+    },
+    /* 房间 → 地形主题。没写的用 field。主城固定 field。 */
+    THEME_OF_ROOM: {
+      field1: 'field', field2: 'field', field2b: 'field', field3: 'field',
+      cave1: 'cave', field3b: 'cave', field4: 'cave', field6: 'cave',
+      field4b: 'waste', cave3: 'waste', cave2: 'waste',
+      field5: 'waste', field6b: 'waste', field7: 'waste',
+    },
     BAG_MAX: 40,
     STASH_MAX: 100,
     SAVE_KEY: 'darklegend-save-v2',

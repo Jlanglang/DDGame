@@ -26,6 +26,7 @@
   const SAVE_KEY = D.SAVE_KEY;
   const LEGACY_KEY = D.LEGACY_KEY;
   const BAG_MAX = D.BAG_MAX;
+  const TILEMAP = D.TILEMAP || { enabled: false, atlasDir: 'assets/tiles/', theme: 'cave' };
   const STASH_MAX = D.STASH_MAX || 100;
 
   const canvas = document.getElementById('game');
@@ -49,6 +50,8 @@
       canvas.height = h;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    // 改 canvas 尺寸会重置上下文，像素图必须在这之后关掉平滑
+    ctx.imageSmoothingEnabled = false;
   }
 
   const el = {};
@@ -261,6 +264,12 @@
   let hurtTimer = null;
   const floaters = [];
   const cam = { x: 0, y: 0 };
+  let terrain = null;
+  let terrainCache = null;
+  const MOB_ROW = {
+    chicken: 0, scarecrow: 1, dog: 2, boar: 3, wolf: 4, spider: 5,
+    stone: 6, bandit: 7, ghoul: 8, mummy: 9, bat: 10, demon: 11, wraith: 12,
+  };
   const COMBAT_MS = D.COMBAT_MS || D.IDLE_MS || 1000;  // 打怪节奏
   // 被动「剑术精通」：攻速 ×2（只影响玩家，不影响怪物）
   const playerCombatMs = () => (P.skills && P.skills.swordMaster ? Math.round(COMBAT_MS / 2) : COMBAT_MS);
@@ -273,6 +282,7 @@
   let enemyNextActAt = 0;                               // 兼容旧逻辑
   let statusNextTickAt = 0;                             // DoT 最多 1 次/秒，防飘字狂冒
   let playerNextStrikeAt = 0;                           // 玩家普攻/撞怪最多约 1 次/秒
+  let lastStrikeAt = 0;                                 // 3D 视图用来播挥砍
   let refreshTimer = null;
   let clockTimer = null;
   let clock = 8 * 60;            // 游戏内时间（分钟），默认 08:00
@@ -339,6 +349,51 @@
     return h >>> 0;
   }
 
+  let overworldAtCave = false;
+
+  function useOverworld() {
+    const q = (typeof location !== 'undefined' && location.search) || '';
+    return /(?:^|[?&])engine=three(?:&|$)/.test(q) && DL.Overworld;
+  }
+
+  function applyOverworld() {
+    const ow = DL.Overworld.build();
+    map = ow.map;
+    npc = ow.npc;
+    bookNpc = ow.bookNpc;
+    trialNpc = ow.trialNpc;
+    stashNpc = ow.stashNpc;
+    doors = ow.doors;
+    door = doors[0];
+    currentRoom = null;
+    inCave = false;
+    enemies = [];
+    for (let i = 0; i < ow.mobs.length; i++) {
+      const spot = ow.mobs[i];
+      const mon = MON.find((m) => m.id === spot.id);
+      if (!mon) continue;
+      if (map[spot.y][spot.x] === 1) continue;
+      const e = makeEnemy(mon, 'normal');
+      e.x = spot.x;
+      e.y = spot.y;
+      enemies.push(e);
+    }
+    if (overworldAtCave) {
+      P.x = ow.cave.x;
+      P.y = ow.cave.y + 2;
+    } else {
+      P.x = ow.spawn.x;
+      P.y = ow.spawn.y;
+    }
+    overworldAtCave = false;
+    villagePos = { x: P.x, y: P.y };
+    refreshTerrain();
+    terrain = ow.terrain;
+    props = ow.props;
+    terrainCache = null;
+    centerCam();
+  }
+
   // 主城：固定小村庄 + 传送门；若有进门记录则站在该门西侧（不踩门）
   function genHub() {
     mapRng = mulberry32(worldSeed);
@@ -373,6 +428,8 @@
     S.clear(P);                     // 换图脱战：状态清零
     loadBags();
     centerCam();
+    refreshTerrain();
+    if (useOverworld()) applyOverworld();
     log('你回到了主城。', 'good');
   }
 
@@ -474,6 +531,7 @@
     }
 
     centerCam();
+    refreshTerrain();
     log(`进入 ${spec.name}（Lv.${spec.lvMin}–${spec.lvMax}）。点技能栏「挂机」刷普通/精英。`, 'good');
     return true;
   }
@@ -488,6 +546,7 @@
     }
     setAutoFarm(false);
     normalRespawnDue = [];
+    overworldAtCave = useOverworld();
     genHub();
   }
 
@@ -1778,6 +1837,7 @@
   }
 
   function strike(e, mult, tag) {
+    lastStrikeAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     const ar = atkRange(P);
     const dmg = DL.Combat.playerDamage(ar.min, ar.max, e.def, mult);
     e.hp -= dmg;
@@ -3049,6 +3109,11 @@
         leaveRoom();
       } else {
         const d = doors.find((x) => x.x === nx && x.y === ny);
+        if (d && d.direct) {
+          enterRoom(d.direct);
+          if (fromWalk) stopWalk();
+          return true;
+        }
         if (d) {
           promptDoor(d, ox, oy);
           if (fromWalk) stopWalk();
@@ -3183,6 +3248,13 @@
     if (px >= VIEW_W - 152 && py <= 152) return;   // 点在小地图上不移动
     const wx = Math.floor((px + cam.x) / TILE);
     const wy = Math.floor((py + cam.y) / TILE);
+    handleCellClick(wx, wy);
+  }
+
+  // 点到某一格：2D 画布和 3D 视图共用这一套（BFS / 撞怪 / NPC / 换图）
+  function handleCellClick(wx, wy) {
+    if (over || uiOpen()) return;
+    if (!S.canAct(P)) { blockAction(); return; }
     if (wx < 0 || wy < 0 || wx >= map[0].length || wy >= map.length) return;
     if (isWall(wx, wy)) return;
     stopWalk();
@@ -4120,30 +4192,283 @@
     cam.y += (ty - cam.y) * 0.18;
   }
 
-  // 第 1 层：地图
-  function drawMap() {
+  function themeNow() {
+    if (!currentRoom) return 'field';
+    const table = D.THEME_OF_ROOM || {};
+    return table[currentRoom] || 'field';
+  }
+
+  function terrainKey() {
+    return 'terrain-' + themeNow();
+  }
+
+  let props = [];
+
+  function isBorder(x, y) {
+    return x === 0 || y === 0 || x === map[0].length - 1 || y === map.length - 1;
+  }
+
+  function walkableNear(x, y) {
+    if (map[y] && map[y][x] !== 1) return { x: x, y: y };
+    for (let r = 1; r < 6; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (map[ny] && map[ny][nx] !== 1) return { x: nx, y: ny };
+        }
+      }
+    }
+    return { x: 1, y: 1 };
+  }
+
+  function refreshTerrain() {
+    const W = map[0].length, H = map.length;
+    const hub = !currentRoom;
+    const center = walkableNear(
+      hub ? (npc ? npc.x : Math.floor(W / 2)) : Math.floor(W / 2),
+      hub ? (npc ? npc.y : Math.floor(H / 2)) : Math.floor(H / 2)
+    );
+    const pts = [center];
+    if (hub) {
+      if (npc) pts.push(npc);
+      if (bookNpc) pts.push(bookNpc);
+      if (trialNpc) pts.push(trialNpc);
+      if (stashNpc) pts.push(stashNpc);
+      for (let i = 0; i < doors.length; i++) pts.push(doors[i]);
+    } else if (back) {
+      pts.push(back);
+    }
+    const seed = (worldSeed >>> 0) ^ hashId(currentRoom || 'hub');
+    terrain = DL.World.genTerrain(map, pts, seed);
+    terrainCache = null;
+    props = buildProps(seed);
+  }
+
+  // 场景道具：主城手工摆，房间按种子撒。全部是纯装饰，不参与碰撞（A 阶段）。
+  function buildProps(seed) {
+    const A = window.DL && window.DL.Assets;
+    if (!A) return [];
+    const W = map[0].length, H = map.length;
+    const theme = themeNow();
+    const rnd = DL.Core && DL.Core.mulberry32 ? DL.Core.mulberry32((seed ^ 0x9e3779b9) >>> 0) : Math.random;
+    const list = [];
+    const add = (sheet, index, x, y, opt) => {
+      if (x < 0 || y < 0 || x >= W || y >= H) return;
+      list.push(Object.assign({ sheet: sheet, index: index, x: x, y: y }, opt || {}));
+    };
+    const occupied = (x, y) => list.some((p) => Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1);
+    const open = (x, y) => map[y] && map[y][x] !== 1 && !(terrain && terrain[y][x] === 1);
+
+    // 边界：field 森林、cave 岩壁、waste 枯树。树站在最外圈墙上，树冠伸进画面。
+    const borderTree = theme === 'field' ? [0, 1, 2, 8, 9] : theme === 'cave' ? [6, 7, 6, 7] : [3, 8, 3, 8];
+    const borderAdd = (x, y) => {
+      if (rnd() < 0.22) return;
+      const idx = borderTree[Math.floor(rnd() * borderTree.length)];
+      const s = 0.85 + rnd() * 0.45;
+      add('flora', idx, x, y, {
+        ox: Math.round((rnd() - 0.5) * 18),
+        oy: Math.round((rnd() - 0.5) * 10),
+        w: Math.round(128 * s),
+        h: Math.round(128 * s),
+      });
+    };
+    for (let x = 1; x < W - 1; x++) {
+      if (map[0][x] === 1) borderAdd(x, 0);
+      if (map[H - 1][x] === 1) borderAdd(x, H - 1);
+    }
+    for (let y = 1; y < H - 1; y++) {
+      if (map[y][0] === 1) borderAdd(0, y);
+      if (map[y][W - 1] === 1) {
+        // 右边三扇门旁边别种树，树冠会盖住门名
+        if (currentRoom || !doors.some((d) => Math.abs(d.y - y) <= 2)) borderAdd(W - 1, y);
+      }
+    }
+
+    if (!currentRoom) {
+      // 主城：摊位/帐篷/篝火/水井/栅栏/路灯，围着 NPC 摆
+      add('town', 0, 12, 10);      // 杂货铺摊位
+      add('town', 1, 8, 7);        // 书摊
+      add('town', 4, 16, 7);       // 村长帐篷
+      add('town', 2, 14, 14);      // 篝火
+      add('town', 3, 9, 15);       // 水井
+      add('town', 5, 7, 12, { w: 96 });   // 栅栏
+      add('town', 5, 17, 12, { w: 96 });  // 栅栏
+      add('town', 6, 4, 14);       // 木箱
+      add('town', 7, 5, 17);       // 木桶
+      add('town', 8, 10, 9);       // 路灯
+      add('town', 8, 15, 16);      // 路灯
+      add('town', 9, 18, 12);      // 路牌
+      add('town', 10, 3, 8);       // 干草堆
+      add('town', 11, 19, 15);     // 枯树（右下空地）
+      add('town', 12, 6, 20);      // 池塘
+      add('town', 13, 9, 18);      // 板车
+      add('town', 14, 16, 18);     // 长凳
+      add('flora', 0, 3, 5);       // 村口大树
+      add('flora', 4, 6, 5);       // 灌木
+      add('flora', 5, 18, 20);     // 小灌木
+      add('flora', 7, 3, 20);      // 小石头
+      add('flora', 6, 21, 3);      // 大石头
+
+      // 草地上再撒一层：花、草簇、蘑菇、石头，别让村子像草坪
+      const scatter = [[11, 0.24], [12, 0.24], [10, 0.18], [5, 0.14], [13, 0.1], [7, 0.1]];
+      for (let i = 0; i < 70; i++) {
+        const x = 2 + Math.floor(rnd() * (W - 4));
+        const y = 2 + Math.floor(rnd() * (H - 4));
+        if (!open(x, y) || occupied(x, y)) continue;
+        if (Math.abs(x - (npc ? npc.x : 12)) <= 2 && Math.abs(y - (npc ? npc.y : 12)) <= 2) continue;
+        let r = rnd(), pick = scatter[0][0];
+        for (let k = 0; k < scatter.length; k++) {
+          if (r < scatter[k][1]) { pick = scatter[k][0]; break; }
+          r -= scatter[k][1];
+        }
+        add('flora', pick, x, y, { alpha: 0.12 });
+        if (list.length > 46) break;
+      }
+      return list;
+    }
+
+    // 房间：在草地上撒灌木/石头/小树，避开路、墙、门口
+    const kinds = theme === 'cave'
+      ? [[7, 0.4], [6, 0.2], [13, 0.2], [5, 0.2]]
+      : theme === 'waste'
+        ? [[3, 0.3], [7, 0.3], [8, 0.2], [14, 0.2]]
+        : [[4, 0.26], [5, 0.26], [7, 0.2], [8, 0.14], [10, 0.14]];
+    const tries = 90;
+    for (let i = 0; i < tries; i++) {
+      const x = 2 + Math.floor(rnd() * (W - 4));
+      const y = 2 + Math.floor(rnd() * (H - 4));
+      if (!open(x, y)) continue;
+      if (Math.abs(x - P.x) <= 2 && Math.abs(y - P.y) <= 2) continue;
+      if (back && Math.abs(x - back.x) <= 2 && Math.abs(y - back.y) <= 2) continue;
+      if (occupied(x, y)) continue;
+      let pick = kinds[0][0], r = rnd();
+      for (let k = 0; k < kinds.length; k++) {
+        if (r < kinds[k][1]) { pick = kinds[k][0]; break; }
+        r -= kinds[k][1];
+      }
+      add('flora', pick, x, y);
+      if (list.length > 22) break;
+    }
+    return list;
+  }
+
+  function blitSheet(g, im, id, dx, dy) {
+    const src = DL.Tiles.atlasSrc(id);
+    g.drawImage(im, src.sx, src.sy, src.sw, src.sh, dx, dy, TILE, TILE);
+  }
+
+  function paintTerrainTile(g, im, x, y) {
+    const R = DL.Tiles.REGION;
+    const t = map[y][x];
+    const forest = isBorder(x, y) && themeNow() !== 'cave';
+    blitSheet(g, im, DL.Tiles.baseVariant(x, y, worldSeed), x * TILE, y * TILE);
+    if (forest) {
+      g.fillStyle = 'rgba(10, 26, 6, 0.34)';
+      g.fillRect(x * TILE, y * TILE, TILE, TILE);
+      return;
+    }
+    if (t === 1) {
+      const m = DL.Tiles.maskOf(map, x, y, 1);
+      blitSheet(g, im, R.wall + m, x * TILE, y * TILE);
+      const corners = DL.Tiles.innerCorners(map, x, y, 1);
+      for (let i = 0; i < corners.length; i++) blitSheet(g, im, R.wallInner + corners[i], x * TILE, y * TILE);
+      return;
+    }
+    if (t === 2) {
+      blitSheet(g, im, R.door, x * TILE, y * TILE);
+      return;
+    }
+    if (terrain && terrain[y][x] === 1) {
+      const m = DL.Tiles.maskOf(terrain, x, y, 1);
+      blitSheet(g, im, R.path + m, x * TILE, y * TILE);
+      const corners = DL.Tiles.innerCorners(terrain, x, y, 1);
+      for (let i = 0; i < corners.length; i++) blitSheet(g, im, R.pathInner + corners[i], x * TILE, y * TILE);
+      return;
+    }
+    // 贴地装饰：错开半格画，弱化网格
+    const h = DL.Tiles.hash(x, y, worldSeed ^ 0x5bd1);
+    if (h % 100 < 22) {
+      const id = R.decal + ((h >>> 9) % 24);
+      const ox = ((h >>> 3) % 13) - 6;
+      const oy = ((h >>> 6) % 13) - 6;
+      const src = DL.Tiles.atlasSrc(id);
+      g.drawImage(im, src.sx, src.sy, src.sw, src.sh, x * TILE + ox, y * TILE + oy, TILE, TILE);
+    }
+  }
+
+  // 大尺度明暗：把 32px 的重复感压下去
+  function paintMacro(g) {
+    const W = map[0].length, H = map.length;
+    const rnd = DL.Core && DL.Core.mulberry32 ? DL.Core.mulberry32((worldSeed ^ 0x51ed270b) >>> 0) : Math.random;
+    for (let i = 0; i < 7; i++) {
+      const cx = rnd() * W * TILE;
+      const cy = rnd() * H * TILE;
+      const r = (2.5 + rnd() * 3.5) * TILE;
+      const grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+      const dark = rnd() < 0.55;
+      grd.addColorStop(0, dark ? 'rgba(20, 52, 12, 0.16)' : 'rgba(210, 240, 140, 0.10)');
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd;
+      g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    }
+  }
+
+  // 墙脚投影：墙压在地上，不是贴纸
+  function paintWallShadow(g) {
+    const W = map[0].length, H = map.length;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (map[y][x] !== 1 || (isBorder(x, y) && themeNow() !== 'cave')) continue;
+        if (y + 1 < H && map[y + 1][x] !== 1) {
+          g.fillStyle = 'rgba(0,0,0,0.20)';
+          g.fillRect(x * TILE, (y + 1) * TILE - 1, TILE, 4);
+          g.fillStyle = 'rgba(0,0,0,0.10)';
+          g.fillRect(x * TILE, (y + 1) * TILE + 3, TILE, 3);
+        }
+        if (x + 1 < W && map[y][x + 1] !== 1) {
+          g.fillStyle = 'rgba(0,0,0,0.12)';
+          g.fillRect((x + 1) * TILE - 1, y * TILE, 3, TILE);
+        }
+      }
+    }
+  }
+
+  function ensureTerrainCache() {
+    const A = window.DL && window.DL.Assets;
+    const im = A && A.image(terrainKey());
+    if (!im || !terrain || !map.length) return null;
+    const key = terrainKey() + '|' + (currentRoom || 'hub') + '|' + worldSeed + '|' + map.length + '|' + map[0].length;
+    if (terrainCache && terrainCache.key === key) return terrainCache.canvas;
+    const c = document.createElement('canvas');
+    c.width = map[0].length * TILE;
+    c.height = map.length * TILE;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    for (let y = 0; y < map.length; y++) {
+      for (let x = 0; x < map[0].length; x++) paintTerrainTile(g, im, x, y);
+    }
+    paintMacro(g);
+    paintWallShadow(g);
+    terrainCache = { key: key, canvas: c };
+    return c;
+  }
+
+  function tilesReady() {
+    return !!(DL.Tiles && TILEMAP.enabled && DL.Tiles.useTiles(true));
+  }
+
+  function eachVisibleTile(paint) {
     const x0 = Math.floor(cam.x / TILE) - 1;
     const y0 = Math.floor(cam.y / TILE) - 1;
     const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
     const y1 = y0 + Math.ceil(VIEW_H / TILE) + 3;
-
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (x < 0 || y < 0 || x >= map[0].length || y >= map.length) continue;
-        const t = map[y][x];
-        // 画面全亮；探索记录只更新玩家周围 8 格，留给小地图做迷雾
         if (Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8) seen.add(key(x, y));
-        // 取整 + 整格填充：保证每格都是同样大小的正方形
         const sx = Math.round(x * TILE - cam.x);
         const sy = Math.round(y * TILE - cam.y);
-        if (t === 1) ctx.fillStyle = '#151f33';
-        else if (t === 2) ctx.fillStyle = '#2a2410';
-        else ctx.fillStyle = inCave ? '#1b1a2e' : '#232a3d';
-        ctx.fillRect(sx, sy, TILE, TILE);
-        // 极淡网格线，让"正方形"看得出来
-        ctx.strokeStyle = 'rgba(255,255,255,0.035)';
-        ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-        // 玩家脚下这格亮起来
+        paint(x, y, map[y][x], sx, sy);
         if (x === P.x && y === P.y) {
           ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
           ctx.fillRect(sx, sy, TILE, TILE);
@@ -4152,6 +4477,60 @@
         }
       }
     }
+  }
+
+  // 第 1 层：色块（图集未就绪，或 TILEMAP.enabled = false）
+  function drawMapFallback() {
+    eachVisibleTile((x, y, t, sx, sy) => {
+      if (t === 1) ctx.fillStyle = '#d2c6b0';
+      else if (t === 2) ctx.fillStyle = '#c08a28';
+      else ctx.fillStyle = '#6fb446';
+      ctx.fillRect(sx, sy, TILE, TILE);
+      ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+      ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+    });
+  }
+
+  // 第 1 层：瓦片。地面变体按格子哈希，墙按 4 邻域掩码。
+  function drawMapTiles() {
+    const atlas = DL.Tiles.image;
+    const A = DL.Tiles.ATLAS;
+    ctx.imageSmoothingEnabled = false;
+    eachVisibleTile((x, y, t, sx, sy) => {
+      let id;
+      if (t === 1) id = A.wall[DL.Tiles.wallMask(map, x, y)];
+      else if (t === 2) id = A.door;
+      else id = A.floor[DL.Tiles.hash(x, y, worldSeed) % A.floor.length];
+      const src = DL.Tiles.atlasSrc(id);
+      ctx.drawImage(atlas, src.sx, src.sy, src.sw, src.sh, sx, sy, TILE, TILE);
+    });
+  }
+
+  function drawMap() {
+    const cache = ensureTerrainCache();
+    if (cache) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(cache, Math.round(-cam.x), Math.round(-cam.y));
+      const sx = Math.round(P.x * TILE - cam.x);
+      const sy = Math.round(P.y * TILE - cam.y);
+      ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
+      ctx.fillRect(sx, sy, TILE, TILE);
+      ctx.strokeStyle = 'rgba(120, 210, 255, 0.6)';
+      ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
+      const x0 = Math.floor(cam.x / TILE) - 1;
+      const y0 = Math.floor(cam.y / TILE) - 1;
+      const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
+      const y1 = y0 + Math.ceil(VIEW_H / TILE) + 3;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          if (x < 0 || y < 0 || x >= map[0].length || y >= map.length) continue;
+          if (Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8) seen.add(key(x, y));
+        }
+      }
+      return;
+    }
+    if (tilesReady()) drawMapTiles();
+    else drawMapFallback();
   }
 
   // 传送门 / 出口：光晕 + 大图标 + 名称
@@ -4239,15 +4618,59 @@
     }
   }
 
+  function tryActor(key, index, cols, cell, gx, gy, opt) {
+    const A = window.DL && window.DL.Assets;
+    if (!A || !A.ready(key)) return false;
+    opt = opt || {};
+    const footX = Math.round(gx * TILE - cam.x + TILE / 2);
+    const footY = Math.round(gy * TILE - cam.y + (opt.foot || 26));
+    ctx.imageSmoothingEnabled = true;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    if (ctx.ellipse) ctx.ellipse(footX, footY, (opt.w || 48) * 0.28, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return A.draw(ctx, key, index, cols, cell, footX, footY, opt);
+  }
+
+  // 场景道具：按脚底 y 和玩家前后分层，树冠能盖住角色
+  function drawProps(layer) {
+    if (!props.length) return;
+    const A = window.DL && window.DL.Assets;
+    if (!A) return;
+    const pBase = P.y * TILE + 30;
+    ctx.imageSmoothingEnabled = true;
+    for (let i = 0; i < props.length; i++) {
+      const p = props[i];
+      const baseY = p.y * TILE + 30 + (p.oy || 0);
+      const front = baseY > pBase;
+      if ((layer === 'front') !== front) continue;
+      const sx = Math.round(p.x * TILE - cam.x + TILE / 2 + (p.ox || 0));
+      const sy = Math.round(baseY - cam.y);
+      if (sx < -200 || sy < -200 || sx > VIEW_W + 200 || sy > VIEW_H + 200) continue;
+      const w = p.w || 128, h = p.h || 128;
+      ctx.globalAlpha = p.alpha != null ? p.alpha : 0.18;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      if (ctx.ellipse) ctx.ellipse(sx, sy, w * 0.30, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      A.draw(ctx, p.sheet, p.index, 4, 128, sx, sy, { w: w, h: h, anchorX: 64, anchorY: 118 });
+    }
+  }
+
   // 第 2 层：实体
   function drawEntities() {
+    ctx.imageSmoothingEnabled = true;
+    const bob = (Date.now() / 700) % 2 | 0;
     // 商人
     if (npc) {
       const sx = npc.x * TILE - cam.x + TILE / 2;
       const sy = npc.y * TILE - cam.y + TILE / 2;
       ctx.font = '30px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('🧑‍🌾', sx, sy + 10);
+      if (!tryActor('npc', bob * 4, 4, 96, npc.x, npc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
+        ctx.fillText('🧑‍🌾', sx, sy + 10);
+      }
       ctx.font = 'bold 10px system-ui';
       ctx.fillStyle = '#ffd166';
       ctx.fillText('商人', sx, sy - 18);
@@ -4259,7 +4682,9 @@
       const sy = bookNpc.y * TILE - cam.y + TILE / 2;
       ctx.font = '30px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('📖', sx, sy + 10);
+      if (!tryActor('npc', 2 + bob * 4, 4, 96, bookNpc.x, bookNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
+        ctx.fillText('📖', sx, sy + 10);
+      }
       ctx.font = 'bold 10px system-ui';
       ctx.fillStyle = '#7ee0a0';
       ctx.fillText('技能书', sx, sy - 18);
@@ -4271,7 +4696,9 @@
       const sy = trialNpc.y * TILE - cam.y + TILE / 2;
       ctx.font = '30px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('📜', sx, sy + 10);
+      if (!tryActor('npc', 1 + bob * 4, 4, 96, trialNpc.x, trialNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
+        ctx.fillText('📜', sx, sy + 10);
+      }
       ctx.font = 'bold 10px system-ui';
       ctx.fillStyle = '#ffb74d';
       ctx.fillText('村长', sx, sy - 18);
@@ -4283,7 +4710,9 @@
       const sy = stashNpc.y * TILE - cam.y + TILE / 2;
       ctx.font = '30px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText('📦', sx, sy + 10);
+      if (!tryActor('npc', 3 + bob * 4, 4, 96, stashNpc.x, stashNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
+        ctx.fillText('📦', sx, sy + 10);
+      }
       ctx.font = 'bold 10px system-ui';
       ctx.fillStyle = '#8ab4ff';
       ctx.fillText('仓库', sx, sy - 18);
@@ -4308,7 +4737,15 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      ctx.fillText(e.glyph, sx, sy + 10);
+      let drewMob = false;
+      const fr = (Date.now() / 420) % 2 | 0;
+      if (e.boss) {
+        const brow = currentRoom === 'cave3' ? 1 : currentRoom === 'cave2' ? 2 : currentRoom === 'field7' ? 3 : 0;
+        drewMob = tryActor('bosses', brow * 4 + fr, 4, 192, e.x, e.y, { w: 96, h: 96, anchorX: 96, anchorY: 172, foot: 29, flip: e.x > P.x });
+      } else if (MOB_ROW[e.id] != null) {
+        drewMob = tryActor('mobs', MOB_ROW[e.id] * 4 + fr, 8, 96, e.x, e.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26, flip: e.x > P.x });
+      }
+      if (!drewMob) ctx.fillText(e.glyph, sx, sy + 10);
       // 品级染色 + 深色底衬，贴在一起时也读得清
       const label = `Lv.${e.lv} ${e.name}`;
       ctx.font = 'bold 10px system-ui';
@@ -4337,12 +4774,16 @@
     const py = P.y * TILE - cam.y + TILE / 2;
     ctx.font = '36px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('🧙', px, py + 12);
-    const [fx, fy] = facingVec();
-    ctx.fillStyle = '#ffd166';
-    ctx.beginPath();
-    ctx.arc(px + fx * 18, py + fy * 18, 3, 0, Math.PI * 2);
-    ctx.fill();
+    const dirRow = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
+    const step = walkTimer ? 1 + ((Date.now() / 160) | 0) % 2 : 0;
+    if (!tryActor('player', dirRow * 4 + step, 4, 128, P.x, P.y, { w: 64, h: 64, anchorX: 64, anchorY: 116, foot: 28 })) {
+      ctx.fillText('🧙', px, py + 12);
+      const [fx, fy] = facingVec();
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath();
+      ctx.arc(px + fx * 18, py + fy * 18, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // 2.5 层：上层特效（在实体上面）
@@ -4367,23 +4808,29 @@
     const py = P.y * TILE - cam.y + TILE / 2;
     const g = ctx.createRadialGradient(px, py, 120, px, py, 520);
     g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0.15)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
 
   function draw() {
+    if (window.DL && DL.ThreeView && DL.ThreeView.active()) {
+      requestAnimationFrame(draw);
+      return;
+    }
     if (!map.length) return;
     updateCamera();
-    ctx.fillStyle = '#070a11';
+    ctx.fillStyle = '#24331a';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    drawMap();        // 1
-    drawGroundFx();   // 1.5
-    drawBags();       // 1.6
-    drawEntities();   // 2
-    drawFloaters();   // 2.5
-    drawVignette();   // 3
-    drawMinimap();    // 3
+    drawMap();          // 1
+    drawGroundFx();     // 1.5
+    drawProps('back');  // 1.7
+    drawBags();         // 1.6
+    drawEntities();     // 2
+    drawProps('front'); // 2.2 树冠/摊位盖住角色
+    drawFloaters();     // 2.5
+    drawVignette();     // 3
+    drawMinimap();      // 3
     requestAnimationFrame(draw);
   }
 
@@ -4463,11 +4910,58 @@
     P.hp = Math.max(1, Math.min(P.hp, maxHp()));
     P.mp = Math.min(P.mp, maxMp());
   }
+  if (location.search.includes('shot') || /(?:^|[?&])engine=three(?:&|$)/.test(location.search)) {
+    el.intro.hidden = true;
+    if (el.sfxGate) el.sfxGate.hidden = true;
+  }
   resizeCanvas();
+  if (DL.Tiles && TILEMAP.enabled) DL.Tiles.load(TILEMAP.atlasDir, TILEMAP.theme || 'field');
+  if (DL.Assets && TILEMAP.enabled) {
+    const q = '?v=' + (TILEMAP.atlasVer || 169);
+    ['field', 'cave', 'waste'].forEach((name) => {
+      DL.Assets.loadOne('terrain-' + name, 'assets/terrain/terrain-' + name + '.png' + q, () => { terrainCache = null; });
+    });
+    DL.Assets.loadOne('player', 'assets/chars/player-bean.png' + q);
+    DL.Assets.loadOne('mobs', 'assets/chars/mobs.png' + q);
+    DL.Assets.loadOne('bosses', 'assets/chars/bosses.png' + q);
+    DL.Assets.loadOne('npc', 'assets/chars/npc.png' + q);
+    DL.Assets.loadOne('pickups', 'assets/items/pickups.png' + q);
+    DL.Assets.loadOne('flora', 'assets/props/flora.png' + q);
+    DL.Assets.loadOne('town', 'assets/props/town.png' + q);
+  }
   window.addEventListener('resize', resizeCanvas);
   window.addEventListener('orientationchange', resizeCanvas);
   bind();
   syncHud();
+  if (location.search.includes('shot') || /(?:^|[?&])engine=three(?:&|$)/.test(location.search)) {
+    el.intro.hidden = true;
+    if (el.sfxGate) el.sfxGate.hidden = true;
+  }
+  const shotQuery = /[?&]room=([^&]+)/.exec(location.search || '');
+  const shotRoom = shotQuery ? decodeURIComponent(shotQuery[1]) : '';
+  if (shotRoom && location.search.includes('shot')) enterRoom(shotRoom);
+  // 3D 视图桥：只读游戏状态 + 复用 handleCellClick，不复制寻路/战斗
+  if (window.DL && DL.ThreeView) {
+    DL.ThreeBridge = {
+      P: () => P,
+      map: () => map,
+      terrain: () => terrain,
+      props: () => props,
+      enemies: () => enemies,
+      npc: () => npc,
+      trialNpc: () => trialNpc,
+      bookNpc: () => bookNpc,
+      stashNpc: () => stashNpc,
+      doors: () => doors,
+      back: () => back,
+      bags: () => activeBags,
+      room: () => currentRoom || 'hub',
+      walking: () => !!walkTimer,
+      strikeAt: () => lastStrikeAt,
+      clickCell: (x, y) => handleCellClick(x, y),
+    };
+    if (DL.ThreeView.bind) DL.ThreeView.bind(DL.ThreeBridge);
+  }
   draw();
   scheduleIdle();
   refreshTimer = setInterval(() => {

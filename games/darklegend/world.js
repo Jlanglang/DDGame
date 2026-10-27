@@ -157,9 +157,73 @@
     return { map: m, spawn: { x: 2, y: exit.y }, exit };
   }
 
+  // 只给绘制用。0 地面 / 1 土路 / 2 墙。不改 map，不进存档。
+  // points[0] 是广场中心，其余是门/NPC/出生点；从中心铺 L 形路过去，带一点拐弯抖动。
+  function genTerrain(map, points, seed) {
+    const H = map.length;
+    const W = map[0].length;
+    const g = [];
+    for (let y = 0; y < H; y++) {
+      g[y] = [];
+      for (let x = 0; x < W; x++) g[y][x] = map[y][x] === 1 ? 2 : 0;
+    }
+    const mul = DL.Core && DL.Core.mulberry32;
+    const rnd = mul ? mul((seed >>> 0) || 1) : Math.random;
+    const walkable = (x, y) => x > 0 && y > 0 && x < W - 1 && y < H - 1 && map[y][x] !== 1;
+    const pts = (points || []).filter((p) => p && walkable(p.x, p.y));
+    if (!pts.length) return g;
+    const center = pts[0];
+
+    function stamp(cx, cy, r) {
+      const R = Math.ceil(r);
+      for (let dy = -R; dy <= R; dy++) {
+        for (let dx = -R; dx <= R; dx++) {
+          const x = cx + dx, y = cy + dy;
+          if (!walkable(x, y)) continue;
+          if (dx * dx + dy * dy <= r * r) g[y][x] = 1;
+        }
+      }
+    }
+
+    // 广场
+    stamp(center.x, center.y, 2.4);
+
+    // 一条带折点的路：两段横竖 + 随机折点，保证从头连到尾；路面 2 格宽
+    function road(a, b) {
+      function lane(px, py, horiz) {
+        stamp(px, py, 0.6);
+        if (horiz) stamp(px, py + 1, 0.6);
+        else stamp(px + 1, py, 0.6);
+      }
+      function h(x0, x1, y) {
+        const s = x0 <= x1 ? 1 : -1;
+        for (let x = x0; x !== x1 + s; x += s) lane(x, y, true);
+      }
+      function v(y0, y1, x) {
+        const s = y0 <= y1 ? 1 : -1;
+        for (let y = y0; y !== y1 + s; y += s) lane(x, y, false);
+      }
+      if (a.x === b.x || a.y === b.y || rnd() < 0.5) {
+        const bx = a.x + Math.round((b.x - a.x) * (0.35 + rnd() * 0.3));
+        h(a.x, bx, a.y);
+        v(a.y, b.y, bx);
+        h(bx, b.x, b.y);
+      } else {
+        const by = a.y + Math.round((b.y - a.y) * (0.35 + rnd() * 0.3));
+        v(a.y, by, a.x);
+        h(a.x, b.x, by);
+        v(by, b.y, b.x);
+      }
+      stamp(b.x, b.y, 1.1);
+    }
+
+    for (let i = 1; i < pts.length; i++) road(center, pts[i]);
+    return g;
+  }
+
   DL.World = {
     blank, carve, corridor,
     isWall, visible, canStep, DIRS8, bfs,
-    genHub, genRoom,
+    genHub, genRoom, genTerrain,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

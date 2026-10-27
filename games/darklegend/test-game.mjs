@@ -87,11 +87,13 @@ const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
 const combatCode = fs.readFileSync(path.join(ROOT, 'combat.js'), 'utf8');
 const statusCode = fs.readFileSync(path.join(ROOT, 'status.js'), 'utf8');
 const sfxCode = fs.readFileSync(path.join(ROOT, 'sfx.js'), 'utf8');
+const tilesCode = fs.readFileSync(path.join(ROOT, 'tiles.js'), 'utf8');
 vm.createContext(sandbox);
 try {
   vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
   vm.runInContext(coreCode, sandbox, { filename: 'core.js' });
   vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
+  vm.runInContext(tilesCode, sandbox, { filename: 'tiles.js' });
   vm.runInContext(combatCode, sandbox, { filename: 'combat.js' });
   vm.runInContext(statusCode, sandbox, { filename: 'status.js' });
   vm.runInContext(sfxCode, sandbox, { filename: 'sfx.js' });
@@ -1471,6 +1473,29 @@ try {
   ok('房间里没有仓库', dl.stashNpc() == null);
   ok('房间里打不开仓库', dl.openStash() === false);
   dl.genHub();
+
+  /* 瓦片：掩码 / 哈希 / 图集坐标。没有图集时不画瓦片。 */
+  const T = sandbox.DL.Tiles;
+  for (let mask = 0; mask < 16; mask++) {
+    const m = [[0, 0, 0], [0, 1, 0], [0, 0, 0]];
+    if (mask & 1) m[0][1] = 1;
+    if (mask & 2) m[1][2] = 1;
+    if (mask & 4) m[2][1] = 1;
+    if (mask & 8) m[1][0] = 1;
+    ok('墙掩码 ' + mask, T.wallMask(m, 1, 1) === mask, T.wallMask(m, 1, 1));
+  }
+  ok('地图边上的墙当实心', T.wallMask([[1]], 0, 0) === 15);
+  const doorN = [[0, 2, 0], [0, 1, 0], [0, 0, 0]];
+  ok('门不算墙邻居', T.wallMask(doorN, 1, 1) === 0, T.wallMask(doorN, 1, 1));
+  ok('格子哈希稳定', T.hash(3, 8, 12345) === T.hash(3, 8, 12345));
+  ok('不同格子哈希不同', T.hash(3, 8, 12345) !== T.hash(4, 8, 12345));
+  const srcFloor = T.atlasSrc(0x00);
+  ok('地面图在第 0 行第 0 列', srcFloor.sx === 0 && srcFloor.sy === 0, srcFloor);
+  const src23 = T.atlasSrc(0x23);
+  ok('0x23 是第 2 行第 3 列', src23.col === 3 && src23.row === 2 && src23.sx === 96 && src23.sy === 64, src23);
+  ok('墙 15 对应 0x1F', T.ATLAS.wall[15] === 0x1F);
+  ok('没有图集时不启用瓦片', T.ready === false && T.useTiles(true) === false);
+  ok('瓦片总开关开着', sandbox.DL.DATA.TILEMAP.enabled === true);
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

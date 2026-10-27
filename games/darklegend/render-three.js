@@ -41,10 +41,25 @@
   const textures = {};
   const frameCache = {};
 
+  let warnedFileProto = false;
   function wanted() {
     const q = (global.location && global.location.search) || '';
     if (/(?:^|[?&])engine=canvas(?:&|$)/.test(q)) return false;
-    return /(?:^|[?&])engine=three(?:&|$)/.test(q);
+    if (!/(?:^|[?&])engine=three(?:&|$)/.test(q)) return false;
+    // file:// 下 WebGL 上传本地图片会被 CORS 拦（texSubImage2D SecurityError），3D 一定黑屏。
+    // 那就退回 2D（drawImage 不受这条限制），并在控制台说明怎么起服务。
+    if (global.location && global.location.protocol === 'file:') {
+      if (!warnedFileProto) {
+        warnedFileProto = true;
+        console.warn(
+          '[3D] 3D 模式需要 http:// 打开：file:// 下 WebGL 无法上传本地图片纹理。\n' +
+          '起服务：node tools/serve.mjs 8080\n' +
+          '然后访问 http://localhost:8080/games/darklegend/?engine=three'
+        );
+      }
+      return false;
+    }
+    return true;
   }
 
   function active() { return on; }

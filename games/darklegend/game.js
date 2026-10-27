@@ -354,7 +354,10 @@
 
   function useOverworld() {
     const q = (typeof location !== 'undefined' && location.search) || '';
-    return /(?:^|[?&])engine=three(?:&|$)/.test(q) && DL.Overworld;
+    if (!/(?:^|[?&])engine=three(?:&|$)/.test(q) || !DL.Overworld) return false;
+    // file:// 下 WebGL 纹理会被 CORS 拦，3D 起不来；退回 2D（双击也能玩）
+    if (typeof location !== 'undefined' && location.protocol === 'file:') return false;
+    return true;
   }
 
   function applyOverworld() {

@@ -2392,14 +2392,14 @@
     el.btnFarm.classList.toggle('on', !!autoFarm);
     el.btnFarm.setAttribute('aria-pressed', autoFarm ? 'true' : 'false');
     el.btnFarm.innerHTML = `${autoFarm ? '挂·开' : '挂机'}<kbd>E</kbd>`;
-    el.btnFarm.disabled = !currentRoom || over;
-    el.btnFarm.title = !currentRoom
+    el.btnFarm.disabled = !canFarmHere() || over;
+    el.btnFarm.title = !canFarmHere()
       ? '进房间后才能挂机'
       : (autoFarm ? '挂机中：再点关闭' : '挂机：自动打普通/精英');
   }
 
   function setAutoFarm(on) {
-    const next = !!on && !!currentRoom && !over;
+    const next = !!on && canFarmHere() && !over;
     if (autoFarm === next) { syncFarmBtn(); return autoFarm; }
     autoFarm = next;
     killFromFarm = false;
@@ -2415,9 +2415,15 @@
   }
 
   function toggleFarm() {
-    if (!currentRoom) { log('主城不能挂机，先进传送门。', 'bad'); return; }
+    if (!canFarmHere()) { log('主城不能挂机，先进传送门。', 'bad'); return; }
     if (over) return;
     setAutoFarm(!autoFarm);
+  }
+
+  // 3D 模式下主城就是那张 128×128 野外图（currentRoom 一直是 null），
+  // 但城里周围有野怪，挂机必须能用；2D 的老主城（无野怪）仍然禁掉。
+  function canFarmHere() {
+    return !!currentRoom || useOverworld();
   }
 
   function bagBestRarityKey(bag) {
@@ -2796,7 +2802,7 @@
 
   // 时间驱动：挂机关也要贴身普攻 + 有怪时警戒（怪才能追/打）；挂机另加寻路捡袋
   function autoStep() {
-    if (!currentRoom || over || uiOpen() || walkTimer) return false;
+    if (!canFarmHere() || over || uiOpen() || walkTimer) return false;
     // 摇杆/方向键正在走：位移已由 stick 的 after(move) 推进（含怪追击）；
     // 这里若再插警戒 after(combat)，会被走路的 180ms 时钟带着狂结算 DoT/CD
     if ((stickDx || stickDy) || heldMove.size) return false;
@@ -3402,7 +3408,7 @@
         const [mx, my] = heldMoveDelta();
         if (!mx && !my) { stopKeyMove(); return; }
         if (!move(mx, my)) stopKeyMove();   // 撞墙/被锁：停下，松手再按
-      }, MOVE_MS);
+      }, WALK_STEP_MS);                     // 和点地走路同速，别一个 70 一个 180
     }
     syncDpadActive();
   }
@@ -3417,7 +3423,6 @@
   }
 
   function setStickDir(dx, dy) {
-    const changed = dx !== stickDx || dy !== stickDy;
     const wasOn = !!(stickDx || stickDy);
     stickDx = dx;
     stickDy = dy;
@@ -3425,22 +3430,23 @@
       stopStickRepeat();
       return;
     }
-    if (!wasOn || changed) {
-      stopStickRepeat();
+    // 已经有一拍在跑：换扇区只更新方向，等下一拍生效。
+    // 以前每次换向都补走一步 + 重置定时器，鼠标贴着扇区边界抖一下就能白走好几格。
+    if (wasOn && stickTimer) return;
+    stopStickRepeat();
+    if (!uiOpen() && !over) {
+      stopWalk();
+      move(dx, dy);
+    }
+    const tick = () => {
+      if (!(stickDx || stickDy)) { stickTimer = null; return; }
       if (!uiOpen() && !over) {
         stopWalk();
-        move(dx, dy);
+        move(stickDx, stickDy);
       }
-      const tick = () => {
-        if (!(stickDx || stickDy)) { stickTimer = null; return; }
-        if (!uiOpen() && !over) {
-          stopWalk();
-          move(stickDx, stickDy);
-        }
-        stickTimer = setTimeout(tick, MOVE_MS);
-      };
-      stickTimer = setTimeout(tick, MOVE_MS);
-    }
+      stickTimer = setTimeout(tick, WALK_STEP_MS);
+    };
+    stickTimer = setTimeout(tick, WALK_STEP_MS);
   }
 
   // 屏幕向量 → 八向（含死区）
@@ -4297,6 +4303,8 @@
     const borderTree = theme === 'field' ? [0, 1, 2, 8, 9] : theme === 'cave' ? [6, 7, 6, 7] : [3, 8, 3, 8];
     const borderAdd = (x, y) => {
       if (rnd() < 0.22) return;
+      // 门口两格内不种树：3D 边界树很高，树冠会把刚进门的角色整个盖住
+      if ((doors || []).some((d) => Math.max(Math.abs(d.x - x), Math.abs(d.y - y)) <= 2)) return;
       const idx = borderTree[Math.floor(rnd() * borderTree.length)];
       const s = 0.85 + rnd() * 0.45;
       add('flora', idx, x, y, {

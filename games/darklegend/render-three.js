@@ -292,7 +292,8 @@
     const sh = mesh.userData.shadowMesh;
     if (!sh) return;
     sh.position.set(mesh.position.x, 0.02, mesh.position.z);
-    sh.scale.copy(mesh.scale);
+    const k = mesh.userData.shadowK || 1;   // 主角的剪影阴影收一点，不然走路像拖影
+    sh.scale.set(mesh.scale.x * k, mesh.scale.y * k, 1);
     sh.visible = mesh.visible !== false && mesh.scale.x > 0.08;
   }
 
@@ -352,11 +353,11 @@
     if (isoStarted) return;
     isoStarted = true;
     const files = {
-      shop: 'assets/iso/processed/shop-v2.png?v=2',
-      tree: 'assets/iso/processed/tree-v2.png?v=2',
+      shop: 'assets/iso/processed/shop-v3.png?v=1',
+      tree: 'assets/iso/processed/tree-v3.png?v=1',
       hero: 'assets/iso/processed/hero-dou.png?v=1',
       heroAtk: 'assets/iso/processed/dou-atk.png?v=1',
-      stall: 'assets/iso/processed/stall-v2.png?v=2',
+      stall: 'assets/iso/processed/stall-v3.png?v=1',
       npc: 'assets/iso/processed/npc-v2.png?v=2',
       chicken: 'assets/iso/processed/chicken-v2.png?v=2',
     };
@@ -593,6 +594,12 @@
     return billboard(isoTexture(img), height * aspect, height, order);
   }
 
+  // 立牌身高（世界单位），一把尺子量到底：豆豆 2.34 ≈ 1 个人
+  const TREE_H = 11.7;   // ≈5 人（豆豆 2.34）：单棵树的量级
+  const BORDER_TREE_H = 4.6;  // 边界那圈是同一张图排成墙，按 5 倍会变成绿色天花板、把入口埋掉
+  const HOUSE_H = 4.8;   // ≈2 人，门洞才不会像狗屋
+  const STALL_H = 3.0;   // ≈1.3 人，摊子比人高半头
+
   function addProp(p) {
     const town = p.sheet === 'town';
     const idx = p.index || 0;
@@ -602,11 +609,14 @@
     if (!town && isoImg.tree) {
       img = isoImg.tree;
       w = 3.2;
-      h = 3.6;
+      // 站在墙上（地图外圈）的是边界树墙：矮一档，不然树冠会把可玩区域和入口全盖住
+      const m0 = B && B.map && B.map();
+      const onWall = !!(m0 && m0[p.y] && m0[p.y][p.x] === 1);
+      h = onWall ? BORDER_TREE_H : TREE_H;
     } else if (town && (idx === 0 || idx === 1) && isoImg.stall) {
       img = isoImg.stall;
       w = 2.6;
-      h = 2.3;
+      h = STALL_H;
     }
     if (!img) return;
     const m = isoBoard(img, h, 1);
@@ -775,8 +785,8 @@
   }
 
   function addHouse(x, z) {
-    const m = isoBoard(isoImg.shop, 3.6, 1);
-    m.position.set(x, 3.6 / 2, z);
+    const m = isoBoard(isoImg.shop, HOUSE_H, 1);
+    m.position.set(x, HOUSE_H / 2, z);
     // 占地朝相机最下一行：相机在 +Z，脚底取更靠前的 z。
     m.userData.frontPad = 0.9;
     own(m);
@@ -900,6 +910,11 @@
       hero.userData.foot = hero.position.y;
       scene.add(hero);
       attachShadow(hero);
+      // 主角的剪影阴影：缩短 + 压淡（0.6 的整幅剪影跟在脚后像残影）
+      if (hero.userData.shadowMesh) {
+        hero.userData.shadowK = 0.55;
+        hero.userData.shadowMesh.material.opacity = 0.3;
+      }
     }
     spritesReady = true;
   }
@@ -1035,8 +1050,18 @@
 
     // 主角位置/朝向
     if (hero) {
-      hero.position.x = P.x + 0.5;
-      hero.position.z = P.y + 0.5;
+      // 走路插值：逻辑是 70ms 跳一格，画面追过去；瞬移（换房/传送）超过 3 格就直接落位
+      const tx = P.x + 0.5, tz = P.y + 0.5;
+      const dt = Math.max(4, Math.min(64, now - (hero.userData.lastT || now - 16)));
+      hero.userData.lastT = now;
+      if (Math.abs(tx - hero.position.x) > 3 || Math.abs(tz - hero.position.z) > 3) {
+        hero.position.x = tx;
+        hero.position.z = tz;
+      } else {
+        const a = 1 - Math.exp(-dt / 22);
+        hero.position.x += (tx - hero.position.x) * a;
+        hero.position.z += (tz - hero.position.z) * a;
+      }
       const moving = B.walking && B.walking();
       const strike = now - (B.strikeAt ? B.strikeAt() : 0) < 260;
       const bob = moving ? Math.sin(now / 1000 * 8) * (2 / 48) : Math.sin(now / 1000 * 2) * (1 / 48);

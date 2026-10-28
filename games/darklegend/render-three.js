@@ -1,6 +1,7 @@
-/* 豆豆暗黑传奇 · Three.js HD-2D 视图（接真游戏状态）
+/* 豆豆暗黑传奇 · Three.js 2.5D 视图（接真游戏状态）
    只读 DL.ThreeBridge 的状态，点击交给游戏自己的 handleCellClick。
-   不做阴影、不做遮挡：房子/道具/树永远在角色后面，玩家永远可见。
+   地面是 2:1 菱形瓦片。立地物体脚下有同一方向的椭圆接触阴影。
+   相机固定 45° 正交，不旋转。
 */
 (function (global) {
   'use strict';
@@ -35,6 +36,8 @@
   let tags = null;
   let tagVec = null;
   let mini = null;
+  let miniBase = null;
+  let miniKey = '';
   let statsEl = null;
   let glLost = false;
   let showStats = false;
@@ -45,7 +48,6 @@
   function wanted() {
     const q = (global.location && global.location.search) || '';
     if (/(?:^|[?&])engine=canvas(?:&|$)/.test(q)) return false;
-    if (!/(?:^|[?&])engine=three(?:&|$)/.test(q)) return false;
     // file:// 下 WebGL 上传本地图片会被 CORS 拦（texSubImage2D SecurityError），3D 一定黑屏。
     // 那就退回 2D（drawImage 不受这条限制），并在控制台说明怎么起服务。
     if (global.location && global.location.protocol === 'file:') {
@@ -66,19 +68,66 @@
 
   function fail(msg) {
     const d = document.createElement('div');
-    d.textContent = msg;
     d.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);background:#101623;color:#eef2fa;padding:16px 18px;z-index:8;border-radius:10px;max-width:320px;text-align:center;line-height:1.5;';
+    const p = document.createElement('div');
+    p.textContent = msg;
+    const a = document.createElement('a');
+    a.textContent = '回到平面画面';
+    const loc = global.location;
+    let q = (loc && loc.search) || '';
+    q = q.replace(/([?&])engine=three(?=&|$)/, (_, sep) => (sep === '?' ? '?' : ''));
+    q = q.replace(/^\?&/, '?').replace(/&&/g, '&').replace(/[?&]$/, '');
+    if (!/(?:^|[?&])engine=canvas(?:&|$)/.test(q)) q += (q.indexOf('?') >= 0 ? '&' : '?') + 'engine=canvas';
+    a.href = (loc && loc.pathname ? loc.pathname : '') + q;
+    a.style.cssText = 'display:inline-block;margin-top:12px;color:#ffe08a;';
+    d.appendChild(p);
+    d.appendChild(a);
     document.body.appendChild(d);
   }
 
-  function texOfCanvas(c) {
+  function texOfCanvas(c, sprite) {
     const t = new THREE.CanvasTexture(c);
     if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-    // 2D 手绘感：线性过滤 + mipmap，去掉像素风的硬边
     t.magFilter = THREE.LinearFilter;
-    t.minFilter = THREE.LinearMipmapLinearFilter;
-    t.generateMipmaps = true;
-    t.anisotropy = renderer && renderer.capabilities ? renderer.capabilities.getMaxAnisotropy() : 1;
+    if (sprite) {
+      t.minFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+    } else {
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.generateMipmaps = true;
+      t.anisotropy = renderer && renderer.capabilities ? renderer.capabilities.getMaxAnisotropy() : 1;
+    }
+    t.needsUpdate = true;
+    return t;
+  }
+
+  const paintedTex = {};
+  function paintTex(key, make) {
+    if (paintedTex[key]) return paintedTex[key];
+    paintedTex[key] = texOfCanvas(make(), true);
+    return paintedTex[key];
+  }
+
+  let heroSheetTex = null;
+  const heroFrames = {};
+  function heroFrame(col, row) {
+    const Hd = DL.HdDraw;
+    if (!Hd || !Hd.heroSheet) return frameTex('player', 4, 5, col, row);
+    const ck = col + ':' + row;
+    if (heroFrames[ck]) return heroFrames[ck];
+    if (!heroSheetTex) {
+      heroSheetTex = new THREE.Texture(Hd.heroSheet());
+      if ('colorSpace' in heroSheetTex && THREE.SRGBColorSpace) heroSheetTex.colorSpace = THREE.SRGBColorSpace;
+      heroSheetTex.magFilter = THREE.LinearFilter;
+      heroSheetTex.minFilter = THREE.LinearFilter;
+      heroSheetTex.generateMipmaps = false;
+      heroSheetTex.needsUpdate = true;
+    }
+    const t = heroSheetTex.clone();
+    t.needsUpdate = true;
+    t.repeat.set(1 / 4, 1 / 5);
+    t.offset.set(col / 4, 1 - (row + 1) / 5);
+    heroFrames[ck] = t;
     return t;
   }
 
@@ -116,6 +165,104 @@
     return m;
   }
 
+  // 接触阴影：深棕软边椭圆。屏幕上高 ≈ 宽 × 0.35，统一向右下偏 3px（光源在左上）。
+  // 全部影子合成一次绘制，避免每只脚下一张网格把帧时间顶过 4ms。
+  // 贴地做法同 cinematic.js 的 decal()：Plane 绕 X 转 -90° 躺在地面上。
+  const SHADOW_OX = 3 / CELL;
+  const SHADOW_OZ = 3 / (CELL * Math.sin(Math.PI / 4));
+  const SHADOW_MAX = 256;
+  const shadowDummy = new THREE.Object3D();
+  let shadowLayer = null;
+  let shadowGeo = null;
+  let shadowMat = null;
+  let shadowMesh = null;
+
+  function ensureShadow() {
+    if (shadowMesh && shadowMesh.parent) return;
+    if (!shadowLayer) return;
+    if (!shadowMat) {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const g = c.getContext('2d');
+      const grd = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+      grd.addColorStop(0, 'rgba(59,47,38,1)');
+      grd.addColorStop(0.4, 'rgba(59,47,38,0.7)');
+      grd.addColorStop(0.72, 'rgba(59,47,38,0.22)');
+      grd.addColorStop(1, 'rgba(59,47,38,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 128, 128);
+      shadowGeo = new THREE.PlaneGeometry(1, 1);
+      shadowMat = new THREE.MeshBasicMaterial({
+        map: texOfCanvas(c, true),
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      });
+      if ('toneMapped' in shadowMat) shadowMat.toneMapped = false;
+    }
+    shadowMesh = new THREE.InstancedMesh(shadowGeo, shadowMat, SHADOW_MAX);
+    shadowMesh.count = 0;
+    shadowMesh.frustumCulled = false;
+    // 地面 -10，影子 15，立牌 20+：影子压在地上、被角色脚挡住，偏出的一圈仍看得见。
+    shadowMesh.renderOrder = 15;
+    if (THREE.DynamicDrawUsage) shadowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    shadowLayer.add(shadowMesh);
+  }
+
+  function attachShadow(mesh) {
+    if (!mesh || mesh.userData.sw) return;
+    const w = (mesh.geometry && mesh.geometry.parameters && mesh.geometry.parameters.width) || 1;
+    mesh.userData.sw = Math.max(0.28, w * 0.8);
+    // 世界 Z 会被 45° 相机压扁，把高度放大 1/sin(45°)，屏幕上才是宽的 0.35。
+    mesh.userData.sh = mesh.userData.sw * 0.35 / Math.sin(Math.PI / 4);
+  }
+
+  function detachShadow(mesh) {
+    if (!mesh || !mesh.userData) return;
+    mesh.userData.sw = 0;
+    mesh.userData.sh = 0;
+  }
+
+  function writeShadow(mesh, n) {
+    if (!mesh || !mesh.userData || !mesh.userData.sw || n >= SHADOW_MAX) return n;
+    const k = (mesh.scale && mesh.scale.x) || 1;
+    if (k <= 0.08) return n;
+    shadowDummy.position.set(mesh.position.x + SHADOW_OX, 0.12, mesh.position.z + SHADOW_OZ);
+    shadowDummy.rotation.set(-Math.PI / 2, 0, 0);
+    shadowDummy.scale.set(mesh.userData.sw * k, mesh.userData.sh * k, 1);
+    shadowDummy.updateMatrix();
+    shadowMesh.setMatrixAt(n, shadowDummy.matrix);
+    return n + 1;
+  }
+
+  function syncAllShadows() {
+    ensureShadow();
+    if (!shadowMesh) return;
+    let n = 0;
+    n = writeShadow(hero, n);
+    if (group) {
+      const kids = group.children;
+      for (let i = 0; i < kids.length; i++) n = writeShadow(kids[i], n);
+    }
+    shadowMesh.count = n;
+    shadowMesh.instanceMatrix.needsUpdate = true;
+    shadowMesh.visible = n > 0;
+  }
+
+  function clearShadows() {
+    if (shadowMesh) shadowMesh.count = 0;
+  }
+
+  function own(mesh) {
+    attachShadow(mesh);
+    group.add(mesh);
+    return mesh;
+  }
+
   // ---------- 地面 ----------
 
   function groundSheet() {
@@ -125,134 +272,269 @@
     return 'terrain-field';
   }
 
-  function paintGround() {
-    const map = B.map();
-    const terrain = B.terrain && B.terrain();
-    const W = map[0].length;
-    const H = map.length;
-    const px = (W > 48 || H > 48) ? 16 : CELL;
-    const c = document.createElement('canvas');
-    c.width = W * px;
-    c.height = H * px;
-    const g = c.getContext('2d');
-    const im = DL.Assets && DL.Assets.image(groundSheet());
-    const cave = groundSheet() === 'terrain-cave';
-    if (im) {
-      const gw = Math.min(128, im.width);
-      const gh = 32;
-      for (let y = 0; y < c.height; y += gh) {
-        for (let x = 0; x < c.width; x += gw) {
-          g.drawImage(im, 0, 0, gw, gh, x, y, gw, gh);
-        }
+  const isoImg = {};
+  let isoStarted = false;
+  let isoSettled = false;
+
+  function isoTexture(img) {
+    if (img._tex) return img._tex;
+    const t = new THREE.Texture(img);
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.needsUpdate = true;
+    img._tex = t;
+    return t;
+  }
+
+  function ensureIso() {
+    if (isoStarted) return;
+    isoStarted = true;
+    const files = {
+      shop: 'assets/iso/processed/shop.png?v=198',
+      tree: 'assets/iso/processed/tree.png?v=198',
+      hero: 'assets/iso/processed/hero.png?v=198',
+      stall: 'assets/iso/processed/stall.png?v=198',
+      npc: 'assets/iso/processed/npc.png?v=198',
+      chicken: 'assets/iso/processed/chicken.png?v=198',
+    };
+    const keys = Object.keys(files);
+    let left = keys.length;
+    const done = function () {
+      left -= 1;
+      if (left > 0) return;
+      isoSettled = true;
+      roomKey = '';
+      groundPainted = '';
+    };
+    keys.forEach(function (k) {
+      const im = new Image();
+      im.onload = function () { isoImg[k] = im; done(); };
+      im.onerror = function () { done(); };
+      im.src = files[k];
+    });
+  }
+
+  const tileCanvasCache = {};
+
+  function resetTileCache() {
+    const keys = Object.keys(tileCanvasCache);
+    for (let i = 0; i < keys.length; i++) delete tileCanvasCache[keys[i]];
+  }
+
+  function tileCanvas(theme, key) {
+    const id = theme + ':' + key;
+    if (!tileCanvasCache[id]) tileCanvasCache[id] = DL.IsoGround.paint(theme, key);
+    return tileCanvasCache[id];
+  }
+
+  function dropGround() {
+    if (!ground) return;
+    const seen = new Set();
+    ground.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (!o.material) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (let i = 0; i < mats.length; i++) {
+        if (seen.has(mats[i])) continue;
+        seen.add(mats[i]);
+        if (mats[i].map) mats[i].map.dispose();
+        mats[i].dispose();
       }
-      if (cave) {
-        g.fillStyle = 'rgba(20, 28, 38, 0.45)';
-        g.fillRect(0, 0, c.width, c.height);
-      }
-    } else {
-      g.fillStyle = groundSheet() === 'terrain-cave' ? '#5a6874' : '#6fb446';
-      g.fillRect(0, 0, c.width, c.height);
-    }
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const dx = x * px;
-        const dy = y * px;
-        if (map[y][x] === 1) {
-          g.fillStyle = cave ? '#6e675c' : '#b7b0a2';
-          g.fillRect(dx, dy, px, px);
-        } else if (map[y][x] === 2) {
-          g.fillStyle = '#e0b04a';
-          g.fillRect(dx, dy, px, px);
-        } else if (terrain && terrain[y] && terrain[y][x] === 1) {
-          g.fillStyle = cave ? '#5c564e' : '#c6a15c';
-          g.fillRect(dx, dy, px, px);
-        }
-      }
-    }
-    g.fillStyle = cave ? 'rgba(18, 14, 10, 0.7)' : 'rgba(70, 60, 48, 0.4)';
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (map[y][x] !== 1) continue;
-        const open = (nx, ny) => ny < 0 || nx < 0 || ny >= H || nx >= W || map[ny][nx] !== 1;
-        const dx = x * px;
-        const dy = y * px;
-        if (open(x, y - 1)) g.fillRect(dx, dy, px, 2);
-        if (open(x, y + 1)) g.fillRect(dx, dy + px - 2, px, 2);
-        if (open(x - 1, y)) g.fillRect(dx, dy, 2, px);
-        if (open(x + 1, y)) g.fillRect(dx + px - 2, dy, 2, px);
-      }
-    }
-    return c;
+    });
+    scene.remove(ground);
+    ground = null;
   }
 
   function buildGround() {
-    if (ground) {
-      scene.remove(ground);
-      ground.geometry.dispose();
-      ground.material.map.dispose();
-      ground.material.dispose();
-    }
+    dropGround();
+    const Gnd = DL.IsoGround;
+    if (!Gnd || !B || !Gnd.paintField) return;
     const map = B.map();
-    const W = map[0].length;
-    const H = map.length;
-    ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(W, H),
-      new THREE.MeshBasicMaterial({ map: texOfCanvas(paintGround()), depthTest: false, depthWrite: false, side: THREE.DoubleSide })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(W / 2, 0, H / 2);
-    ground.renderOrder = -10;
+    const terrain = B.terrain && B.terrain();
+    if (!map || !map.length || !map[0]) return;
+    const theme = Gnd.themeOf(groundSheet());
+    const field = Gnd.paintField(map, terrain, theme);
+    const tex = texOfCanvas(field.canvas, true);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    // 一张铺满地图的平面：世界 xz ∈ [0,W]×[0,H]，UV 同步。无无菱形网格缝。
+    const W = field.W;
+    const H = field.H;
+    const geo = new THREE.PlaneGeometry(W, H, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(W / 2, 0, H / 2);
+    ground = new THREE.Group();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = -10;
+    mesh.frustumCulled = false;
+    ground.add(mesh);
+    // 接缝装饰已烤进 paintField 贴图，不再叠 3D decal（会显得浮、还发霓虹绿）。
     scene.add(ground);
-    const sheet = groundSheet();
-    groundPainted = (DL.Assets && DL.Assets.image(sheet)) ? sheet : '';
+    groundPainted = theme;
+  }
+
+  function addSeamDecals(parent, seams) {
+    if (!seams || seams.length < 3 || !DL.IsoGround.decalSheet) return;
+    const tex = texOfCanvas(DL.IsoGround.decalSheet(), true);
+    const n = seams.length / 3;
+    const pos = new Float32Array(n * 12);
+    const uv = new Float32Array(n * 8);
+    const index = n > 16000 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+    const hw = 0.28;
+    const hd = 0.18;
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      const x = seams[i * 3];
+      const z = seams[i * 3 + 1];
+      const kind = seams[i * 3 + 2] | 0;
+      const y = 0.03;
+      const b = v * 3;
+      pos[b] = x - hw; pos[b + 1] = y; pos[b + 2] = z - hd;
+      pos[b + 3] = x + hw; pos[b + 4] = y; pos[b + 5] = z - hd;
+      pos[b + 6] = x + hw; pos[b + 7] = y; pos[b + 8] = z + hd;
+      pos[b + 9] = x - hw; pos[b + 10] = y; pos[b + 11] = z + hd;
+      const u0 = kind / 3;
+      const u1 = (kind + 1) / 3;
+      const ub = v * 2;
+      uv[ub] = u0; uv[ub + 1] = 1;
+      uv[ub + 2] = u1; uv[ub + 3] = 1;
+      uv[ub + 4] = u1; uv[ub + 5] = 0;
+      uv[ub + 6] = u0; uv[ub + 7] = 0;
+      const ib = i * 6;
+      index[ib] = v; index[ib + 1] = v + 1; index[ib + 2] = v + 2;
+      index[ib + 3] = v; index[ib + 4] = v + 2; index[ib + 5] = v + 3;
+      v += 4;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex(new THREE.BufferAttribute(index, 1));
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = -8;
+    mesh.frustumCulled = false;
+    parent.add(mesh);
+  }
+
+  function depthOrder(mesh) {
+    if (!mesh) return;
+    // 屏幕脚底 y ≈ 世界 z（相机从 +Z 俯视）；z 大的后画，盖住后面的。
+    const base = 20 + (mesh.position.z + (mesh.userData.frontPad || 0)) * 4;
+    mesh.renderOrder = base;
+  }
+
+  function sortStanding() {
+    depthOrder(hero);
+    if (group) {
+      const kids = group.children;
+      for (let i = 0; i < kids.length; i++) depthOrder(kids[i]);
+    }
+    if (portalGroup) {
+      const kids = portalGroup.children;
+      for (let i = 0; i < kids.length; i++) depthOrder(kids[i]);
+    }
   }
 
   // ---------- 道具 / NPC / 怪 ----------
 
   function clearGroup() {
+    clearShadows();
     if (!group) return;
+    const seen = new Set();
     while (group.children.length) {
       const m = group.children.pop();
-      if (m.geometry) m.geometry.dispose();
-      if (m.material) {
-        m.material.dispose();
+      detachShadow(m);
+      if (m.geometry && m.geometry !== shadowGeo) m.geometry.dispose();
+      const mats = Array.isArray(m.material) ? m.material : (m.material ? [m.material] : []);
+      for (let i = 0; i < mats.length; i++) {
+        if (seen.has(mats[i])) continue;
+        seen.add(mats[i]);
+        mats[i].dispose();
       }
     }
     scene.remove(group);
     group = null;
   }
 
+  function isoBoard(img, height, order) {
+    const aspect = img.width / img.height;
+    return billboard(isoTexture(img), height * aspect, height, order);
+  }
+
   function addProp(p) {
-    const sheet = p.sheet === 'town' ? 'town' : 'flora';
-    const cols = 4;
-    const rows = 4;
-    const col = (p.index || 0) % cols;
-    const row = ((p.index || 0) / cols) | 0;
-    const tex = frameTex(sheet, cols, rows, col, row);
-    if (!tex) return;
-    const w = (p.w || 128) / CELL;
-    const h = (p.h || 128) / CELL;
-    const m = billboard(tex, w, h, 1);
-    m.position.y -= 0.2;
+    const town = p.sheet === 'town';
+    const idx = p.index || 0;
+    let img = null;
+    let w = 2.4;
+    let h = 2.2;
+    if (!town && isoImg.tree) {
+      img = isoImg.tree;
+      w = 3.2;
+      h = 3.6;
+    } else if (town && (idx === 0 || idx === 1) && isoImg.stall) {
+      img = isoImg.stall;
+      w = 2.6;
+      h = 2.3;
+    }
+    if (!img) return;
+    const m = isoBoard(img, h, 1);
     m.position.x = p.x + 0.5 + (p.ox || 0) / CELL;
     m.position.z = p.y + 0.5 + (p.oy || 0) / CELL;
-    group.add(m);
+    own(m);
   }
 
   function addPerson(key, col, row, gx, gy, order) {
-    const tex = frameTex(key, 4, key === 'npc' ? 2 : 5, col, row);
-    if (!tex) return null;
-    const m = billboard(tex, 96 / CELL, 96 / CELL, order);
-    m.position.y -= 0.2;
+    if (key !== 'npc' || !isoImg.npc) return null;
+    const m = isoBoard(isoImg.npc, 2.05, order);
     m.position.x = gx + 0.5;
     m.position.z = gy + 0.5;
-    m.userData.frame = { key: key, cols: 4, rows: key === 'npc' ? 2 : 5 };
-    group.add(m);
+    own(m);
     return m;
   }
 
+  const SMOOTH_MOB = { chicken: 1.35, scarecrow: 2.15, dog: 1.55, boar: 1.75 };
+
   function addEnemy(e) {
     const isBoss = !!e.boss;
+    if (!isBoss && e.id === 'chicken' && isoImg.chicken) {
+      const m = isoBoard(isoImg.chicken, 1.45, 3);
+      m.position.y -= 0.05;
+      m.position.x = e.x + 0.5;
+      m.position.z = e.y + 0.5;
+      m.userData.enemy = e;
+      m.userData.iso = true;
+      own(m);
+      return;
+    }
+    const smoothId = (!isBoss && SMOOTH_MOB[e.id]) ? e.id : (isBoss && B.room() === 'cave1' ? 'scarecrow' : null);
+    if (false && smoothId && DL.HdDraw && DL.HdDraw.mob) {
+      const tex = paintTex('mob:' + smoothId + ':0', function () { return DL.HdDraw.mob(smoothId, 0); });
+      if (tex) {
+        const h = isBoss ? 3.3 : SMOOTH_MOB[smoothId];
+        const m = billboard(tex, h * 0.9, h, 3);
+        m.position.y -= isBoss ? 0.35 : 0.15;
+        m.position.x = e.x + 0.5;
+        m.position.z = e.y + 0.5;
+        m.userData.enemy = e;
+        m.userData.smooth = smoothId;
+        own(m);
+        return;
+      }
+    }
     let key, cols, rows, row, col;
     if (isBoss) {
       key = 'bosses';
@@ -263,8 +545,10 @@
     } else {
       key = 'mobs';
       cols = 8; rows = 7;
-      row = MOB_ROW[e.id] != null ? MOB_ROW[e.id] : 0;
-      col = 0;
+      const mob = MOB_ROW[e.id] != null ? MOB_ROW[e.id] : 0;
+      const cell = Pick.mobFrame(mob, 0);
+      row = cell.row;
+      col = cell.col;
     }
     const tex = frameTex(key, cols, rows, col, row);
     if (!tex) return;
@@ -274,8 +558,12 @@
     m.position.x = e.x + 0.5;
     m.position.z = e.y + 0.5;
     m.userData.enemy = e;
-    m.userData.sheet = { key: key, cols: cols, rows: rows, row: row, boss: isBoss };
-    group.add(m);
+    m.userData.sheet = {
+      key: key, cols: cols, rows: rows, row: row,
+      mob: isBoss ? 0 : (MOB_ROW[e.id] != null ? MOB_ROW[e.id] : 0),
+      boss: isBoss,
+    };
+    own(m);
   }
 
   function addBag(b) {
@@ -324,8 +612,9 @@
   }
 
   function dropMesh(m) {
-    if (m.geometry) m.geometry.dispose();
-    if (m.material) m.material.dispose();
+    detachShadow(m);
+    if (m.geometry && m.geometry !== shadowGeo) m.geometry.dispose();
+    if (m.material && m.material !== shadowMat) m.material.dispose();
   }
 
   function dropHero() {
@@ -333,6 +622,54 @@
     scene.remove(hero);
     dropMesh(hero);
     hero = null;
+  }
+
+  function edgeWall(map, x, y) {
+    if (map[y][x] !== 1) return false;
+    const H = map.length;
+    const W = map[0].length;
+    const open = (nx, ny) => nx < 0 || ny < 0 || nx >= W || ny >= H || map[ny][nx] !== 1;
+    return open(x - 1, y) || open(x + 1, y) || open(x, y - 1) || open(x, y + 1);
+  }
+
+  function buildSolids() {
+    if (!group || !B || !isoImg.shop) return;
+    const W = B.map()[0].length;
+    if (B.room() !== 'hub' || W < 64) return;
+    addHouse(60.2, 62.0);
+    addHouse(70.4, 57.2);
+    addHouse(54.2, 66.4);
+    addRock(49.5, 59.0, 0);
+    addRock(66.5, 70.8, 1);
+    addRock(58.8, 56.2, 2);
+    addRock(51.2, 70.5, 0);
+  }
+
+  function addRock(x, y, variant) {
+    const v = variant | 0;
+    const tex = paintTex('rock:' + v, function () { return DL.HdDraw.rock(v); });
+    const img = tex.image;
+    const h = 0.78;
+    const m = billboard(tex, h * (img.width / img.height), h, 1);
+    m.position.x = x;
+    m.position.z = y;
+    own(m);
+  }
+
+  function addHouse(x, z) {
+    const m = isoBoard(isoImg.shop, 3.6, 1);
+    m.position.set(x, 3.6 / 2, z);
+    // 占地朝相机最下一行：相机在 +Z，脚底取更靠前的 z。
+    m.userData.frontPad = 0.9;
+    own(m);
+  }
+
+  function addCaveMouth(x, y) {
+    if (!(DL.HdDraw && DL.HdDraw.caveMouth)) return;
+    const tex = paintTex('cave-mouth', function () { return DL.HdDraw.caveMouth(); });
+    const m = billboard(tex, 2.2, 2.4, 2);
+    m.position.set(x + 0.5, 2.4 / 2, y + 0.5);
+    own(m);
   }
 
   function rebuildRoom() {
@@ -346,6 +683,7 @@
     if (!B) return;
 
     buildGround();
+    buildSolids();
     if (!assetsReady()) {
       spritesReady = false;
       return;
@@ -373,12 +711,13 @@
       addPortal({ x: B.back().x, y: B.back().y, kind: boss ? 'boss' : 'exit', label: '出口' });
     }
 
-    heroTex = frameTex('player', 4, 5, 0, 0);
+    heroTex = isoImg.hero ? isoTexture(isoImg.hero) : null;
     if (heroTex) {
-      hero = billboard(heroTex, 128 / CELL, 128 / CELL, 4);
-      hero.position.y -= 0.25;
+      hero = isoBoard(isoImg.hero, 2.15, 4);
+      hero.userData.iso = true;
       hero.userData.foot = hero.position.y;
       scene.add(hero);
+      attachShadow(hero);
     }
     spritesReady = true;
   }
@@ -433,43 +772,62 @@
     m.material.needsUpdate = true;
   }
 
-  function drawMini() {
-    if (!mini || !B) return;
-    const map = B.map();
-    const g = mini.getContext('2d');
+  function miniLayout(map) {
     const w = mini.width;
     const h = mini.height;
-    g.fillStyle = '#101623';
-    g.fillRect(0, 0, w, h);
     const mw = map[0].length;
     const mh = map.length;
     const s = Math.min((w - 8) / mw, (h - 8) / mh);
-    const ox = (w - mw * s) / 2;
-    const oy = (h - mh * s) / 2;
+    return { mw: mw, mh: mh, s: s, ox: (w - mw * s) / 2, oy: (h - mh * s) / 2 };
+  }
+
+  function paintMiniBase() {
+    const map = B.map();
+    const key = B.room() + '|' + map[0].length + 'x' + map.length;
+    if (miniKey === key && miniBase) return;
+    miniKey = key;
+    if (!miniBase) miniBase = document.createElement('canvas');
+    miniBase.width = mini.width;
+    miniBase.height = mini.height;
+    const g = miniBase.getContext('2d');
+    const lay = miniLayout(map);
+    g.fillStyle = '#101623';
+    g.fillRect(0, 0, miniBase.width, miniBase.height);
     const terrain = B.terrain && B.terrain();
-    for (let y = 0; y < mh; y++) {
-      for (let x = 0; x < mw; x++) {
+    for (let y = 0; y < lay.mh; y++) {
+      for (let x = 0; x < lay.mw; x++) {
         if (map[y][x] === 1) g.fillStyle = '#7a766c';
         else if (map[y][x] === 2) g.fillStyle = '#f0c840';
         else if (terrain && terrain[y] && terrain[y][x] === 1) g.fillStyle = '#c6a15c';
         else g.fillStyle = '#3e7a32';
-        g.fillRect(ox + x * s, oy + y * s, Math.ceil(s), Math.ceil(s));
+        g.fillRect(lay.ox + x * lay.s, lay.oy + y * lay.s, Math.ceil(lay.s), Math.ceil(lay.s));
       }
     }
+  }
+
+  function drawMini() {
+    if (!mini || !B) return;
+    paintMiniBase();
+    const map = B.map();
+    const g = mini.getContext('2d');
+    g.drawImage(miniBase, 0, 0);
+    const lay = miniLayout(map);
     const P = B.P();
     const enemies = B.enemies ? B.enemies() : [];
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e || e.hp <= 0) continue;
       g.fillStyle = e.boss ? '#ff5a5a' : '#ffd166';
-      g.fillRect(ox + e.x * s, oy + e.y * s, Math.max(2, s), Math.max(2, s));
+      g.fillRect(lay.ox + e.x * lay.s, lay.oy + e.y * lay.s, Math.max(2, lay.s), Math.max(2, lay.s));
     }
     g.fillStyle = '#ffffff';
-    g.fillRect(ox + P.x * s, oy + P.y * s, Math.max(2, s), Math.max(2, s));
+    g.fillRect(lay.ox + P.x * lay.s, lay.oy + P.y * lay.s, Math.max(2, lay.s), Math.max(2, lay.s));
   }
 
   function tick() {
     if (!B || glLost) return;
+    ensureIso();
+    if (!isoSettled) return;
     const t0 = performance.now();
     const P = B.P();
     const now = t0;
@@ -486,12 +844,6 @@
       spritesReady = true;
       rebuildRoom();
     }
-    const sheet = groundSheet();
-    if (DL.Assets && DL.Assets.image(sheet) && groundPainted !== sheet) {
-      groundPainted = sheet;
-      buildGround();
-    }
-
     // 相机平滑
     look.x += (P.x + 0.5 - look.x) * 0.2;
     look.z += (P.y + 0.5 - look.z) * 0.2;
@@ -520,12 +872,18 @@
         hero.scale.set(1, 1, 1);
         hero.material.opacity = 1;
       }
-      const row = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
-      let col;
-      if (now - (B.strikeAt ? B.strikeAt() : 0) < 260) col = 3;
-      else if (B.walking && B.walking()) col = 1 + (Math.floor(now / 160) % 2);
-      else col = 0;
-      syncFrame(hero, 'player', 4, 5, col, row);
+      if (!hero.userData.iso) {
+        const row = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
+        let col;
+        if (now - (B.strikeAt ? B.strikeAt() : 0) < 260) col = 3;
+        else if (B.walking && B.walking()) col = 1 + (Math.floor(now / 160) % 2);
+        else col = 0;
+        const next = heroFrame(col, row);
+        if (next && hero.material.map !== next) {
+          hero.material.map = next;
+          hero.material.needsUpdate = true;
+        }
+      }
     }
 
     // 怪物：位置/帧/死亡清理
@@ -535,9 +893,10 @@
         const e = m.userData.enemy;
         if (!e) continue;
         if (e.hp <= 0) {
+          detachShadow(m);
           group.remove(m);
-          if (m.geometry) m.geometry.dispose();
-          if (m.material) m.material.dispose();
+          if (m.geometry && m.geometry !== shadowGeo) m.geometry.dispose();
+          if (m.material && m.material !== shadowMat) m.material.dispose();
           continue;
         }
         m.position.x = e.x + 0.5;
@@ -550,10 +909,20 @@
         if (m.material && m.material.color) {
           m.material.color.set(m.userData.flash > now ? 0xfff1c2 : 0xffffff);
         }
-        const s = m.userData.sheet;
-        if (!s.boss) {
-          const col = Math.floor(now / 420) % 2;
-          syncFrame(m, s.key, s.cols, s.rows, col, s.row);
+        if (m.userData.smooth) {
+          const fr = Math.floor(now / 420) % 2;
+          const id = m.userData.smooth;
+          const tex = paintTex('mob:' + id + ':' + fr, function () { return DL.HdDraw.mob(id, fr); });
+          if (tex && m.material.map !== tex) {
+            m.material.map = tex;
+            m.material.needsUpdate = true;
+          }
+        } else {
+          const s = m.userData.sheet;
+          if (s && !s.boss) {
+            const cell = Pick.mobFrame(s.mob, Math.floor(now / 420) % 2);
+            syncFrame(m, s.key, s.cols, s.rows, cell.col, cell.row);
+          }
         }
       }
 
@@ -574,9 +943,10 @@
       for (let i = group.children.length - 1; i >= 0; i--) {
         const m = group.children[i];
         if (m.userData.bag && !bagSet.has(m.userData.bag)) {
+          detachShadow(m);
           group.remove(m);
-          if (m.geometry) m.geometry.dispose();
-          if (m.material) m.material.dispose();
+          if (m.geometry && m.geometry !== shadowGeo) m.geometry.dispose();
+          if (m.material && m.material !== shadowMat) m.material.dispose();
         }
       }
       for (const b of bags) {
@@ -593,6 +963,8 @@
       }
     }
 
+    sortStanding();
+    syncAllShadows();
     drawMini();
     renderer.render(scene, camera);
     drawTags();
@@ -721,6 +1093,8 @@
     );
     scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0xffffff, 1));
+    shadowLayer = new THREE.Group();
+    scene.add(shadowLayer);
 
     canvas.addEventListener('pointerdown', (e) => {
       if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
@@ -736,6 +1110,9 @@
       groundPainted = '';
       roomKey = '';
       spritesReady = false;
+      resetTileCache();
+      shadowMat = null;
+      shadowGeo = null;
       fit();
     });
     global.addEventListener('resize', fit);
@@ -782,6 +1159,16 @@
     },
     boot: boot,
     pointer: pointer,
+    debug: function () {
+      return {
+        on: on,
+        shadows: shadowMesh ? shadowMesh.count : -1,
+        ground: !!ground,
+        group: group ? group.children.length : 0,
+        hero: !!hero,
+        heroShadow: !!(hero && hero.userData && hero.userData.sw),
+      };
+    },
   };
 
   if (wanted() && global.document) {

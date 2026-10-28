@@ -56,5 +56,16 @@ check('视锥宽', Math.abs(P.FRUSTUM_W - 1280 / 48) < 1e-9);
 check('视锥高', Math.abs(P.FRUSTUM_H - 720 / 48) < 1e-9);
 check('俯角 45°', Math.abs(P.PITCH - Math.PI / 4) < 1e-9);
 
+const MOB_IDS = ['chicken', 'scarecrow', 'dog', 'boar', 'wolf', 'spider', 'stone', 'bandit', 'ghoul', 'mummy', 'bat', 'demon', 'wraith'];
+for (let i = 0; i < MOB_IDS.length; i++) {
+  for (let fr = 0; fr < 2; fr++) {
+    const cell = P.mobFrame(i, fr);
+    const idx = i * 4 + fr;
+    check(MOB_IDS[i] + ' 帧' + fr, cell.col === idx % 8 && cell.row === (idx >> 3));
+  }
+}
+check('稻草人不是狗', P.mobFrame(1, 0).col === 4 && P.mobFrame(1, 0).row === 0);
+check('狗在下一行', P.mobFrame(2, 0).col === 0 && P.mobFrame(2, 0).row === 1);
+
 console.log('RESULT pass=' + pass + ' fail=' + fail);
 if (fail) process.exit(1);

@@ -39,6 +39,12 @@
     };
   }
 
+  // mobs.png 是 8 列，一行两只，每只 4 帧。和 2D 的 index = 序号*4+帧 同一套。
+  function mobFrame(mobRow, frame) {
+    const idx = (mobRow | 0) * 4 + (frame | 0);
+    return { col: idx % 8, row: idx >> 3 };
+  }
+
   DL.ThreePick = {
     PITCH: PITCH,
     VIEW_W: VIEW_W,
@@ -49,5 +55,6 @@
     groundHit: groundHit,
     cellOf: cellOf,
     ndcForGround: ndcForGround,
+    mobFrame: mobFrame,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

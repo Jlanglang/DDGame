@@ -354,7 +354,7 @@
 
   function useOverworld() {
     const q = (typeof location !== 'undefined' && location.search) || '';
-    if (!/(?:^|[?&])engine=three(?:&|$)/.test(q) || !DL.Overworld) return false;
+    if (/(?:^|[?&])engine=canvas(?:&|$)/.test(q) || !DL.Overworld) return false;
     // file:// 下 WebGL 纹理会被 CORS 拦，3D 起不来；退回 2D（双击也能玩）
     if (typeof location !== 'undefined' && location.protocol === 'file:') return false;
     return true;
@@ -4937,9 +4937,11 @@
   if (!worldSeed) worldSeed = randomSeed();
   genHub();
   // 截图 / 自动化 / 3D 模式：跳过音效门和开场说明（音效门会挡住点击，uiOpen 为真）
+  const threeHttp = location.protocol !== 'file:'
+    && !/(?:^|[?&])engine=canvas(?:&|$)/.test(location.search);
   const quietStart = location.search.includes('shot')
     || location.search.includes('debug')
-    || /(?:^|[?&])engine=three(?:&|$)/.test(location.search);
+    || threeHttp;
   if (!loaded) {
     P.hp = maxHp();
     P.mp = maxMp();
@@ -4984,7 +4986,7 @@
   window.addEventListener('orientationchange', resizeCanvas);
   bind();
   syncHud();
-  if (location.search.includes('shot') || /(?:^|[?&])engine=three(?:&|$)/.test(location.search)) {
+  if (location.search.includes('shot') || threeHttp) {
     el.intro.hidden = true;
     if (el.sfxGate) el.sfxGate.hidden = true;
   }

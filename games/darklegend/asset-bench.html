@@ -381,7 +381,7 @@
       g.drawImage(
         img,
         toX(m.x * PX, m.y * PX) - img.width * MS / 2,
-        toY(m.x * PX, m.y * PX) - (img.height - 52) * MS,
+        toY(m.x * PX, m.y * PX) - (img.height - A.cliffFoot(img)) * MS,
         img.width * MS, img.height * MS
       );
     });
@@ -486,7 +486,7 @@
       // 一整块崖壁 = 4 格宽；等距下一格的屏幕宽 = 2 * PX
       const MS = (4 * 2 * PX * scale) / img.width;
       const w = img.width * MS, hh = img.height * MS;
-      const anchor = (img.height - 52) * MS;          // 落地点距 sprite 顶部的距离
+      const anchor = (img.height - A.cliffFoot(img)) * MS;   // 落地点距 sprite 顶部的距离
       const x = toX(m.x * PX, m.y * PX);
       const y = toY(m.x * PX, m.y * PX);
       g.drawImage(img, x - w / 2, y - anchor, w, hh);
@@ -536,6 +536,33 @@
   })();
 
   renderAll();
+
+  // AI 崖壁精灵（CliffDraw 出的图，洋红底抠过）：加载完自动换掉程序化那一版；
+  // 一张都没有就保持程序化版本，不会白屏。
+  (function () {
+    if (/[?&]cliff=proc(?:&|$)/.test(location.search)) return;   // ?cliff=proc = 看程序化旧版（对照用）
+    const files = ['cliff1', 'cliff2', 'cliff3'];
+    const imgs = [];
+    let left = files.length, fired = false;
+    function finish() {
+      if (--left > 0 || fired) return;
+      fired = true;
+      if (!imgs.length) return;
+      // 崖壁有缓存（cliffCache），换了精灵必须清掉，否则还是画旧的
+      Object.keys(cliffCache).forEach(function (k) { delete cliffCache[k]; });
+      A.setCliffSprites(imgs);
+      renderAll();
+      const log = document.getElementById('log');
+      if (log) log.textContent += ' · 崖壁：AI 精灵 ' + imgs.length + ' 张';
+    }
+    files.forEach(function (n) {
+      const im = new Image();
+      im.onload = function () { imgs.push(im); finish(); };
+      im.onerror = finish;
+      im.src = 'assets/iso/processed/' + n + '.png';
+    });
+  })();
+
   window.__bench = { rerender: renderAll, art: A };
 })();
 </script>

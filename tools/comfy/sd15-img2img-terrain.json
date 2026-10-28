@@ -1,0 +1,51 @@
+{
+  "3": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": 28,
+      "cfg": 7.5,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": "{{denoise}}",
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["9", 0]
+    }
+  },
+  "4": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "v1-5-pruned-emaonly.safetensors" }
+  },
+  "5": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "{{image}}" }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "hand painted cartoon game terrain asset, 2.5D isometric, thick soft brush strokes, visible texture, warm daylight from upper left, stylized fantasy, plain magenta background, {{prompt}}",
+      "clip": ["4", 1]
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "photo, photograph, realistic, 3d render, octane, ray tracing, ambient occlusion render, neon colors, saturated pink, scenery, landscape, multiple objects, text, letters, watermark, signature, frame, border, grid, pattern, blurry, lowres, jpeg artifacts, dark, gloomy",
+      "clip": ["4", 1]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["3", 0], "vae": ["4", 2] }
+  },
+  "9": {
+    "class_type": "VAEEncode",
+    "inputs": { "pixels": ["5", 0], "vae": ["4", 2] }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "inputs": { "filename_prefix": "terr2i", "images": ["8", 0] }
+  }
+}

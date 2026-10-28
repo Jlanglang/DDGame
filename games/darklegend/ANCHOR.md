@@ -16,6 +16,7 @@
 | `game.js` | 5135 | game | 编排 + 2D 绘制 + 全部 DOM 绑定（分段见下） |
 | `render-three.js` | 1275 | 3D | 正交场景：地面/立牌/接触阴影/排序/迷你图/拾取 |
 | `hd-draw.js` 738 + `iso-ground.js` 338 + `three-pick.js` 60 | — | 3D 素材 | 程序化精灵（本目录只 render-three 用 4 处）/ 菱形地面 `paint`(217) / 屏幕→格射线 |
+| `iso-art.js` ~1560 | — | 3D 地面 | **地面材质真身**：9 种材质画法、`groundSheet`（整张图一次画完）、`seaMask`（海/池塘）、`shoreline`（岸线）、崖壁 `cliff`/`cliffHeight`；验收台 `asset-bench.html` |
 | `tiles.js` 134 + `assets.js` 61 | — | 2D | 瓦片图集坐标与墙掩码 / PNG 切片加载，缺图退 emoji |
 | `sfx.js` | 227 | audio | `SFX` 音名表(186) + WebAudio/WAV 兜底，`MUTE_KEY`(8) |
 | `index.html` 336 + `style.css` 1316 | — | shell | HUD/DOM 与布局；脚本顺序 320–334，`touch-action:none`(222) |
@@ -54,6 +55,8 @@
 | 状态（毒/烧/眩晕/麻痹） | `status.js DEFS`(24) `apply`(61) `tick`(87)；`game.js tickStatuses`(2571) |
 | 2D 画面 | `game.js draw`(4850) `drawMap`(4543) `drawEntities`(4696)；`tiles.js` `assets.js`（**不是 hd-draw**） |
 | 3D 画面 | `render-three.js rebuildRoom`(771) `buildGround`(350) `addEnemy`(607) `tick`(923)；`iso-ground.js paint`(217) |
+| 3D 地面材质（草地/石板/水/海/岸线） | `iso-art.js`：`paintGrass` `paintSlab` `paintWater` `paintSea` `shoreline` `seaMask` `groundSheet`；改完看 `asset-bench.html` 1:1 |
+| 崖壁精灵（AI 图） | `iso-art.js setCliffSprites` / `cliffFoot`；图在 `assets/iso/processed/cliff1..3.png`；重出图看 `docs/瓦片清单.md` §一·五 v4（img2img + `key-magenta.py`） |
 | 音效 / 存档 | `sfx.js SFX`(186)+`play`(197)、调用点 game 1032/1908；`game.js save`(1757) `load`(1784)、`SAVE_KEY`(32) |
 | 鼠标 / 手机触摸 | `game.js onPointer`(3275) `handleCellClick`(3289) `bindDpad`(3485)；CSS 222 |
 

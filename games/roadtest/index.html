@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>路网原型 · 走两步试试</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #05070a; overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #wrap { position: fixed; inset: 0; display: grid; place-items: center; }
+  canvas {
+    display: block; touch-action: none; background: #05070a;
+    height: 100dvh; width: auto; max-width: 100vw;
+  }
+  @supports not (height: 100dvh) { canvas { height: 100vh; } }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<script src="map.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

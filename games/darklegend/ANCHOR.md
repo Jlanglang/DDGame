@@ -59,6 +59,7 @@
 | 3D 崖壁（边缘山脊 / 野外孤石） | `render-three.js buildCliffs` / `addCliffSprite`（只往 `map=1` 的格子立，不会走穿）、`paintTex` 按「主题+变体+高度档」缓存；精灵由 `ensureIso` 一并加载后 `DL.IsoArt.setCliffSprites` |
 | 3D 地面材质（草地/石板/水/海/岸线） | `iso-art.js`：`paintGrass` `paintSlab` `paintWater` `paintSea` `shoreline` `seaMask` `groundSheet`；改完看 `asset-bench.html` 1:1 |
 | 崖壁精灵（AI 图） | `iso-art.js setCliffSprites` / `cliffFoot`；图在 `assets/iso/processed/cliff1..3.png`；重出图看 `docs/瓦片清单.md` §一·五 v4（img2img + `key-magenta.py`） |
+| **立牌口径（3D 素材 + 2.5D 固定视角）** | `docs/立牌统一规格.md`：五条硬规则 + 出图 prompt + 五条验收。入库 `tools/ingest-3d.py 原图.png 输出.png --world 2.34`（按色相抠洋红、剥烘死的影子、去水印、缩到 2.5× 屏高）。对拍：`bench-scene.html`（光/影/地八根滑杆）、`?iso=unified` 切归一图 |
 | 音效 / 存档 | `sfx.js SFX`(186)+`play`(197)、调用点 game 1032/1908；`game.js save`(1757) `load`(1784)、`SAVE_KEY`(32) |
 | 鼠标 / 手机触摸 | `game.js onPointer`(3275) `handleCellClick`(3289) `bindDpad`(3485)；CSS 222 |
 

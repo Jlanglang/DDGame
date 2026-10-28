@@ -352,14 +352,16 @@
   function ensureIso() {
     if (isoStarted) return;
     isoStarted = true;
+    // ?iso=unified 走统归一那套（unify-sprites.py 产出），方便和原图 1:1 对拍
+    const dir = (/[?&]iso=unified/.test(location.search) ? 'assets/iso/unified/' : 'assets/iso/processed/');
     const files = {
-      shop: 'assets/iso/processed/shop-v3.png?v=1',
-      tree: 'assets/iso/processed/tree-v3.png?v=1',
-      hero: 'assets/iso/processed/hero-dou.png?v=1',
+      shop: dir + 'shop-v3.png?v=1',
+      tree: dir + 'tree-v3.png?v=1',
+      hero: dir + 'hero-dou.png?v=1',
       heroAtk: 'assets/iso/processed/dou-atk.png?v=1',
-      stall: 'assets/iso/processed/stall-v3.png?v=1',
-      npc: 'assets/iso/processed/npc-v2.png?v=2',
-      chicken: 'assets/iso/processed/chicken-v2.png?v=2',
+      stall: dir + 'stall-v3.png?v=1',
+      npc: dir + 'npc-v2.png?v=2',
+      chicken: dir + 'chicken-v2.png?v=2',
     };
     const keys = Object.keys(files);
     let left = keys.length + 1;              // +1 = 崖壁精灵（3 张算一组）

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>场景基准 · 一束光、一片地、一套影子</title>
+<style>
+  html, body { margin: 0; background: #14161a; color: #e8e2d6;
+    font: 13px/1.55 "Microsoft YaHei", "Segoe UI", system-ui, sans-serif; }
+  #wrap { display: flex; height: 100vh; align-items: stretch; }
+  #stage { flex: 0 0 auto; background: #000; display: block; }
+  #panel { flex: 1 1 auto; padding: 12px 15px; overflow-y: auto; max-width: 320px; }
+  h1 { font-size: 15px; margin: 0 0 3px; }
+  .sub { color: #8d8478; font-size: 11.5px; margin-bottom: 10px; }
+  .row { margin: 7px 0; }
+  .row label { display: flex; justify-content: space-between; font-size: 12px; color: #cfc6b6; }
+  .row label b { color: #f4c96b; font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 2px 0 0; accent-color: #c98f3f; }
+  .chk { display: flex; align-items: center; gap: 6px; margin: 8px 0; font-size: 12px; }
+  #nums { margin-top: 10px; padding: 8px 9px; background: #1d2026; border: 1px solid #2c3038;
+    border-radius: 6px; font: 11.5px/1.55 Consolas, monospace; color: #b9d8a8; white-space: pre-wrap; }
+  .hint { color: #7b7365; font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="stage" width="1160" height="652"></canvas>
+  <div id="panel">
+    <h1>场景基准</h1>
+    <div class="sub">一房 · 一摊 · 一人 · 一树；只调光、地、影，不碰素材。</div>
+    <div id="controls"></div>
+    <label class="chk"><input type="checkbox" id="lit"> 立牌吃光（Lambert；默认关＝和游戏一致）</label>
+    <label class="chk"><input type="checkbox" id="grid"> 显示 1 格网格</label>
+    <div id="nums"></div>
+    <div class="hint">调好报这串数：光方位 / 仰角 / 强度 / 环境光 / 色温 / 影长 / 影浓 / 地亮。</div>
+  </div>
+</div>
+<script src="vendor/three.iife.js"></script>
+<script src="three-pick.js"></script>
+<script src="iso-art.js"></script>
+<script>
+(function () {
+  'use strict';
+  const Pick = DL.ThreePick;
+
+  const P = {
+    az: -32, el: 42, sun: 2.9, amb: 1.7, warm: 0.62,
+    slen: 1.0, sdark: 0.48, gbright: 1.0,
+  };
+
+  // URL 上能钉一套配置，方便拍图对拍：?az=-32&el=30&slen=1.2&lit=1&grid=1
+  (function () {
+    const q = location.search.replace(/^[?]/, '');
+    q.split('&').forEach(function (kv) {
+      const p = kv.split('=');
+      const k = p[0];
+      const v = parseFloat(p[1]);
+      if (k === 'ground') { P.gbright = v; return; }
+      if (Object.prototype.hasOwnProperty.call(P, k) && !isNaN(v)) P[k] = v;
+    });
+  })();
+  const START_LIT = /[?&]lit=1/.test(location.search);
+  const START_GRID = /[?&]grid=1/.test(location.search);
+
+  // x/z 是格坐标；h 是世界高度（和 render-three 的常量同一把尺子）
+  const HERO_FILE = /[?&]hero=3d/.test(location.search)
+    ? 'assets/iso/bench-hero.png'
+    : 'assets/iso/processed/hero-dou.png';
+  const SPEC = [
+    { file: 'assets/iso/processed/tree-v3.png', h: 11.7, x: -6.6, z: -2.6 },
+    { file: 'assets/iso/processed/shop-v3.png', h: 4.8, x: -2.4, z: -0.6 },
+    { file: 'assets/iso/processed/stall-v3.png', h: 3.0, x: 2.2, z: -1.4 },
+    { file: HERO_FILE, h: 2.34, x: 0.4, z: 2.6 },
+  ];
+
+  const cv = document.getElementById('stage');
+  const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(cv.width, cv.height, false);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setClearColor('#20262c', 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(
+    -Pick.FRUSTUM_W / 2, Pick.FRUSTUM_W / 2,
+    Pick.FRUSTUM_H / 2, -Pick.FRUSTUM_H / 2, 0.1, 240);
+  const st = Math.sin(Pick.PITCH), ct = Math.cos(Pick.PITCH);
+  camera.position.set(0, 24 * st, 24 * ct);   // 和 render-three 的 placeCamera 一致
+  camera.lookAt(0, 0, 0);
+
+  const amb = new THREE.AmbientLight(0xffffff, P.amb);
+  scene.add(amb);
+  const sun = new THREE.DirectionalLight(0xfff3dc, P.sun);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0002;
+  sun.shadow.normalBias = 0.05;
+  sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
+  sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
+  sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 90;
+  scene.add(sun);
+  scene.add(sun.target);
+
+  function texOfPatch(kind, cols, rows, seed) {
+    const t = new THREE.CanvasTexture(DL.IsoArt.patch(kind, 'field', cols, rows, seed));
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    return t;
+  }
+
+  const grassMat = new THREE.MeshLambertMaterial({ map: texOfPatch('grass', 6, 6, 11) });
+  grassMat.map.repeat.set(6, 6);
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), grassMat);
+  grass.rotation.x = -Math.PI / 2;
+  grass.receiveShadow = true;
+  scene.add(grass);
+
+  // 中间一条石板路：主城就是这个组合（草地 + 石板路）
+  const slabMat = new THREE.MeshLambertMaterial({ map: texOfPatch('slab', 6, 2, 21) });
+  slabMat.map.repeat.set(6, 1);
+  const path = new THREE.Mesh(new THREE.PlaneGeometry(44, 7), slabMat);
+  path.rotation.x = -Math.PI / 2;
+  path.position.set(0, 0.005, -1.2);
+  path.receiveShadow = true;
+  scene.add(path);
+
+  const gridGroup = new THREE.Group();
+  (function () {
+    const m = new THREE.LineBasicMaterial({ color: 0x9dffb0, transparent: true, opacity: 0.16 });
+    const pts = [];
+    for (let i = -13; i <= 13; i++) {
+      pts.push(new THREE.Vector3(i, 0.02, -13), new THREE.Vector3(i, 0.02, 13));
+      pts.push(new THREE.Vector3(-13, 0.02, i), new THREE.Vector3(13, 0.02, i));
+    }
+    gridGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), m));
+  })();
+  gridGroup.visible = START_GRID;
+  scene.add(gridGroup);
+
+  const contactTex = (function () {
+    const cc = document.createElement('canvas');
+    cc.width = cc.height = 128;
+    const g = cc.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 3, 64, 64, 64);
+    grd.addColorStop(0, 'rgba(38,28,20,0.6)');
+    grd.addColorStop(0.5, 'rgba(38,28,20,0.22)');
+    grd.addColorStop(1, 'rgba(38,28,20,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(cc);
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+
+  const loader = new THREE.TextureLoader();
+  const items = [];
+  let lit = START_LIT;
+
+  // 影子贴图：把立牌自己的剪影先糊一下，落在地上才有"软影"的味道（不是第二张立牌）
+  function blurredTex(img, px) {
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d');
+    if (typeof g.filter === 'string') g.filter = 'blur(' + px + 'px)';
+    g.drawImage(img, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  function spriteMat(tex) {
+    return lit
+      ? new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.45, side: THREE.DoubleSide })
+      : new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.45, side: THREE.DoubleSide });
+  }
+
+  SPEC.forEach(function (sp) {
+    loader.load(sp.file, function (tex) {
+      if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      const w = sp.h * (tex.image.width / tex.image.height);
+
+      const geo = new THREE.PlaneGeometry(w, sp.h);
+      const mesh = new THREE.Mesh(geo, spriteMat(tex));
+      mesh.position.set(sp.x, sp.h / 2, sp.z);
+      mesh.renderOrder = 20;
+      scene.add(mesh);
+
+      const shMat = new THREE.MeshBasicMaterial({
+        map: blurredTex(tex.image, Math.max(4, sp.h * 2.2)),
+        color: 0x2b2530, transparent: true, opacity: P.sdark,
+        depthWrite: false, side: THREE.DoubleSide,
+      });
+      if ('toneMapped' in shMat) shMat.toneMapped = false;
+      const sh = new THREE.Mesh(new THREE.PlaneGeometry(w, sp.h), shMat);
+      sh.position.set(sp.x, 0.03, sp.z);
+      sh.renderOrder = 16;
+      scene.add(sh);
+
+      const cs = new THREE.Mesh(
+        new THREE.PlaneGeometry(w * 0.85, w * 0.4),
+        new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, opacity: 0.55 })
+      );
+      cs.rotation.x = -Math.PI / 2;
+      cs.position.set(sp.x + 0.05, 0.025, sp.z + 0.06);
+      scene.add(cs);
+
+      // 影子顶点：原始平面坐标存一份，改参数时只做线性映射
+      const base = new Float32Array(geo.attributes.position.array);
+      items.push({ mesh: mesh, shadow: sh, contact: cs, base: base, w: w, h: sp.h, tex: tex });
+      if (items.length === SPEC.length) apply();
+    });
+  });
+
+  function vecOf(azDeg, elDeg) {
+    const az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180;
+    return new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+  }
+
+  let kxNow = 0, kzNow = 0;
+
+  function apply() {
+    const L = vecOf(P.az, P.el);
+    sun.position.set(L.x * 28, L.y * 28, L.z * 28);
+    sun.target.position.set(0, 0, 0);
+    sun.target.updateMatrixWorld();
+    sun.intensity = P.sun;
+    amb.intensity = P.amb;
+    sun.color.setRGB(1.0, 0.955 - 0.05 * (1 - P.warm), 0.87 - 0.10 * (1 - P.warm));
+    amb.color.setRGB(0.93 + 0.05 * (1 - P.warm), 0.95, 1.0 - 0.04 * P.warm);
+
+    grassMat.color.setScalar(P.gbright);
+    slabMat.color.setScalar(P.gbright);
+
+    // 影子：沿光反方向摊开；高度 t 的顶点落到地面 x + t·kx, z + t·kz
+    kxNow = (-L.x / L.y) * P.slen;
+    kzNow = (-L.z / L.y) * P.slen;
+    items.forEach(function (it) {
+      const pos = it.shadow.geometry.attributes.position;
+      const b = it.base;
+      for (let i = 0; i < pos.count; i++) {
+        const x = b[i * 3], y = b[i * 3 + 1];
+        const t = y + it.h / 2;
+        pos.setXYZ(i, x + t * kxNow, 0, t * kzNow);
+      }
+      pos.needsUpdate = true;
+      it.shadow.geometry.computeBoundingSphere();
+      it.shadow.material.opacity = P.sdark;
+    });
+
+    renderer.render(scene, camera);
+    document.getElementById('nums').textContent =
+      'az=' + P.az.toFixed(0) + '  el=' + P.el.toFixed(0) +
+      '  sun=' + P.sun.toFixed(1) + '  amb=' + P.amb.toFixed(1) +
+      '  warm=' + P.warm.toFixed(2) + '\n' +
+      'slen=' + P.slen.toFixed(2) + '  sdark=' + P.sdark.toFixed(2) +
+      '  ground=' + P.gbright.toFixed(2) + '\n' +
+      'kx=' + kxNow.toFixed(2) + '  kz=' + kzNow.toFixed(2);
+  }
+
+  const SLIDERS = [
+    ['az', '光方位角 (°)', -180, 180, 1],
+    ['el', '光仰角 (°)', 15, 85, 1],
+    ['sun', '方向光强度', 0, 6, 0.1],
+    ['amb', '环境光', 0, 4.5, 0.1],
+    ['warm', '色温 0冷→1暖', 0, 1, 0.01],
+    ['slen', '影长倍率', 0, 1.6, 0.01],
+    ['sdark', '影浓', 0, 0.9, 0.01],
+    ['gbright', '地面亮度', 0.6, 1.4, 0.01],
+  ];
+  const box = document.getElementById('controls');
+  SLIDERS.forEach(function (d) {
+    const wrap = document.createElement('div');
+    wrap.className = 'row';
+    wrap.innerHTML = '<label>' + d[1] + ' <b id="v-' + d[0] + '">' + P[d[0]] + '</b></label>' +
+      '<input type="range" id="r-' + d[0] + '" min="' + d[2] + '" max="' + d[3] + '" step="' + d[4] + '" value="' + P[d[0]] + '">';
+    box.appendChild(wrap);
+    const r = wrap.querySelector('input');
+    r.addEventListener('input', function () {
+      P[d[0]] = parseFloat(r.value);
+      document.getElementById('v-' + d[0]).textContent = r.value;
+      apply();
+    });
+  });
+
+  document.getElementById('lit').checked = START_LIT;
+  document.getElementById('grid').checked = START_GRID;
+  document.getElementById('lit').addEventListener('change', function (e) {
+    lit = e.target.checked;
+    items.forEach(function (it) {
+      const old = it.mesh.material;
+      it.mesh.material = spriteMat(it.tex);
+      old.dispose();
+    });
+    apply();
+  });
+  document.getElementById('grid').addEventListener('change', function (e) {
+    gridGroup.visible = e.target.checked;
+    apply();
+  });
+})();
+</script>
+</body>
+</html>

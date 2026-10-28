@@ -1,0 +1,86 @@
+{
+  "3": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": 28,
+      "cfg": 8,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "karras",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    }
+  },
+  "4": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+    }
+  },
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "cartoon game asset, flat vector style, bold clean dark outline, cel shading, simple chunky shapes, vivid simplified colors, single character only, full body, lots of empty space around, plain light background, no shadow, {{prompt}}",
+      "clip": [
+        "4",
+        1
+      ]
+    }
+  },
+  "7": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "photo, photograph, realistic, dslr, depth of field, film grain, blurry, low quality, jpeg artifacts, watermark, signature, text, letters, ui, extra limbs, photorealistic, 3d render, collage, grid, sprite sheet, split image, frame, border, busy background, scenery, greyscale, monochrome, etching, engraving, sketch, pencil, grunge, heavy shadow, vignette, gradient background, drop shadow, emblem, badge, logo, crest, medallion, symmetrical ornament, black silhouette, all black, dark silhouette, multiple subjects, repeated figures, four characters, crowd",
+      "clip": [
+        "4",
+        1
+      ]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ct",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

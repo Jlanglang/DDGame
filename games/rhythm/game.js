@@ -292,7 +292,7 @@
     showScreen(null);
     if (audio.ctx) audio.stop();
     const lead = chain ? 0.45 : 2.4;
-    audio.unlock().then((ok) => {
+    audio.unlock().then((ok) => audio.ready().then(() => ok)).then((ok) => {
       audio.stop();
       G.latency = audio.latency();
       G.offset = loadOffset();
@@ -348,7 +348,7 @@
   /* ---------------- 校准 ---------------- */
 
   function startCalib() {
-    audio.unlock().then((ok) => {
+    audio.unlock().then((ok) => audio.ready().then(() => ok)).then((ok) => {
       audio.stop();
       G.latency = audio.latency();
       const startT = ctxNow() + 1.2;

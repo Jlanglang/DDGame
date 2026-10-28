@@ -1038,9 +1038,30 @@
       rect(ctx, 572, 630, 108, 8, '#f6f1e6');
       rect(ctx, 572, 660, 108, 8, '#f6f1e6');
     },
+    stack(ctx) {
+      rect(ctx, 0, 320, 720, 580, '#f4e7cf');
+      rect(ctx, 0, 900, 720, 180, '#c4894a');
+      rect(ctx, 0, 900, 720, 14, '#8a5a32');
+      for (let i = 0; i < 3; i++) oval(ctx, 400, 884 - i * 18, 76, 18, '#f6f1e6');
+    },
+    wipe(ctx) {
+      rect(ctx, 0, 320, 720, 580, '#efe6d6');
+      rect(ctx, 40, 380, 640, 470, '#b7e3f5');
+      rect(ctx, 40, 380, 640, 18, '#8a5a32');
+      rect(ctx, 340, 380, 18, 470, '#8a5a32');
+      oval(ctx, 170, 470, 34, 14, '#ffffff');
+      oval(ctx, 520, 620, 40, 16, '#ffffff');
+      rect(ctx, 0, 850, 720, 230, '#d8c6a8');
+    },
+    button(ctx) {
+      rect(ctx, 0, 320, 720, 580, '#e7d3c6');
+      for (let i = 0; i < 6; i++) rect(ctx, i * 124, 320, 62, 580, '#dfc8ba');
+      rect(ctx, 0, 900, 720, 180, '#c48a55');
+      oval(ctx, 400, 806, 46, 46, '#f6f1e6');
+      oval(ctx, 400, 806, 26, 26, '#e7d3c6');
+    },
     drum(ctx) {
-      rect(ctx, 0, 320, 720, 760, '#4a1c24');
-      rect(ctx, 0, 360, 720, 70, '#c23b3b');
+      rect(ctx, 0, 320, 720, 760, '#4a1c24');      rect(ctx, 0, 360, 720, 70, '#c23b3b');
       rect(ctx, 0, 390, 90, 620, '#9a2e2e');
       rect(ctx, 630, 390, 90, 620, '#9a2e2e');
       rect(ctx, 0, 900, 720, 180, '#c4894a');
@@ -1505,6 +1526,21 @@
     if (fn) fn(ctx);
   }
 
+  // 有 AI 素材的关：加载好就直接贴，只画场景区（y 300–1170），别盖住顶栏和跑道
+  // src = 从素材里取的矩形：整屏图（720×1600）只切场景区，纯场景图（720×870）整张贴
+  const AI_ROOM = {
+    lift: { key: 'bg', src: [0, 300, 720, 870] },
+    kick: { key: 'kick-bg', src: [0, 0, 720, 870] },
+  };
+  function aiRoomImage(id) {
+    const room = AI_ROOM[id];
+    const img = room && window.RHYTHM_IMG && window.RHYTHM_IMG[room.key];
+    if (!img || !img.complete || !img.naturalWidth) return null;
+    // 素材尺寸对不上就整张缩放，免得画到画布外面
+    const fits = img.naturalWidth >= room.src[0] + room.src[2] && img.naturalHeight >= room.src[1] + room.src[3];
+    return { img, src: fits ? room.src : [0, 0, img.naturalWidth, img.naturalHeight] };
+  }
+
   // 房间背景是静止的：每关只画一次，之后直接贴图，省下每帧几十个形状
   const roomCache = {};
   // 插画只铺场景带，和让球同一刀：顶栏、黄点车道仍是原来的界面
@@ -1529,9 +1565,14 @@
   function drawRoomCached(ctx, id) {
     const bg = sceneImage(id);
     if (bg) {
-      // SVG 光栅结果就是这一条，倍率在加载时封顶
       if (bg.artBand) ctx.drawImage(bg, 0, 300, 720, 870);
       else ctx.drawImage(bg, 0, 300, 720, 870, 0, 300, 720, 870);
+      return;
+    }
+    const ai = aiRoomImage(id);
+    if (ai) {
+      const [sx, sy, sw, sh] = ai.src;
+      ctx.drawImage(ai.img, sx, sy, sw, sh, 0, 300, 720, 870);
       return;
     }
     if (!roomCache[id]) {

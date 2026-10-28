@@ -25,7 +25,7 @@ function ok(name, cond, extra) {
 }
 
 /* 1. 关卡表 */
-ok('一共 51 关', Core.LEVELS.length === 51, Core.LEVELS.length);
+ok('一共 54 关', Core.LEVELS.length === 54, Core.LEVELS.length);
 ok('难度不倒退', Core.LEVELS.every((lv, i) => i === 0 || lv.diff >= Core.LEVELS[i - 1].diff));
 ok('每关都有谱面', Core.LEVELS.every((lv) => lv.pattern.length === lv.bars));
 ok('越界关卡回落到第一关', Core.levelAt(99).id === Core.LEVELS[0].id);
@@ -103,8 +103,17 @@ ok('正式段没有示范音符', Core.LEVELS.every((lv, i) => Core.buildChart(i
 ok('第 1 关仍是让球', Core.LEVELS[0].id === 'lift' && Core.LEVELS[0].name === '让球');
 ok('第 50 关是吹烛', Core.LEVELS[49].id === 'candle' && Core.LEVELS[49].name === '吹烛');
 ok('第 51 关是接听', Core.LEVELS[50].id === 'phone' && Core.LEVELS[50].name === '接听');
+  ok('第 52 关是叠碗', Core.LEVELS[51].id === 'stack' && Core.LEVELS[51].name === '叠碗');
+  ok('第 53 关是擦玻璃', Core.LEVELS[52].id === 'wipe' && Core.LEVELS[52].name === '擦玻璃');
+  ok('第 54 关是钉扣', Core.LEVELS[53].id === 'button' && Core.LEVELS[53].name === '钉扣');
+  // 目录要求：新关的整段谱不能和任何已有关重复
+  for (const i of [51, 52, 53]) {
+    const key = Core.LEVELS[i].pattern.join('|');
+    const dup = Core.LEVELS.findIndex((lv, k) => k < i && lv.pattern.join('|') === key);
+    ok(`第 ${i + 1} 关谱面不和前面重复`, dup < 0, dup);
+  }
 
-/* 3. 每关谱面合法。前 50 关锁住 12 下。第 51 关单独查。 */
+/* 3. 每关谱面合法。前 50 关锁住 12 下。第 51 关单独查。52-54 只查通用项。 */
 for (let i = 0; i < Core.LEVELS.length; i++) {
   const lv = Core.levelAt(i);
   const chart = Core.buildChart(i);
@@ -257,7 +266,7 @@ ok('全离谱 → 0', Core.calibrate([10, 10, 900, -900]) === 0);
 {
   const Scenes = require(path.join(__dirname, 'scenes.js'));
   const list = Scenes.SCENES;
-  ok('场景清单也是 51 关', list && list.length === 51, list && list.length);
+  ok('场景清单也是 54 关', list && list.length === 54, list && list.length);
   if (list) {
     let bone = true;
     let home = true;

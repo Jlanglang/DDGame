@@ -16,3 +16,6 @@ node_modules/
 
 games/darklegend/_backup-*/
 txt.lang
+
+# dsh-image-gen 的出图落盘目录（工具产物，不是游戏素材）
+dsh-image-gen/

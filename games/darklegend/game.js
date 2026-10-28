@@ -354,7 +354,10 @@
 
   function useOverworld() {
     const q = (typeof location !== 'undefined' && location.search) || '';
-    return /(?:^|[?&])engine=three(?:&|$)/.test(q) && DL.Overworld;
+    if (!/(?:^|[?&])engine=three(?:&|$)/.test(q) || !DL.Overworld) return false;
+    // file:// 下 WebGL 纹理会被 CORS 拦，3D 起不来；退回 2D（双击也能玩）
+    if (typeof location !== 'undefined' && location.protocol === 'file:') return false;
+    return true;
   }
 
   function applyOverworld() {
@@ -4933,15 +4936,32 @@
   const loaded = load();
   if (!worldSeed) worldSeed = randomSeed();
   genHub();
+  // 截图 / 自动化 / 3D 模式：跳过音效门和开场说明（音效门会挡住点击，uiOpen 为真）
+  const quietStart = location.search.includes('shot')
+    || location.search.includes('debug')
+    || /(?:^|[?&])engine=three(?:&|$)/.test(location.search);
   if (!loaded) {
     P.hp = maxHp();
     P.mp = maxMp();
-    el.intro.hidden = false;
+    // 音效门（z90）和开场说明（z10）都带 82% 黑遮罩；同时显示时透光只剩 ~3%，新档首开看着就是黑屏。
+    // 开场说明压到音效门关掉之后再出现（quietStart 下直接按原逻辑走，不挂观察者）。
+    const gate = el.sfxGate;
+    if (gate && !gate.hidden && !quietStart && typeof MutationObserver !== 'undefined') {
+      const obs = new MutationObserver(() => {
+        if (gate.hidden) {
+          obs.disconnect();
+          el.intro.hidden = false;
+        }
+      });
+      obs.observe(gate, { attributes: true, attributeFilter: ['hidden'] });
+    } else {
+      el.intro.hidden = false;
+    }
   } else {
     P.hp = Math.max(1, Math.min(P.hp, maxHp()));
     P.mp = Math.min(P.mp, maxMp());
   }
-  if (location.search.includes('shot') || /(?:^|[?&])engine=three(?:&|$)/.test(location.search)) {
+  if (quietStart) {
     el.intro.hidden = true;
     if (el.sfxGate) el.sfxGate.hidden = true;
   }

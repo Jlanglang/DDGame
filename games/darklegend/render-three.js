@@ -132,6 +132,25 @@
     return t;
   }
 
+  // 主角攻击图集：4 格横排（待机 / 蓄力 / 挥出 / 收招），每格 128×128，按 UV 偏移切。
+  // 出图流程见 docs/角色设定.md §4.5；改帧只换 dou-atk.png，不用动代码。
+  let heroAtkTex = null;
+  // 攻击动作三段的切换时点（ms，相对出手瞬间）。要改节奏只动这三个数。
+  const ATK_MS = { total: 260, windup: 90, swing: 180 };
+  const heroAtkFrames = {};
+  function heroAtkFrame(i) {
+    if (!isoImg.heroAtk) return null;
+    if (heroAtkFrames[i]) return heroAtkFrames[i];
+    if (!heroAtkTex) heroAtkTex = isoTexture(isoImg.heroAtk);
+    if (!heroAtkTex) return null;
+    const t = heroAtkTex.clone();
+    t.needsUpdate = true;
+    t.repeat.set(1 / 4, 1);
+    t.offset.set(i / 4, 0);
+    heroAtkFrames[i] = t;
+    return t;
+  }
+
   // 从图集切一张帧纹理（每张 sprite 自己克隆，offset 互不影响）
   function frameTex(key, cols, rows, col, row) {
     const ck = key + ':' + cols + ':' + rows + ':' + col + ':' + row;
@@ -333,15 +352,16 @@
     if (isoStarted) return;
     isoStarted = true;
     const files = {
-      shop: 'assets/iso/processed/shop.png?v=198',
-      tree: 'assets/iso/processed/tree.png?v=198',
-      hero: 'assets/iso/processed/hero.png?v=198',
-      stall: 'assets/iso/processed/stall.png?v=198',
-      npc: 'assets/iso/processed/npc.png?v=198',
-      chicken: 'assets/iso/processed/chicken.png?v=198',
+      shop: 'assets/iso/processed/shop-v2.png?v=2',
+      tree: 'assets/iso/processed/tree-v2.png?v=2',
+      hero: 'assets/iso/processed/hero-dou.png?v=1',
+      heroAtk: 'assets/iso/processed/dou-atk.png?v=1',
+      stall: 'assets/iso/processed/stall-v2.png?v=2',
+      npc: 'assets/iso/processed/npc-v2.png?v=2',
+      chicken: 'assets/iso/processed/chicken-v2.png?v=2',
     };
     const keys = Object.keys(files);
-    let left = keys.length;
+    let left = keys.length + 1;              // +1 = 崖壁精灵（3 张算一组）
     const done = function () {
       left -= 1;
       if (left > 0) return;
@@ -355,6 +375,23 @@
       im.onerror = function () { done(); };
       im.src = files[k];
     });
+    // 崖壁精灵：AI 出的 3 张（洋红底抠过的）。缺了不影响——iso-art 会退回程序化崖壁。
+    (function () {
+      const imgs = [];
+      let n = 3;
+      const fin = function () {
+        n -= 1;
+        if (n > 0) return;
+        if (imgs.length && DL.IsoArt && DL.IsoArt.setCliffSprites) DL.IsoArt.setCliffSprites(imgs);
+        done();
+      };
+      ['cliff1', 'cliff2', 'cliff3'].forEach(function (name) {
+        const im = new Image();
+        im.onload = function () { imgs.push(im); fin(); };
+        im.onerror = fin;
+        im.src = 'assets/iso/processed/' + name + '.png?v=1';
+      });
+    })();
   }
 
   const tileCanvasCache = {};
@@ -753,6 +790,66 @@
     own(m);
   }
 
+  /* ---------- 崖壁（山） ----------
+     两处用：① 地图边缘一圈，把地平线关住；② 野外那些"孤零零一块墙"的格子，
+     原来是 0.78 高的小石头，现在立一座崖——走过去才看得出是山，不是贴纸。
+     只往 map=1 的格子上立，所以不会出现"人从山里穿过去"。 */
+
+  function cliffTheme() {
+    return (DL.IsoGround && DL.IsoGround.themeOf) ? DL.IsoGround.themeOf(groundSheet()) : 'field';
+  }
+
+  function addCliffSprite(x, z, variant, hs, base, span) {
+    const A = DL.IsoArt;
+    if (!A || !A.cliff) return;
+    const theme = cliffTheme();
+    // 高度系数只留 3 档、尺寸只由档位决定：崖壁贴图按 key 缓存，
+    // 每多一档就多一张 450×350 的 canvas，随便连续取值会上百张、几十 MB。
+    const q = Math.round((hs == null ? 0.6 : hs) * 3) / 3;
+    const height = base + q * span;
+    const key = 'cliff:' + theme + ':' + (variant | 0) + ':' + q.toFixed(2) + ':' + base;
+    const tex = paintTex(key, function () { return A.cliff(variant, theme, q); });
+    const img = tex.image;
+    const m = billboard(tex, height * (img.width / img.height), height, 1);
+    m.position.set(x, height / 2, z);
+    m.userData.frontPad = 1.1;                        // 底座宽，遮挡按脚底算
+    own(m);
+  }
+
+  function buildCliffs() {
+    if (!group || !B || B.room() !== 'hub') return;
+    const map = B.map();
+    const W = map[0].length, H = map.length;
+    const ch = (DL.IsoArt && DL.IsoArt.cliffHeight) ? DL.IsoArt.cliffHeight : function () { return 0.5; };
+
+    // ① 边缘一圈：崖壁约 5~7 格宽，步长 5 连成山脊（太稀就成了一排小土包）
+    for (let x = 4; x < W - 4; x += 5) {
+      [2, H - 3].forEach(function (z, i) {
+        addCliffSprite(x + 0.5, z + 0.5, (x + z + i) % 3, ch(x, z, 3), 4.6, 1.4);
+      });
+    }
+    for (let z = 4; z < H - 4; z += 5) {
+      [2, W - 3].forEach(function (x, i) {
+        addCliffSprite(x + 0.5, z + 0.5, (x + z + i) % 3, ch(x, z, 5), 4.6, 1.4);
+      });
+    }
+
+    // ② 野外孤立的墙格（四面都是空地）→ 立一座小崖，别再用 0.78 高的小石头
+    const lone = [];
+    for (let y = 6; y < H - 6; y += 2) {
+      for (let x = 6; x < W - 6; x += 2) {
+        if (map[y][x] !== 1) continue;
+        if (map[y + 1][x] || map[y - 1][x] || map[y][x + 1] || map[y][x - 1]) continue;
+        lone.push(x, y);
+      }
+    }
+    const step = Math.max(1, Math.ceil(lone.length / 2 / 18));
+    for (let i = 0; i < lone.length; i += 2 * step) {
+      const x = lone[i], y = lone[i + 1];
+      addCliffSprite(x + 0.5, y + 0.5, (x * 7 + y) % 3, ch(x, y, 9), 2.9, 0.9);
+    }
+  }
+
   function rebuildRoom() {
     clearGroup();
     dropHero();
@@ -765,6 +862,7 @@
 
     buildGround();
     buildSolids();
+    buildCliffs();
     if (!assetsReady()) {
       spritesReady = false;
       return;
@@ -792,10 +890,13 @@
       addPortal({ x: B.back().x, y: B.back().y, kind: boss ? 'boss' : 'exit', label: '出口' });
     }
 
-    heroTex = isoImg.hero ? isoTexture(isoImg.hero) : null;
+    // 优先用 4 格攻击图集（每格 128×128，待机 + 出击三帧）；没有就退回单张立牌
+    const atk0 = heroAtkFrame(0);
+    heroTex = atk0 || (isoImg.hero ? isoTexture(isoImg.hero) : null);
     if (heroTex) {
-      hero = isoBoard(isoImg.hero, 2.15, 4);
+      hero = atk0 ? billboard(atk0, 2.34, 2.34, 4) : isoBoard(isoImg.hero, 2.15, 4);
       hero.userData.iso = true;
+      hero.userData.atk = !!atk0;
       hero.userData.foot = hero.position.y;
       scene.add(hero);
       attachShadow(hero);
@@ -960,6 +1061,16 @@
         else if (B.walking && B.walking()) col = 1 + (Math.floor(now / 160) % 2);
         else col = 0;
         const next = heroFrame(col, row);
+        if (next && hero.material.map !== next) {
+          hero.material.map = next;
+          hero.material.needsUpdate = true;
+        }
+      } else if (hero.userData.atk) {
+        // 攻击三帧：0–蓄力、蓄力–挥出、挥出–收招，其余时间回待机
+        const t = now - (B.strikeAt ? B.strikeAt() : 0);
+        const idx = (t >= 0 && t < ATK_MS.total)
+          ? (t < ATK_MS.windup ? 1 : t < ATK_MS.swing ? 2 : 3) : 0;
+        const next = heroAtkFrame(idx);
         if (next && hero.material.map !== next) {
           hero.material.map = next;
           hero.material.needsUpdate = true;

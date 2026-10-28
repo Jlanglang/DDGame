@@ -55,6 +55,8 @@
 | 状态（毒/烧/眩晕/麻痹） | `status.js DEFS`(24) `apply`(61) `tick`(87)；`game.js tickStatuses`(2571) |
 | 2D 画面 | `game.js draw`(4850) `drawMap`(4543) `drawEntities`(4696)；`tiles.js` `assets.js`（**不是 hd-draw**） |
 | 3D 画面 | `render-three.js rebuildRoom`(771) `buildGround`(350) `addEnemy`(607) `tick`(923)；`iso-ground.js paint`(217) |
+| 主角外观 / 攻击动作 | `render-three.js ensureIso`(351) `heroAtkFrame`(141) `ATK_MS`(139)；图 `assets/iso/processed/dou-atk.png`（512×128，4 格：待机/蓄力/挥出/收招），缺图退回单张 `hero-dou.png`；出图流程见 `docs/角色设定.md` §4.5 |
+| 3D 崖壁（边缘山脊 / 野外孤石） | `render-three.js buildCliffs` / `addCliffSprite`（只往 `map=1` 的格子立，不会走穿）、`paintTex` 按「主题+变体+高度档」缓存；精灵由 `ensureIso` 一并加载后 `DL.IsoArt.setCliffSprites` |
 | 3D 地面材质（草地/石板/水/海/岸线） | `iso-art.js`：`paintGrass` `paintSlab` `paintWater` `paintSea` `shoreline` `seaMask` `groundSheet`；改完看 `asset-bench.html` 1:1 |
 | 崖壁精灵（AI 图） | `iso-art.js setCliffSprites` / `cliffFoot`；图在 `assets/iso/processed/cliff1..3.png`；重出图看 `docs/瓦片清单.md` §一·五 v4（img2img + `key-magenta.py`） |
 | 音效 / 存档 | `sfx.js SFX`(186)+`play`(197)、调用点 game 1032/1908；`game.js save`(1757) `load`(1784)、`SAVE_KEY`(32) |

@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>瓦片验收台 · 豆豆暗黑传奇</title>
+<style>
+  :root { --ink: #3b2f26; --paper: #fdf7ea; --line: #d9c9a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #efe4cc; color: var(--ink);
+    font: 14px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+  header { padding: 18px 24px 8px; }
+  h1 { font-size: 19px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { color: #7d6c54; font-size: 12.5px; max-width: 1020px; }
+  .bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    padding: 10px 24px; border-bottom: 1px solid var(--line); }
+  .bar label { font-size: 12.5px; color: #6a5942; }
+  main { padding: 12px 24px 40px; }
+  h2 { font-size: 15px; margin: 24px 0 4px; }
+  h2 small { font-weight: 400; color: #8b7a60; font-size: 12px; margin-left: 8px; }
+  .hint { font-size: 12px; color: #8b7a60; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .card canvas { width: 100%; height: auto; display: block; border-radius: 5px; background: #cbbfa6; }
+  .card .t { display: flex; align-items: baseline; gap: 6px; margin-top: 7px; }
+  .card .t b { font-size: 13.5px; }
+  .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 99px; background: #e7dcc4; color: #6a5942; }
+  .tag.over { background: #f0d6c9; color: #8d4a38; }
+  .note { font-size: 11.5px; color: #7d6c54; margin-top: 3px; }
+  .wide { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .wide canvas { display: block; margin: 0 auto; max-width: 100%; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cap { font-size: 12px; color: #6a5942; margin-top: 6px; }
+  .cap b { font-weight: 600; }
+  #log { font-size: 12px; color: #8b7a60; }
+</style>
+</head>
+<body>
+<header>
+  <h1>瓦片验收台 · 9 种材质</h1>
+  <div class="sub">
+    下面所有图都是 <b>1:1 游戏像素</b>（每格 48px），没有缩放——缩略图会骗人。
+    判据：色板落在 15 色内 / 光源在左上 / 边界有机不是直角 / 同材质铺开不出现棋盘格。
+  </div>
+</header>
+
+<div class="bar">
+  <label>主题 <select id="theme">
+    <option value="field">草地（主城 · 野外）</option>
+    <option value="cave">洞窟</option>
+    <option value="waste">荒田</option>
+  </select></label>
+  <label>每格像素 <select id="px">
+    <option value="32">32</option>
+    <option value="48" selected>48</option>
+    <option value="64">64</option>
+  </select></label>
+  <label>铺装 <select id="pave">
+    <option value="slab" selected>石板（暖灰）</option>
+    <option value="brick">砖铺（赭红）</option>
+    <option value="path">土路（沙黄）</option>
+  </select></label>
+  <span id="log"></span>
+</div>
+
+<main>
+  <h2>① 材质清单 <small>3×3 格，1:1</small></h2>
+  <p class="hint">底材铺满（草/土/岩）；覆盖层叠在底材上（路/砖/石板/水/泥），边缘要"有机"。</p>
+  <div class="grid" id="kinds"></div>
+
+  <h2>② 新地面 vs 旧地面 <small>同一张 map、同一个主题</small></h2>
+  <p class="hint">左：旧（iso-ground.js，6px/格 色块插值）；右：新（iso-art.js，48px/格 手绘材质）。</p>
+  <div class="two">
+    <div class="wide"><canvas id="oldHub"></canvas><div class="cap"><b>旧</b> 6px/格</div></div>
+    <div class="wide"><canvas id="newHub"></canvas><div class="cap"><b>新</b> 48px/格</div></div>
+  </div>
+
+  <h2>③ 主城整张地面 <small>真实 genHub + genTerrain</small></h2>
+  <div class="wide"><canvas id="hub"></canvas></div>
+  <div class="cap" style="margin-top:8px">
+    <b>底材</b> 草地 · <b>覆盖</b> 土路→砖铺（广场与主路）· <b>墙</b> 石板
+  </div>
+
+  <h2>④ 主城中心 1:1 局部 <small>这是玩家真正看到的尺寸</small></h2>
+  <div class="wide"><canvas id="crop"></canvas></div>
+
+  <h2>⑤ 像素放大镜 <small>2×2 格，×4 最近邻（不做平滑，看的是真像素）</small></h2>
+  <div class="wide"><canvas id="zoom"></canvas></div>
+
+  <h2 id="cliffTitle">⑦ 崖壁 · 高度梯度 <small>1:1，同一条高度场采样</small></h2>
+  <p class="hint">
+    山谷高度是<b>连续</b>的、而且<b>低多高少</b>：相邻块高度接近，大部分是矮坡，偶尔一座高崖。
+    下面六个是同一套石头在不同高度系数下的样子；再下面是沿边界采样的高度分布。
+  </p>
+  <div class="wide"><canvas id="cliffs"></canvas></div>
+  <div class="wide" style="margin-top:12px"><canvas id="hist"></canvas></div>
+
+  <h2 id="valleyTitle">⑥ 山谷临海 <small>边界不用石板框，用山和水围</small></h2>
+  <p class="hint">
+    主城 24×24 居中，外圈是海（背景直接填海色，方形贴图的角藏进海里）；原来「围墙」那一圈换成崖壁，门口留开口。
+  </p>
+  <div class="wide" id="valleyWrap"><canvas id="valley"></canvas></div>
+
+  <h2 id="closeTitle">⑧ 近景：人站在崖壁边上 <small>这是玩家真正看到的尺度</small></h2>
+  <p class="hint">
+    一屏 10×10 格、每格 64px（游戏里约 63px）。全景会掩盖棱角，近景才看得出来。
+    豆豆是临时占位（3 头身，2.1 格高），只用来当比例尺，不是最终角色。
+  </p>
+  <div class="wide"><canvas id="close"></canvas></div>
+</main>
+
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="world.js"></script>
+<script src="iso-art.js"></script>
+<script src="iso-ground.js"></script>
+<script>
+(function () {
+  'use strict';
+  const A = window.DL.IsoArt;
+  const TAU = Math.PI * 2;
+  const $ = (id) => document.getElementById(id);
+  const theme = () => $('theme').value;
+  const pxs = () => +$('px').value;
+
+  // 等距投影：x' = x - y, y' = (x + y)/2（2:1 菱形），与游戏相机一致
+  function isoInto(canvas, src, sx, sy, sw, sh) {
+    const X = sx || 0, Y = sy || 0, W = sw || src.width, H = sh || src.height;
+    canvas.width = W + H;
+    canvas.height = Math.round((W + H) / 2) + 6;
+    const g = canvas.getContext('2d');
+    g.clearRect(0, 0, canvas.width, canvas.height);
+    g.setTransform(1, 0.5, -1, 0.5, H, 3);
+    g.drawImage(src, X, Y, W, H, 0, 0, W, H);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  function renderKinds() {
+    const box = $('kinds');
+    box.innerHTML = '';
+    Object.keys(A.KINDS).forEach(function (k) {
+      const meta = A.KINDS[k];
+      const card = document.createElement('div');
+      card.className = 'card';
+      const cv = document.createElement('canvas');
+      isoInto(cv, A.patch(k, theme(), 3, 3, 3));
+      card.appendChild(cv);
+      const t = document.createElement('div');
+      t.className = 't';
+      t.innerHTML = '<b>' + meta.name + '</b><span class="tag' +
+        (meta.tier === '覆盖' ? ' over' : '') + '">' + meta.tier + '</span>' +
+        '<span style="color:#9a8a70;font-size:11px">' + k + '</span>';
+      card.appendChild(t);
+      const n = document.createElement('div');
+      n.className = 'note';
+      n.textContent = meta.note;
+      card.appendChild(n);
+      box.appendChild(card);
+    });
+  }
+
+  function buildHub() {
+    const hub = window.DL.World.genHub([]);
+    const pts = [hub.npc, hub.bookNpc, hub.trialNpc, hub.stashNpc, hub.spawn].concat(hub.doors);
+    const terrain = window.DL.World.genTerrain(hub.map, pts, 20261028);
+    return { hub, terrain };
+  }
+
+  function renderAll() {
+    renderKinds();
+    const { hub, terrain } = buildHub();
+    const px = pxs();
+
+    const sheet = A.groundSheet(hub.map, terrain, theme(), {
+      px: px, seed: 7, style: { path: $('pave').value },
+    });
+    isoInto($('newHub'), sheet);
+    isoInto($('hub'), sheet);
+
+    // 旧：iso-ground 只有 6px/格，先放大到同一贴图尺寸再投影，对比才公平
+    if (window.DL.IsoGround && window.DL.IsoGround.paintField) {
+      try {
+        const old = window.DL.IsoGround.paintField(hub.map, terrain, theme()).canvas;
+        const up = document.createElement('canvas');
+        up.width = sheet.width;
+        up.height = sheet.height;
+        const ug = up.getContext('2d');
+        ug.imageSmoothingEnabled = true;
+        ug.drawImage(old, 0, 0, old.width, old.height, 0, 0, up.width, up.height);
+        isoInto($('oldHub'), up);
+      } catch (e) { console.warn('旧地面生成失败', e); }
+    }
+
+    // 主城左上 8×8 格，1:1（含草地 + 路，不是纯广场）
+    const n = 8, ox = px * 6, oy = px * 6;
+    isoInto($('crop'), sheet, ox, oy, n * px, n * px);
+
+    renderZoom();
+    renderCliffs();
+    renderClose();
+    renderValley();
+    $('log').textContent = px + 'px/格 · 贴图 ' + sheet.width + '×' + sheet.height +
+      ' · 主城 24×24';
+  }
+
+  /* ---------- ⑦ 崖壁：高度梯度 + 高度分布 ---------- */
+  const cliffCache = {};
+  function cliffOf(v, hs) {
+    const q = Math.round((typeof hs === 'number' ? hs : 0.6) * 20) / 20;
+    const key = theme() + '|' + v + '|' + q;
+    if (!cliffCache[key]) cliffCache[key] = A.cliff(v, theme(), q);
+    return cliffCache[key];
+  }
+
+  const HS_STEPS = [0.15, 0.3, 0.45, 0.62, 0.82, 1.0];
+
+  function renderCliffs() {
+    const cv = $('cliffs');
+    if (!cv) return;
+    const pad = 10;
+    const img0 = cliffOf(0, 0.6);
+    const cw = img0.width, ch = img0.height;
+    const cols = 3, rows = 2;
+    cv.width = (cw + pad) * cols + pad;
+    cv.height = (ch + pad + 18) * rows + pad;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    HS_STEPS.forEach(function (hs, i) {
+      const img = cliffOf(i % 4, hs);
+      const col = i % cols, row = (i / cols) | 0;
+      const x = pad + col * (cw + pad);
+      const y = pad + row * (ch + pad + 18);
+      g.drawImage(img, x, y);
+      g.fillStyle = '#6a5942';
+      g.font = '13px "Microsoft YaHei", sans-serif';
+      g.fillText('高度系数 ' + hs.toFixed(2), x + 6, y + ch + 14);
+    });
+    renderHist();
+  }
+
+  // 沿边界采样高度场：证明「低多高少」
+  function renderHist() {
+    const cv = $('hist');
+    if (!cv) return;
+    const off = 6, size = 24;
+    const bins = new Array(10).fill(0);
+    let total = 0;
+    for (let i = 0; i < size; i++) {
+      const pts = [[off + i, off], [off + i, off + size - 1], [off, off + i], [off + size - 1, off + i]];
+      pts.forEach(function (p) {
+        const h = A.cliffHeight(p[0], p[1], 3);
+        bins[Math.min(9, Math.floor(h * 10))]++;
+        total++;
+      });
+    }
+    const W = 1200, H = 230, padL = 56, padB = 34;
+    cv.width = W;
+    cv.height = H;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, W, H);
+    const max = Math.max.apply(null, bins) || 1;
+    const bw = (W - padL - 20) / 10;
+    bins.forEach(function (v, i) {
+      const h = (H - padB - 24) * (v / max);
+      const x = padL + i * bw;
+      g.fillStyle = i < 5 ? '#8CC26A' : i < 8 ? '#C0AA7C' : '#96805A';
+      g.fillRect(x + 3, H - padB - h, bw - 6, h);
+      g.fillStyle = '#6a5942';
+      g.font = '12px "Microsoft YaHei", sans-serif';
+      g.fillText(String(v), x + 6, H - padB - h - 6);
+      g.fillText((i / 10).toFixed(1), x + 6, H - padB + 16);
+    });
+    g.fillStyle = '#3b2f26';
+    g.font = '13px "Microsoft YaHei", sans-serif';
+    g.fillText('沿边界 ' + total + ' 个采样点的高度系数分布（低多高少）', padL, 20);
+    g.strokeStyle = '#cbbfa6';
+    g.beginPath();
+    g.moveTo(padL, H - padB);
+    g.lineTo(W - 20, H - padB);
+    g.stroke();
+  }
+
+  /* ---------- ⑧ 近景：人站在崖壁边上 ---------- */
+  function rgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  // 豆豆临时占位：3 头身。只当比例尺，不是最终角色。
+  function bean() {
+    const W = 120, H = 220;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const cx = W / 2, baseY = H - 8;
+    const ink = '#3B2F26';
+    const total = 196;
+    const headR = total / 6;
+    const headCy = baseY - total + headR;
+    const bodyTop = headCy + headR * 0.55;
+    const bodyBot = baseY - 34;
+    const bw = headR * 1.55;
+
+    g.fillStyle = '#7A5537';
+    g.beginPath(); g.ellipse(cx - headR * 0.45, baseY - 12, headR * 0.45, headR * 0.3, 0, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(cx + headR * 0.45, baseY - 12, headR * 0.45, headR * 0.3, 0, 0, TAU); g.fill();
+
+    g.fillStyle = '#8A5F3C';
+    g.beginPath();
+    g.moveTo(cx - bw / 2, bodyTop);
+    g.quadraticCurveTo(cx - bw * 0.58, bodyBot, cx - bw * 0.34, bodyBot);
+    g.lineTo(cx + bw * 0.34, bodyBot);
+    g.quadraticCurveTo(cx + bw * 0.58, bodyBot, cx + bw / 2, bodyTop);
+    g.quadraticCurveTo(cx, bodyTop - headR * 0.3, cx - bw / 2, bodyTop);
+    g.closePath();
+    g.fill();
+
+    g.fillStyle = '#EFE3C8';
+    g.beginPath();
+    g.moveTo(cx - bw * 0.32, bodyTop + 18);
+    g.quadraticCurveTo(cx - bw * 0.42, bodyBot - 6, cx - bw * 0.24, bodyBot - 4);
+    g.lineTo(cx + bw * 0.24, bodyBot - 4);
+    g.quadraticCurveTo(cx + bw * 0.42, bodyBot - 6, cx + bw * 0.32, bodyTop + 18);
+    g.closePath();
+    g.fill();
+
+    g.fillStyle = '#F7EEDB';
+    g.beginPath(); g.arc(cx, headCy, headR, 0, TAU); g.fill();
+    g.strokeStyle = rgba(ink, 0.4);
+    g.lineWidth = 2.5;
+    g.beginPath(); g.arc(cx, headCy, headR, 0, TAU); g.stroke();
+
+    g.fillStyle = ink;
+    g.beginPath(); g.ellipse(cx - headR * 0.34, headCy + 2, headR * 0.14, headR * 0.2, 0, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(cx + headR * 0.34, headCy + 2, headR * 0.14, headR * 0.2, 0, 0, TAU); g.fill();
+    g.fillStyle = rgba('#E9A8B4', 0.7);
+    g.beginPath(); g.arc(cx - headR * 0.55, headCy + headR * 0.34, headR * 0.13, 0, TAU); g.fill();
+    g.beginPath(); g.arc(cx + headR * 0.55, headCy + headR * 0.34, headR * 0.13, 0, TAU); g.fill();
+    return c;
+  }
+
+  function renderClose() {
+    const cv = $('close');
+    if (!cv) return;
+    const PX = 64, N = 10;
+    const map = [], terrain = [];
+    for (let y = 0; y < N; y++) {
+      map[y] = []; terrain[y] = [];
+      for (let x = 0; x < N; x++) {
+        const ring = (x === 0 || y === 0 || x === N - 1 || y === N - 1);
+        map[y][x] = ring ? 1 : 0;
+        terrain[y][x] = 0;
+      }
+    }
+    const sheet = A.groundSheet(map, terrain, theme(), { px: PX, seed: 9, style: { path: 'slab' } });
+    const W = sheet.width, H = sheet.height;
+    const padTop = 430;
+    cv.width = W + H;
+    cv.height = Math.round((W + H) / 2) + padTop + 60;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#cbbfa6';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.setTransform(1, 0.5, -1, 0.5, H, padTop);
+    g.drawImage(sheet, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+
+    const toX = (wx, wz) => (wx - wz) + H;
+    const toY = (wx, wz) => (wx + wz) * 0.5 + padTop;
+
+    // 崖壁：沿上边和左边（让豆豆有个"靠山"站在旁边）
+    const mts = [];
+    for (let t = 1; t <= N - 2; t += 3) {
+      mts.push({ x: t, y: 0, v: t % 4 });
+      mts.push({ x: 0, y: t, v: (t + 2) % 4 });
+    }
+    mts.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
+    mts.forEach(function (m) {
+      const hs = A.cliffHeight(m.x, m.y, 3);
+      const img = cliffOf(m.v, hs);
+      const MS = (4 * 2 * PX) / img.width;
+      g.drawImage(
+        img,
+        toX(m.x * PX, m.y * PX) - img.width * MS / 2,
+        toY(m.x * PX, m.y * PX) - (img.height - 52) * MS,
+        img.width * MS, img.height * MS
+      );
+    });
+
+    // 豆豆：站在中间偏下
+    const bimg = bean();
+    const bMS = (2.1 * PX) / bimg.height;   // 2.1 格高
+    const bx = toX(5 * PX, 6 * PX);
+    const by = toY(5 * PX, 6 * PX);
+    g.drawImage(bimg, bx - bimg.width * bMS / 2, by - bimg.height * bMS, bimg.width * bMS, bimg.height * bMS);
+
+    // 尺度参考：脚下一格的菱形
+    g.strokeStyle = 'rgba(59,47,38,0.35)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(bx, by - PX * 0.0);
+    g.lineTo(bx + PX, by + PX * 0.5);
+    g.lineTo(bx, by + PX);
+    g.lineTo(bx - PX, by + PX * 0.5);
+    g.closePath();
+    g.stroke();
+  }
+
+  /* ---------- ⑥ 山谷临海：主城 + 海 + 崖壁 ---------- */
+  const mountainCache = {};
+  function mountainOf(v) {
+    if (!mountainCache[v]) mountainCache[v] = A.mountain(v, theme());
+    return mountainCache[v];
+  }
+
+  function renderValley() {
+    const cv = $('valley');
+    if (!cv) return;
+    const off = 6, size = 36, PX = 26;
+    const hub = window.DL.World.genHub([]);
+    const map = [], terrain = [];
+    for (let y = 0; y < size; y++) {
+      map[y] = []; terrain[y] = [];
+      for (let x = 0; x < size; x++) {
+        const inner = x >= off && x < off + 24 && y >= off && y < off + 24;
+        map[y][x] = inner ? hub.map[y - off][x - off] : 0;
+        terrain[y][x] = inner ? 0 : 3;          // 外圈 = 海
+      }
+    }
+
+    // 主城那圈墙：一部分让海水咬进来，一部分立山崖，剩下的留缺口（露出后面海）
+    const mts = [];
+    // 边框：一部分让海水咬进来，其余沿边每 4 格立一整块崖壁（崖壁宽约 4 格）
+    for (let y = off; y < off + 24; y++) {
+      for (let x = off; x < off + 24; x++) {
+        const hx = x - off, hy = y - off;
+        const onRing = hx === 0 || hy === 0 || hx === 23 || hy === 23;
+        if (!onRing || hub.map[hy][hx] === 2) continue;
+        const h = (((x * 73856093) ^ (y * 19349663)) >>> 0);
+        if (h % 10 < 3) {
+          map[y][x] = 0;
+          terrain[y][x] = 3;                    // 海水咬进陆地边缘
+        }
+      }
+    }
+    function run(isX, fixed, from, to) {
+      // 步长 3 格（崖壁宽 4 格）→ 相邻块重叠 1 格，草坡连成一条，不留缝
+      for (let t = from; t <= to; t += 3) {
+        const h = (((fixed * 73856093) ^ (t * 19349663)) >>> 0);
+        if (h % 10 < 1) continue;               // 留一个豁口
+        const gx = isX ? t : fixed, gy = isX ? fixed : t;
+        if (hub.map[gy - off] && hub.map[gy - off][gx - off] === 2) continue;
+        mts.push({ x: gx, y: gy, v: h % 4 });
+      }
+    }
+    run(true, off, off + 2, off + 22);
+    run(true, off + 23, off + 2, off + 22);
+    run(false, off, off + 2, off + 22);
+    run(false, off + 23, off + 2, off + 22);
+
+    const sheet = A.groundSheet(map, terrain, theme(), {
+      px: PX, seed: 5, style: { path: 'slab' },
+    });
+
+    mts.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
+
+    const W = sheet.width, H = sheet.height;
+    const scale = 1500 / (W + H);
+    const padTop = 320;
+    cv.width = 1500;
+    cv.height = Math.round((W + H) * 0.5 * scale) + padTop + 40;
+    const g = cv.getContext('2d');
+    // 背景直接填海色：贴图是方的，方角要藏进海里，否则一眼看出"一座方形岛"
+    g.fillStyle = (A.PALETTES[theme()] || A.PALETTES.field).sea || '#3F6E92';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.setTransform(scale, scale * 0.5, -scale, scale * 0.5, H * scale, padTop);
+    g.drawImage(sheet, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+
+    // 世界像素 → 屏幕（跟上面 setTransform 同一套 2:1 等距）
+    const toX = (wx, wz) => (wx - wz) * scale + H * scale;
+    const toY = (wx, wz) => (wx + wz) * 0.5 * scale + padTop;
+    mts.forEach(function (m) {
+      // 高度由高度场决定：沿边界连续、低多高少
+      const hs = A.cliffHeight(m.x, m.y, 3);
+      const img = cliffOf(m.v, hs);
+      // 一整块崖壁 = 4 格宽；等距下一格的屏幕宽 = 2 * PX
+      const MS = (4 * 2 * PX * scale) / img.width;
+      const w = img.width * MS, hh = img.height * MS;
+      const anchor = (img.height - 52) * MS;          // 落地点距 sprite 顶部的距离
+      const x = toX(m.x * PX, m.y * PX);
+      const y = toY(m.x * PX, m.y * PX);
+      g.drawImage(img, x - w / 2, y - anchor, w, hh);
+    });
+  }
+
+  // 2×2 格 ×3 放大（最近邻）：检查草簇/砖缝/波纹到底长什么样
+  function renderZoom() {
+    const keys = ['grass', 'path', 'brick', 'slab', 'water', 'mud'];
+    const SC = 3, S = pxs() * 2;
+    const bw = 4 * S * SC;                  // 等距后宽 = 4S
+    const bh = 2 * S * SC + 26;             // 等距后高 = 2S
+    const cols = 2, rows = 3;
+    const cv = $('zoom');
+    cv.width = cols * bw;
+    cv.height = rows * bh;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    keys.forEach(function (k, i) {
+      const p = A.patch(k, theme(), 2, 2, 11);
+      const bx = (i % cols) * bw;
+      const by = ((i / cols) | 0) * bh;
+      g.save();
+      g.imageSmoothingEnabled = false;
+      g.setTransform(SC, SC * 0.5, -SC, SC * 0.5, bx + 2 * S * SC, by + 24);
+      g.drawImage(p, 0, 0);
+      g.restore();
+      g.fillStyle = '#3b2f26';
+      g.font = '14px "Microsoft YaHei", sans-serif';
+      g.fillText(A.KINDS[k].name, bx + 10, by + 17);
+    });
+  }
+
+  $('theme').onchange = renderAll;
+  $('px').onchange = renderAll;
+  $('pave').onchange = renderAll;
+
+  // 允许 ?theme=cave&px=48&pave=slab 直接出图（截图/对比用）
+  (function () {
+    const qs = new URLSearchParams(location.search);
+    ['theme', 'px', 'pave'].forEach(function (k) {
+      const v = qs.get(k);
+      if (!v) return;
+      const el = $(k);
+      if (el && Array.prototype.some.call(el.options, function (o) { return o.value === v; })) el.value = v;
+    });
+  })();
+
+  renderAll();
+  window.__bench = { rerender: renderAll, art: A };
+})();
+</script>
+</body>
+</html>

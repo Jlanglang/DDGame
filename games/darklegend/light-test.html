@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>地板 + 人 · 光照方向对比</title>
+<style>
+  html, body { margin: 0; background: #efe4cc; color: #3b2f26;
+    font: 14px/1.6 "Microsoft YaHei", "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size: 17px; margin: 14px 16px 2px; }
+  p.note { margin: 0 16px 10px; font-size: 12.5px; color: #7d6c54; max-width: 1150px; }
+  .row { display: flex; gap: 14px; padding: 0 16px 16px; flex-wrap: wrap; }
+  .cell { background: #fdf7ea; border: 1px solid #d9c9a8; border-radius: 8px; padding: 10px; }
+  canvas { display: block; border-radius: 5px; }
+  .cap { font-size: 12.5px; margin-top: 7px; color: #6a5942; }
+  .cap b { color: #3b2f26; }
+</style>
+</head>
+<body>
+<h1>地板 + 人 · 先只把这一组做对</h1>
+<p class="note">
+  同一块石板地、同一组豆豆，只换光的来向。阴影统一往反方向投，地板和人身上的明暗按同一侧画。
+  地面贴图来自 <code>iso-art.js</code> 的 slab，人物是临时占位（3 头身），只用来对比例和光影。
+</p>
+<div class="row">
+  <div class="cell">
+    <canvas id="L" width="600" height="440"></canvas>
+    <div class="cap"><b>光从玩家左手</b>：左侧亮，影子投向右</div>
+  </div>
+  <div class="cell">
+    <canvas id="R" width="600" height="440"></canvas>
+    <div class="cap"><b>光从玩家右手</b>：右侧亮，影子投向左</div>
+  </div>
+</div>
+<script src="vendor/three.iife.js"></script>
+<script src="iso-art.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // 地面：直接用 iso-art 的石板贴图，铺开
+  function groundTex() {
+    const p = DL.IsoArt.patch('slab', 'field', 4, 4, 21);
+    const t = new THREE.CanvasTexture(p);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3, 3);
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  // 豆豆：贴图里就按光向画好明暗（左亮 or 右亮），运行时不再吃光
+  function beanTex(side) {
+    const W = 170, H = 300;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const cx = W / 2, baseY = H - 10;
+    const headR = 50, headCy = baseY - 182;
+    const litX = side === 'L' ? 0.28 : 0.72;      // 亮面位置
+    const lite = '#F9F1DE', mid = '#F0E4C8', dark = '#D8C6A2';
+
+    const shade = function (shape) {
+      const grd = g.createLinearGradient(
+        cx - headR * 1.1, headCy - headR, cx + headR * 1.1, headCy + headR * 2
+      );
+      const a = side === 'L' ? 0 : 1;
+      grd.addColorStop(0, side === 'L' ? lite : dark);
+      grd.addColorStop(1, side === 'L' ? dark : lite);
+      return grd;
+    };
+
+    // 脚
+    g.fillStyle = '#6E4E33';
+    g.beginPath(); g.ellipse(cx - 22, baseY - 14, 20, 12, 0, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(cx + 22, baseY - 14, 20, 12, 0, 0, 7); g.fill();
+
+    // 身体
+    const grdB = g.createLinearGradient(cx - 52, 0, cx + 52, 0);
+    if (side === 'L') { grdB.addColorStop(0, '#C08A5C'); grdB.addColorStop(1, '#5E3F26'); }
+    else { grdB.addColorStop(0, '#5E3F26'); grdB.addColorStop(1, '#C08A5C'); }
+    g.fillStyle = grdB;
+    g.beginPath();
+    g.moveTo(cx - 48, headCy + 38);
+    g.quadraticCurveTo(cx - 58, baseY - 28, cx - 30, baseY - 24);
+    g.lineTo(cx + 30, baseY - 24);
+    g.quadraticCurveTo(cx + 58, baseY - 28, cx + 48, headCy + 38);
+    g.quadraticCurveTo(cx, headCy + 16, cx - 48, headCy + 38);
+    g.fill();
+
+    // 围裙
+    const grdA = g.createLinearGradient(cx - 30, 0, cx + 30, 0);
+    if (side === 'L') { grdA.addColorStop(0, '#FBF4E4'); grdA.addColorStop(1, '#D9CBAE'); }
+    else { grdA.addColorStop(0, '#D9CBAE'); grdA.addColorStop(1, '#FBF4E4'); }
+    g.fillStyle = grdA;
+    g.beginPath();
+    g.moveTo(cx - 27, headCy + 58);
+    g.quadraticCurveTo(cx - 36, baseY - 30, cx - 18, baseY - 28);
+    g.lineTo(cx + 18, baseY - 28);
+    g.quadraticCurveTo(cx + 36, baseY - 30, cx + 27, headCy + 58);
+    g.fill();
+
+    // 头：球面明暗（亮面偏一侧）
+    const hx = cx + (side === 'L' ? -headR * 0.36 : headR * 0.36);
+    const grdH = g.createRadialGradient(hx, headCy - headR * 0.38, headR * 0.15, cx, headCy, headR * 1.15);
+    grdH.addColorStop(0, lite);
+    grdH.addColorStop(0.55, mid);
+    grdH.addColorStop(1, dark);
+    g.fillStyle = grdH;
+    g.beginPath(); g.arc(cx, headCy, headR, 0, 7); g.fill();
+
+    // 边缘一圈深色（手绘描边感）
+    g.strokeStyle = 'rgba(59,47,38,0.32)';
+    g.lineWidth = 2.5;
+    g.beginPath(); g.arc(cx, headCy, headR, 0, 7); g.stroke();
+
+    // 眼睛
+    g.fillStyle = '#3B2F26';
+    g.beginPath(); g.ellipse(cx - 17, headCy + 3, 7, 10, 0, 0, 7); g.fill();
+    g.beginPath(); g.ellipse(cx + 17, headCy + 3, 7, 10, 0, 0, 7); g.fill();
+    // 眼睛高光
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.arc(cx - 19.5, headCy - 1, 2.4, 0, 7); g.fill();
+    g.beginPath(); g.arc(cx + 14.5, headCy - 1, 2.4, 0, 7); g.fill();
+    // 腮红
+    g.fillStyle = 'rgba(226,150,160,0.55)';
+    g.beginPath(); g.arc(cx - 29, headCy + 18, 7, 0, 7); g.fill();
+    g.beginPath(); g.arc(cx + 29, headCy + 18, 7, 0, 7); g.fill();
+
+    const t = new THREE.CanvasTexture(c);
+    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  function build(canvas, side) {
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setPixelRatio(1);
+    renderer.setSize(canvas.width, canvas.height, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) {
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#aec0c8');
+
+    const cam = new THREE.OrthographicCamera(-9, 9, 6.6, -6.6, 0.1, 120);
+    // 和游戏一致的等距视角
+    cam.position.set(7.5, 9.5, 7.5);
+    cam.lookAt(0, 0.6, 0);
+
+    // 新版 three 的光照是物理单位（intensity 不再 ×π），所以数值要比老教程大
+    scene.add(new THREE.AmbientLight(0xffffff, 2.6));
+
+    const d = new THREE.DirectionalLight(0xfff3dc, 4.2);
+    // 侧光：屏幕左 = 世界 (-1,0,1)；屏幕右 = (1,0,-1)。
+    // 仰角压低一点，影子才拉得长、看得出方向。
+    if (side === 'L') d.position.set(-9, 5.5, 3.5);
+    else d.position.set(9, 5.5, -3.5);
+    d.castShadow = true;
+    d.shadow.mapSize.set(1024, 1024);
+    const sc = d.shadow.camera;
+    sc.left = -12; sc.right = 12; sc.top = 12; sc.bottom = -12;
+    sc.near = 0.5; sc.far = 44;
+    // 自阴影（shadow acne）会把整片地面压灰，normalBias 是正解
+    d.shadow.bias = -0.0002;
+    d.shadow.normalBias = 0.035;
+    scene.add(d);
+    scene.add(d.target);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(16, 16),
+      new THREE.MeshLambertMaterial({ map: groundTex() })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    const tex = beanTex(side);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide,
+    });
+
+    // 人物阴影 = 人物贴图的剪影，按光向压倒在地面上。
+    // 不是脚下椭圆：椭圆是"接触阴影"，看得出是块贴纸；剪影能带出武器、裙摆的形状。
+    function shadowGeo(w, h, kx, kz) {
+      const g = new THREE.PlaneGeometry(w, h);
+      const pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i);
+        const t = y + h / 2;                 // 0 = 脚下
+        pos.setXYZ(i, x + t * kx, 0.02, t * kz);
+      }
+      pos.needsUpdate = true;
+      g.computeVertexNormals();
+      return g;
+    }
+
+    const shMat = new THREE.MeshBasicMaterial({
+      map: tex, color: 0x2a1f16, transparent: true, opacity: 0.72, depthWrite: false,
+    });
+    // 影子倒向：光在左 → 影子往右倒。倒得别太远，贴着脚才像"踩在地上"
+    const kx = side === 'L' ? 0.42 : -0.42;
+    const kz = side === 'L' ? -0.17 : 0.17;
+
+    [[-2.2, 0.4], [0.6, 1.9], [3.0, -0.6]].forEach(function (p) {
+      const b = new THREE.Mesh(new THREE.PlaneGeometry(1.85, 3.25), mat);
+      b.position.set(p[0], 1.62, p[1]);
+      scene.add(b);
+
+      const sh = new THREE.Mesh(shadowGeo(1.85, 3.25, kx, kz), shMat);
+      sh.position.set(p[0], 0.02, p[1]);
+      sh.renderOrder = 2;
+      scene.add(sh);
+    });
+
+    renderer.render(scene, cam);
+  }
+
+  try {
+    build(document.getElementById('L'), 'L');
+    build(document.getElementById('R'), 'R');
+  } catch (e) {
+    document.body.insertAdjacentHTML('beforeend',
+      '<p style="color:#8d4a38">WebGL 起不来：' + (e && e.message || e) + '</p>');
+  }
+})();
+</script>
+</body>
+</html>

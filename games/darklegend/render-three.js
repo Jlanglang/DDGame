@@ -19,6 +19,7 @@
   let on = false;
   let renderer = null;
   let scene = null;
+  let sun = null;
   let camera = null;
   let canvas = null;
   let low = false;
@@ -213,48 +214,88 @@
     shadowLayer.add(shadowMesh);
   }
 
+  /* ---------- 人物/道具阴影：贴图剪影按光向倒在地上 ----------
+     不是脚下椭圆。椭圆是"接触阴影"，看得出是块贴纸；剪影能带出武器、裙摆的形状。
+     参考图（传奇女英雄）的阴影就是这种：贴着脚、往光反方向倒、能看出人形。
+     做法：拿立牌自己的贴图，几何顶点 x' = x + t·kx、z' = t·kz（t = 离脚底的高度），
+     再染成深褐、压到 y=0.02。地图/贴图共用，不额外占显存。 */
+
+  const SHADOW_KX = 0.42;    // 光从玩家左手 → 影子往 +x 倒
+  const SHADOW_KZ = -0.17;
+
+  function makeShadowMesh(tex, w, h) {
+    const geo = new THREE.PlaneGeometry(w, h);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      const t = y + h / 2;                       // 0 = 脚下
+      pos.setXYZ(i, x + t * SHADOW_KX, 0, t * SHADOW_KZ);
+    }
+    pos.needsUpdate = true;
+    geo.computeBoundingSphere();
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      color: 0x2a1f16,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    });
+    if ('toneMapped' in mat) mat.toneMapped = false;
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 15;
+    m.userData.isShadow = true;
+    return m;
+  }
+
   function attachShadow(mesh) {
-    if (!mesh || mesh.userData.sw) return;
-    const w = (mesh.geometry && mesh.geometry.parameters && mesh.geometry.parameters.width) || 1;
-    mesh.userData.sw = Math.max(0.28, w * 0.8);
-    // 世界 Z 会被 45° 相机压扁，把高度放大 1/sin(45°)，屏幕上才是宽的 0.35。
-    mesh.userData.sh = mesh.userData.sw * 0.35 / Math.sin(Math.PI / 4);
+    if (!mesh || !mesh.userData || mesh.userData.shadowMesh) return;
+    const p = (mesh.geometry && mesh.geometry.parameters) || {};
+    const tex = mesh.material && mesh.material.map;
+    if (!tex || !p.width || !p.height) return;
+    const sh = makeShadowMesh(tex, p.width, p.height);
+    mesh.userData.shadowMesh = sh;
+    if (shadowLayer) shadowLayer.add(sh);
+    else if (scene) scene.add(sh);
   }
 
   function detachShadow(mesh) {
     if (!mesh || !mesh.userData) return;
-    mesh.userData.sw = 0;
-    mesh.userData.sh = 0;
+    const sh = mesh.userData.shadowMesh;
+    if (!sh) return;
+    if (sh.parent) sh.parent.remove(sh);
+    if (sh.geometry) sh.geometry.dispose();
+    if (sh.material) sh.material.dispose();   // map 是借用立牌的，不 dispose
+    mesh.userData.shadowMesh = null;
   }
 
-  function writeShadow(mesh, n) {
-    if (!mesh || !mesh.userData || !mesh.userData.sw || n >= SHADOW_MAX) return n;
-    const k = (mesh.scale && mesh.scale.x) || 1;
-    if (k <= 0.08) return n;
-    shadowDummy.position.set(mesh.position.x + SHADOW_OX, 0.12, mesh.position.z + SHADOW_OZ);
-    shadowDummy.rotation.set(-Math.PI / 2, 0, 0);
-    shadowDummy.scale.set(mesh.userData.sw * k, mesh.userData.sh * k, 1);
-    shadowDummy.updateMatrix();
-    shadowMesh.setMatrixAt(n, shadowDummy.matrix);
-    return n + 1;
+  function syncOneShadow(mesh) {
+    if (!mesh || !mesh.userData || mesh.userData.isShadow) return;
+    const sh = mesh.userData.shadowMesh;
+    if (!sh) return;
+    sh.position.set(mesh.position.x, 0.02, mesh.position.z);
+    sh.scale.copy(mesh.scale);
+    sh.visible = mesh.visible !== false && mesh.scale.x > 0.08;
   }
 
   function syncAllShadows() {
-    ensureShadow();
-    if (!shadowMesh) return;
-    let n = 0;
-    n = writeShadow(hero, n);
+    if (shadowMesh) shadowMesh.count = 0;       // 旧的椭圆实例层停用
+    syncOneShadow(hero);
     if (group) {
       const kids = group.children;
-      for (let i = 0; i < kids.length; i++) n = writeShadow(kids[i], n);
+      for (let i = 0; i < kids.length; i++) syncOneShadow(kids[i]);
     }
-    shadowMesh.count = n;
-    shadowMesh.instanceMatrix.needsUpdate = true;
-    shadowMesh.visible = n > 0;
   }
 
   function clearShadows() {
     if (shadowMesh) shadowMesh.count = 0;
+    if (!shadowLayer) return;
+    for (let i = shadowLayer.children.length - 1; i >= 0; i--) {
+      const m = shadowLayer.children[i];
+      if (!m.userData || !m.userData.isShadow) continue;
+      shadowLayer.remove(m);
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) m.material.dispose();
+    }
   }
 
   function own(mesh) {
@@ -347,38 +388,78 @@
     ground = null;
   }
 
+  // 方向光的阴影范围要罩住整张地图（房间尺寸会变，所以每次建地面都重算一次）
+  function fitSun(W, H) {
+    if (!sun) return;
+    const cx = W / 2, cz = H / 2;
+    sun.target.position.set(cx, 0, cz);
+    // 光从玩家左手：世界 (-x, +z) 方向；仰角压低，影子才拉得出来
+    sun.position.set(cx - 10, 15, cz + 10);
+    const r = Math.max(W, H) * 0.8 + 8;
+    const sc = sun.shadow.camera;
+    sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r;
+    sc.near = 0.5;
+    sc.far = 80;
+    sc.updateProjectionMatrix();
+    sun.target.updateMatrixWorld();
+    sun.updateMatrixWorld();
+  }
+
   function buildGround() {
     dropGround();
-    const Gnd = DL.IsoGround;
-    if (!Gnd || !B || !Gnd.paintField) return;
-    const map = B.map();
-    const terrain = B.terrain && B.terrain();
+    const map = B && B.map && B.map();
+    const terrain = B && B.terrain && B.terrain();
     if (!map || !map.length || !map[0]) return;
-    const theme = Gnd.themeOf(groundSheet());
-    const field = Gnd.paintField(map, terrain, theme);
-    const tex = texOfCanvas(field.canvas, true);
+    const theme = DL.IsoGround && DL.IsoGround.themeOf ? DL.IsoGround.themeOf(groundSheet()) : 'field';
+
+    // 地面贴图：优先用 iso-art（48px/格 的手绘石板），缺它再退回旧的色块插值。
+    let srcCanvas = null;
+    let W = map[0].length;
+    let H = map.length;
+    const A = DL.IsoArt;
+    if (A && A.groundSheet) {
+      try {
+        srcCanvas = A.groundSheet(map, terrain, theme, {
+          px: 48,
+          seed: 7,
+          style: { path: 'slab' },      // 地面统一石板（红砖撤出地面）
+        });
+      } catch (e) {
+        console.warn('[3D] iso-art 地面生成失败，退回旧地面', e);
+      }
+    }
+    if (!srcCanvas) {
+      const Gnd = DL.IsoGround;
+      if (!Gnd || !Gnd.paintField) return;
+      const field = Gnd.paintField(map, terrain, theme);
+      srcCanvas = field.canvas;
+      W = field.W;
+      H = field.H;
+    }
+
+    const tex = texOfCanvas(srcCanvas, true);
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
-    const mat = new THREE.MeshBasicMaterial({
+    // 地面必须吃光：Basic 材质是"平涂"，Lambert 才会被方向光照出明暗。
+    const mat = new THREE.MeshLambertMaterial({
       map: tex,
       depthWrite: false,
       depthTest: false,
       side: THREE.DoubleSide,
     });
     // 一张铺满地图的平面：世界 xz ∈ [0,W]×[0,H]，UV 同步。无无菱形网格缝。
-    const W = field.W;
-    const H = field.H;
     const geo = new THREE.PlaneGeometry(W, H, 1, 1);
     geo.rotateX(-Math.PI / 2);
     geo.translate(W / 2, 0, H / 2);
     ground = new THREE.Group();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = -10;
+    mesh.receiveShadow = true;
     mesh.frustumCulled = false;
     ground.add(mesh);
-    // 接缝装饰已烤进 paintField 贴图，不再叠 3D decal（会显得浮、还发霓虹绿）。
     scene.add(ground);
     groundPainted = theme;
+    fitSun(W, H);
   }
 
   function addSeamDecals(parent, seams) {
@@ -1082,7 +1163,9 @@
       return;
     }
     renderer.setClearColor('#7eb6e6', 1);
-    renderer.shadowMap.enabled = false;
+    // 2.5D 的关键：有光、有影子。不然后面所有贴图都是"平涂"，看起来像 2D。
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
@@ -1092,7 +1175,16 @@
       0.1, 240
     );
     scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
+    // 环境光压到"能看清暗部"就够；主光是左上方向光。
+    // 注意：这一版 three 的光强是物理单位，数值比老教程大（真实值 ≈ 老值 × π）。
+    scene.add(new THREE.AmbientLight(0xffffff, 1.7));
+    sun = new THREE.DirectionalLight(0xfff3dc, 2.9);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.bias = -0.0002;
+    sun.shadow.normalBias = 0.05;
+    scene.add(sun);
+    scene.add(sun.target);
     shadowLayer = new THREE.Group();
     scene.add(shadowLayer);
 

@@ -1,15 +1,7 @@
 // 正交射线：地面往返、半格内不点错。不加载 Three，不开 WebGL。
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const ctx = { console };
-ctx.window = ctx;
-ctx.globalThis = ctx;
-vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'three-pick.js'), 'utf8'), ctx);
-const P = ctx.DL.ThreePick;
+globalThis.window = globalThis;
+const { ThreePick } = await import('./src/three-pick.js');
+const P = ThreePick;
 
 let pass = 0;
 let fail = 0;

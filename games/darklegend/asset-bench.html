@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>瓦片验收台 · 豆豆暗黑传奇</title>
+<title>地面验收台 · 豆豆暗黑传奇</title>
 <style>
   :root { --ink: #3b2f26; --paper: #fdf7ea; --line: #d9c9a8; }
   * { box-sizing: border-box; }
@@ -29,18 +29,20 @@
   .note { font-size: 11.5px; color: #7d6c54; margin-top: 3px; }
   .wide { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
   .wide canvas { display: block; margin: 0 auto; max-width: 100%; }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .cap { font-size: 12px; color: #6a5942; margin-top: 6px; }
   .cap b { font-weight: 600; }
   #log { font-size: 12px; color: #8b7a60; }
+  code { background: #f3e9d2; padding: 0 3px; border-radius: 3px; font-size: 12px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>瓦片验收台 · 9 种材质</h1>
+  <h1>地面验收台 · 现在的游戏</h1>
   <div class="sub">
-    下面所有图都是 <b>1:1 游戏像素</b>（每格 48px），没有缩放——缩略图会骗人。
-    判据：色板落在 15 色内 / 光源在左上 / 边界有机不是直角 / 同材质铺开不出现棋盘格。
+    这张台子只对<b>现在跑的这个游戏</b>负责：主城是 <b>128×128 的岛</b>（<code>DL.Overworld.build</code>），
+    地面 10 种材质，海 → 沙滩 → 草 → 城内石板；城内石板走 <code>slabSheet</code> + 板砖几何。
+    标 1:1 的图都是<b>游戏像素</b>（每格 48px），没有缩放——缩略图会骗人。
+    判据：色板落在 15 色内 / 光源在左上 / 边界有机不是直角 / 同材质铺开不出现棋盘格 / 缝上不能出线。
   </div>
 </header>
 
@@ -56,65 +58,84 @@
     <option value="64">64</option>
   </select></label>
   <label>铺装 <select id="pave">
-    <option value="slab" selected>石板（暖灰）</option>
-    <option value="brick">砖铺（赭红）</option>
-    <option value="path">土路（沙黄）</option>
+    <option value="slab" selected>石板（游戏用的就是这个）</option>
+    <option value="brick">砖铺（现在没用）</option>
+    <option value="path">土路</option>
   </select></label>
   <span id="log"></span>
 </div>
 
 <main>
-  <h2>① 材质清单 <small>3×3 格，1:1</small></h2>
-  <p class="hint">底材铺满（草/土/岩）；覆盖层叠在底材上（路/砖/石板/水/泥），边缘要"有机"。</p>
+  <h2>① 材质清单 <small>10 种，3×3 格，1:1</small></h2>
+  <p class="hint">底材铺满（草/土/岩）；覆盖层叠在底材上（路/砖/石板/水/泥/海/沙），边缘要"有机"。每种下面写它现在用在哪。</p>
   <div class="grid" id="kinds"></div>
 
-  <h2>② 新地面 vs 旧地面 <small>同一张 map、同一个主题</small></h2>
-  <p class="hint">左：旧（iso-ground.js，6px/格 色块插值）；右：新（iso-art.js，48px/格 手绘材质）。</p>
-  <div class="two">
-    <div class="wide"><canvas id="oldHub"></canvas><div class="cap"><b>旧</b> 6px/格</div></div>
-    <div class="wide"><canvas id="newHub"></canvas><div class="cap"><b>新</b> 48px/格</div></div>
-  </div>
+  <h2>② 真·主城 <small>128×128 的岛，6px/格 缩略</small></h2>
+  <p class="hint">
+    这就是进游戏看到的世界：外圈海 → 沙滩带（宽度按角度起伏，岬角窄海湾宽）→ 草地 → 中间 40×40 城主城（石墙 + 石板地）。
+    缩略只为了看形状和分布，细节看 ③ ④。<b>注意</b>：贴图是方的，外面那圈纯蓝是背景（不是游戏里的海），
+    中间那块带纹理的海才是 <code>terrain=3</code>；游戏里相机夹住了地图边，看不到这个方角。
+  </p>
+  <div class="wide"><canvas id="island"></canvas></div>
 
-  <h2>③ 主城整张地面 <small>真实 genHub + genTerrain</small></h2>
-  <div class="wide"><canvas id="hub"></canvas></div>
-  <div class="cap" style="margin-top:8px">
-    <b>底材</b> 草地 · <b>覆盖</b> 土路→砖铺（广场与主路）· <b>墙</b> 石板
-  </div>
+  <h2>③ 城墙根 1:1 <small>16×16 格，从岛上直接裁（用 rect，不会整张重画）</small></h2>
+  <p class="hint">
+    城内石板 / 城外草地，中间那条直边就是城墙线——地面贴图只认 <code>terrain</code>，
+    墙本身是 3D 立牌（<code>buildSolids</code>）压在这条线上，所以单独看贴图会显得很硬。
+  </p>
+  <div class="wide"><canvas id="gate"></canvas></div>
 
-  <h2>④ 主城中心 1:1 局部 <small>这是玩家真正看到的尺寸</small></h2>
-  <div class="wide"><canvas id="crop"></canvas></div>
+  <h2>④ 沙滩 1:1 <small>16×16 格：海 → 沙 → 草 → 岸线</small></h2>
+  <p class="hint">海和草之间必须有沙滩带，否则水像贴在草地上。看三点：沙有没有宽度过渡、岸线是不是一条直线、水里有没有浅水。</p>
+  <div class="wide"><canvas id="beach"></canvas></div>
 
   <h2>⑤ 像素放大镜 <small>2×2 格，×4 最近邻（不做平滑，看的是真像素）</small></h2>
   <div class="wide"><canvas id="zoom"></canvas></div>
 
-  <h2 id="cliffTitle">⑦ 崖壁 · 高度梯度 <small>1:1，同一条高度场采样</small></h2>
+  <h2>⑥ 整张 vs 分块 <small>流式加载的验收</small></h2>
   <p class="hint">
-    山谷高度是<b>连续</b>的、而且<b>低多高少</b>：相邻块高度接近，大部分是矮坡，偶尔一座高崖。
-    下面六个是同一套石头在不同高度系数下的样子；再下面是沿边界采样的高度分布。
+    流式加载靠这个：<code>groundSheet(..., { rect:{x0,y0,x1,y1} })</code> 只画一块，
+    窗口多画一圈出血（<code>margin</code>，默认 1 格）再裁掉——遮罩圆群 / 3px 模糊投影 / 岸线椭圆都越过格子边界。
+    左 = 整张里裁的，右 = 拼回的，红线是块与块的缝（同一位置）。
+    判据是<b>「缝带」和「块内」各自与整张图的差要一个量级</b>：有细线、缺阴影、遮罩缺角时缝带会明显更差。
+  </p>
+  <div class="wide"><canvas id="chunkSeam"></canvas></div>
+  <div class="cap" id="chunkLog"></div>
+
+  <h2>⑦ 石板（城内） <small>slabSheet，mir：1 格一块</small></h2>
+  <p class="hint">
+    城内走 <code>slabSheet({tile:1})</code> + TilePlate 浅 V 槽（窄缝、浅槽；砖不放大）：
+    <b>缝由几何画</b>，贴图只看板面色差/磨损/细裂。立体效果在游戏里看。
+  </p>
+  <div class="wide"><canvas id="slab"></canvas></div>
+
+  <h2>⑧ 崖壁 · 冻结 <small>游戏里现在不画崖壁（2026-10-29 起 buildCliffs 停用）</small></h2>
+  <p class="hint">
+    留着当素材参考：高度场是连续的、低多高少（相邻块高度接近，大部分是矮坡，偶尔一座高崖）。
+    真要重新启用，先看 <code>render-three.js buildCliffs</code> 和 <code>docs/STATUS.md</code> 里为什么停。
+    近景那张里的人只是比例尺（3 头身），不是最终角色。
   </p>
   <div class="wide"><canvas id="cliffs"></canvas></div>
   <div class="wide" style="margin-top:12px"><canvas id="hist"></canvas></div>
-
-  <h2 id="valleyTitle">⑥ 山谷临海 <small>边界不用石板框，用山和水围</small></h2>
-  <p class="hint">
-    主城 24×24 居中，外圈是海（背景直接填海色，方形贴图的角藏进海里）；原来「围墙」那一圈换成崖壁，门口留开口。
-  </p>
-  <div class="wide" id="valleyWrap"><canvas id="valley"></canvas></div>
-
-  <h2 id="closeTitle">⑧ 近景：人站在崖壁边上 <small>这是玩家真正看到的尺度</small></h2>
-  <p class="hint">
-    一屏 10×10 格、每格 64px（游戏里约 63px）。全景会掩盖棱角，近景才看得出来。
-    豆豆是临时占位（3 头身，2.1 格高），只用来当比例尺，不是最终角色。
-  </p>
-  <div class="wide"><canvas id="close"></canvas></div>
+  <div class="wide" style="margin-top:12px"><canvas id="close"></canvas></div>
 </main>
 
-<script src="data.js"></script>
-<script src="core.js"></script>
-<script src="world.js"></script>
-<script src="iso-art.js"></script>
-<script src="iso-ground.js"></script>
 <script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var p = document.createElement('p');
+    p.textContent = '验收台要在开发服务器里开：npm run dev，然后打开 http://localhost:8183/asset-bench.html';
+    document.body.prepend(p);
+  });
+}
+</script>
+<script type="module" src="./src/data.js"></script>
+<script type="module" src="./src/core.js"></script>
+<script type="module" src="./src/world.js"></script>
+<script type="module" src="./src/overworld.js"></script>
+<script type="module" src="./src/iso-art.js"></script>
+<script type="module" src="./src/iso-ground.js"></script>
+<script type="module">
 (function () {
   'use strict';
   const A = window.DL.IsoArt;
@@ -134,6 +155,20 @@
     g.drawImage(src, X, Y, W, H, 0, 0, W, H);
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
+
+  // 每种材质现在到底用在哪（写清楚，省得又对着没用的材质调半天）
+  const USE = {
+    grass: '城外草地、野外房间底材',
+    soil: '荒田主题（waste）的底材',
+    rock: '洞窟主题（cave）的底材',
+    path: '房间里的土路（style.path 换掉就是砖/石板）',
+    brick: '⚠ 现在没用：按画布排砖，大图分块会错缝',
+    slab: '城内石板（style.path="slab" + big:true，一格一块）',
+    water: '池塘（房间里的水；连到地图边的算海）',
+    mud: '水边过渡，基本只在验收台出现',
+    sea: '岛外圈的海（overworld 的 terrain=3）',
+    sand: '沙滩带（overworld 的 terrain=4，海和草之间）',
+  };
 
   function renderKinds() {
     const box = $('kinds');
@@ -155,55 +190,321 @@
       n.className = 'note';
       n.textContent = meta.note;
       card.appendChild(n);
+      const u = document.createElement('div');
+      u.className = 'note';
+      u.style.color = '#8d4a38';
+      u.textContent = '用在哪：' + (USE[k] || '（没在用）');
+      card.appendChild(u);
       box.appendChild(card);
     });
   }
 
-  function buildHub() {
-    const hub = window.DL.World.genHub([]);
-    const pts = [hub.npc, hub.bookNpc, hub.trialNpc, hub.stashNpc, hub.spawn].concat(hub.doors);
-    const terrain = window.DL.World.genTerrain(hub.map, pts, 20261028);
-    return { hub, terrain };
+  /* ---------- ② 真·主城：游戏里那张 128×128 的岛 ---------- */
+  let islandCache = null;
+  function island() {
+    if (!islandCache) islandCache = window.DL.Overworld.build();
+    return islandCache;
   }
 
-  function renderAll() {
-    renderKinds();
-    const { hub, terrain } = buildHub();
-    const px = pxs();
-
-    const sheet = A.groundSheet(hub.map, terrain, theme(), {
-      px: px, seed: 7, style: { path: $('pave').value },
+  function renderIsland() {
+    const ow = island();
+    const sheet = A.groundSheet(ow.map, ow.terrain, theme(), {
+      px: 6, seed: 5, style: { path: 'slab' },
     });
-    isoInto($('newHub'), sheet);
-    isoInto($('hub'), sheet);
+    // 背景填海色：方块贴图的四个角藏进海里，不然岛是浮在白纸上的
+    const cv = $('island');
+    const W = sheet.width, H = sheet.height;
+    cv.width = W + H;
+    cv.height = Math.round((W + H) / 2) + 6;
+    const g = cv.getContext('2d');
+    const pal = A.PALETTES[theme()] || A.PALETTES.field;
+    g.fillStyle = pal.sea || '#3F6E92';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.setTransform(1, 0.5, -1, 0.5, H, 3);
+    g.drawImage(sheet, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    return sheet;
+  }
 
-    // 旧：iso-ground 只有 6px/格，先放大到同一贴图尺寸再投影，对比才公平
-    if (window.DL.IsoGround && window.DL.IsoGround.paintField) {
-      try {
-        const old = window.DL.IsoGround.paintField(hub.map, terrain, theme()).canvas;
-        const up = document.createElement('canvas');
-        up.width = sheet.width;
-        up.height = sheet.height;
-        const ug = up.getContext('2d');
-        ug.imageSmoothingEnabled = true;
-        ug.drawImage(old, 0, 0, old.width, old.height, 0, 0, up.width, up.height);
-        isoInto($('oldHub'), up);
-      } catch (e) { console.warn('旧地面生成失败', e); }
+  // 往东走到水里为止，再往回收几格 —— 保证截图里海/沙/草都在
+  function beachSpot() {
+    const ow = island();
+    const N = ow.map.length;
+    for (let x = N - 1; x > 0; x--) {
+      if (ow.terrain[64] && ow.terrain[64][x] === 3) return { x: Math.max(4, x - 7), y: 64 };
+    }
+    return { x: 116, y: 64 };
+  }
+
+  // 从岛上裁一块 1:1：用 rect 只画这一块，128×128 也不用等 5 秒
+  function renderCrop(id, cx, cy, cells) {
+    const ow = island();
+    const cols = ow.map[0].length, rows = ow.map.length;
+    const h = cells >> 1;
+    const x0 = Math.max(0, Math.min(cols - 2, cx - h));
+    const y0 = Math.max(0, Math.min(rows - 2, cy - h));
+    const sheet = A.groundSheet(ow.map, ow.terrain, theme(), {
+      px: 48, seed: 5, style: { path: $('pave').value }, big: true,
+      rect: { x0: x0, y0: y0, x1: Math.min(cols, x0 + cells), y1: Math.min(rows, y0 + cells) },
+      margin: 1,
+    });
+    isoInto($(id), sheet);
+  }
+
+  /* ---------- ⑤ 像素放大镜 ---------- */
+  function renderZoom() {
+    const keys = ['grass', 'slab', 'sand', 'sea', 'water', 'path'];
+    const SC = 3, S = pxs() * 2;
+    const bw = 4 * S * SC;                  // 等距后宽 = 4S
+    const bh = 2 * S * SC + 26;             // 等距后高 = 2S
+    const cols = 2, rows = 3;
+    const cv = $('zoom');
+    cv.width = cols * bw;
+    cv.height = rows * bh;
+    const g = cv.getContext('2d');
+    g.clearRect(0, 0, cv.width, cv.height);
+    keys.forEach(function (k, i) {
+      const p = A.patch(k, theme(), 2, 2, 11);
+      const bx = (i % cols) * bw;
+      const by = ((i / cols) | 0) * bh;
+      g.save();
+      g.imageSmoothingEnabled = false;
+      g.setTransform(SC, SC * 0.5, -SC, SC * 0.5, bx + 2 * S * SC, by + 24);
+      g.drawImage(p, 0, 0);
+      g.restore();
+      g.fillStyle = '#3b2f26';
+      g.font = '14px "Microsoft YaHei", sans-serif';
+      g.fillText(A.KINDS[k].name, bx + 10, by + 17);
+    });
+  }
+
+  /* ---------- ⑥ 整张 vs 分块 ----------
+     只看两件事：
+       1) 时间 —— 整张 vs 一块，进场卡不卡就看这个
+       2) 缝 —— 每条内部缝取 64px 竖带，逐列算「拼出来的 - 整张图」；
+          「缝带」要和「块内」一个量级。有细线 / 缺阴影 / 遮罩缺角时缝带会明显更差。
+     块大小和 render-three.js 的 CHUNK_CELLS 保持一致。 */
+  const CHUNK_CELLS = 16;
+
+  // 最大的那种房间：genRoom 里 size×2.2 ≈ 53×53 格。用真 genRoom，不手搓地图。
+  function benchRoom() {
+    const mul = window.DL.Core && window.DL.Core.mulberry32;
+    const room = window.DL.World.genRoom(
+      { id: 'bench', size: 24, layout: 'open' },
+      mul ? mul(20261029) : Math.random
+    );
+    const terrain = window.DL.World.genTerrain(room.map, [room.spawn, room.exit], 20261029);
+    return { map: room.map, terrain: terrain, at: room.spawn };
+  }
+
+  // ?margin=0 可以关掉出血，专门看"没有出血时会露什么"
+  function marginArg() {
+    const v = new URLSearchParams(location.search).get('margin');
+    if (v === null) return 1;
+    const n = +v;
+    return isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  }
+
+  function renderChunks() {
+    const cv = $('chunkSeam');
+    const log = $('chunkLog');
+    if (!cv) return;
+    const br = benchRoom();
+    const map = br.map, terrain = br.terrain, at = br.at;
+    const rows = map.length, cols = map[0].length;
+    const margin = marginArg();
+    const opt = { px: pxs(), seed: 7, style: { path: 'slab' }, big: true };
+
+    // 热身：整张 24×24 走一遍，把全部画法 JIT 过，别把首次调用的钱算给"整张"
+    (function () {
+      const m = [], t = [];
+      for (let y = 0; y < 24; y++) {
+        m[y] = []; t[y] = [];
+        for (let x = 0; x < 24; x++) { m[y][x] = 0; t[y][x] = 0; }
+      }
+      A.groundSheet(m, t, theme(), opt);
+    })();
+
+    const t0 = performance.now();
+    const full = A.groundSheet(map, terrain, theme(), opt);
+    const fullMs = performance.now() - t0;
+    const t1 = performance.now();
+    A.groundSheet(map, terrain, theme(), opt);              // 第二遍 = 热态数字
+    const fullWarmMs = performance.now() - t1;
+    const ps = full.width / cols;              // 实际 px/格（可能被 MAX_SIDE 夹过）
+
+    const nCx = Math.ceil(cols / CHUNK_CELLS), nCy = Math.ceil(rows / CHUNK_CELLS);
+    const comp = document.createElement('canvas');
+    comp.width = full.width;
+    comp.height = full.height;
+    const cg = comp.getContext('2d');
+
+    const pc = [Math.floor(at.x / CHUNK_CELLS), Math.floor(at.y / CHUNK_CELLS)];
+    let sumMs = 0, maxMs = 0, playerMs = 0, cells = 0;
+    for (let cy = 0; cy < nCy; cy++) {
+      for (let cx = 0; cx < nCx; cx++) {
+        const rect = {
+          x0: cx * CHUNK_CELLS,
+          y0: cy * CHUNK_CELLS,
+          x1: Math.min(cols, (cx + 1) * CHUNK_CELLS),
+          y1: Math.min(rows, (cy + 1) * CHUNK_CELLS),
+        };
+        const a = performance.now();
+        const one = A.groundSheet(map, terrain, theme(),
+          Object.assign({ rect: rect, margin: margin }, opt));
+        const ms = performance.now() - a;
+        sumMs += ms;
+        if (ms > maxMs) maxMs = ms;
+        if (cx === pc[0] && cy === pc[1]) playerMs = ms;
+        cg.drawImage(one, rect.x0 * ps, rect.y0 * ps);
+        // 实际画了多少格（含出血），这和"请求了多少格"是两回事
+        const wx0 = Math.max(0, rect.x0 - margin), wy0 = Math.max(0, rect.y0 - margin);
+        const wx1 = Math.min(cols, rect.x1 + margin), wy1 = Math.min(rows, rect.y1 + margin);
+        cells += (wx1 - wx0) * (wy1 - wy0);
+      }
     }
 
-    // 主城左上 8×8 格，1:1（含草地 + 路，不是纯广场）
-    const n = 8, ox = px * 6, oy = px * 6;
-    isoInto($('crop'), sheet, ox, oy, n * px, n * px);
+    /* --- 数字 --- */
+    const seamCell0 = cols > CHUNK_CELLS ? CHUNK_CELLS : Math.floor(cols / 2);
+    const seamX = Math.round(seamCell0 * ps);
+    const midY = Math.round((rows * ps) / 2);
 
-    renderZoom();
-    renderCliffs();
-    renderClose();
-    renderValley();
-    $('log').textContent = px + 'px/格 · 贴图 ' + sheet.width + '×' + sheet.height +
-      ' · 主城 24×24';
+    // (a) 拼回去和整张差多少（采样一条 640px 宽、整高的竖带）
+    let meanDiff = 0, bigPct = 0, diffOk = false;
+    try {
+      const bw = Math.min(640, comp.width);
+      const bx = Math.max(0, Math.min(comp.width - bw, seamX - (bw >> 1)));
+      const a1 = cg.getImageData(bx, 0, bw, comp.height).data;
+      const b1 = full.getContext('2d').getImageData(bx, 0, bw, comp.height).data;
+      let ds = 0, n = 0, big = 0;
+      for (let i = 0; i < a1.length; i += 4) {
+        const d = Math.abs(a1[i] - b1[i]) + Math.abs(a1[i + 1] - b1[i + 1]) + Math.abs(a1[i + 2] - b1[i + 2]);
+        ds += d;
+        if (d > 48) big++;
+        n++;
+      }
+      meanDiff = n ? ds / (n * 3) : 0;
+      bigPct = n ? (big / n) * 100 : 0;
+      diffOk = true;
+    } catch (e) { /* 读不到像素就只是少一个数字 */ }
+
+    // (b) 每条内部竖缝：缝带（4px）vs 块内，各自与整张图的差
+    let seamRatio = 0, worstSeamX = seamX, seamDiffV = 0, midDiffV = 0, lumOk = false;
+    const perSeam = [];
+    try {
+      const H = comp.height;
+      const fg2 = full.getContext('2d');
+      for (let sc = CHUNK_CELLS; sc < cols; sc += CHUNK_CELLS) {
+        const xp = Math.round(sc * ps);
+        const w = Math.min(64, comp.width);
+        const bx2 = Math.max(0, Math.min(comp.width - w, xp - (w >> 1)));
+        const ac = cg.getImageData(bx2, 0, w, H).data;
+        const af = fg2.getImageData(bx2, 0, w, H).data;
+        const colDiff = new Array(w).fill(0);
+        const step = 4, rowsN = Math.ceil(H / step);
+        for (let x = 0; x < w; x++) {
+          let sd = 0;
+          for (let y = 0; y < H; y += step) {
+            const p = (y * w + x) * 4;
+            sd += Math.abs(ac[p] - af[p]) + Math.abs(ac[p + 1] - af[p + 1]) + Math.abs(ac[p + 2] - af[p + 2]);
+          }
+          colDiff[x] = sd / rowsN / 3;
+        }
+        const c0 = xp - bx2;
+        let ds = 0, dn = 0;
+        for (let k = c0 - 2; k < c0 + 2; k++) { if (k >= 0 && k < w) { ds += colDiff[k]; dn++; } }
+        const dSeam = dn ? ds / dn : 0;
+        let dm = 0, mn = 0;
+        for (let k = 0; k < w; k++) {
+          if (Math.abs(k - c0) < 8) continue;
+          dm += colDiff[k]; mn++;
+        }
+        const dMid = mn ? dm / mn : 0;
+        const ratio = dSeam / Math.max(dMid, 0.3);
+        perSeam.push({ at: sc, ratio: +ratio.toFixed(2), seam: +dSeam.toFixed(2), mid: +dMid.toFixed(2) });
+        if (ratio > seamRatio) { seamRatio = ratio; worstSeamX = xp; seamDiffV = dSeam; midDiffV = dMid; }
+      }
+      lumOk = true;
+    } catch (e) { /* 同上 */ }
+
+    /* --- 图：最差那条缝两侧 240px，×2 最近邻 --- */
+    const SW = 240, SC = 2, gap = 12;
+    cv.width = SW * SC * 2 + gap;
+    cv.height = SW * SC;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#cbbfa6';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.imageSmoothingEnabled = false;
+    const sx0 = Math.round(worstSeamX - SW / 2);
+    const sy0 = Math.round(midY - SW / 2);
+    g.drawImage(full, sx0, sy0, SW, SW, 0, 0, SW * SC, SW * SC);
+    g.drawImage(comp, sx0, sy0, SW, SW, SW * SC + gap, 0, SW * SC, SW * SC);
+    g.strokeStyle = 'rgba(214,64,52,.85)';
+    g.lineWidth = 1;
+    g.setLineDash([4, 3]);
+    [0, SW * SC + gap].forEach(function (ox) {
+      const x = ox + (SW / 2) * SC + 0.5;
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.lineTo(x, SW * SC);
+      g.stroke();
+    });
+    g.setLineDash([]);
+
+    if (log) {
+      const seamOk = lumOk && seamRatio < 2;
+      log.innerHTML =
+        '房间 <b>' + cols + '×' + rows + ' 格</b> · ' + ps + 'px/格 · 整张 ' + full.width + '×' + full.height +
+        ' · 块 ' + CHUNK_CELLS + ' 格（出血 ' + margin + ' 格）<br>' +
+        '整张一次画完 <b>' + fullWarmMs.toFixed(0) + ' ms</b>（冷 ' + fullMs.toFixed(0) + '）；' +
+        '玩家所在块 <b>' + playerMs.toFixed(0) + ' ms</b>，' +
+        '单块最慢 ' + maxMs.toFixed(0) + ' ms，' +
+        nCx + '×' + nCy + ' = ' + (nCx * nCy) + ' 块共 ' + sumMs.toFixed(0) + ' ms' +
+        '（实际画格数 ×' + (cells / (rows * cols)).toFixed(2) + '，出血的代价）<br>' +
+        (diffOk
+          ? '拼回去 vs 整张：平均差 <b>' + meanDiff.toFixed(2) + '/255</b>、差别 &gt;48 的像素 ' + bigPct.toFixed(1) +
+            '%（草簇碎石按画布撒，这项天生不为 0）<br>'
+          : '像素读不出来（file:// 限制？）') +
+        (lumOk
+          ? '缝：最差一条 ×<b>' + seamRatio.toFixed(2) + '</b>（缝带差 ' + seamDiffV.toFixed(2) +
+            ' vs 块内 ' + midDiffV.toFixed(2) + '，&lt;2 算无缝）<br>' +
+            perSeam.map(function (p) { return '第 ' + p.at + ' 格 ×' + p.ratio.toFixed(2); }).join(' · ') + ' ' +
+            (seamOk ? '<span style="color:#2f7a3a">→ 无缝</span>' : '<span style="color:#b23a2c">→ 有线，查出血/遮罩</span>')
+          : '');
+    }
+
+    // 给自动对拍用（tmp/bench-chunks.mjs 读这个，不用去解析 DOM 文本）
+    window.__chunkStats = {
+      cols: cols, rows: rows, px: ps, block: CHUNK_CELLS, margin: margin,
+      fullMs: fullMs, fullWarmMs: fullWarmMs, playerMs: playerMs, maxMs: maxMs, sumMs: sumMs,
+      chunks: nCx * nCy, cellFactor: cells / (rows * cols),
+      meanDiff: meanDiff, bigPct: bigPct, seamRatio: seamRatio, perSeam: perSeam,
+      diffOk: diffOk, lumOk: lumOk, seamOk: lumOk && seamRatio < 2,
+    };
   }
 
-  /* ---------- ⑦ 崖壁：高度梯度 + 高度分布 ---------- */
+  /* ---------- ⑦ 石板（城内）：slabSheet ---------- */
+  function renderSlab() {
+    const cv = $('slab');
+    if (!cv) return;
+    const px = pxs();
+    const sheet = A.slabSheet(5, 5, { tile: 1, px: px, theme: theme(), seed: 7 });
+    cv.width = sheet.width * 2 + 12;
+    cv.height = Math.max(sheet.height, px * 6);
+    const g = cv.getContext('2d');
+    g.fillStyle = '#cbbfa6';
+    g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(sheet, 0, 0);                       // 左：1:1 俯视，1 格一块
+    g.imageSmoothingEnabled = false;
+    g.drawImage(sheet, px, px, px * 3, px * 3,      // 右：切 3×3 放大看磨损
+      sheet.width + 12, 0, px * 6, px * 6);
+    g.strokeStyle = 'rgba(59,47,38,.5)';
+    g.setLineDash([4, 3]);
+    g.strokeRect(sheet.width + 12.5, 0.5, px * 6 - 1, px * 6 - 1);
+    g.setLineDash([]);
+  }
+
+  /* ---------- ⑧ 崖壁（冻结）：高度梯度 + 高度分布 + 近景 ---------- */
   const cliffCache = {};
   function cliffOf(v, hs) {
     const q = Math.round((typeof hs === 'number' ? hs : 0.6) * 20) / 20;
@@ -280,7 +581,6 @@
     g.stroke();
   }
 
-  /* ---------- ⑧ 近景：人站在崖壁边上 ---------- */
   function rgba(hex, a) {
     const n = parseInt(hex.slice(1), 16);
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
@@ -367,7 +667,6 @@
     const toX = (wx, wz) => (wx - wz) + H;
     const toY = (wx, wz) => (wx + wz) * 0.5 + padTop;
 
-    // 崖壁：沿上边和左边（让豆豆有个"靠山"站在旁边）
     const mts = [];
     for (let t = 1; t <= N - 2; t += 3) {
       mts.push({ x: t, y: 0, v: t % 4 });
@@ -386,18 +685,16 @@
       );
     });
 
-    // 豆豆：站在中间偏下
     const bimg = bean();
     const bMS = (2.1 * PX) / bimg.height;   // 2.1 格高
     const bx = toX(5 * PX, 6 * PX);
     const by = toY(5 * PX, 6 * PX);
     g.drawImage(bimg, bx - bimg.width * bMS / 2, by - bimg.height * bMS, bimg.width * bMS, bimg.height * bMS);
 
-    // 尺度参考：脚下一格的菱形
     g.strokeStyle = 'rgba(59,47,38,0.35)';
     g.lineWidth = 2;
     g.beginPath();
-    g.moveTo(bx, by - PX * 0.0);
+    g.moveTo(bx, by);
     g.lineTo(bx + PX, by + PX * 0.5);
     g.lineTo(bx, by + PX);
     g.lineTo(bx - PX, by + PX * 0.5);
@@ -405,119 +702,24 @@
     g.stroke();
   }
 
-  /* ---------- ⑥ 山谷临海：主城 + 海 + 崖壁 ---------- */
-  const mountainCache = {};
-  function mountainOf(v) {
-    if (!mountainCache[v]) mountainCache[v] = A.mountain(v, theme());
-    return mountainCache[v];
-  }
+  /* ---------- 总装 ---------- */
+  function renderAll() {
+    renderKinds();
+    const px = pxs();
+    const islandSheet = renderIsland();
 
-  function renderValley() {
-    const cv = $('valley');
-    if (!cv) return;
-    const off = 6, size = 36, PX = 26;
-    const hub = window.DL.World.genHub([]);
-    const map = [], terrain = [];
-    for (let y = 0; y < size; y++) {
-      map[y] = []; terrain[y] = [];
-      for (let x = 0; x < size; x++) {
-        const inner = x >= off && x < off + 24 && y >= off && y < off + 24;
-        map[y][x] = inner ? hub.map[y - off][x - off] : 0;
-        terrain[y][x] = inner ? 0 : 3;          // 外圈 = 海
-      }
-    }
+    const C = (window.DL.Overworld && window.DL.Overworld.CITY) || { x0: 44, y0: 44, x1: 84, y1: 84 };
+    renderCrop('gate', Math.round((C.x0 + C.x1) / 2), C.y1 - 2, 16);   // 南门：一半城内一半城外
+    const bs = beachSpot();
+    renderCrop('beach', bs.x, bs.y, 16);                              // 东侧沙滩
 
-    // 主城那圈墙：一部分让海水咬进来，一部分立山崖，剩下的留缺口（露出后面海）
-    const mts = [];
-    // 边框：一部分让海水咬进来，其余沿边每 4 格立一整块崖壁（崖壁宽约 4 格）
-    for (let y = off; y < off + 24; y++) {
-      for (let x = off; x < off + 24; x++) {
-        const hx = x - off, hy = y - off;
-        const onRing = hx === 0 || hy === 0 || hx === 23 || hy === 23;
-        if (!onRing || hub.map[hy][hx] === 2) continue;
-        const h = (((x * 73856093) ^ (y * 19349663)) >>> 0);
-        if (h % 10 < 3) {
-          map[y][x] = 0;
-          terrain[y][x] = 3;                    // 海水咬进陆地边缘
-        }
-      }
-    }
-    function run(isX, fixed, from, to) {
-      // 步长 3 格（崖壁宽 4 格）→ 相邻块重叠 1 格，草坡连成一条，不留缝
-      for (let t = from; t <= to; t += 3) {
-        const h = (((fixed * 73856093) ^ (t * 19349663)) >>> 0);
-        if (h % 10 < 1) continue;               // 留一个豁口
-        const gx = isX ? t : fixed, gy = isX ? fixed : t;
-        if (hub.map[gy - off] && hub.map[gy - off][gx - off] === 2) continue;
-        mts.push({ x: gx, y: gy, v: h % 4 });
-      }
-    }
-    run(true, off, off + 2, off + 22);
-    run(true, off + 23, off + 2, off + 22);
-    run(false, off, off + 2, off + 22);
-    run(false, off + 23, off + 2, off + 22);
-
-    const sheet = A.groundSheet(map, terrain, theme(), {
-      px: PX, seed: 5, style: { path: 'slab' },
-    });
-
-    mts.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
-
-    const W = sheet.width, H = sheet.height;
-    const scale = 1500 / (W + H);
-    const padTop = 320;
-    cv.width = 1500;
-    cv.height = Math.round((W + H) * 0.5 * scale) + padTop + 40;
-    const g = cv.getContext('2d');
-    // 背景直接填海色：贴图是方的，方角要藏进海里，否则一眼看出"一座方形岛"
-    g.fillStyle = (A.PALETTES[theme()] || A.PALETTES.field).sea || '#3F6E92';
-    g.fillRect(0, 0, cv.width, cv.height);
-    g.setTransform(scale, scale * 0.5, -scale, scale * 0.5, H * scale, padTop);
-    g.drawImage(sheet, 0, 0);
-    g.setTransform(1, 0, 0, 1, 0, 0);
-
-    // 世界像素 → 屏幕（跟上面 setTransform 同一套 2:1 等距）
-    const toX = (wx, wz) => (wx - wz) * scale + H * scale;
-    const toY = (wx, wz) => (wx + wz) * 0.5 * scale + padTop;
-    mts.forEach(function (m) {
-      // 高度由高度场决定：沿边界连续、低多高少
-      const hs = A.cliffHeight(m.x, m.y, 3);
-      const img = cliffOf(m.v, hs);
-      // 一整块崖壁 = 4 格宽；等距下一格的屏幕宽 = 2 * PX
-      const MS = (4 * 2 * PX * scale) / img.width;
-      const w = img.width * MS, hh = img.height * MS;
-      const anchor = (img.height - A.cliffFoot(img)) * MS;   // 落地点距 sprite 顶部的距离
-      const x = toX(m.x * PX, m.y * PX);
-      const y = toY(m.x * PX, m.y * PX);
-      g.drawImage(img, x - w / 2, y - anchor, w, hh);
-    });
-  }
-
-  // 2×2 格 ×3 放大（最近邻）：检查草簇/砖缝/波纹到底长什么样
-  function renderZoom() {
-    const keys = ['grass', 'path', 'brick', 'slab', 'water', 'mud'];
-    const SC = 3, S = pxs() * 2;
-    const bw = 4 * S * SC;                  // 等距后宽 = 4S
-    const bh = 2 * S * SC + 26;             // 等距后高 = 2S
-    const cols = 2, rows = 3;
-    const cv = $('zoom');
-    cv.width = cols * bw;
-    cv.height = rows * bh;
-    const g = cv.getContext('2d');
-    g.clearRect(0, 0, cv.width, cv.height);
-    keys.forEach(function (k, i) {
-      const p = A.patch(k, theme(), 2, 2, 11);
-      const bx = (i % cols) * bw;
-      const by = ((i / cols) | 0) * bh;
-      g.save();
-      g.imageSmoothingEnabled = false;
-      g.setTransform(SC, SC * 0.5, -SC, SC * 0.5, bx + 2 * S * SC, by + 24);
-      g.drawImage(p, 0, 0);
-      g.restore();
-      g.fillStyle = '#3b2f26';
-      g.font = '14px "Microsoft YaHei", sans-serif';
-      g.fillText(A.KINDS[k].name, bx + 10, by + 17);
-    });
+    renderZoom();
+    renderChunks();
+    renderSlab();
+    renderCliffs();
+    renderClose();
+    $('log').textContent = px + 'px/格 · 岛 128×128（缩略 6px/格，贴图 ' + islandSheet.width + '×' +
+      islandSheet.height + '）· 1:1 局部按 48px/格';
   }
 
   $('theme').onchange = renderAll;
@@ -536,10 +738,6 @@
   })();
 
   renderAll();
-
-  // 崖壁精灵已随素材库清空（2026-10-29）：验收台统一用 iso-art.js 程序化崖壁。
-  // 新 AI 崖壁出好后在这里接回来（参考旧版：load cliff1..3 后调 A.setCliffSprites + renderAll）。
-
   window.__bench = { rerender: renderAll, art: A };
 })();
 </script>

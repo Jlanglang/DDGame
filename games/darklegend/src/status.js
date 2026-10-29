@@ -10,9 +10,8 @@
    - 施加当回合不结算（和 R4.5 的 CD 口径一致）；下回合起每回合末先结算伤害再减 1 回合
    - 伤害取"施加者属性快照"：R5.1 毒只看道术、与目标当前血量无关
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   /* ---------- 状态表（R5） ----------
      dot      每回合末结算
@@ -167,4 +166,3 @@
     apply, tick, onHit, canAct, has,
     list, text, clear,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

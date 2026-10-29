@@ -2,9 +2,8 @@
    只放"表"和"常量"，不放逻辑。
    挂到 window.DL.DATA，game.js 顶部解构引用。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   DL.DATA = {
     /* ---------- 存档 ---------- */
@@ -25,7 +24,7 @@
     COMBAT_MS: 1000,     // 默认攻击/技能/战斗中行动间隔（1 秒/刀）
     MOVE_MS: 180,        // 玩家走路节奏（快，便于风筝）
     ENEMY_ACT_MS: 1000,  // 怪追击/攻击：保持 1 秒最多 1 次（不随玩家加速）
-    WALK_STEP_MS: 70,    // 点地寻路每格动画间隔
+    WALK_STEP_MS: 180,   // 对齐 R3.8 / MOVE_MS：0.18s/格；直斜同拍（传奇切比雪夫）
     IDLE_MS: 1000,       // 兼容旧名 = COMBAT_MS
 
     /* ---------- 挂机（R3.5） ---------- */
@@ -391,4 +390,3 @@
       expBase: 180, expRate: 1.20,
     },
   };
-})(typeof window !== 'undefined' ? window : globalThis);

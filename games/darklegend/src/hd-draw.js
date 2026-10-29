@@ -2,9 +2,8 @@
    画的是 45° 能看见顶面和侧面的体积，不是正视图几何块。
    平面版仍用原来的像素图。不投影、不挡人。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   function hash(x, y) {
     let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
@@ -735,4 +734,3 @@
     flora: flora,
     townProp: townProp,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

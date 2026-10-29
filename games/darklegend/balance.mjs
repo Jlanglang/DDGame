@@ -3,26 +3,12 @@
      node games/darklegend/balance.mjs          看曲线
      node games/darklegend/balance.mjs --check  超范围返回 1（提交前跑）
 
-   读 data.js / core.js 的真实数值，按 game.js 的公式复算。
+   读 src/data.js / src/core.js 的真实数值，按 game.js 的公式复算。
    只做"量"，不做"改"；发现不对先改文档和这里的阈值，再改 data.js。
 */
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const sandbox = {
-  Math, Date, console,
-  performance: { now: () => Date.now() },
-};
-sandbox.window = sandbox;
-sandbox.globalThis = sandbox;
-vm.createContext(sandbox);
-for (const f of ['data.js', 'core.js']) {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f });
-}
-const DL = sandbox.DL;
+await import('./src/data.js');
+await import('./src/core.js');
+const DL = globalThis.DL;
 const D = DL.DATA;
 const Core = DL.Core;
 

@@ -31,9 +31,19 @@
     <div class="cap"><b>光从玩家右手</b>：右侧亮，影子投向左</div>
   </div>
 </div>
-<script src="vendor/three.iife.js"></script>
-<script src="iso-art.js"></script>
 <script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var p = document.createElement('p');
+    p.textContent = '这页要在开发服务器里开：npm run dev，然后打开 http://localhost:8183/light-test.html';
+    document.body.prepend(p);
+  });
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import './src/iso-art.js';
+const DL = globalThis.DL;
 (function () {
   'use strict';
 

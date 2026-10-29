@@ -30,15 +30,37 @@
     <div id="controls"></div>
     <label class="chk"><input type="checkbox" id="lit"> 立牌吃光（Lambert；默认关＝和游戏一致）</label>
     <label class="chk"><input type="checkbox" id="grid"> 显示 1 格网格</label>
+    <label class="chk"><input type="checkbox" id="plate"> 板块地面（砖有厚度）</label>
+    <label class="chk" style="gap:8px">板宽
+      <input type="range" id="plateW" min="1" max="4" step="1" value="2" style="width:110px">
+      <b id="plateWv">2</b> 格
+    </label>
+    <label class="chk"><input type="checkbox" id="persp" checked> 透视（近大远小）</label>
+    <label class="chk" style="gap:8px">视场
+      <input type="range" id="fov" min="10" max="60" step="1" value="22" style="width:110px">
+      <b id="fovv">22</b>°
+    </label>
     <div id="nums"></div>
     <div class="hint">调好报这串数：光方位 / 仰角 / 强度 / 环境光 / 色温 / 影长 / 影浓 / 地亮。</div>
   </div>
 </div>
-<script src="vendor/three.iife.js"></script>
-<script src="three-pick.js"></script>
-<script src="iso-art.js"></script>
-<script src="hd-draw.js"></script>
 <script>
+if (location.protocol === 'file:') {
+  document.addEventListener('DOMContentLoaded', function () {
+    var p = document.createElement('p');
+    p.textContent = '验收台要在开发服务器里开：npm run dev，然后打开 http://localhost:8183/bench-scene.html';
+    document.body.prepend(p);
+  });
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import './src/three-pick.js';
+import './src/iso-art.js';
+import './src/tile-plate.js';
+import './src/hd-draw.js';
+globalThis.THREE = THREE;
+const DL = globalThis.DL;
 (function () {
   'use strict';
   const Pick = DL.ThreePick;
@@ -81,12 +103,33 @@
   renderer.setClearColor('#20262c', 1);
 
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(
-    -Pick.FRUSTUM_W / 2, Pick.FRUSTUM_W / 2,
-    Pick.FRUSTUM_H / 2, -Pick.FRUSTUM_H / 2, 0.1, 240);
   const st = Math.sin(Pick.PITCH), ct = Math.cos(Pick.PITCH);
-  camera.position.set(0, 24 * st, 24 * ct);   // 和 render-three 的 placeCamera 一致
-  camera.lookAt(0, 0, 0);
+
+  // 正交：近大远小不存在，画面永远是"平的"
+  const orthoCam = new THREE.OrthographicCamera(
+    -Pick.FRUSTUM_W / 2, Pick.FRUSTUM_W / 2,
+    Pick.FRUSTUM_H / 2, -Pick.FRUSTUM_H / 2, 0.1, 400);
+  orthoCam.position.set(0, 24 * st, 24 * ct);
+
+  // 透视：同样的俯角，靠"拉远 + 收窄视场"控制近大远小的强度。
+  // FOV 越小越像长焦（透视弱），越大近处越夸张。
+  let FOV = 22;
+  const perspCam = new THREE.PerspectiveCamera(FOV, cv.width / cv.height, 0.1, 400);
+  function perspDist() {
+    // 让"目标平面上的一屏宽度"和正交一致：D = (屏宽/2) / tan(fov/2)
+    return (Pick.FRUSTUM_W / 2) / Math.tan(FOV * Math.PI / 360);
+  }
+  function placeCams() {
+    const D = perspDist();
+    perspCam.position.set(0, D * st, D * ct);
+    perspCam.lookAt(0, 0, 0);
+    perspCam.fov = FOV;
+    perspCam.updateProjectionMatrix();
+    orthoCam.position.set(0, 24 * st, 24 * ct);
+    orthoCam.lookAt(0, 0, 0);
+  }
+  let usePersp = /[?&]persp=0/.test(location.search) ? false : true;
+  placeCams();
 
   const amb = new THREE.AmbientLight(0xffffff, P.amb);
   scene.add(amb);
@@ -109,21 +152,126 @@
     return t;
   }
 
+  // 平面版：草地 + 中间一条石板路（现状）
+  const flatGroup = new THREE.Group();
+  scene.add(flatGroup);
   const grassMat = new THREE.MeshLambertMaterial({ map: texOfPatch('grass', 6, 6, 11) });
   grassMat.map.repeat.set(6, 6);
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), grassMat);
   grass.rotation.x = -Math.PI / 2;
   grass.receiveShadow = true;
-  scene.add(grass);
+  flatGroup.add(grass);
 
-  // 中间一条石板路：主城就是这个组合（草地 + 石板路）
   const slabMat = new THREE.MeshLambertMaterial({ map: texOfPatch('slab', 6, 2, 21) });
   slabMat.map.repeat.set(6, 1);
   const path = new THREE.Mesh(new THREE.PlaneGeometry(44, 7), slabMat);
   path.rotation.x = -Math.PI / 2;
   path.position.set(0, 0.005, -1.2);
   path.receiveShadow = true;
-  scene.add(path);
+  flatGroup.add(path);
+
+  /* 板块版：同一张石板贴图，铺成一块块有厚度的砖。
+     判的是"地有没有厚度"，不是"贴图画得好不好"——所以两边贴图完全一样。 */
+  const plateGroup = new THREE.Group();
+  scene.add(plateGroup);
+  let plateW = 2;
+
+  function clearPlates() {
+    while (plateGroup.children.length) {
+      const g = plateGroup.children.pop();
+      g.traverse(function (o) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (o.material.map) o.material.map.dispose();
+          o.material.dispose();
+        }
+      });
+    }
+  }
+
+  function rebuildPlates(w) {
+    clearPlates();
+    const S = Math.max(1, w | 0);
+    const spanX = 120, spanZ = 120;
+    const cols = Math.max(2, Math.round(spanX / S));
+    const rows = Math.max(2, Math.round(spanZ / S));
+    // 大石板：一块砖 = S 格，整张 sheet 铺 12 格见方 → 4 块砖，循环感弱一点
+    const sheetCols = 12;
+    const cvs = DL.IsoArt.slabSheet(sheetCols, sheetCols, { tile: S, px: 48, seed: 7 });
+
+    const tex = new THREE.CanvasTexture(cvs);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+
+    // 斜面颜色：从整块砖的中心取样就够了（砖面本身有明暗，斜面只要跟着走）
+    const small = document.createElement('canvas');
+    small.width = sheetCols / S; small.height = sheetCols / S;
+    const sg = small.getContext('2d');
+    sg.drawImage(cvs, 0, 0, small.width, small.height);
+    const d = sg.getImageData(0, 0, small.width, small.height).data;
+    const nS = small.width;
+    const colorAt = function (x, z) {
+      const p = ((z % nS) * nS + (x % nS)) * 4;
+      return [d[p] / 255, d[p + 1] / 255, d[p + 2] / 255];
+    };
+
+    const g = DL.TilePlate.build({
+      cols: cols, rows: rows, tex: tex,
+      uPerCell: S / sheetCols, vPerCell: S / sheetCols,
+      h: 0.045, gap: 0.03 / S,     // 缝按世界单位给：板越大，槽不能跟着变宽
+      plateSize: S,
+      baseColor: '#3b3025',
+      colorAt: colorAt,
+    });
+    g.position.set(-cols * S / 2, 0, -rows * S / 2);
+    plateGroup.add(g);
+  }
+
+  const chkPlate = document.getElementById('plate');
+  const rngW = document.getElementById('plateW');
+  const labW = document.getElementById('plateWv');
+  function syncGround() {
+    const on = chkPlate.checked;
+    flatGroup.visible = !on;
+    plateGroup.visible = on;
+    if (on && !plateGroup.children.length) rebuildPlates(plateW);
+  }
+  chkPlate.addEventListener('change', syncGround);
+  rngW.addEventListener('input', function () {
+    plateW = parseInt(rngW.value, 10) || 2;
+    labW.textContent = plateW;
+    if (chkPlate.checked) rebuildPlates(plateW);
+  });
+  if (/[?&]plate=1/.test(location.search)) chkPlate.checked = true;
+  const mW = location.search.match(/[?&]plateW=(\d+)/);
+  if (mW) { plateW = Math.max(1, Math.min(4, parseInt(mW[1], 10))); rngW.value = String(plateW); labW.textContent = plateW; }
+  rebuildPlates(plateW);
+  plateGroup.visible = false;
+  syncGround();
+
+  /* 透视开关：正交下近处和远处一样大，画面永远读成"平"；透视才有纵深。 */
+  const chkPersp = document.getElementById('persp');
+  const rngFov = document.getElementById('fov');
+  const labFov = document.getElementById('fovv');
+  chkPersp.checked = usePersp;
+  chkPersp.addEventListener('change', function () {
+    usePersp = chkPersp.checked;
+    apply();
+  });
+  rngFov.addEventListener('input', function () {
+    FOV = parseFloat(rngFov.value) || 22;
+    labFov.textContent = rngFov.value;
+    placeCams();
+    apply();
+  });
+  const mFov = location.search.match(/[?&]fov=(\d+)/);
+  if (mFov) {
+    FOV = Math.max(8, Math.min(70, parseInt(mFov[1], 10) || 22));
+    rngFov.value = String(Math.round(FOV));
+    labFov.textContent = String(Math.round(FOV));
+    placeCams();
+  }
 
   const gridGroup = new THREE.Group();
   (function () {
@@ -251,14 +399,15 @@
       it.shadow.material.opacity = P.sdark;
     });
 
-    renderer.render(scene, camera);
+    renderer.render(scene, usePersp ? perspCam : orthoCam);
     document.getElementById('nums').textContent =
       'az=' + P.az.toFixed(0) + '  el=' + P.el.toFixed(0) +
       '  sun=' + P.sun.toFixed(1) + '  amb=' + P.amb.toFixed(1) +
       '  warm=' + P.warm.toFixed(2) + '\n' +
       'slen=' + P.slen.toFixed(2) + '  sdark=' + P.sdark.toFixed(2) +
       '  ground=' + P.gbright.toFixed(2) + '\n' +
-      'kx=' + kxNow.toFixed(2) + '  kz=' + kzNow.toFixed(2);
+      'kx=' + kxNow.toFixed(2) + '  kz=' + kzNow.toFixed(2) +
+      '\n投影=' + (usePersp ? '透视 fov ' + FOV.toFixed(0) + '° / 距离 ' + perspDist().toFixed(1) : '正交');
   }
 
   const SLIDERS = [
@@ -305,3 +454,4 @@
 </script>
 </body>
 </html>
+

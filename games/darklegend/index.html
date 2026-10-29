@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>豆豆暗黑传奇</title>
-<link rel="stylesheet" href="style.css?v=173">
+<link rel="stylesheet" href="style.css?v=174">
 </head>
 <body>
 <div id="stage">
@@ -13,14 +13,15 @@
       <div class="lv" id="lv">Lv.1</div>
     </div>
     <div class="hud-right">
-      <div class="hud-btns">
-        <button id="btnMute" class="icon-btn" type="button" title="音效开/关（关掉再开会试听）" aria-label="音效" aria-pressed="false">🔊</button>
-        <button id="btnChar" class="icon-btn" type="button" title="角色">👤</button>
-        <button id="btnMenu" class="icon-btn" type="button" title="菜单" aria-label="菜单">☰</button>
-      </div>
       <div class="stat" id="gold">💰 0</div>
     </div>
   </header>
+  <!-- 独立一层：别放进 .hud，否则 backdrop-filter 会把 fixed 困在左上角 -->
+  <div class="hud-btns" id="hudBtns">
+    <button id="btnMute" class="icon-btn" type="button" title="音效开/关（关掉再开会试听）" aria-label="音效" aria-pressed="false">🔊</button>
+    <button id="btnChar" class="icon-btn" type="button" title="角色">👤</button>
+    <button id="btnMenu" class="icon-btn" type="button" title="菜单" aria-label="菜单">☰</button>
+  </div>
 
   <div class="gear" id="gear">⚔ 空手　🛡 布衣</div>
 
@@ -317,19 +318,7 @@
     </div>
   </div>
 </div>
-<script src="data.js?v=170"></script>
-<script src="core.js?v=170"></script>
-<script src="world.js?v=172"></script>
-<script src="overworld.js?v=184"></script>
-<script src="combat.js?v=170"></script>
-<script src="status.js?v=170"></script>
-<script src="sfx.js?v=170"></script>
-<script src="vendor/three.iife.js?v=170"></script>
-<script src="three-pick.js?v=190"></script>
-<script src="hd-draw.js?v=197"></script>
-<script src="iso-ground.js?v=213"></script>
-<script src="iso-art.js?v=2"></script>
-<script src="render-three.js?v=218"></script>
-<script src="game.js?v=192"></script>
+<!-- 开发：npm run dev。双击请开 dist/index.html -->
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>

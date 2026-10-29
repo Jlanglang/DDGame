@@ -7,9 +7,8 @@
    本文件只管地形：生成、碰撞、视野、寻路。
    怪物内容由 game.js 按 spec 刷。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   /* ---------- 格子工具 ---------- */
   function blank(w, h) {
@@ -47,10 +46,40 @@
     return true;
   }
 
+  // 斜向优先：BFS 等长路径时先扩对角，避免「点斜线却先直走一步」
   const DIRS8 = [
-    [1, 0], [-1, 0], [0, 1], [0, -1],
     [1, 1], [1, -1], [-1, 1], [-1, -1],
+    [1, 0], [-1, 0], [0, 1], [0, -1],
   ];
+
+  // 把「横一步+竖一步」收成斜一步（可走才收），进一步消直→斜折线
+  function tightenPath(map, sx, sy, path) {
+    if (!path || path.length < 2) return path;
+    const out = [];
+    let x = sx, y = sy;
+    let i = 0;
+    while (i < path.length) {
+      if (i + 1 < path.length) {
+        const a = path[i], b = path[i + 1];
+        const ax = a.x - x, ay = a.y - y;
+        const bx = b.x - a.x, by = b.y - a.y;
+        const orthPair = (Math.abs(ax) + Math.abs(ay) === 1) && (Math.abs(bx) + Math.abs(by) === 1)
+          && ((ax === 0) !== (ay === 0)) && ((bx === 0) !== (by === 0))
+          && ax * bx === 0 && ay * by === 0;
+        if (orthPair && canStep(map, x, y, ax + bx, ay + by)
+          && a.x + bx === b.x && a.y + by === b.y) {
+          out.push({ x: b.x, y: b.y });
+          x = b.x; y = b.y;
+          i += 2;
+          continue;
+        }
+      }
+      out.push(path[i]);
+      x = path[i].x; y = path[i].y;
+      i += 1;
+    }
+    return out;
+  }
 
   /* ---------- BFS 寻路（八向） ---------- */
   function bfs(map, sx, sy, tx, ty, blocked) {
@@ -72,7 +101,7 @@
           k = prev[k];
         }
         path.reverse();
-        return path;
+        return tightenPath(map, sx, sy, path);
       }
       for (const [dx, dy] of DIRS8) {
         if (!canStep(map, cx, cy, dx, dy)) continue;
@@ -124,7 +153,7 @@
   /* ---------- 小世界房间 ---------- */
   // layout: 'open'（开阔+障碍）| 'cave'（两房间+走廊）
   function genRoom(spec, rng) {
-    const size = spec.size || 20;
+    const size = Math.round((spec.size || 20) * 2.2);  // 线性 ×2.2 ≈ 面积 ×5（主人 2026-10-29 定）
     const r = rng || Math.random;
     const rndi = (a, b) => Math.floor(a + r() * (b - a + 1));
 
@@ -226,4 +255,3 @@
     isWall, visible, canStep, DIRS8, bfs,
     genHub, genRoom, genTerrain,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

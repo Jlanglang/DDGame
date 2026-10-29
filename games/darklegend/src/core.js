@@ -3,9 +3,8 @@
    不碰 DOM、不碰全局状态；需要玩家对象的地方显式传 p。
    装备属性是「区间」：atkMin/atkMax、defMin/defMax，旧存档的单值 atk/def 自动兼容。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
   const growth = () => DL.DATA.GROWTH;
 
   /* ---------- 随机 ---------- */
@@ -105,4 +104,3 @@
     maxHp, maxMp, atkRange, defRange, atkMean, defMean, needExp,
     expMulByGap, goldMulByGapNormal, mulByGapTable,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

@@ -3,7 +3,6 @@
 // 覆盖：初始化 / 回合 / 寻路 / 区域 / 时钟 / 装备 / 商店 / 死亡复活 / 存档 / 固定种子 / 战斗
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -63,44 +62,32 @@ const localStorageStub = {
   clear: () => storage.clear(),
 };
 
-const sandbox = {
-  console, document: documentStub, localStorage: localStorageStub,
-  location: { search: '?debug', href: 'file:///darklegend/index.html' },
-  requestAnimationFrame: () => 0, cancelAnimationFrame: noop,
-  setInterval: (() => { let n = 0; return () => ++n; })(), clearInterval: noop,
-  setTimeout: (() => { let n = 0; return () => ++n; })(), clearTimeout: noop,
-  addEventListener: noop, removeEventListener: noop,
-  innerWidth: 720, innerHeight: 1120, devicePixelRatio: 1,
-  Math, Date, JSON, Object, Array, String, Number, Boolean,
-  Map, Set, Proxy, Promise, Error, RegExp,
-  parseInt, parseFloat, isNaN, isFinite,
-};
-sandbox.window = sandbox;
-sandbox.globalThis = sandbox;
-sandbox.self = sandbox;
+/* ---------------- 加载游戏（动态 import，必须在桩之后） ---------------- */
+globalThis.window = globalThis;
+globalThis.document = documentStub;
+globalThis.localStorage = localStorageStub;
+globalThis.location = { search: '?debug', href: 'file:///darklegend/index.html' };
+globalThis.requestAnimationFrame = () => 0;
+globalThis.cancelAnimationFrame = noop;
+globalThis.setInterval = (() => { let n = 0; return () => ++n; })();
+globalThis.clearInterval = noop;
+globalThis.setTimeout = (() => { let n = 0; return () => ++n; })();
+globalThis.clearTimeout = noop;
+globalThis.addEventListener = noop;
+globalThis.removeEventListener = noop;
+globalThis.innerWidth = 720;
+globalThis.innerHeight = 1120;
+globalThis.devicePixelRatio = 1;
+globalThis.console = console;
+const sandbox = globalThis;
 
-/* ---------------- 加载游戏 ---------------- */
-const code = fs.readFileSync(path.join(ROOT, 'game.js'), 'utf8');
-const dataCode = fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8');
-const coreCode = fs.readFileSync(path.join(ROOT, 'core.js'), 'utf8');
-const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
-const combatCode = fs.readFileSync(path.join(ROOT, 'combat.js'), 'utf8');
-const statusCode = fs.readFileSync(path.join(ROOT, 'status.js'), 'utf8');
-const sfxCode = fs.readFileSync(path.join(ROOT, 'sfx.js'), 'utf8');
-vm.createContext(sandbox);
 try {
-  vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
-  vm.runInContext(coreCode, sandbox, { filename: 'core.js' });
-  vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
-  vm.runInContext(combatCode, sandbox, { filename: 'combat.js' });
-  vm.runInContext(statusCode, sandbox, { filename: 'status.js' });
-  vm.runInContext(sfxCode, sandbox, { filename: 'sfx.js' });
-  vm.runInContext(code, sandbox, { filename: 'game.js' });
+  await import('./src/game.js');
 } catch (err) {
   console.error('加载游戏脚本失败：', err && err.stack ? err.stack : err);
   process.exit(1);
 }
-const dl = sandbox.window.__dl;
+const dl = globalThis.window.__dl;
 if (!dl) { console.error('FAIL: window.__dl 未暴露（location.search 需要 ?debug）'); process.exit(1); }
 
 /* ---------------- 断言 ---------------- */
@@ -1173,8 +1160,118 @@ try {
   ok('精英/稀有随机保底上限', DATA.RESPAWN.elitePityMax === 50 && DATA.RESPAWN.rarePityMax === 200,
     DATA.RESPAWN);
   ok('挂机档经验曲线', DATA.GROWTH.expBase === 180 && DATA.GROWTH.expRate === 1.20, DATA.GROWTH);
-  ok('走路比打怪快', DATA.MOVE_MS < DATA.COMBAT_MS && DATA.WALK_STEP_MS < DATA.MOVE_MS,
+  ok('走路比打怪快', DATA.MOVE_MS < DATA.COMBAT_MS && DATA.WALK_STEP_MS <= DATA.MOVE_MS,
     [DATA.COMBAT_MS, DATA.MOVE_MS, DATA.WALK_STEP_MS]);
+  ok('走路对齐规则 0.18s/格', DATA.WALK_STEP_MS === 180 && DATA.MOVE_MS === 180,
+    [DATA.WALK_STEP_MS, DATA.MOVE_MS]);
+  // 对冲键：保留先按，忽略后按（不定住）
+  if (typeof dl.pressMoveKey === 'function' && typeof dl.heldMoveDelta === 'function') {
+    dl.releaseMoveKey('a'); dl.releaseMoveKey('d');
+    dl.releaseMoveKey('w'); dl.releaseMoveKey('s');
+    dl.pressMoveKey('a');
+    dl.pressMoveKey('d');
+    let [dx] = dl.heldMoveDelta();
+    ok('左右对冲保留先按', dx === -1, dx);
+    dl.releaseMoveKey('a'); dl.releaseMoveKey('d');
+    dl.pressMoveKey('d');
+    dl.pressMoveKey('a');
+    [dx] = dl.heldMoveDelta();
+    ok('左右对冲后按忽略', dx === 1, dx);
+    dl.releaseMoveKey('a'); dl.releaseMoveKey('d');
+    dl.pressMoveKey('w');
+    dl.pressMoveKey('s');
+    let [, dy] = dl.heldMoveDelta();
+    ok('上下对冲保留先按', dy === -1, dy);
+    dl.releaseMoveKey('w'); dl.releaseMoveKey('s');
+  }
+  if (typeof dl.walkStepDur === 'function') {
+    const card = dl.walkStepDur(1, 0);
+    const diag = dl.walkStepDur(1, 1);
+    ok('直斜同拍', card === diag && card === DATA.WALK_STEP_MS, [card, diag]);
+    ok('直走约 5.56 格/s', Math.abs(1000 / card - 1000 / 180) < 0.05, [card, 1000 / card]);
+  }
+  // 步闸：本格走完前再 move 只转面，不换格（防加速/冲锋）
+  {
+    dl.genHub();
+    const x0 = dl.P.x, y0 = dl.P.y;
+    const a = dl.move(1, 0) || dl.move(0, 1) || dl.move(-1, 0) || dl.move(0, -1);
+    ok('开步成功', a === true, a);
+    const first = { x: dl.P.x, y: dl.P.y };
+    const tdx = dl.P.x !== x0 ? 0 : 1;
+    const tdy = dl.P.x !== x0 ? 1 : 0;
+    const b = dl.move(tdx, tdy);
+    ok('步中变向吞下输入', b === true, b);
+    ok('步中不变格', dl.P.x === first.x && dl.P.y === first.y, [first, dl.P.x, dl.P.y]);
+    dl.move(1, 0); dl.move(0, 1); dl.move(-1, 0); dl.move(0, -1); dl.move(1, 1);
+    ok('连敲不加速', dl.P.x === first.x && dl.P.y === first.y, [first, dl.P.x, dl.P.y]);
+  }
+  // 移动中改路径：步忙时 walk 应挂起等待，不吞点、不瞬移
+  if (typeof dl.walkPath === 'function') {
+    ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick',
+      'stash', 'bookShop', 'trial', 'sfxGate'].forEach((id) => {
+      const n = sandbox.document.getElementById(id);
+      if (n) n.hidden = true;
+    });
+    dl.genHub();
+    const ox = dl.P.x, oy = dl.P.y;
+    const stepped = dl.move(1, 0) || dl.move(0, 1) || dl.move(-1, 0) || dl.move(0, -1);
+    ok('改路径前先走一步', stepped === true, stepped);
+    if (stepped) {
+      const px = dl.P.x, py = dl.P.y;
+      const sdx = Math.sign(px - ox) || 1;
+      const sdy = Math.sign(py - oy);
+      const n1 = { x: px + sdx, y: py + sdy };
+      const n2 = { x: px + sdx * 2, y: py + sdy * 2 };
+      dl.walkPath([n1, n2]);
+      ok('改路径当帧不瞬移', dl.P.x === px && dl.P.y === py, [px, py, dl.P.x, dl.P.y]);
+      ok('改路径时步闸仍忙', dl.walkBusy() === true, dl.walkBusy());
+      ok('改路径已挂起或在走', dl.walking() === true || dl.walkBusy() === true, [dl.walking(), dl.walkBusy()]);
+      // 桩里 setTimeout 不点火，收掉挂起的 walk，免得挡住后面 autoStep
+      dl.stopWalk();
+      dl.setPos(dl.P.x, dl.P.y);
+    }
+  }
+  // A5：一步内画面在 from→to 之间，落点与逻辑格一致
+  {
+    dl.genHub();
+    const x0 = dl.P.x, y0 = dl.P.y;
+    const moved = dl.move(1, 0) || dl.move(0, 1) || dl.move(-1, 0) || dl.move(0, -1);
+    ok('A5 能走出一步', moved === true, moved);
+    if (moved && typeof dl.step === 'function') {
+      const s = dl.step();
+      ok('A5 step 有坐标', s && Number.isFinite(s.x) && Number.isFinite(s.y), s);
+      ok('A5 逻辑已落格', Math.abs(dl.P.x - x0) + Math.abs(dl.P.y - y0) === 1, [dl.P.x, dl.P.y, x0, y0]);
+      // 插值终点应是新格中心（允许仍在滑：靠近 to）
+      const tx = dl.P.x + 0.5, ty = dl.P.y + 0.5;
+      const fx = x0 + 0.5, fy = y0 + 0.5;
+      const onSeg = Math.abs((s.x - fx) * (ty - fy) - (s.y - fy) * (tx - fx)) < 0.05
+        || (Math.abs(s.x - tx) < 0.05 && Math.abs(s.y - ty) < 0.05);
+      ok('A5 画面在步线段上', onSeg, s);
+      dl.setPos(dl.P.x, dl.P.y);
+      const snapped = dl.step();
+      ok('A5 snap 后贴逻辑格', snapped && Math.abs(snapped.x - (dl.P.x + 0.5)) < 1e-6
+        && Math.abs(snapped.y - (dl.P.y + 0.5)) < 1e-6, snapped);
+      // 步中变向：逻辑格不动，画面继续沿本格滑（不冲锋）
+      dl.genHub();
+      const ax = dl.P.x, ay = dl.P.y;
+      const m1 = dl.move(1, 0) || dl.move(0, 1);
+      ok('A5 转向前先走一步', m1 === true, m1);
+      if (m1) {
+        const before = dl.step();
+        const px = dl.P.x, py = dl.P.y;
+        const tdx = dl.P.x !== ax ? 0 : 1;
+        const tdy = dl.P.x !== ax ? 1 : 0;
+        const m2 = dl.move(tdx, tdy);
+        const after = dl.step();
+        ok('A5 步中变向吞输入', m2 === true, m2);
+        ok('A5 步中逻辑不换格', dl.P.x === px && dl.P.y === py, [px, py, dl.P.x, dl.P.y]);
+        const jump = Math.hypot(after.x - before.x, after.y - before.y);
+        ok('A5 步中画面不冲锋', jump < 0.2, [jump, before, after]);
+      }
+    } else {
+      ok('A5 step 暴露', typeof dl.step === 'function');
+    }
+  }
 
   /* 八向移动 */
   const W = sandbox.window.DL.World;
@@ -1189,7 +1286,11 @@ try {
     ];
     const path = W.bfs(m, 0, 0, 2, 2, null);
     ok('八向寻路斜切更短', path && path.length === 2, path && path.length);
+    ok('对角全斜走', path && path[0].x === 1 && path[0].y === 1 && path[1].x === 2 && path[1].y === 2, path);
     ok('可斜步', W.canStep(m, 0, 0, 1, 1) === true);
+    // 等长路径（切比雪夫）：应先斜再直，不能先直再斜
+    const skew = W.bfs(m, 0, 0, 2, 1, null);
+    ok('斜点不先直走', skew && skew.length === 2 && skew[0].x === 1 && skew[0].y === 1, skew);
     const wallCorner = [
       [0, 1, 0],
       [1, 0, 0],

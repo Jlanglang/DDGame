@@ -3,9 +3,8 @@
    俯角 45°，相机在 +Z 一侧往下看。1 格 = 1 世界单位。
    屏幕：1280×720，1 格对应 48 像素，所以视锥大约 26.7×15。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
   const PITCH = Math.PI / 4;
   const VIEW_W = 1280;
   const VIEW_H = 720;
@@ -57,4 +56,4 @@
     ndcForGround: ndcForGround,
     mobFrame: mobFrame,
   };
-})(typeof window !== 'undefined' ? window : globalThis);
+export const ThreePick = DL.ThreePick;

@@ -9,10 +9,15 @@
    7. 怪物密度提高、按房间梯度刷怪、小地图、最近敌人提示
    规则依据：docs/豆豆暗黑传奇-规则与任务.md（M1 范围内做了可玩性微调，见注释）
 */
-(() => {
-  'use strict';
+import { DL } from './namespace.js';
+import './data.js';
+import './core.js';
+import './world.js';
+import './combat.js';
+import './status.js';
+import './sfx.js';
 
-  const D = (window.DL && window.DL.DATA) || {};
+const D = DL.DATA;
   if (!D.ROOMS) throw new Error('data.js 未加载');
   const Sfx = (window.DL && window.DL.Sfx) || {
     unlock() {}, enable() {}, play() {}, drop() {},
@@ -229,7 +234,17 @@
   let logs = [];
   let walkTimer = null;
   let walkToken = 0;
+  // A5 走路插值：逻辑整格跳；画面格心→格心匀速滑。变向等本格走完（传奇常规），转面立刻生效。
+  let walkVis = null; // { fx, fy, tx, ty, start, dur } | null
+  let walkReadyAt = 0; // 下一格解锁时间
   let pendingTarget = null;
+  // 摇杆/按键状态提前声明，供 walkInputHeld 闭包使用
+  const heldMove = new Set();
+  const moveKeyAt = new Map(); // 键 → 按下序号；对冲轴保留先按的（忽略后按）
+  let moveKeySeq = 0;
+  let stickDx = 0, stickDy = 0;
+  let stickTimer = null;
+  let keyMoveTimer = null;
   let lootTimer = null;
   let hurtTimer = null;
   const floaters = [];
@@ -243,8 +258,73 @@
   const playerCombatMs = () => (P.skills && P.skills.swordMaster ? Math.round(COMBAT_MS / 2) : COMBAT_MS);
   const MOVE_MS = D.MOVE_MS || 180;                     // 走路节奏（快得多）
   const ENEMY_ACT_MS = D.ENEMY_ACT_MS || 1000;          // 怪行动：1 次/秒
-  const WALK_STEP_MS = D.WALK_STEP_MS || 70;            // 点地寻路每格
+  const WALK_STEP_MS = D.WALK_STEP_MS || 180;           // 点地/摇杆每格（R3.8）
   const IDLE_MS = COMBAT_MS;                            // 旧名兼容
+  function nowMs() {
+    return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  }
+  // 传奇同拍：直/斜一格一拍；变向不中途改目的地（会冲锋/瞬移），只转面 + 等本格走完
+  function walkStepDur(_dx, _dy) {
+    return WALK_STEP_MS;
+  }
+  function walkStepRemaining() {
+    return Math.max(0, walkReadyAt - nowMs());
+  }
+  function walkStepBusy() {
+    return walkStepRemaining() > 1;
+  }
+  function walkVisDur() {
+    return walkStepBusy() ? Math.max(16, walkStepRemaining()) : WALK_STEP_MS;
+  }
+  function walkVisPos() {
+    if (!walkVis) return { x: P.x, y: P.y, t: 1 };
+    const dur = walkVis.dur || WALK_STEP_MS;
+    const t = Math.min(1, Math.max(0, (nowMs() - walkVis.start) / dur));
+    return {
+      x: walkVis.fx + (walkVis.tx - walkVis.fx) * t,
+      y: walkVis.fy + (walkVis.ty - walkVis.fy) * t,
+      t: t,
+    };
+  }
+  function beginWalkStep(ox, oy, nx, ny) {
+    const now = nowMs();
+    // 从上一段画面位置接着滑，避免换步闪一下；时长固定满拍（匀速）
+    const cur = walkVisPos();
+    const fx = walkVis ? cur.x : ox;
+    const fy = walkVis ? cur.y : oy;
+    walkVis = { fx: fx, fy: fy, tx: nx, ty: ny, start: now, dur: WALK_STEP_MS };
+    walkReadyAt = now + WALK_STEP_MS;
+  }
+  function snapWalkVis() {
+    walkVis = null;
+    walkReadyAt = 0;
+  }
+  function faceWalkDir(dx, dy) {
+    if (dx && dy) {
+      if (Math.abs(dx) >= Math.abs(dy)) P.dir = dx < 0 ? 'l' : 'r';
+      else P.dir = dy < 0 ? 'u' : 'd';
+    } else if (dx < 0) P.dir = 'l';
+    else if (dx > 0) P.dir = 'r';
+    else if (dy < 0) P.dir = 'u';
+    else if (dy > 0) P.dir = 'd';
+  }
+  function walkInputHeld() {
+    return !!walkTimer || !!stickTimer || !!keyMoveTimer
+      || !!(stickDx || stickDy) || (heldMove && heldMove.size > 0);
+  }
+  function walkStepVis() {
+    const movingInput = walkInputHeld();
+    if (!walkVis) {
+      return { x: P.x + 0.5, y: P.y + 0.5, t: 1, moving: movingInput };
+    }
+    const cur = walkVisPos();
+    return {
+      x: cur.x + 0.5,
+      y: cur.y + 0.5,
+      t: cur.t,
+      moving: cur.t < 1 || movingInput || walkStepBusy(),
+    };
+  }
   let idleTimer = null;
   let nextIdleMs = playerCombatMs();                      // after() 排下一拍用
   let enemyNextActAt = 0;                               // 兼容旧逻辑
@@ -348,6 +428,7 @@
       P.x = ow.spawn.x;
       P.y = ow.spawn.y;
     }
+    snapWalkVis();
     overworldAtCave = false;
     villagePos = { x: P.x, y: P.y };
     refreshTerrain();
@@ -384,6 +465,7 @@
       P.x = h.spawn.x;
       P.y = h.spawn.y;
     }
+    snapWalkVis();
     lastZoneLv = 1;
     S.clear(P);                     // 换图脱战：状态清零
     loadBags();
@@ -472,6 +554,7 @@
     stashNpc = null;
     P.x = r.spawn.x;
     P.y = r.spawn.y;
+    snapWalkVis();
     back = r.exit;
     S.clear(P);                     // 换图脱战：状态清零
     loadBags();
@@ -2582,6 +2665,7 @@
     if (currentRoom) leaveRoom();
     P.x = villagePos.x;
     P.y = villagePos.y;
+    snapWalkVis();
     P.hp = Math.ceil(maxHp() * 0.6);
     P.mp = Math.ceil(maxMp() * 0.5);
     lastZoneLv = zoneLevel(P.x);
@@ -2605,6 +2689,7 @@
     if (currentRoom) leaveRoom();
     P.x = villagePos.x;
     P.y = villagePos.y;
+    snapWalkVis();
     lastZoneLv = zoneLevel(P.x);
     syncHud();
     save();
@@ -2740,6 +2825,7 @@
       after();
       return true;
     }
+    beginWalkStep(P.x, P.y, nx, ny);
     P.x = nx;
     P.y = ny;
     const bag = bagAt(nx, ny);
@@ -3037,7 +3123,7 @@
   }
 
   function cancelDoor() {
-    if (doorReturnPos) { P.x = doorReturnPos.x; P.y = doorReturnPos.y; }
+    if (doorReturnPos) { P.x = doorReturnPos.x; P.y = doorReturnPos.y; snapWalkVis(); }
     closeDoor();
     resumeAuto();
   }
@@ -3050,6 +3136,12 @@
       if (!fromWalk) blockAction();
       return false;
     }
+    // 转面立刻；本格没走完只记方向，不改目的地（改目的地会冲锋/瞬移）
+    // 返回 true 让按键/摇杆定时器别停——否则会「失灵」
+    if (walkStepBusy()) {
+      faceWalkDir(dx, dy);
+      return true;
+    }
     if (inCombat()) {
       const target = enemyAt(P.x + dx, P.y + dy);
       if (!target) {
@@ -3061,14 +3153,7 @@
       }
       // 朝怪移动 = 撞怪攻击，继续往下走
     }
-    // 朝向：斜走取主轴，半月仍四向
-    if (dx && dy) {
-      if (Math.abs(dx) >= Math.abs(dy)) P.dir = dx < 0 ? 'l' : 'r';
-      else P.dir = dy < 0 ? 'u' : 'd';
-    } else if (dx < 0) P.dir = 'l';
-    else if (dx > 0) P.dir = 'r';
-    else if (dy < 0) P.dir = 'u';
-    else if (dy > 0) P.dir = 'd';
+    faceWalkDir(dx, dy);
     if (!DL.World.canStep(map, P.x, P.y, dx, dy)) {
       if (!fromWalk) log('那边过不去。');
       return false;
@@ -3089,6 +3174,7 @@
       return true;
     }
     const ox = P.x, oy = P.y;
+    beginWalkStep(ox, oy, nx, ny);
     P.x = nx;
     P.y = ny;
     if (map[ny][nx] === 2) {
@@ -3155,6 +3241,7 @@
       return;
     }
     const [dx, dy] = away[0];
+    beginWalkStep(P.x, P.y, P.x + dx, P.y + dy);
     P.x += dx;
     P.y += dy;
     // 撤退成功：解除交战锁定（怪可能还在追，但不再钉死走位）
@@ -3198,6 +3285,11 @@
     let i = 0;
     const step = () => {
       if (token !== walkToken) return;
+      // 本格还在滑：先等闸门（不查 uiOpen，避免挂起时被误杀）
+      if (walkStepBusy()) {
+        walkTimer = setTimeout(step, walkStepRemaining());
+        return;
+      }
       if (over || uiOpen()) { stopWalk(); return; }
       if (pendingTarget && pendingTarget.hp > 0 && dist(pendingTarget, P) === 1) {
         const t = pendingTarget;
@@ -3214,11 +3306,12 @@
         act('attack');
         return;
       }
-      const moved = move(n.x - P.x, n.y - P.y, true);
+      const sdx = n.x - P.x, sdy = n.y - P.y;
+      const moved = move(sdx, sdy, true);
       if (!moved) { stopWalk(); return; }
       if (token !== walkToken) return;   // 撞怪/换图会取消剩余路径
       if (over || uiOpen()) { stopWalk(); return; }
-      walkTimer = setTimeout(step, WALK_STEP_MS);
+      walkTimer = setTimeout(step, walkVisDur());
     };
     step();
   }
@@ -3231,11 +3324,11 @@
     if (!S.canAct(P)) { blockAction(); return; }
     if (wx < 0 || wy < 0 || wx >= map[0].length || wy >= map.length) return;
     if (isWall(wx, wy)) return;
-    stopWalk();
-    // 脚下有袋子：点一下就重新打开清单
+    // 脚下有袋子：点一下就重新打开清单（不先 stopWalk，避免无意义掐步）
     if (P.x === wx && P.y === wy) {
       const here = bagAt(wx, wy);
       if (here) { pickupBag(here); return; }
+      return; // 同格重点：不停步
     }
     const enemy = enemyAt(wx, wy);
     if (enemy) {
@@ -3293,22 +3386,34 @@
   }
 
   // 方向键状态：键盘 WASD；左侧为拖动轮盘（八向吸附）
-  const heldMove = new Set();
+  // heldMove / stickDx|Dy / stickTimer / keyMoveTimer 已在文件前部声明
   const MOVE_KEYS = {
     w: 1, a: 1, s: 1, d: 1,
     arrowup: 1, arrowleft: 1, arrowdown: 1, arrowright: 1,
   };
   let stickPtr = null;           // 轮盘只认第一根手指
-  let stickDx = 0, stickDy = 0;
-  let stickTimer = null;
-  let keyMoveTimer = null;
 
+  // 同轴对冲：保留先按下的键，忽略后按的（左右/上下同时按时不定住）
+  function axisFromKeys(negKeys, posKeys) {
+    let best = 0;
+    let bestAt = Infinity;
+    for (let i = 0; i < negKeys.length; i++) {
+      const k = negKeys[i];
+      if (!heldMove.has(k)) continue;
+      const at = moveKeyAt.has(k) ? moveKeyAt.get(k) : 0;
+      if (at < bestAt) { bestAt = at; best = -1; }
+    }
+    for (let i = 0; i < posKeys.length; i++) {
+      const k = posKeys[i];
+      if (!heldMove.has(k)) continue;
+      const at = moveKeyAt.has(k) ? moveKeyAt.get(k) : 0;
+      if (at < bestAt) { bestAt = at; best = 1; }
+    }
+    return best;
+  }
   function heldMoveDelta() {
-    let dx = 0, dy = 0;
-    if (heldMove.has('a') || heldMove.has('arrowleft')) dx -= 1;
-    if (heldMove.has('d') || heldMove.has('arrowright')) dx += 1;
-    if (heldMove.has('w') || heldMove.has('arrowup')) dy -= 1;
-    if (heldMove.has('s') || heldMove.has('arrowdown')) dy += 1;
+    const dx = axisFromKeys(['a', 'arrowleft'], ['d', 'arrowright']);
+    const dy = axisFromKeys(['w', 'arrowup'], ['s', 'arrowdown']);
     return [dx, dy];
   }
 
@@ -3328,26 +3433,36 @@
   }
 
   function stopKeyMove() {
-    if (keyMoveTimer) { clearInterval(keyMoveTimer); keyMoveTimer = null; }
+    if (keyMoveTimer) { clearTimeout(keyMoveTimer); keyMoveTimer = null; }
   }
 
   function pressMoveKey(k) {
+    if (!heldMove.has(k)) moveKeyAt.set(k, ++moveKeySeq);
     heldMove.add(k);
     stopWalk();
     const [dx, dy] = heldMoveDelta();
-    if (dx || dy) move(dx, dy);
+    if (dx || dy) move(dx, dy); // 忙则只转面；不忙开新步
     if (!keyMoveTimer) {
-      keyMoveTimer = setInterval(() => {
+      const tick = () => {
+        keyMoveTimer = null;
         if (over || uiOpen()) { stopKeyMove(); return; }
         const [mx, my] = heldMoveDelta();
         if (!mx && !my) { stopKeyMove(); return; }
-        if (!move(mx, my)) stopKeyMove();   // 撞墙/被锁：停下，松手再按
-      }, WALK_STEP_MS);                     // 和点地走路同速，别一个 70 一个 180
+        if (walkStepBusy()) {
+          keyMoveTimer = setTimeout(tick, walkStepRemaining());
+          return;
+        }
+        // 撞墙才停；busy 时 move 返回 true，不会误停
+        if (!move(mx, my) && !walkStepBusy()) { stopKeyMove(); return; }
+        keyMoveTimer = setTimeout(tick, walkVisDur());
+      };
+      keyMoveTimer = setTimeout(tick, walkStepBusy() ? walkStepRemaining() : walkVisDur());
     }
     syncDpadActive();
   }
   function releaseMoveKey(k) {
     heldMove.delete(k);
+    moveKeyAt.delete(k);
     if (!heldMove.size) stopKeyMove();
     syncDpadActive();
   }
@@ -3366,7 +3481,11 @@
     }
     // 已经有一拍在跑：换扇区只更新方向，等下一拍生效。
     // 以前每次换向都补走一步 + 重置定时器，鼠标贴着扇区边界抖一下就能白走好几格。
-    if (wasOn && stickTimer) return;
+    if (wasOn && stickTimer) {
+      // 换扇区只转面/记方向，等本格走完；不重置定时器
+      if (!uiOpen() && !over && (dx || dy)) move(dx, dy);
+      return;
+    }
     stopStickRepeat();
     if (!uiOpen() && !over) {
       stopWalk();
@@ -3376,11 +3495,15 @@
       if (!(stickDx || stickDy)) { stickTimer = null; return; }
       if (!uiOpen() && !over) {
         stopWalk();
+        if (walkStepBusy()) {
+          stickTimer = setTimeout(tick, walkStepRemaining());
+          return;
+        }
         move(stickDx, stickDy);
       }
-      stickTimer = setTimeout(tick, WALK_STEP_MS);
+      stickTimer = setTimeout(tick, walkVisDur());
     };
-    stickTimer = setTimeout(tick, WALK_STEP_MS);
+    stickTimer = setTimeout(tick, walkStepBusy() ? walkStepRemaining() : walkVisDur());
   }
 
   // 屏幕向量 → 八向（含死区）
@@ -3736,6 +3859,7 @@
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', () => {
       heldMove.clear();
+      moveKeyAt.clear();
       stopKeyMove();
       syncDpadActive();
     });
@@ -4189,11 +4313,48 @@
     }
     const seed = (worldSeed >>> 0) ^ hashId(currentRoom || 'hub');
     terrain = DL.World.genTerrain(map, pts, seed);
+    // 海岛化（2026-10-29）：房间也做成岛——最外两圈变海、再往里一圈沙滩，
+    // 边界交给水和沙，不再用树/山谷。出口格（map===2）不动。
+    if (!hub) {
+      const W2 = map[0].length, H2 = map.length;
+      const cx2 = W2 / 2, cy2 = H2 / 2;
+      for (let y = 0; y < H2; y++) {
+        for (let x = 0; x < W2; x++) {
+          if (map[y][x] === 2) continue;
+          // 岸边跟着方向起伏：最外圈往里收多少，按角度做三个正弦（和主城同一套写法）
+          const th = Math.atan2(y - cy2, x - cx2);
+          const wave = 1.15 * Math.sin(3 * th + 0.7) + 0.75 * Math.sin(5 * th + 2.1) +
+            0.4 * Math.sin(9 * th + 4.2);
+          const shrink = 1.9 + wave;
+          // 沙滩宽度按角度起伏：岬角窄、海湾宽
+          const beach = 1.0 + 2.2 * (0.5 + 0.5 * Math.sin(2 * th + 1.1)) + 1.1 * (0.5 + 0.5 * Math.sin(7 * th + 0.3));
+          const d = Math.min(x, y, W2 - 1 - x, H2 - 1 - y);
+          if (d < shrink) { map[y][x] = 1; terrain[y][x] = 3; }
+          else if (d < shrink + beach) terrain[y][x] = 4;
+          else { map[y][x] = 0; terrain[y][x] = 0; }   // 小怪房间先全草皮：旧障碍墙也一并清掉
+        }
+      }
+    }
+    if (!hub && back) {
+      // 出口到岛心挖一条走廊：不然出口被海水围成一粒孤岛，玩家找不到
+      const W3 = map[0].length, H3 = map.length;
+      const tx = Math.round(W3 / 2), ty = Math.round(H3 / 2);
+      const steps = Math.max(Math.abs(tx - back.x), Math.abs(ty - back.y));
+      for (let i = 0; i <= steps; i++) {
+        const t = steps ? i / steps : 0;
+        const px = Math.round(back.x + (tx - back.x) * t);
+        const py = Math.round(back.y + (ty - back.y) * t);
+        if (map[py] && map[py][px] !== 2) { map[py][px] = 0; terrain[py][px] = 0; }
+      }
+    }
     props = buildProps(seed);
   }
 
   // 场景道具：主城手工摆，房间按种子撒。全部是纯装饰，不参与碰撞（A 阶段）。
   function buildProps(seed) {
+    // 2026-10-29：所有地图都改成海岛形式，立牌（树 / 房子 / 石头 / 摊位）全部不要，
+    // 边界交给海和沙滩。这里直接返回空表，房间里只剩怪和 NPC。
+    if (true) return [];
     // 3D 立牌全程序化，不再依赖 DL.Assets（2D 那条已删）
     const W = map[0].length, H = map.length;
     const theme = themeNow();
@@ -4354,7 +4515,8 @@
       back: () => back,
       bags: () => activeBags,
       room: () => currentRoom || 'hub',
-      walking: () => !!walkTimer,
+      walking: () => walkStepVis().moving,
+      step: () => walkStepVis(),
       strikeAt: () => lastStrikeAt,
       floaters: () => floaters,
       over: () => over,
@@ -4452,13 +4614,22 @@
       combatMs: () => playerCombatMs(),
       moveMs: () => MOVE_MS,
       walkStepMs: () => WALK_STEP_MS,
+      walkStepDur: (dx, dy) => walkStepDur(dx, dy),
+      stepDur: () => walkVis ? walkVis.dur : null,
+      step: () => walkStepVis(),
+      pressMoveKey, releaseMoveKey, heldMoveDelta,
+      clickCell: (x, y) => handleCellClick(x, y),
+      walkPath: (path) => walk(path),
+      stopWalk,
+      walkBusy: () => walkStepBusy(),
+      walking: () => !!walkTimer,
       clock: () => clock,
       clockText,
       tick: autoStep, pauseAuto, resumeAuto, startClockTimer,
       clockTimerOn: () => !!clockTimer,
       autoEnabled: () => !autoDisabled,
       hideIntro: () => { el.intro.hidden = true; },
-      setPos: (x, y) => { P.x = x; P.y = y; },
+      setPos: (x, y) => { P.x = x; P.y = y; snapWalkVis(); },
       setHp: (v) => { P.hp = v; },
       setMp: (v) => { P.mp = v; },
       setGold: (v) => { P.gold = v; },
@@ -4474,4 +4645,3 @@
       }),
     };
   }
-})();

@@ -32,7 +32,7 @@
 | `hero` | 豆豆勇者 | 横版动作 | **1280×720** | [ANCHOR](games/hero/ANCHOR.md) | `test-input.js`、`test-stage.js`、`test-save.js`、`test-shop.js` |
 | `cube` | 豆豆魔方 | 益智 / 3D | 720×1600 | [ANCHOR](games/cube/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
 | `rhythm` | 节奏豆豆 | 节奏 / 音乐 | 720×1600 | [ANCHOR](games/rhythm/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
-| `darklegend` | 豆豆暗黑传奇 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`balance.mjs --check` |
+| `darklegend` | 豆豆暗黑传奇 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`balance.mjs --check`。Vite 工程化，双击玩 `dist/index.html` |
 | `catchalien` | 豆豆捉外星人 | 推理 | 720×1600 | [ANCHOR](games/catchalien/ANCHOR.md) | `test-logic.mjs` |
 | `zombie` | 豆豆大战僵尸 | 放置 / 策略 | **1280×720** | [ANCHOR](games/zombie/ANCHOR.md) | `test-sim.js` |
 | `cardfight` | 卡牌战斗 | 养成 / 策略 | 多页自适应 | [ANCHOR](games/cardfight/ANCHOR.md) | `test-combat.js` |
@@ -67,7 +67,7 @@
 ## 4. 代码约定
 
 - 竖屏 720×1600；**例外**：`hero`、`zombie` 是 1280×720 横屏，竖屏时提示「把手机横过来」（可跳过）。
-- 双击 `index.html` 即可玩；零依赖、零构建（`darklegend` / `stickyfeet` 自带 `vendor/` 例外）。
+- 双击 `index.html` 即可玩；零依赖、零构建（`stickyfeet` 仍自带 `vendor/`）。`darklegend` 例外：源码是 ESM，开发用 `games/darklegend` 里的 `npm run dev`；双击玩的是 `games/darklegend/dist/index.html`。three 钉在 `0.170.0`，不要装 latest。
 - 中文 UI；大数字用万 / 亿。
 - 所有美术程序化生成（或仓库现有素材），不引外部图片。
 - 2.5D 画面必须遵守 [`docs/渲染规格.md`](docs/渲染规格.md)：

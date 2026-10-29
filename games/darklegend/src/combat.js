@@ -4,9 +4,8 @@
 
    约定：不读全局；敌人/玩家/地图都显式传入。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   const dirVec = (dir) => {
     if (dir === 'l') return [-1, 0];
@@ -131,4 +130,3 @@
     halfMoonCells, targetsAt, adjacentTarget, isAdjacent,
     decide, nextStep, farmEligible,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

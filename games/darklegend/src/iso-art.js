@@ -1,23 +1,28 @@
-/* 豆豆暗黑传奇 · 等距美术 v2（地面）
+/* 豆豆暗黑传奇 · 地面美术（iso-art）
    ------------------------------------------------------------------
    和 iso-ground.js 的区别（那份保留，不删，可回退）：
    1. 分辨率：6px/格 → 48px/格（8 倍细节，糊的根因之一）
-   2. 不再是"色块双线性插值"，每种材质有自己的笔触（草簇/砖缝/波纹/碎石的）
-   3. 材质清单化：KINDS 里 8 种，验收台按种类一张一张过（见 asset-bench.html）
+   2. 不再是"色块双线性插值"，每种材质有自己的笔触（草簇/砖缝/波纹/碎石）
+   3. 材质清单化：KINDS，验收台按种类一张一张过（见 asset-bench.html）
 
-   画法是"俯视图"：相机 45° 正交把 1×1 的正方格压成 2:1 菱形，
-   所以贴图里画正方形网格，投影后自然变等距菱形，不需要手工画菱形。
+   画法是 **mir 俯视正方形网格**：贴图画俯视方格，铺在水平面上；
+   近大远小 / 纵深压缩交给默认相机（yaw0 / pitch55 / fov32），贴图里不预压扁、不画菱形。
    覆盖层（路/砖/水/泥）用"圆群并集"当遮罩 → 边缘是有机起伏，不是直角。
 
    对外：
      DL.IsoArt.KINDS / PALETTES / PX
      DL.IsoArt.groundSheet(map, terrain, theme, opts) -> canvas
+        opts.rect={x0,y0,x1,y1} 只画一块（流式分块加载）；不带 rect = 整张一次画完
+        opts.cutSea  海不走覆盖层。海格挖空，岸线按 coastField 的弯曲岸距再啃进沙滩
+     DL.IsoArt.coastField(terrain, cols, rows, x0, y0, x1, y1, px) -> canvas|null
+        岸距图：R = 弯曲后的有符号距离，G = 几何海格。没有海返回 null
+     DL.IsoArt.seaSheet(map, terrain, theme, opts) -> canvas|null
+        旧的海面笔触，验收台还用。游戏水面改走 coastField + 着色器
      DL.IsoArt.patch(kind, theme, cols, rows, seed)   -> canvas（验收台用）
      DL.IsoArt.kindOf(map, terrain, x, y)            -> 'grass'|'path'|'water'|'stone'
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   const PX = 48;              // 每格像素（俯视）。24 格 → 1152px
   const TAU = Math.PI * 2;
@@ -70,11 +75,12 @@
     soil: { name: '泥土', tier: '底材', note: '荒地、踩实的空地。比草暖、比土路暗' },
     rock: { name: '岩地', tier: '底材', note: '洞窟底材。冷灰紫、带裂缝' },
     path: { name: '土路', tier: '覆盖', note: '2 格宽的路。圆群遮罩 → 边缘有机起伏，撒碎石' },
-    brick: { name: '砖铺', tier: '覆盖', note: '广场/主路。砖 0.5×0.25 格，投影后是 2:1 平行四边形' },
-    slab: { name: '石板', tier: '覆盖', note: '大块不规则石板。比砖粗、有高低差' },
+    brick: { name: '砖铺', tier: '覆盖', note: '暂不用于地面。俯视长砖；红砖太抢，留给屋顶' },
+    slab: { name: '石板', tier: '覆盖', note: '主城地面。mir 俯视一格一块；宽夯土缝 + 不规则石面，勿画成瓷砖勾缝' },
     water: { name: '水面', tier: '覆盖', note: '池塘/河。横向波纹，边缘浅、中心深' },
     mud: { name: '泥沼', tier: '覆盖', note: '水边过渡。深褐压住水的硬边，免得水像贴纸' },
     sea: { name: '海', tier: '覆盖', note: '地图外侧。比池塘深、波纹更大；村子临海就是它' },
+    sand: { name: '沙滩', tier: '覆盖', note: '海陆之间的沙带。压住水的硬边，沙粒 + 浅水痕' },
   };
 
   const BASE_OF = { field: 'grass', cave: 'rock', waste: 'soil' };
@@ -171,9 +177,11 @@
   function kindOf(map, terrain, x, y) {
     if (!map || !map[y] || map[y][x] === undefined) return 'stone';
     const cell = map[y][x];
-    if (cell === 1) return 'stone';
     const tr = terrain && terrain[y] ? terrain[y][x] : 0;
+    // 海是 wall（不可走）但地形是水：先判水，否则整片海会被画成石头
     if (tr === 3) return 'water';
+    if (tr === 4) return 'sand';
+    if (cell === 1) return 'stone';
     if (tr === 2) return 'stone';
     if (tr === 1 || cell === 2) return 'path';
     return 'base';
@@ -291,13 +299,19 @@
     return c;
   }
 
-  function turf(g, W, H, T, seed) {
-    const pat = g.createPattern(turfTile(192, T, seed), 'repeat');
+  function turf(g, W, H, T, seed, win) {
+    const TILE = 192;
+    const pat = g.createPattern(turfTile(TILE, T, seed), 'repeat');
     if (!pat) return;
     g.save();
     g.globalAlpha = 0.62;
+    // 图案按"用户空间原点"排相位。分块时把原点挪回世界原点，平铺才接得上
+    // （24 格 = 1152px = 6×192 本来是对齐的，但 1 格出血 48px 会让相位差 48）
+    const phx = win ? (((win.ox % TILE) + TILE) % TILE) : 0;
+    const phy = win ? (((win.oy % TILE) + TILE) % TILE) : 0;
+    g.translate(-phx, -phy);
     g.fillStyle = pat;
-    g.fillRect(0, 0, W, H);
+    g.fillRect(phx, phy, W, H);
     g.restore();
   }
 
@@ -341,29 +355,54 @@
 
   /* ================= 底材 ================= */
 
-  function paintBase(g, W, H, px, T, base, seed, dens) {
+  /* 低频色斑的"世界锚定"。
+     分块时不能按画布撒点：色斑半径 0.5~2.5 格、alpha 0.1~0.3，是一块地面的**调子**，
+     按画布撒的话块边界上会出来一条 3% 的直边——比分块缺内容还显眼（2026-10-29 实测：
+     缝那一对的横向跳变 13.0，别处 4.0）。
+     做法：位置仍按**整张图**的格数撒（同一套随机数、同一位置），画的时候减掉窗口偏移，
+     窗口外的直接跳过。整张图时 ox=0、hit 恒真 → 输出和以前逐像素一致。 */
+  function blobSpace(W, H, px, win, cellsFull) {
+    const w = win ? win.w : W, h = win ? win.h : H;
+    const full = cellsFull || (w * h) / (px * px);
+    return {
+      w: w, h: h,
+      ox: win ? -win.ox : 0,
+      oy: win ? -win.oy : 0,
+      n: full,
+      // softBlob 的笔画最远伸到 1.35r，取 2r 的包围盒就够
+      hit: function (cx, cy, r) {
+        return !(cx < -r * 2 || cy < -r * 2 || cx > W + r * 2 || cy > H + r * 2);
+      },
+    };
+  }
+
+  function paintBase(g, W, H, px, T, base, seed, dens, wx) {
     const cells = ((W * H) / (px * px)) * (dens || 1);
-    if (base === 'rock') paintRock(g, W, H, px, T, seed, cells);
-    else if (base === 'soil') paintSoil(g, W, H, px, T, seed, cells);
-    else paintGrass(g, W, H, px, T, seed, cells);
+    if (base === 'rock') paintRock(g, W, H, px, T, seed, cells, wx);
+    else if (base === 'soil') paintSoil(g, W, H, px, T, seed, cells, wx);
+    else paintGrass(g, W, H, px, T, seed, cells, wx);
   }
 
   // 草地：低频明暗 + 草皮细纹 + 草簇。三样缺一个就回到"一块绿布"。
-  function paintGrass(g, W, H, px, T, seed, cells) {
+  function paintGrass(g, W, H, px, T, seed, cells, wx) {
     g.fillStyle = T.base;
     g.fillRect(0, 0, W, H);
 
     // ① 低频明暗：块要比一格大（0.5~1.6 格），随机撒；太整齐就成了棋盘格。
     //    亮斑只用"偏亮的草绿"，不用 baseHi 原色——原色撒多了像一层雾
-    for (let i = 0; i < Math.round(cells * 0.8); i++) {
+    const S = blobSpace(W, H, px, wx && wx.win, wx && wx.cellsFull);
+    for (let i = 0; i < Math.round(S.n * 0.8); i++) {
       const h = hash(seed + 3, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.45 + rnd(h, 2) * 1.15),
+      const r = px * (0.45 + rnd(h, 2) * 1.15);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
         rnd(h, 3) < 0.45 ? mix(T.baseHi, T.base, 0.45) : T.baseLo, 0.12 + rnd(h, 4) * 0.09, h);
     }
 
-    // ② 草皮细纹：96px 小砖平铺。靠它给"毛毯"的密度，
+    // ② 草皮细纹：192px 小砖平铺。靠它给"毛毯"的密度，
     //    不靠逐格撒草——576 格逐格撒草要几万笔，进房间会卡一下
-    turf(g, W, H, T, seed + 5);
+    turf(g, W, H, T, seed + 5, wx && wx.win);
 
     // ③ 草簇：0.9 簇/格，比细纹大一圈，打破平铺感
     for (let i = 0; i < Math.round(cells * 0.9); i++) {
@@ -389,13 +428,17 @@
   }
 
   // 泥土：踩实的暖土 + 干草茬 + 碎石 + 裂纹
-  function paintSoil(g, W, H, px, T, seed, cells) {
+  function paintSoil(g, W, H, px, T, seed, cells, wx) {
     g.fillStyle = T.soil;
     g.fillRect(0, 0, W, H);
 
-    for (let i = 0; i < Math.round(cells * 0.45); i++) {
+    const S = blobSpace(W, H, px, wx && wx.win, wx && wx.cellsFull);
+    for (let i = 0; i < Math.round(S.n * 0.45); i++) {
       const h = hash(seed + 5, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.6 + rnd(h, 2) * 1.9),
+      const r = px * (0.6 + rnd(h, 2) * 1.9);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
         rnd(h, 3) < 0.5 ? T.soilHi : T.soilLo, 0.13 + rnd(h, 4) * 0.1, h);
     }
 
@@ -431,14 +474,18 @@
   }
 
   // 岩地：扁石片 + 缝 + 裂纹。石片要"左上亮、右下暗"，否则是灰纸。
-  function paintRock(g, W, H, px, T, seed, cells) {
+  function paintRock(g, W, H, px, T, seed, cells, wx) {
     // 底 = 缝的颜色（比石头暗），石片才有"嵌在地上"的层次
     g.fillStyle = mix(T.rock, T.rockLo, 0.62);
     g.fillRect(0, 0, W, H);
 
-    for (let i = 0; i < Math.round(cells * 0.6); i++) {
+    const S = blobSpace(W, H, px, wx && wx.win, wx && wx.cellsFull);
+    for (let i = 0; i < Math.round(S.n * 0.6); i++) {
       const h = hash(seed + 2, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.6 + rnd(h, 2) * 2),
+      const r = px * (0.6 + rnd(h, 2) * 2);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
         rnd(h, 3) < 0.5 ? T.rockHi : T.rockLo, 0.12 + rnd(h, 4) * 0.1, h);
     }
 
@@ -484,14 +531,18 @@
 
   /* ================= 覆盖材质（整片画，再用遮罩裁） ================= */
 
-  function paintPath(g, W, H, px, T) {
+  function paintPath(g, W, H, px, T, o, win) {
     g.fillStyle = T.path;
     g.fillRect(0, 0, W, H);
     const cells = (W * H) / (px * px);
-    // 踩实的深色泥印（小块，别铺成大花）
-    for (let i = 0; i < Math.round(cells * 0.8); i++) {
+    // 踩实的深色泥印（小块，别铺成大花）——低频调子，按整张图锚定
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.8); i++) {
       const h = hash(61, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.22 + rnd(h, 2) * 0.55),
+      const r = px * (0.22 + rnd(h, 2) * 0.55);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
         rnd(h, 3) < 0.5 ? T.pathLo : T.soilHi, 0.16 + rnd(h, 4) * 0.12, h);
     }
     // 碎石：暗底 + 亮顶，一路撒（路的材质感主要靠它）
@@ -537,51 +588,152 @@
     }
   }
 
-  function paintSlab(g, W, H, px, T) {
-    // 缝比石板暗一档，板与板才分得开；但不能太黑，主城的石板要亮
-    g.fillStyle = mix(T.stoneLo, T.ink, 0.12);
+  /* mir 石板：要「夯土石砖」不是「地板瓷砖」。
+     忌：圆角光面、奶油高光描边、均匀椭圆斑。
+     要：暖土色、不规则磕边、砂砾、脏缝、哑光。 */
+  function paintSlabFace(g, bx, by, bw, bh, px, T, h) {
+    const pick = rnd(h, 0);
+    // 中暗褐灰石面：别奶油瓷砖，也别比土缝还深成「沙上饼干」
+    let base;
+    if (pick < 0.28) base = mix(T.stoneLo, T.pathLo, 0.25 + rnd(h, 1) * 0.25);
+    else if (pick < 0.55) base = mix(T.rockLo, T.soilLo, 0.35 + rnd(h, 1) * 0.25);
+    else if (pick < 0.78) base = mix(T.stone, T.ink, 0.2 + rnd(h, 2) * 0.18);
+    else base = mix(T.mud, T.stoneLo, 0.2 + rnd(h, 2) * 0.25);
+
+    // 紧缝：每边 1.5%~3%。暗十字再宽就显空
+    const iL = bw * (0.015 + rnd(h, 4) * 0.015);
+    const iR = bw * (0.015 + rnd(h, 5) * 0.015);
+    const iT = bh * (0.015 + rnd(h, 6) * 0.015);
+    const iB = bh * (0.015 + rnd(h, 7) * 0.015);
+    const x0 = bx + iL, y0 = by + iT, x1 = bx + bw - iR, y1 = by + bh - iB;
+    const chip = Math.min(bw, bh) * (0.03 + rnd(h, 8) * 0.04);
+    // 轻锯齿：折点幅度小，别把缝啃宽
+    g.beginPath();
+    g.moveTo(x0 + chip * (0.3 + rnd(h, 9) * 0.7), y0);
+    g.lineTo(x0 + (x1 - x0) * (0.4 + rnd(h, 10) * 0.2), y0 + bh * (rnd(h, 11) - 0.5) * 0.02);
+    g.lineTo(x1 - chip * rnd(h, 12), y0 + bh * (rnd(h, 13) - 0.5) * 0.015);
+    g.lineTo(x1, y0 + chip * (0.35 + rnd(h, 14) * 0.65));
+    g.lineTo(x1 - bw * (rnd(h, 15) - 0.5) * 0.02, y0 + (y1 - y0) * 0.55);
+    g.lineTo(x1 - chip * rnd(h, 16) * 0.4, y1 - chip * rnd(h, 17));
+    g.lineTo(x0 + chip * (0.2 + rnd(h, 18) * 0.8), y1);
+    g.lineTo(x0 + (x1 - x0) * 0.4, y1 - bh * (rnd(h, 19) - 0.5) * 0.02);
+    g.lineTo(x0, y1 - chip * (0.25 + rnd(h, 20) * 0.55));
+    g.lineTo(x0 + bw * (rnd(h, 21) - 0.5) * 0.015, y0 + (y1 - y0) * 0.4);
+    g.lineTo(x0 + chip * rnd(h, 22) * 0.35, y0 + chip * rnd(h, 23));
+    g.closePath();
+
+    const grd = g.createLinearGradient(x0, y0, x1, y1);
+    grd.addColorStop(0, mix(base, T.pathLo, 0.08));
+    grd.addColorStop(0.4, base);
+    grd.addColorStop(1, mix(base, T.ink, 0.28));
+    g.fillStyle = grd;
+    g.fill();
+
+    // 石面脏斑：深褐 / 泥色，面积大一点才读得出「风化」
+    const blot = 4 + (rnd(h, 30) * 5 | 0);
+    for (let i = 0; i < blot; i++) {
+      g.fillStyle = hexA(
+        rnd(h, 31 + i) < 0.4 ? T.mud : (rnd(h, 32 + i) < 0.5 ? T.ink : T.soilLo),
+        0.1 + rnd(h, 33 + i) * 0.14
+      );
+      g.beginPath();
+      g.ellipse(
+        x0 + (x1 - x0) * (0.1 + rnd(h, 34 + i) * 0.8),
+        y0 + (y1 - y0) * (0.1 + rnd(h, 35 + i) * 0.8),
+        (x1 - x0) * (0.08 + rnd(h, 36 + i) * 0.18),
+        (y1 - y0) * (0.05 + rnd(h, 37 + i) * 0.12),
+        rnd(h, 38 + i) * TAU, 0, TAU
+      );
+      g.fill();
+    }
+
+    // 砂砾密铺
+    const grit = 22 + (rnd(h, 40) * 22 | 0);
+    for (let i = 0; i < grit; i++) {
+      g.fillStyle = hexA(rnd(h, 41 + i) < 0.55 ? T.ink : T.pathLo, 0.14 + rnd(h, 42 + i) * 0.22);
+      const s = 0.7 + rnd(h, 43 + i) * 1.8;
+      g.fillRect(
+        x0 + (x1 - x0) * rnd(h, 44 + i),
+        y0 + (y1 - y0) * rnd(h, 45 + i),
+        s, s
+      );
+    }
+
+    // 磕边轻压暗，别把缝再画宽一圈
+    g.strokeStyle = hexA(T.ink, 0.14 + rnd(h, 50) * 0.08);
+    g.lineWidth = Math.max(1, px * 0.014);
+    g.stroke();
+
+    if (rnd(h, 52) < 0.55) {
+      g.strokeStyle = hexA(T.ink, 0.2 + rnd(h, 53) * 0.12);
+      g.lineWidth = Math.max(1, px * 0.016);
+      g.beginPath();
+      let cx0 = x0 + (x1 - x0) * (0.15 + rnd(h, 54) * 0.5);
+      let cy0 = y0 + (y1 - y0) * (0.15 + rnd(h, 55) * 0.5);
+      g.moveTo(cx0, cy0);
+      for (let k = 0; k < 4; k++) {
+        cx0 += (x1 - x0) * (rnd(h, 56 + k) - 0.45) * 0.3;
+        cy0 += (y1 - y0) * (rnd(h, 60 + k) - 0.35) * 0.24;
+        g.lineTo(cx0, cy0);
+      }
+      g.stroke();
+    }
+
+    if (rnd(h, 70) < 0.35) {
+      g.fillStyle = hexA(T.mud, 0.14 + rnd(h, 71) * 0.1);
+      g.beginPath();
+      g.ellipse(x0 + bw * 0.06, y1 - bh * 0.04, bw * 0.08, bh * 0.045, 0.2, 0, TAU);
+      g.fill();
+    }
+  }
+
+  function paintSlabBig(g, W, H, px, T, win) {
+    // 缝 = 略深于石面的夯土，别墨黑十字
+    g.fillStyle = mix(T.mudLo, T.ink, 0.18);
     g.fillRect(0, 0, W, H);
-    const cell = px * 0.55;
-    let row = 0;
-    for (let y = -cell; y < H + cell; y += cell * 0.86, row++) {
-      const off = (row % 2) ? cell * 0.5 : 0;
-      for (let x = -cell; x < W + cell; x += cell) {
-        const h = hash(x | 0, row * 97);
-        const w = cell * (0.82 + rnd(h, 0) * 0.16);
-        const hh = cell * (0.72 + rnd(h, 1) * 0.14);
-        const base = mix(T.stone, T.stoneLo, 0.1 + rnd(h, 2) * 0.5);
-        const grd = g.createLinearGradient(x + off, y, x + off + w, y + hh);
-        grd.addColorStop(0, mix(base, T.cream, 0.16));
-        grd.addColorStop(1, mix(base, T.ink, 0.12));
-        g.fillStyle = grd;
-        rr(g, x + off + 1.4, y + 1.4, w - 2.8, hh - 2.8, 4 + rnd(h, 3) * 3);
-        g.fill();
-        // 轻微磨损：板面上几个暗点
-        if (rnd(h, 4) < 0.45) {
-          g.fillStyle = hexA(T.ink, 0.12);
-          g.beginPath();
-          g.ellipse(x + off + w * (0.3 + rnd(h, 5) * 0.4), y + hh * (0.3 + rnd(h, 6) * 0.4),
-            w * 0.1, hh * 0.08, rnd(h, 7), 0, TAU);
-          g.fill();
-        }
+    const cells = (W * H) / (px * px);
+    for (let i = 0; i < Math.round(cells * 14); i++) {
+      const hh = hash(91, i);
+      g.fillStyle = hexA(rnd(hh, 0) < 0.5 ? T.ink : T.soilLo, 0.1 + rnd(hh, 1) * 0.12);
+      g.fillRect(rnd(hh, 2) * W, rnd(hh, 3) * H, 1.4 + rnd(hh, 4), 1.4);
+    }
+    const cols = Math.max(1, Math.round(W / px));
+    const rows = Math.max(1, Math.round(H / px));
+    const ox = win ? Math.round(win.ox / px) : 0;
+    const oy = win ? Math.round(win.oy / px) : 0;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const hh = hash((x + ox) * 31 + 7, (y + oy) * 17 + 3);
+        paintSlabFace(g, x * px, y * px, px, px, px, T, hh);
       }
     }
   }
 
-  function paintWater(g, W, H, px, T) {
+  function paintSlab(g, W, H, px, T, opt, win) {
+    // mir 定稿后主城/覆盖石板统一走一格一块；弃用 0.55 小砖马赛克
+    return paintSlabBig(g, W, H, px, T, win);
+  }
+
+  function paintWater(g, W, H, px, T, o, win) {
     const cells = (W * H) / (px * px);
-    const grd = g.createLinearGradient(0, 0, W * 0.35, H);
+    // 渐变按整张地图铺（分块时 win 给出块偏移和全图尺寸），否则块与块之间会断开
+    const gx = win ? -win.ox : 0, gy = win ? -win.oy : 0;
+    const GW = win ? win.w : W, GH = win ? win.h : H;
+    const grd = g.createLinearGradient(gx, gy, gx + GW * 0.35, gy + GH);
     grd.addColorStop(0, mix(T.water, T.waterHi, 0.18));
     grd.addColorStop(0.6, T.water);
     grd.addColorStop(1, T.waterLo);
     g.fillStyle = grd;
     g.fillRect(0, 0, W, H);
 
-    // 深色水团：水不能是一块纯色，深浅说明"底下有东西"
-    for (let i = 0; i < Math.round(cells * 0.35); i++) {
+    // 深色水团：水不能是一块纯色，深浅说明"底下有东西"（低频，按整张图锚定）
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.35); i++) {
       const h = hash(41, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.5 + rnd(h, 2) * 1.4),
-        T.waterLo, 0.2 + rnd(h, 3) * 0.12, h);
+      const r = px * (0.5 + rnd(h, 2) * 1.4);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r, T.waterLo, 0.2 + rnd(h, 3) * 0.12, h);
     }
 
     // 波纹：每条亮弧下面压一条暗弧（半个像素的空气感）
@@ -616,15 +768,18 @@
     }
   }
 
-  function paintMud(g, W, H, px, T) {
+  function paintMud(g, W, H, px, T, o, win) {
     const cells = (W * H) / (px * px);
     g.fillStyle = T.mud;
     g.fillRect(0, 0, W, H);
-    // 湿泥：大块深色 + 一点反光，不然和土路分不开
-    for (let i = 0; i < Math.round(cells * 0.4); i++) {
+    // 湿泥：大块深色 + 一点反光，不然和土路分不开（低频，按整张图锚定）
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.4); i++) {
       const h = hash(57, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.5 + rnd(h, 2) * 1.5),
-        T.mudLo, 0.22 + rnd(h, 3) * 0.14, h);
+      const r = px * (0.5 + rnd(h, 2) * 1.5);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r, T.mudLo, 0.22 + rnd(h, 3) * 0.14, h);
     }
     for (let i = 0; i < Math.round(cells * 2.2); i++) {
       const h = hash(59, i);
@@ -647,42 +802,76 @@
     }
   }
 
+  function strokeSeaRipple(g, x, y, w, lift, lo, hi, h) {
+    g.lineCap = 'round';
+    g.strokeStyle = hexA(lo, 0.34);
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x, y + 2);
+    g.quadraticCurveTo(x + w * 0.5, y + 2 - lift, x + w, y + 2);
+    g.stroke();
+    g.strokeStyle = hexA(hi, 0.34 + rnd(h, 4) * 0.28);
+    g.lineWidth = 1.3;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + w * 0.5, y - lift, x + w, y);
+    g.stroke();
+  }
+
   // 海：比池塘深，波纹更长更稀。地图外侧用它，而不是一圈石板框
-  function paintSea(g, W, H, px, T) {
+  // o.anchorRipples：波纹按世界格撒（分块水面用）。不设则按这块画布撒，验收台整张图保持原样。
+  function paintSea(g, W, H, px, T, o, win) {
     const cells = (W * H) / (px * px);
     const base = T.sea || T.water, lo = T.seaLo || T.waterLo, hi = T.seaHi || T.waterHi;
-    const grd = g.createLinearGradient(0, 0, W * 0.3, H);
+    // 同 paintWater：渐变按整张地图，不按块
+    const gx = win ? -win.ox : 0, gy = win ? -win.oy : 0;
+    const GW = win ? win.w : W, GH = win ? win.h : H;
+    const grd = g.createLinearGradient(gx, gy, gx + GW * 0.3, gy + GH);
     grd.addColorStop(0, mix(base, hi, 0.16));
     grd.addColorStop(0.55, base);
     grd.addColorStop(1, lo);
     g.fillStyle = grd;
     g.fillRect(0, 0, W, H);
 
-    for (let i = 0; i < Math.round(cells * 0.45); i++) {
+    // 低频水团（按整张图锚定，避免块边界上出现调子直边）
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.45); i++) {
       const h = hash(71, i);
-      softBlob(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.8 + rnd(h, 2) * 2),
-        lo, 0.2 + rnd(h, 3) * 0.14, h);
+      const r = px * (0.8 + rnd(h, 2) * 2);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r, lo, 0.2 + rnd(h, 3) * 0.14, h);
     }
 
-    const rn = Math.round(cells * 3.4);
-    for (let i = 0; i < rn; i++) {
-      const h = hash(73, i);
-      const x = rnd(h, 0) * W, y = rnd(h, 1) * H;
-      const w = px * (0.3 + rnd(h, 2) * 0.55);
-      const lift = 1.6 + rnd(h, 3) * 2.4;
-      g.lineCap = 'round';
-      g.strokeStyle = hexA(lo, 0.34);
-      g.lineWidth = 2;
-      g.beginPath();
-      g.moveTo(x, y + 2);
-      g.quadraticCurveTo(x + w * 0.5, y + 2 - lift, x + w, y + 2);
-      g.stroke();
-      g.strokeStyle = hexA(hi, 0.34 + rnd(h, 4) * 0.28);
-      g.lineWidth = 1.3;
-      g.beginPath();
-      g.moveTo(x, y);
-      g.quadraticCurveTo(x + w * 0.5, y - lift, x + w, y);
-      g.stroke();
+    // 分块水面：同一条波纹在相邻块里要画到同一处，否则 16 格一道缝。
+    // 多画一格光环，让伸过块边的弧在两边都有。
+    if (o && o.anchorRipples && win) {
+      const gx0 = Math.round(win.ox / px);
+      const gy0 = Math.round(win.oy / px);
+      const gc = Math.max(1, Math.round(W / px));
+      const gr = Math.max(1, Math.round(H / px));
+      for (let y = -1; y <= gr; y++) {
+        for (let x = -1; x <= gc; x++) {
+          const h = hash(73, (gx0 + x) * 131 + (gy0 + y) * 17);
+          const n = 3 + (rnd(h, 6) < 0.4 ? 1 : 0);
+          for (let i = 0; i < n; i++) {
+            const hh = hash(h, i + 9);
+            const lx = x * px + rnd(hh, 0) * px;
+            const ly = y * px + rnd(hh, 1) * px;
+            const w = px * (0.3 + rnd(hh, 2) * 0.55);
+            if (lx > W + 4 || ly > H + 4 || lx + w < -4 || ly + 4 < -4) continue;
+            strokeSeaRipple(g, lx, ly, w, 1.6 + rnd(hh, 3) * 2.4, lo, hi, hh);
+          }
+        }
+      }
+    } else {
+      const rn = Math.round(cells * 3.4);
+      for (let i = 0; i < rn; i++) {
+        const h = hash(73, i);
+        const x = rnd(h, 0) * W, y = rnd(h, 1) * H;
+        const w = px * (0.3 + rnd(h, 2) * 0.55);
+        strokeSeaRipple(g, x, y, w, 1.6 + rnd(h, 3) * 2.4, lo, hi, h);
+      }
     }
   }
 
@@ -1350,12 +1539,15 @@
     water: paintWater,
     mud: paintMud,
     sea: paintSea,
+    sand: paintSand,
   };
 
   /* ================= 遮罩：每格一个"圆群"，并集就是有机边 ================= */
 
-  function stampBlob(gm, px, gx, gy, h) {
-    const x = gx * px, y = gy * px;
+  // ox/oy = 画布左上角对应的格坐标。整张图时是 0；分块时是窗口起点（x0,y0）。
+  // 所有按格锚定的笔触都必须减掉它，否则整层覆盖物会被平移 x0*px（分块第一版的 bug）。
+  function stampBlob(gm, px, gx, gy, h, ox, oy) {
+    const x = (gx - (ox || 0)) * px, y = (gy - (oy || 0)) * px;
     // 外扩 2px：相邻格轻微重叠 → 区域连续、没有缝；不是内缩，内缩会露出底下的草。
     const pad = -px * 0.04;
     // 圆角必须很小：太大会在四角漏底，露出下面的草，路面上出现"绿斑"
@@ -1439,12 +1631,21 @@
     return tag;
   }
 
+  function seaNear(tag, cols, rows, x0, y0, x1, y1, pad) {
+    const a0 = Math.max(0, x0 - pad), b0 = Math.max(0, y0 - pad);
+    const a1 = Math.min(cols, x1 + pad), b1 = Math.min(rows, y1 + pad);
+    for (let y = b0; y < b1; y++) {
+      for (let x = a0; x < a1; x++) if (tag[y * cols + x]) return true;
+    }
+    return false;
+  }
+
   /* ================= 岸线：水陆交界 =================
      水直接切在草上像贴纸。真正需要的是三样：水侧一圈浅水、交界一条泡沫、
      陆侧一圈湿沙。都沿边撒小椭圆，不用画整条线——线会直得像刀切。 */
 
-  function shoreEdge(g, px, T, x, y, side, h, wet) {
-    const x0 = x * px, y0 = y * px;
+  function shoreEdge(g, px, T, x, y, side, h, wet, ox, oy) {
+    const x0 = (x - (ox || 0)) * px, y0 = (y - (oy || 0)) * px;
     const nx = side === 'left' ? -1 : side === 'right' ? 1 : 0;
     const ny = side === 'up' ? -1 : side === 'down' ? 1 : 0;
     const ax = ny !== 0 ? 1 : 0, ay = nx !== 0 ? 1 : 0;    // 沿边方向
@@ -1475,19 +1676,25 @@
     }
   }
 
-  function shoreline(g, px, T, terrain, rows, cols, seed) {
+  function shoreline(g, px, T, terrain, rows, cols, seed, win, seaTag) {
     if (!terrain) return;
     const wet = mix(T.path, T.mud, 0.4);
     const isWater = (x, y) =>
       x >= 0 && y >= 0 && x < cols && y < rows && terrain[y] && terrain[y][x] === 3;
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    // 只扫窗口内的格子（分块时 = 块 + 出血）；isWater 仍读整张地形，
+    // 所以窗口边界上的格子看到的是真实邻居，不会凭空描一条假岸。
+    const wy0 = win ? win.y0 : 0, wy1 = win ? win.y1 : rows;
+    const wx0 = win ? win.x0 : 0, wx1 = win ? win.x1 : cols;
+    for (let y = wy0; y < wy1; y++) {
+      for (let x = wx0; x < wx1; x++) {
         if (!isWater(x, y)) continue;
+        // 海的岸交给着色器（碎沫 + 浅沙）。这里再画椭圆会把刚挖开的洞涂回去。
+        if (seaTag && seaTag[y * cols + x]) continue;
         // 越界不算陆地：贴图外沿是海，不能给整张图描一圈岸
-        if (y > 0 && !isWater(x, y - 1)) shoreEdge(g, px, T, x, y, 'up', hash(seed + 5, x * 131 + y * 7), wet);
-        if (y < rows - 1 && !isWater(x, y + 1)) shoreEdge(g, px, T, x, y, 'down', hash(seed + 6, x * 139 + y * 11), wet);
-        if (x > 0 && !isWater(x - 1, y)) shoreEdge(g, px, T, x, y, 'left', hash(seed + 7, x * 149 + y * 13), wet);
-        if (x < cols - 1 && !isWater(x + 1, y)) shoreEdge(g, px, T, x, y, 'right', hash(seed + 8, x * 151 + y * 17), wet);
+        if (y > 0 && !isWater(x, y - 1)) shoreEdge(g, px, T, x, y, 'up', hash(seed + 5, x * 131 + y * 7), wet, wx0, wy0);
+        if (y < rows - 1 && !isWater(x, y + 1)) shoreEdge(g, px, T, x, y, 'down', hash(seed + 6, x * 139 + y * 11), wet, wx0, wy0);
+        if (x > 0 && !isWater(x - 1, y)) shoreEdge(g, px, T, x, y, 'left', hash(seed + 7, x * 149 + y * 13), wet, wx0, wy0);
+        if (x < cols - 1 && !isWater(x + 1, y)) shoreEdge(g, px, T, x, y, 'right', hash(seed + 8, x * 151 + y * 17), wet, wx0, wy0);
       }
     }
   }
@@ -1500,9 +1707,14 @@
    * @param map     map[y][x]，0 地面 / 1 墙 / 2 门
    * @param terrain terrain[y][x]，0 普通 / 1 土路 / 2 墙 / 3 水
    * @param theme   'field' | 'cave' | 'waste'
-   * @param opts    { px, style:{path,brick,slab,water,mud}, force }
+   * @param opts    { px, style:{path,brick,slab,water,mud}, force, rect, margin }
    *                style.path='brick' 可以把土路画成砖铺（主城广场就是这么用的）
    *                force 把全场铺成一种材质（验收台用）
+   *                rect={x0,y0,x1,y1} 只画这一块（格坐标，右/下开区间）→ 流式分块加载用
+   *                margin 出血格数（默认 1，只在给了 rect 时生效）：多画一圈再裁掉。
+   *                       压块边界的遮罩圆群 / 阴影模糊 / 岸线椭圆会越过格子边界几个像素，
+   *                       没有这一圈，块与块之间会露一条发暗的细缝。
+   *                不给 rect 时走整张图，输出和以前完全一致。
    */
   function groundSheet(map, terrain, theme, opts) {
     const o = opts || {};
@@ -1512,28 +1724,49 @@
     // 大图必须降分辨率：128×128 的野外在 48px/格 下是 6144² = 151MB 的一张图，
     // 生成 2.5s、上传显存再卡几帧，手机直接崩。手绘细节是"一屏"的量，不是整张世界的量。
     // 小房间（24×24 / 26×26）不受影响，仍然 48px。
-    const MAX_SIDE = o.maxSide || 3072;
+    const MAX_SIDE = o.maxSide || 4096;
     const px = Math.max(12, Math.min(o.px || PX, Math.floor(MAX_SIDE / Math.max(cols, rows))));
     // 格子越小，每格的笔触就该越少（同屏看到的信息量不变，省时间）
     const dens = Math.min(1, Math.max(0.45, px / 48));
-    const W = cols * px;
-    const H = rows * px;
+
+    /* ---- 分块窗口 ----
+       两个矩形别混：
+         rect  真正要的块（输出尺寸 = rect 格数）
+         [x0,x1)×[y0,y1)  实际画的窗口 = rect 外扩 margin 再夹在地图内（出血）
+       所有 cell 循环都跑窗口，但**坐标一律用绝对格坐标**——遮罩圆群/细节的随机数
+       喂的是 (x,y) 而不是画布坐标，所以同一格在任何一块里画出来都一样。 */
+    const rc = o.rect;
+    const rx0 = rc ? Math.max(0, Math.min(cols, rc.x0 | 0)) : 0;
+    const ry0 = rc ? Math.max(0, Math.min(rows, rc.y0 | 0)) : 0;
+    const rx1 = rc ? Math.max(rx0, Math.min(cols, rc.x1 | 0)) : cols;
+    const ry1 = rc ? Math.max(ry0, Math.min(rows, rc.y1 | 0)) : rows;
+    if (rx1 <= rx0 || ry1 <= ry0) return makeCanvas(1, 1);
+    const bleed = rc ? Math.max(0, o.margin === undefined ? 1 : (o.margin | 0)) : 0;
+    const x0 = Math.max(0, rx0 - bleed), y0 = Math.max(0, ry0 - bleed);
+    const x1 = Math.min(cols, rx1 + bleed), y1 = Math.min(rows, ry1 + bleed);
+
+    const W = (x1 - x0) * px;
+    const H = (y1 - y0) * px;
+    // 有结构的东西（水/海的整幅渐变）要按**整张地图**铺，不能按这一块铺，
+    // 否则每块都自己从亮到暗，拼起来水面上就是一道道横向接缝。
+    // win 给的是「这一块在整张图里的位置 + 整张图多大」，画格里撒点仍按块。
+    const win = rc ? { ox: x0 * px, oy: y0 * px, w: cols * px, h: rows * px } : null;
     const c = makeCanvas(W, H);
     const g = c.getContext('2d');
     const seed = o.seed || 7;
     const base = (o.force && KINDS[o.force] && KINDS[o.force].tier === '底材') ? o.force : BASE_OF[theme] || 'grass';
 
     // 1) 底材
-    paintBase(g, W, H, px, T, base, seed, dens);
+    paintBase(g, W, H, px, T, base, seed, dens, { win: win, cellsFull: cols * rows * dens });
 
     // 2) 分类 + 覆盖层
-    const groups = { path: [], brick: [], slab: [], water: [], mud: [], sea: [] };
+    const groups = { path: [], brick: [], slab: [], sand: [], water: [], mud: [], sea: [] };
     const style = o.style || {};
     // 同样是水：连到地图边界的算"海"，被陆地围住的算"池塘"。
     // 光看 terrain=3 分不出来，而海和池塘的色深浅、波纹完全不是一回事。
     const seaTag = seaMask(terrain, rows, cols);
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    for (let y = y0; y < y1; y++) {
+      for (let x = x0; x < x1; x++) {
         let k = o.force || kindOf(map, terrain, x, y);
         if (k === 'stone') k = 'slab';
         else if (k === 'base') k = base;
@@ -1551,17 +1784,21 @@
       const kind = keys[gi];
       const list = groups[kind];
       if (!list.length) continue;
+      // 海改走单独的水面网格（seaSheet）。留在这里会带上覆盖层的墨影，看起来像贴在草上。
+      if (o.cutSea && kind === 'sea') continue;
+      // 靠海的沙带不按格子铺，改由岸距铺成一条弯的。格子沙会把台阶留在草边上。
+      if (o.cutSea && kind === 'sand' && seaNear(seaTag, cols, rows, x0, y0, x1, y1, 6)) continue;
       // a. 整片纹理
       const lay = makeCanvas(W, H);
       const lg = lay.getContext('2d');
-      (PAINTERS[kind] || paintPath)(lg, W, H, px, T);
+      (PAINTERS[kind] || paintPath)(lg, W, H, px, T, o, win);
       // b. 圆群遮罩
       const mask = makeCanvas(W, H);
       const mg = mask.getContext('2d');
       mg.fillStyle = '#fff';
       for (let i = 0; i < list.length; i++) {
         const cell = list[i];
-        stampBlob(mg, px, cell[0], cell[1], hash(seed * 31 + kind.length, cell[0] * 1013 + cell[1]));
+        stampBlob(mg, px, cell[0], cell[1], hash(seed * 31 + kind.length, cell[0] * 1013 + cell[1]), x0, y0);
       }
       // c. 裁切后贴到主图
       lg.globalCompositeOperation = 'destination-in';
@@ -1581,27 +1818,66 @@
       g.restore();
       g.drawImage(lay, 0, 0);
       // e. 覆盖层上的小细节（路上的碎石、水边的泥点）：直接叠在主图上，限定在格心
-      detailOnOverlay(g, kind, list, px, T, seed);
+      detailOnOverlay(g, kind, list, px, T, seed, x0, y0);
     }
 
-    // 3) 岸线：水陆交界（水岸瓦片）。水不能直接切在草上，那样像贴纸
-    shoreline(g, px, T, terrain, rows, cols, seed);
+    // 3) 岸线。池塘仍画在陆地贴图上。海的岸不画椭圆：
+    //    按弯曲岸距把沙滩啃出洞，水面着色器从洞里露出来。
+    //    色斑必须在挖洞之前：multiply 会把透明像素重新涂实。
+    const shoreWin = { x0: x0, y0: y0, x1: x1, y1: y1 };
+    if (o.cutSea) {
+      g.save();
+      g.globalCompositeOperation = 'multiply';
+      blotches(g, W, H, ['#ffffff', '#f6ecd6'], Math.round((W * H) / (px * px * 9)), seed + 5, 0.1);
+      g.restore();
+      // 岸上大约 3 格、以及海里，都铺沙。水是盖在上面的半透明层，不在这里挖洞。
+      const field = coastField(terrain, cols, rows, x0, y0, x1, y1, px);
+      if (field && field.width === W && field.height === H) {
+        const sandLay = makeCanvas(W, H);
+        paintSand(sandLay.getContext('2d'), W, H, px, T, o, win);
+        const sd = sandLay.getContext('2d').getImageData(0, 0, W, H).data;
+        const fd = field.getContext('2d').getImageData(0, 0, W, H).data;
+        const img = g.getImageData(0, 0, W, H);
+        const pix = img.data;
+        for (let i = 0; i < fd.length; i += 4) {
+          const d = fd[i] / 255 * 8 - 4;
+          if (d > -3.6) {
+            pix[i] = sd[i];
+            pix[i + 1] = sd[i + 1];
+            pix[i + 2] = sd[i + 2];
+            pix[i + 3] = 255;
+          }
+        }
+        g.putImageData(img, 0, 0);
+      }
+      shoreline(g, px, T, terrain, rows, cols, seed, shoreWin, seaTag);
+    } else {
+      shoreline(g, px, T, terrain, rows, cols, seed, shoreWin);
+      g.save();
+      g.globalCompositeOperation = 'multiply';
+      blotches(g, W, H, ['#ffffff', '#f6ecd6'], Math.round((W * H) / (px * px * 9)), seed + 5, 0.1);
+      g.restore();
+    }
 
-    // 3) 整图低频明暗：让整块地不是一样亮（很淡，重了就成了水渍）
-    g.save();
-    g.globalCompositeOperation = 'multiply';
-    blotches(g, W, H, ['#ffffff', '#f6ecd6'], Math.round((W * H) / (px * px * 9)), seed + 5, 0.1);
-    g.restore();
-
+    // 5) 裁掉出血：窗口比 rect 多一圈，输出只留 rect 那一块
+    const ow = (rx1 - rx0) * px, oh = (ry1 - ry0) * px;
+    if (ow !== W || oh !== H) {
+      const out = makeCanvas(ow, oh);
+      const og = out.getContext('2d');
+      og.imageSmoothingEnabled = false;
+      og.drawImage(c, (rx0 - x0) * px, (ry0 - y0) * px, ow, oh, 0, 0, ow, oh);
+      return out;
+    }
     return c;
   }
 
   // 覆盖层上的细节只画在格心 60% 区域，避免糊到别的材质上
-  function detailOnOverlay(g, kind, list, px, T, seed) {
+  // ox/oy 同 stampBlob：画布左上角对应的格坐标
+  function detailOnOverlay(g, kind, list, px, T, seed, ox, oy) {
     for (let i = 0; i < list.length; i++) {
       const x = list[i][0], y = list[i][1];
       const h = hash(seed + 101, x * 977 + y);
-      const cx = (x + 0.5) * px, cy = (y + 0.5) * px;
+      const cx = (x - (ox || 0) + 0.5) * px, cy = (y - (oy || 0) + 0.5) * px;
       const jx = (rnd(h, 0) - 0.5) * px * 0.6;
       const jy = (rnd(h, 1) - 0.5) * px * 0.6;
       if (kind === 'path' || kind === 'slab') {
@@ -1624,7 +1900,7 @@
 
   /* ================= 验收台：单材质小块 ================= */
 
-  function patch(kind, theme, cols, rows, seed) {
+  function patch(kind, theme, cols, rows, seed, opt) {
     const W = cols || 4, H = rows || 4;
     const map = [], terrain = [];
     for (let y = 0; y < H; y++) {
@@ -1642,7 +1918,225 @@
         for (let x = 0; x < W; x++) terrain[y][x] = 0;
       }
     }
-    return groundSheet(map, terrain, theme, { force: kind, px: PX, seed: seed || 3 });
+    return groundSheet(map, terrain, theme, Object.assign({ force: kind, px: PX, seed: seed || 3 }, opt || {}));
+  }
+
+  /* ===== 石板贴图（mir · 2026-10-29） =====
+     主城 addPlate 用：一块板 = tile 格（默认 1）。不套覆盖层圆群遮罩。
+     缝画在贴图里（宽夯土带）；主城不再叠 TilePlate 几何 V 槽。 */
+  function slabSheet(cols, rows, opts) {
+    const o = opts || {};
+    const tile = Math.max(1, o.tile || 1);
+    const px = o.px || PX;
+    const W = cols * px, H = rows * px;
+    const T = PALETTES[o.theme || 'field'] || PALETTES.field;
+    const seed = o.seed || 7;
+    const tw = tile * px;
+    const c = makeCanvas(W, H);
+    const g = c.getContext('2d');
+
+    // 夯土底：只在窄缝透出，别做成粗黑十字
+    g.fillStyle = mix(T.mudLo, T.ink, 0.18);
+    g.fillRect(0, 0, W, H);
+    for (let i = 0; i < Math.round((cols * rows) * 12); i++) {
+      const hh = hash(seed * 17 + 3, i);
+      g.fillStyle = hexA(rnd(hh, 0) < 0.5 ? T.ink : T.soilLo, 0.08 + rnd(hh, 1) * 0.1);
+      g.fillRect(rnd(hh, 2) * W, rnd(hh, 3) * H, 1.5, 1.5);
+    }
+    for (let i = 0; i < Math.round(cols * rows * 0.25); i++) {
+      const hh = hash(seed * 41 + 9, i);
+      g.fillStyle = hexA(T.mud, 0.2 + rnd(hh, 0) * 0.15);
+      g.beginPath();
+      g.ellipse(rnd(hh, 1) * W, rnd(hh, 2) * H, px * (0.08 + rnd(hh, 3) * 0.12), px * (0.04 + rnd(hh, 4) * 0.08), rnd(hh, 5) * TAU, 0, TAU);
+      g.fill();
+    }
+
+    const sCols = Math.ceil(W / tw);
+    const sRows = Math.ceil(H / tw);
+    for (let sy = 0; sy < sRows; sy++) {
+      for (let sx = 0; sx < sCols; sx++) {
+        const h = hash(sx * 977 + seed * 31, sy * 613 + 11);
+        paintSlabFace(g, sx * tw, sy * tw, tw, tw, px, T, h);
+      }
+    }
+    return c;
+  }
+
+  /* 沙滩：海和草之间那圈沙。不是纯色——低频沙斑 + 沙粒 + 潮痕弧线 */
+  function paintSand(g, W, H, px, T, o, win) {
+    g.fillStyle = mix(T.cream, T.soilHi, 0.45);
+    g.fillRect(0, 0, W, H);
+    const cells = (W * H) / (px * px);
+    // 低频沙斑（按整张图锚定）
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.5); i++) {
+      const h = hash(71, i);
+      const r = px * (0.4 + rnd(h, 2) * 1.1);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
+        rnd(h, 3) < 0.5 ? T.soilLo : T.cream, 0.10 + rnd(h, 4) * 0.10, h);
+    }
+    const dots = Math.round(cells * 26);
+    for (let i = 0; i < dots; i++) {
+      const h = hash(73, i);
+      g.fillStyle = hexA(rnd(h, 0) < 0.5 ? T.ink : T.cream, 0.10 + rnd(h, 1) * 0.18);
+      g.fillRect(rnd(h, 2) * W, rnd(h, 3) * H, 1.2, 1.2);
+    }
+    const lines = Math.round(cells * 1.2);
+    for (let i = 0; i < lines; i++) {
+      const h = hash(79, i);
+      g.strokeStyle = hexA(T.pathLo, 0.18);
+      g.lineWidth = 1.4;
+      g.lineCap = 'round';
+      const x = rnd(h, 0) * W, y = rnd(h, 1) * H, w = px * (0.5 + rnd(h, 2) * 1.2);
+      g.beginPath();
+      g.moveTo(x, y);
+      g.quadraticCurveTo(x + w * 0.5, y - 2.4, x + w, y);
+      g.stroke();
+    }
+  }
+
+  /* 岸距图。给水面着色器和地面挖洞共用，两边必须是同一条岸。
+     R：弯曲后的有符号距离，0 = 岸，正 = 海里（格），负 = 岸上。编码 (d+4)/8，范围 -4..4。
+     G：255 = 几何海格（格子本身是海），0 = 陆地。
+     海在窗口外 3 格以内也算，好让相邻块的岸对得上。没有海返回 null。
+     画布第 0 行 = 世界 y0。贴图 flipY 要关掉。 */
+  function coastField(terrain, cols, rows, x0, y0, x1, y1, px) {
+    if (!terrain || px < 1 || x1 <= x0 || y1 <= y0) return null;
+    const seaTag = seaMask(terrain, rows, cols);
+    const halo = 6;
+    const hx0 = Math.max(0, x0 - halo);
+    const hy0 = Math.max(0, y0 - halo);
+    const hx1 = Math.min(cols, x1 + halo);
+    const hy1 = Math.min(rows, y1 + halo);
+    let any = false;
+    for (let y = hy0; y < hy1 && !any; y++) {
+      for (let x = hx0; x < hx1; x++) {
+        if (seaTag[y * cols + x]) { any = true; break; }
+      }
+    }
+    if (!any) return null;
+
+    const gw = (hx1 - hx0) * px;
+    const gh = (hy1 - hy0) * px;
+    const sea = new Uint8Array(gw * gh);
+    for (let y = hy0; y < hy1; y++) {
+      if (!terrain[y]) continue;
+      for (let x = hx0; x < hx1; x++) {
+        if (!seaTag[y * cols + x]) continue;
+        const x0p = (x - hx0) * px;
+        const y0p = (y - hy0) * px;
+        for (let py = 0; py < px; py++) {
+          const row = (y0p + py) * gw + x0p;
+          sea.fill(1, row, row + px);
+        }
+      }
+    }
+
+    const INF = 1e6;
+    const toSea = new Float32Array(gw * gh);
+    const toLand = new Float32Array(gw * gh);
+    for (let i = 0; i < sea.length; i++) {
+      toSea[i] = sea[i] ? 0 : INF;
+      toLand[i] = sea[i] ? INF : 0;
+    }
+    chamfer(toSea, gw, gh);
+    chamfer(toLand, gw, gh);
+
+    const W = (x1 - x0) * px;
+    const H = (y1 - y0) * px;
+    const c = makeCanvas(W, H);
+    const g = c.getContext('2d');
+    if (!g.createImageData) return null;
+    let img = null;
+    try { img = g.createImageData(W, H); } catch (e) { img = null; }
+    if (!img || !img.data || img.data.length < W * H * 4) return null;
+    const pix = img.data;
+    const ox = (x0 - hx0) * px;
+    const oy = (y0 - hy0) * px;
+    for (let py = 0; py < H; py++) {
+      for (let ix = 0; ix < W; ix++) {
+        const si = (oy + py) * gw + (ox + ix);
+        const dSea = toSea[si] / px;
+        const dLand = toLand[si] / px;
+        let d = sea[si] ? dLand : -dSea;
+        const wx = x0 + (ix + 0.5) / px;
+        const wy = y0 + (py + 0.5) / px;
+        // 慢弯大约 ±1.2 格，再加一圈小起伏。1 格的台阶会被这两下抹掉。
+        const wob = (vnoise(wx * 0.38, wy * 0.38, 11) - 0.5) * 2.4
+          + (vnoise(wx * 1.35, wy * 1.35, 19) - 0.5) * 0.7;
+        d = Math.max(-4, Math.min(4, d + wob));
+        const o = (py * W + ix) * 4;
+        pix[o] = Math.round((d + 4) / 8 * 255);
+        pix[o + 1] = sea[si] ? 255 : 0;
+        pix[o + 2] = 0;
+        pix[o + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  // 两遍倒角距离：正交 1，对角 1.414。够岸边那一两格用，不必上真正的欧氏距离。
+  function chamfer(d, w, h) {
+    const DIAG = 1.41421356;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        let v = d[i];
+        if (x > 0) v = Math.min(v, d[i - 1] + 1);
+        if (y > 0) v = Math.min(v, d[i - w] + 1);
+        if (x > 0 && y > 0) v = Math.min(v, d[i - w - 1] + DIAG);
+        if (x + 1 < w && y > 0) v = Math.min(v, d[i - w + 1] + DIAG);
+        d[i] = v;
+      }
+    }
+    for (let y = h - 1; y >= 0; y--) {
+      for (let x = w - 1; x >= 0; x--) {
+        const i = y * w + x;
+        let v = d[i];
+        if (x + 1 < w) v = Math.min(v, d[i + 1] + 1);
+        if (y + 1 < h) v = Math.min(v, d[i + w] + 1);
+        if (x + 1 < w && y + 1 < h) v = Math.min(v, d[i + w + 1] + DIAG);
+        if (x > 0 && y + 1 < h) v = Math.min(v, d[i + w - 1] + DIAG);
+        d[i] = v;
+      }
+    }
+  }
+
+  /* 海体贴图：整块不透明的海，铺在地面下面。
+     没有海格返回 null（内陆块不用建网格）。
+     波纹按世界格锚定，相邻块对得上。验收台还用；游戏水面走 coastField。 */
+  function seaSheet(map, terrain, theme, opts) {
+    if (!map || !map.length || !map[0] || !terrain) return null;
+    const o = opts || {};
+    const T = PALETTES[theme] || PALETTES.field;
+    const cols = map[0].length;
+    const rows = map.length;
+    const px = Math.max(12, Math.min(o.px || PX, Math.floor((o.maxSide || 4096) / Math.max(cols, rows))));
+    const rc = o.rect;
+    const x0 = rc ? Math.max(0, Math.min(cols, rc.x0 | 0)) : 0;
+    const y0 = rc ? Math.max(0, Math.min(rows, rc.y0 | 0)) : 0;
+    const x1 = rc ? Math.max(x0, Math.min(cols, rc.x1 | 0)) : cols;
+    const y1 = rc ? Math.max(y0, Math.min(rows, rc.y1 | 0)) : rows;
+    if (x1 <= x0 || y1 <= y0) return null;
+    const seaTag = seaMask(terrain, rows, cols);
+    let any = false;
+    for (let y = y0; y < y1 && !any; y++) {
+      for (let x = x0; x < x1; x++) {
+        if (seaTag[y * cols + x]) { any = true; break; }
+      }
+    }
+    if (!any) return null;
+    const W = (x1 - x0) * px;
+    const H = (y1 - y0) * px;
+    const c = makeCanvas(W, H);
+    const g = c.getContext('2d');
+    paintSea(g, W, H, px, T, { anchorRipples: true }, {
+      ox: x0 * px, oy: y0 * px, w: cols * px, h: rows * px,
+    });
+    return c;
   }
 
   DL.IsoArt = {
@@ -1651,6 +2145,9 @@
     KINDS: KINDS,
     kindOf: kindOf,
     groundSheet: groundSheet,
+    coastField: coastField,
+    seaSheet: seaSheet,
+    slabSheet: slabSheet,
     patch: patch,
     mountain: mountain,
     cliff: cliff,
@@ -1658,4 +2155,3 @@
     setCliffSprites: setCliffSprites,
     cliffHeight: cliffHeight,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

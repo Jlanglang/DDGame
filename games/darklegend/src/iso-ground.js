@@ -2,9 +2,8 @@
    瓦片四边平色、不描边；同类 4 变体；草→土有 3 档过渡。
    大范围明暗走顶点色。接缝装饰单独撒。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
 
   const CELL = 48;
   const PITCH = Math.sin(Math.PI / 4);
@@ -479,4 +478,3 @@
     paintField: paintField,
     decalSheet: decalSheet,
   };
-})(typeof window !== 'undefined' ? window : globalThis);

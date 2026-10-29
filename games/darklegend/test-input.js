@@ -2,15 +2,17 @@
    用法：node games/darklegend/test-input.js
 
    零依赖：用 Chrome 的 --remote-debugging-pipe 直接对话（fd 3 写、fd 4 读），
-   不装 ws、不起端口、不写临时文件。和 test-game.mjs 的分工：
+   不装 ws、不起端口。Chrome 新版本 headless 必须有用户目录，测完就删。和 test-game.mjs 的分工：
    - test-game.mjs      纯逻辑（Node + DOM 桩），改规则先跑它
    - test-input.js      真浏览器（3D 坐标换算 + 事件 + 寻路），改输入/UI 跑它
 
    2026-10-29 起只剩 3D：坐标走 DL.ThreePick.ndcForGround，点击打在 #view3d 上。
+   页面走 Vite：先在 games/darklegend 跑 npm run dev，再开这个测试。
    不覆盖：真机上的手势冲突（touch-action / 系统手势）——那条仍要主人真机确认。
 */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const CHROME = [
@@ -30,12 +32,14 @@ function ok(name, cond, extra) {
 
 async function main() {
   if (!CHROME) throw new Error('没找到 Chrome / Edge');
-  const url = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/') + '?debug';
+  const url = 'http://localhost:8183/?debug';
+  // Chrome 新版本的 headless 不给用户目录就直接退出
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-input-'));
 
   const proc = spawn(CHROME, [
     '--headless=new', '--disable-gpu', '--enable-unsafe-swiftshader', '--no-first-run',
     '--no-default-browser-check', '--hide-scrollbars', '--remote-debugging-pipe',
-    '--allow-file-access-from-files',
+    '--user-data-dir=' + userData,
   ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
 
   const input = proc.stdio[3], output = proc.stdio[4];
@@ -95,13 +99,12 @@ async function main() {
   // 关掉开场遮罩、停掉自动回合，测试才有确定性
   await ev('__dl.hideIntro(); __dl.pauseAuto(); 1');
 
-  // 格坐标 → 客户端像素：和 render-three.js 的 pointer() 用同一套反算
+  // 格坐标 → 客户端像素：走 ThreeView 自己的反投影（透视下 ThreePick 那套正交换算不再成立）
   await ev(`
     window.__cellToClient = function (gx, gy) {
       const c = document.getElementById('view3d');
       const r = c.getBoundingClientRect();
-      const d = DL.ThreeView.debug();
-      const n = DL.ThreePick.ndcForGround(d.look.x, d.look.z, gx + 0.5, gy + 0.5, d.zoom);
+      const n = DL.ThreeView.cellToNdc(gx + 0.5, gy + 0.5);
       return [r.left + (n.nx + 1) / 2 * r.width, r.top + (1 - n.ny) / 2 * r.height];
     }; 1`);
 
@@ -173,6 +176,7 @@ async function main() {
   ok('点怪能打掉血', hpNow < foe.hp, [foe.hp, hpNow]);
 
   proc.kill();
+  try { fs.rmSync(userData, { recursive: true, force: true }); } catch { /* 目录还被占用就留着 */ }
 }
 
 main().then(() => {

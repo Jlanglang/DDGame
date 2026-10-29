@@ -3,11 +3,13 @@
    地面是 2:1 菱形瓦片。立地物体脚下有同一方向的椭圆接触阴影。
    相机固定 45° 正交，不旋转。
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+import * as THREE from 'three';
+import './three-pick.js';
+const global = globalThis;
+global.THREE = THREE;
   const Pick = DL.ThreePick;
-  if (!Pick) return;
+  if (!Pick) throw new Error('three-pick.js 未加载');
 
   const CELL = Pick.CELL_PX;          // 48 px / 格
 
@@ -19,8 +21,11 @@
   let camera = null;
   let canvas = null;
   let low = false;
-  let zoom = 1;
+  // mir 定稿（2026-10-29 主人拍板）：一屏竖向 ≈20 格 → zoom 1.70（实测 midV≈19.95 / midH≈27.9）
+  let zoom = 1.70;
   let look = { x: 12, z: 12 };
+  let fpsLastT = 0;
+  let fpsEma = 60;
   let roomKey = '';
   let ground = null;
   let group = null;                   // 当前房间的所有立牌
@@ -30,6 +35,24 @@
   let lastStrike = 0;
   let spritesReady = false;
   let groundPainted = '';
+
+  /* ---------- 地面分块（流式） ----------
+     整张生成的账（真机估）：24×24 ≈ 60ms、53×53 ≈ 290ms、野外 128×128 降到 32px/格
+     还是要 4096²（实测 headless 5.0s）。大图进场就是这一下冻住的。
+     所以 >30 格的图不整张画了：只同步画脚下那一块（约 25~45ms），
+     需要的块按**视野四角射线**算（斜角 45° 下视野是斜的，固定"周围 3×3"盖不住屏幕角），
+     其余 requestIdleCallback 一次补一块，视野外的释放显存。
+     块边界靠 groundSheet 的 1 格出血对齐（验收台 ⑥ 实测：缝带差 2.25 vs 块内 2.46）。 */
+  const CHUNK_CELLS = 16;      // 每块 16 格：48px 下 768px ≈ 1.5 屏
+  const NO_CHUNK = /(?:^|[?&])chunk=0(?:&|$)/.test((global.location && global.location.search) || '');
+  let gCtx = null;             // { map, terrain, theme, px, cols, rows }
+  let gChunks = null;          // Map<'x,y', { mesh, tex }>
+  let gQueue = [];             // 待生成 [{x0,y0,x1,y1}]
+  let gIdle = 0;               // requestIdleCallback / setTimeout 句柄
+  let gRangeKey = '';          // 视野覆盖的块范围（变了才重算 need / 释放）
+  let gNeed = [];              // 当前需要的块
+  let gQueued = {};            // 已排队/已失败，别重复加
+
   let tags = null;
   let tagVec = null;
   let mini = null;
@@ -38,6 +61,14 @@
   let statsEl = null;
   let glLost = false;
   let showStats = false;
+
+  /* 板块地面：默认开（一块砖 = 一格 = 一个人站的位置）。
+     想看旧平面：?tiles=flat */
+  const TILES_PLATE = (function () {
+    const q = (global.location && global.location.search) || '';
+    if (/(?:^|[?&])tiles=flat(?:&|$)/.test(q)) return false;
+    return true;
+  })();
 
   // 只剩 3D：不再有 2D Canvas 回退。file:// 也能跑（2026-10-29 起所有贴图都是程序化画布，
   // 不再从本地 PNG 上传纹理，WebGL 不会被 CORS 拦）。
@@ -71,6 +102,188 @@
     }
     t.needsUpdate = true;
     return t;
+  }
+
+  // 地面贴图：必须开 mipmap + 各向异性。之前地面走的是 sprite 那条（关 mipmap），
+  // 斜看就糊、远处还闪——"画面糊了"的主因之一。
+  function groundTex(c) {
+    const t = texOfCanvas(c, false);
+    t.wrapS = THREE.ClampToEdgeWrapping;
+    t.wrapT = THREE.ClampToEdgeWrapping;
+    if (renderer && renderer.capabilities) {
+      t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    }
+    return t;
+  }
+
+  // 海面比地面低一截，沙滩贴图压在上面。不要和底衬（y=-0.02）贴在同一高度。
+  const SEA_Y = -0.012;
+  const seaMats = [];
+
+  // 岸距是数据，不是颜色。走 sRGB 的话 R 通道会被伽马拉开，岸会漂。
+  function distTex(c) {
+    const t = new THREE.CanvasTexture(c);
+    if ('colorSpace' in t && THREE.NoColorSpace) t.colorSpace = THREE.NoColorSpace;
+    else if ('colorSpace' in t && THREE.LinearSRGBColorSpace) t.colorSpace = THREE.LinearSRGBColorSpace;
+    t.flipY = false;
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.wrapS = THREE.ClampToEdgeWrapping;
+    t.wrapT = THREE.ClampToEdgeWrapping;
+    t.premultiplyAlpha = false;
+    t.needsUpdate = true;
+    return t;
+  }
+
+  function releaseSeaMat(mat) {
+    if (!mat) return;
+    const i = seaMats.indexOf(mat);
+    if (i >= 0) seaMats.splice(i, 1);
+    const tex = mat.uniforms && mat.uniforms.uDist && mat.uniforms.uDist.value;
+    if (tex && tex.dispose) tex.dispose();
+    if (mat.uniforms && mat.uniforms.uDist) mat.uniforms.uDist.value = null;
+    mat.dispose();
+  }
+
+  // 自写 ShaderMaterial 不会走材质的颜色空间转换，这里的数就是屏幕上的颜色。
+  const SEA_VERT = [
+    'varying vec2 vUv;',
+    'varying vec2 vXZ;',
+    'void main() {',
+    '  vUv = uv;',
+    '  vec4 w = modelMatrix * vec4(position, 1.0);',
+    '  vXZ = w.xz;',
+    '  gl_Position = projectionMatrix * viewMatrix * w;',
+    '}',
+  ].join('\n');
+  const SEA_FRAG = [
+    'uniform sampler2D uDist;',
+    'uniform float uTime;',
+    'varying vec2 vUv;',
+    'varying vec2 vXZ;',
+    'float hash2(vec2 p) {',
+    '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);',
+    '}',
+    'float noise(vec2 p) {',
+    '  vec2 i = floor(p);',
+    '  vec2 f = fract(p);',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash2(i);',
+    '  float b = hash2(i + vec2(1.0, 0.0));',
+    '  float c = hash2(i + vec2(0.0, 1.0));',
+    '  float d = hash2(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);',
+    '}',
+    'float caustic(vec2 p) {',
+    '  float n = noise(p);',
+    '  return pow(1.0 - abs(n * 2.0 - 1.0), 6.0);',
+    '}',
+    'void main() {',
+    '  float d = texture2D(uDist, vUv).r * 8.0 - 4.0;',
+    '  vec3 aqua = vec3(0.30, 0.78, 0.74);',
+    '  vec3 deep = vec3(0.16, 0.46, 0.52);',
+    '  vec3 foamC = vec3(0.96, 0.98, 0.95);',
+    '  float abyss = smoothstep(0.35, 1.8, d);',
+    '  vec3 col = mix(aqua, deep, abyss);',
+    '  float fn = noise(vXZ * 6.0);',
+    '  float foam = smoothstep(0.40, 0.02, abs(d)) * smoothstep(0.40, 0.78, fn);',
+    '  col = mix(col, foamC, foam);',
+    '  float c1 = caustic(vXZ * 2.6 + vec2(uTime * 0.07, uTime * 0.04));',
+    '  float c2 = caustic(vXZ * 4.8 + vec2(-uTime * 0.05, uTime * 0.06) + vec2(4.2, 1.7));',
+    '  float cau = c1 * 0.62 + c2 * 0.38;',
+    '  col += vec3(0.85, 0.95, 0.80) * cau * mix(0.55, 0.12, abyss);',
+    '  float wet = smoothstep(-0.45, 0.08, d);',
+    '  float alpha = max(foam * 0.85, mix(wet * 0.62, 1.0, abyss));',
+    '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), alpha);',
+    '}',
+  ].join('\n');
+
+  function groundMat(tex, holes) {
+    if (holes) tex.premultiplyAlpha = false;
+    const mat = new THREE.MeshLambertMaterial({
+      map: tex,
+      transparent: !!holes,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    if (holes) mat.premultipliedAlpha = false;
+    return mat;
+  }
+
+  // 和 iso-art.groundSheet 同一条钳制，岸距像素才和挖洞对得上。
+  function shorePx(map, px) {
+    const side = Math.max(map[0].length, map.length);
+    return Math.max(12, Math.min(px || 48, Math.floor(4096 / side)));
+  }
+
+  // 这块里有没有会露出来的水（海格，或弯曲岸距探进沙滩）。没有就别建网格。
+  function fieldWet(cv) {
+    const g = cv.getContext('2d');
+    if (!g || !g.getImageData) return true;
+    let data = null;
+    try { data = g.getImageData(0, 0, cv.width, cv.height).data; } catch (e) { return true; }
+    if (!data || data.length < 4) return true;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i + 1] > 127) return true;
+      if (data[i] / 255 * 8 - 4 > -0.55) return true;
+    }
+    return false;
+  }
+
+  // 一块水面。不透明着色器铺在地面底下，陆地贴图挖洞才看得见。
+  // 浅处是沙色，远处变深，两层亮纹按世界坐标滚动，碎沫只留在岸距 0 附近。
+  function addSeaMesh(parent, map, terrain, theme, rect, px) {
+    if (!DL.IsoArt || !DL.IsoArt.coastField || !map || !map[0]) return null;
+    const x0 = rect ? rect.x0 : 0;
+    const y0 = rect ? rect.y0 : 0;
+    const x1 = rect ? rect.x1 : map[0].length;
+    const y1 = rect ? rect.y1 : map.length;
+    const w = x1 - x0;
+    const h = y1 - y0;
+    if (w <= 0 || h <= 0) return null;
+    const cv = DL.IsoArt.coastField(terrain, map[0].length, map.length, x0, y0, x1, y1, shorePx(map, px));
+    if (!cv || !fieldWet(cv)) return null;
+    const tex = distTex(cv);
+    const geo = new THREE.PlaneGeometry(w, h, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(x0 + w / 2, SEA_Y, y0 + h / 2);
+    const uv = geo.attributes.uv;
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      uv.setXY(i, (pos.getX(i) - x0) / w, (pos.getZ(i) - y0) / h);
+    }
+    uv.needsUpdate = true;
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uDist: { value: tex },
+        uTime: { value: 0 },
+      },
+      vertexShader: SEA_VERT,
+      fragmentShader: SEA_FRAG,
+      transparent: true,
+      premultipliedAlpha: false,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+    });
+    seaMats.push(mat);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = -9;
+    mesh.frustumCulled = false;
+    parent.add(mesh);
+    return { mesh: mesh, tex: tex };
+  }
+
+  function dropSea(rec) {
+    if (!rec) return;
+    if (ground && rec.mesh) {
+      ground.remove(rec.mesh);
+      if (rec.mesh.geometry) rec.mesh.geometry.dispose();
+    }
+    if (rec.mesh && rec.mesh.material && rec.mesh.material.uniforms) releaseSeaMat(rec.mesh.material);
+    else if (rec.tex) rec.tex.dispose();
   }
 
   const paintedTex = {};
@@ -112,6 +325,9 @@
     const m = new THREE.Mesh(geo, mat);
     m.renderOrder = order;
     m.position.y = h / 2;
+    // 立牌必须正对相机。相机一转偏航（斜角 45°），固定朝 +Z 的板子会被斜看成
+    // cos45 = 0.707，人物和房子横向压扁 29%——这是改相机最容易踩的坑。
+    m.rotation.y = CAM.yaw * Math.PI / 180;
     return m;
   }
 
@@ -281,6 +497,7 @@
   }
 
   function dropGround() {
+    for (let i = seaMats.length - 1; i >= 0; i--) releaseSeaMat(seaMats[i]);
     if (!ground) return;
     const seen = new Set();
     ground.traverse(function (o) {
@@ -299,8 +516,7 @@
   }
 
   // 方向光的阴影范围要罩住整张地图（房间尺寸会变，所以每次建地面都重算一次）
-  function fitSun(W, H) {
-    if (!sun) return;
+  function fitSun(W, H) {    if (!sun) return;
     const cx = W / 2, cz = H / 2;
     sun.target.position.set(cx, 0, cz);
     // 光从玩家左手：世界 (-x, +z) 方向；仰角压低，影子才拉得出来
@@ -315,24 +531,347 @@
     sun.updateMatrixWorld();
   }
 
+  /* ---------- 板块地面（?tiles=plate） ----------
+     几何在 tile-plate.js（游戏和验收台共用同一份）。这里只负责取样每格色调。 */
+  // mir：浅槽 + 窄缝（粗黑 V 槽会盖住贴图）。砖仍 1 格一块——放大砖会让一屏显得空。
+  const PLATE_H = 0.014;
+  const PLATE_GAP = 0.012;
+  const PLATE_CELL = 1;
+  function buildPlateGround(srcCanvas, W, H, bx0, by0, bx1, by1) {
+    // 每格一个平均色，给斜面染色：整张地面缩到 W×H，一格一像素，只用一次
+    const small = document.createElement('canvas');
+    small.width = W;
+    small.height = H;
+    const sg = small.getContext('2d');
+    sg.drawImage(srcCanvas, 0, 0, W, H);
+    let px = null;
+    try { px = sg.getImageData(0, 0, W, H).data; } catch (e) { px = null; }
+    const colorAt = px
+      ? (x, z) => {
+        const p = (z * W + x) * 4;
+        return [px[p] / 255, px[p + 1] / 255, px[p + 2] / 255];
+      }
+      : null;
+
+    const cols = bx1 - bx0 + 1;
+    const rows = by1 - by0 + 1;
+    return DL.TilePlate.build({
+      cols: cols,
+      rows: rows,
+      tex: texOfCanvas(srcCanvas, true),
+      uPerCell: 1 / W,
+      vPerCell: 1 / H,
+      u0: bx0 / W,
+      vBase: 1 - (by0 + 1) / H,
+      originX: bx0,
+      originZ: by0,
+      h: PLATE_H,
+      gap: PLATE_GAP,
+      baseColor: '#3b3025',
+      colorAt: colorAt,
+    });
+  }
+
+  /* ---------- 石板区（城内广场 / 路） ----------
+     mir：平面贴图（夯土缝 + 不规则石块）。不用 TilePlate 方格 V 槽——那套读成瓷砖勾缝。
+     实测 41×41 很快，不分块。 */
+  function addPlate(map, terrain, theme, W, H, parent) {
+    if (!(DL.IsoArt && DL.IsoArt.slabSheet)) return false;
+    let bx0 = Infinity, by0 = Infinity, bx1 = -1, by1 = -1;
+    for (let y = 0; y < H; y++) {
+      if (!terrain[y]) continue;
+      for (let x = 0; x < W; x++) {
+        if (terrain[y][x] === 1 && map[y][x] !== 1) {
+          if (x < bx0) bx0 = x;
+          if (x > bx1) bx1 = x;
+          if (y < by0) by0 = y;
+          if (y > by1) by1 = y;
+        }
+      }
+    }
+    if (!(bx1 >= bx0 && by1 >= by0)) return false;
+    const cols = bx1 - bx0 + 1, rows = by1 - by0 + 1;
+    const sheet = DL.IsoArt.slabSheet(cols, rows, { tile: 1, px: 64, theme: theme, seed: 7 });
+    const tex = groundTex(sheet);
+    const geo = new THREE.PlaneGeometry(cols, rows, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    // Basic：贴图色就是画的色，不被天光冲成「白瓷砖」。深度关，压在底材平面之上。
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(bx0 + cols / 2, 0.004, by0 + rows / 2);
+    mesh.renderOrder = -9;
+    mesh.frustumCulled = false;
+    parent.add(mesh);
+    return true;
+  }
+
+  function chunkKey(x0, y0) { return x0 + ',' + y0; }
+
+  function makeChunk(r) {
+    const c = gCtx;
+    if (!c || !ground) return;
+    let cv = null;
+    try {
+      cv = DL.IsoArt.groundSheet(c.map, c.terrain, c.theme, {
+        px: c.px, seed: 7, style: { path: 'slab' }, big: true, cutSea: true,
+        rect: { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 }, margin: 1,
+      });
+    } catch (e) {
+      console.warn('[3D] 地面块生成失败', e);
+      return;
+    }
+    const tex = groundTex(cv);
+    const w = r.x1 - r.x0, h = r.y1 - r.y0;
+    const sea = addSeaMesh(ground, c.map, c.terrain, c.theme, {
+      x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1,
+    }, c.px);
+    // 一块 = 一个平面，世界尺寸按格数；四面和邻块共边（整数格坐标，不会裂）
+    const geo = new THREE.PlaneGeometry(w, h, 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(r.x0 + w / 2, 0, r.y0 + h / 2);
+    // 地面保持不透明。水面是盖在上面的半透明层，浅处能看见沙。
+    // 挖洞进透明队列会让岸边的 mip 变成一格一格的方块。
+    const mesh = new THREE.Mesh(geo, groundMat(tex, false));
+    mesh.renderOrder = -10;
+    mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
+    ground.add(mesh);
+    gChunks.set(chunkKey(r.x0, r.y0), { mesh: mesh, tex: tex, sea: sea });
+  }
+
+  function freeChunk(key) {
+    const c = gChunks && gChunks.get(key);
+    if (!c) return;
+    dropSea(c.sea);
+    if (ground && c.mesh) {
+      ground.remove(c.mesh);
+      if (c.mesh.geometry) c.mesh.geometry.dispose();
+      if (c.mesh.material) c.mesh.material.dispose();
+    }
+    if (c.tex) c.tex.dispose();
+    gChunks.delete(key);
+  }
+
+  function clearChunks() {
+    if (gIdle) {
+      if (global.cancelIdleCallback) global.cancelIdleCallback(gIdle);
+      else global.clearTimeout(gIdle);
+      gIdle = 0;
+    }
+    if (gChunks) {
+      const keys = Array.from(gChunks.keys());
+      for (let i = 0; i < keys.length; i++) freeChunk(keys[i]);
+    }
+    gChunks = null;
+    gQueue = [];
+    gCtx = null;
+    gRangeKey = '';
+    gNeed = [];
+    gQueued = {};
+  }
+
+  function pumpChunks() {
+    gIdle = 0;
+    if (!gCtx || !gQueue.length) return;
+    const r = gQueue.shift();
+    try {
+      if (!gChunks.has(chunkKey(r.x0, r.y0))) makeChunk(r);
+    } catch (e) {
+      console.warn('[3D] 地面块生成失败（跳过）', e);
+    }
+    schedulePump();
+  }
+
+  function schedulePump() {
+    if (gIdle || !gQueue.length) return;
+    if (global.requestIdleCallback) gIdle = global.requestIdleCallback(pumpChunks, { timeout: 250 });
+    else gIdle = global.setTimeout(pumpChunks, 100);
+  }
+
+  // 屏幕四角打到地面 = 真正可见的四边形。
+  // 只按它的包围盒取块会多要一倍（斜着看时 bbox 比四边形大很多），所以还要做"点在四边形内"判断。
+  function viewQuad() {
+    const cs = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const q = [];
+    for (let i = 0; i < 4; i++) {
+      const p = rayToGround(cs[i][0], cs[i][1]);
+      if (!p) return null;
+      q.push(p);
+    }
+    // 以中心为准放大 1.15 倍（≈2 格）：兜住相机 1 帧滞后和立牌底部
+    let mx = 0, mz = 0;
+    for (let i = 0; i < 4; i++) { mx += q[i].x; mz += q[i].z; }
+    mx /= 4; mz /= 4;
+    for (let i = 0; i < 4; i++) {
+      q[i] = { x: mx + (q[i].x - mx) * 1.15, z: mz + (q[i].z - mz) * 1.15 };
+    }
+    return q;
+  }
+
+  function quadBounds(q) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < 4; i++) {
+      if (q[i].x < x0) x0 = q[i].x;
+      if (q[i].x > x1) x1 = q[i].x;
+      if (q[i].z < z0) z0 = q[i].z;
+      if (q[i].z > z1) z1 = q[i].z;
+    }
+    return { x0: x0, z0: z0, x1: x1, z1: z1 };
+  }
+
+  // 点在凸四边形内（顶点顺序无所谓）
+  function inQuad(q, x, z) {
+    let sign = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = q[i], b = q[(i + 1) & 3];
+      const cr = (b.x - a.x) * (z - a.z) - (b.z - a.z) * (x - a.x);
+      if (cr > 1e-9) { if (sign < 0) return false; sign = 1; }
+      else if (cr < -1e-9) { if (sign > 0) return false; sign = -1; }
+    }
+    return true;
+  }
+
+  // 块的矩形只要有一个角/中心落在视野四边形里，就算需要
+  function rectTouchesQuad(q, r) {
+    return inQuad(q, (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2) ||
+      inQuad(q, r.x0, r.y0) || inQuad(q, r.x1, r.y0) ||
+      inQuad(q, r.x0, r.y1) || inQuad(q, r.x1, r.y1);
+  }
+
+  function syncChunks() {
+    if (!gCtx || !B) return;
+    const P = B.P();
+    const cx = Math.floor(P.x / CHUNK_CELLS), cy = Math.floor(P.y / CHUNK_CELLS);
+    const cols = gCtx.cols, rows = gCtx.rows;
+    const atAbs = function (gx, gy) {
+      if (gx < 0 || gy < 0) return null;
+      const x0 = gx * CHUNK_CELLS, y0 = gy * CHUNK_CELLS;
+      if (x0 >= cols || y0 >= rows) return null;
+      return { x0: x0, y0: y0, x1: Math.min(cols, x0 + CHUNK_CELLS), y1: Math.min(rows, y0 + CHUNK_CELLS) };
+    };
+    const addBox = function (into, ax0, ay0, ax1, ay1) {
+      for (let gy = ay0; gy <= ay1; gy++) {
+        for (let gx = ax0; gx <= ax1; gx++) {
+          const r = atAbs(gx, gy);
+          if (r) into[chunkKey(r.x0, r.y0)] = r;
+        }
+      }
+    };
+
+    // ① 视野范围变了才重算"需要哪些块" + 释放远处的块
+    const quad = viewQuad();
+    const vb = quad ? quadBounds(quad) : null;
+    // 4 格为一档：小步移动不重算，跨过一档再算
+    const rk = vb
+      ? [Math.floor(vb.x0 / 4), Math.floor(vb.z0 / 4),
+         Math.floor(vb.x1 / 4), Math.floor(vb.z1 / 4)].join(',')
+      : '';
+    if (rk !== gRangeKey) {
+      gRangeKey = rk;
+      const need = {};
+      if (vb) {
+        const gx0 = Math.floor(vb.x0 / CHUNK_CELLS), gx1 = Math.floor(vb.x1 / CHUNK_CELLS);
+        const gy0 = Math.floor(vb.z0 / CHUNK_CELLS), gy1 = Math.floor(vb.z1 / CHUNK_CELLS);
+        for (let gy = gy0; gy <= gy1; gy++) {
+          for (let gx = gx0; gx <= gx1; gx++) {
+            const r = atAbs(gx, gy);
+            // 包围盒里大部分是屏幕四角外的死区，用四边形筛一遍，块数能省一半
+            if (r && rectTouchesQuad(quad, r)) need[chunkKey(r.x0, r.y0)] = r;
+          }
+        }
+      }
+      addBox(need, cx, cy, cx, cy);
+      gNeed = Object.keys(need).map(function (k) { return need[k]; });
+      // 缓冲一圈，避免在边界上来回走反复重建
+      const keep = {};
+      for (let i = 0; i < gNeed.length; i++) {
+        const r = gNeed[i];
+        addBox(keep,
+          Math.floor(r.x0 / CHUNK_CELLS) - 1, Math.floor(r.y0 / CHUNK_CELLS) - 1,
+          Math.floor(r.x0 / CHUNK_CELLS) + 1, Math.floor(r.y0 / CHUNK_CELLS) + 1);
+      }
+      Array.from(gChunks.keys()).forEach(function (k) {
+        if (!keep[k]) { delete gQueued[k]; freeChunk(k); }
+      });
+      // 队列整个重建（下面 ② 会按 gNeed 重新排），别在这里 filter——
+      // 那会和 ② 重复入队，队列里一半是重复项
+      gQueue = [];
+      gQueued = {};
+      gQueue.sort(function (a, b) {
+        const da = Math.abs(a.x0 / CHUNK_CELLS - cx) + Math.abs(a.y0 / CHUNK_CELLS - cy);
+        const db = Math.abs(b.x0 / CHUNK_CELLS - cx) + Math.abs(b.y0 / CHUNK_CELLS - cy);
+        return da - db;
+      });
+    }
+
+    // ② 每帧补缺（幂等）：缺了就排上，绝不因为"玩家没换块"漏掉
+    const mine = chunkKey(cx * CHUNK_CELLS, cy * CHUNK_CELLS);
+    for (let i = 0; i < gNeed.length; i++) {
+      const r = gNeed[i], k = chunkKey(r.x0, r.y0);
+      if (gChunks.has(k) || gQueued[k]) continue;
+      gQueued[k] = 1;
+      if (k === mine) {
+        // 脚下这块当场画（25~45ms），出错也不能把整个 3D 带崩
+        try { makeChunk(r); } catch (e) { console.warn('[3D] 脚下地面块失败', e); }
+      } else {
+        gQueue.push(r);
+      }
+    }
+    if (gQueue.length) schedulePump();
+  }
+
   function buildGround() {
+    clearChunks();                 // 先放掉旧块（要 ground 还在才能摘网格）
     dropGround();
     const map = B && B.map && B.map();
     const terrain = B && B.terrain && B.terrain();
     if (!map || !map.length || !map[0]) return;
     const theme = DL.IsoGround && DL.IsoGround.themeOf ? DL.IsoGround.themeOf(groundSheet()) : 'field';
 
-    // 地面贴图：优先用 iso-art（48px/格 的手绘石板），缺它再退回旧的色块插值。
+    // 地面贴图：iso-art（48px/格）。big=true → 石板区一格一块（一块砖一个人）
     let srcCanvas = null;
     let W = map[0].length;
     let H = map.length;
     const A = DL.IsoArt;
+
+    // 大图（>30 格）：不整张画，只同步画脚下那一块。石板区照旧单独一张（40ms 级）
+    // ?chunk=0 关掉分块（退回整张一次画完），用来对比"冻一下"和"补块"哪个更舒服
+    if (A && A.groundSheet && !NO_CHUNK && (W > 30 || H > 30)) {
+      ground = new THREE.Group();
+      scene.add(ground);
+      // 底衬：还没补上的块露这个纯色（不露天空蓝），进场时屏幕边缘不会闪
+      const pal = (A.PALETTES && A.PALETTES[theme]) || null;
+      if (pal && pal.base) {
+        const g0 = new THREE.PlaneGeometry(W, H, 1, 1);
+        g0.rotateX(-Math.PI / 2);
+        g0.translate(W / 2, -0.02, H / 2);
+        // 用 Lambert 而不是 Basic：底衬要跟块一样受光照，否则补块时那块明显更亮（一眼看出方块）
+        const m0 = new THREE.Mesh(g0, new THREE.MeshLambertMaterial({ color: pal.base }));
+        m0.renderOrder = -12;
+        m0.frustumCulled = false;
+        ground.add(m0);
+      }
+      addPlate(map, terrain, theme, W, H, ground);
+      gCtx = { map: map, terrain: terrain, theme: theme, px: 48, cols: W, rows: H };
+      gChunks = new Map();
+      gRangeKey = '';
+    gNeed = [];
+    gQueued = {};
+      syncChunks();
+      groundPainted = theme;
+      fitSun(W, H);
+      return;
+    }
     if (A && A.groundSheet) {
       try {
         srcCanvas = A.groundSheet(map, terrain, theme, {
           px: 48,
           seed: 7,
-          style: { path: 'slab' },      // 地面统一石板（红砖撤出地面）
+          style: { path: 'slab' },
+          big: true,
+          cutSea: true,
         });
       } catch (e) {
         console.warn('[3D] iso-art 地面生成失败，退回旧地面', e);
@@ -347,21 +886,44 @@
       H = field.H;
     }
 
-    const tex = texOfCanvas(srcCanvas, true);
+    // 石板区（城内）：一块块抬起来的砖 + 城外一张平铺底材。
+    // UV 从 0 开始铺，不做整图偏移——偏移那套算错过，砖面会采到海，整片发暗。
+    if (TILES_PLATE && DL.IsoArt && DL.IsoArt.slabSheet) {
+      ground = new THREE.Group();
+      if (addPlate(map, terrain, theme, W, H, ground)) {
+        // 城外（草地 / 海）还是整张平铺贴图，只是不铺砖。海在更低的一层。
+        const sea = addSeaMesh(ground, map, terrain, theme, null, 48);
+        const tex2 = groundTex(srcCanvas);
+        tex2.wrapS = THREE.ClampToEdgeWrapping;
+        tex2.wrapT = THREE.ClampToEdgeWrapping;
+        const geo2 = new THREE.PlaneGeometry(W, H, 1, 1);
+        geo2.rotateX(-Math.PI / 2);
+        geo2.translate(W / 2, 0, H / 2);
+        const plane = new THREE.Mesh(geo2, groundMat(tex2, false));
+        plane.renderOrder = -10;
+        plane.receiveShadow = true;
+        plane.frustumCulled = false;
+        ground.add(plane);
+
+        scene.add(ground);
+        groundPainted = theme;
+        fitSun(W, H);
+        return;
+      }
+      ground = null;
+    }
+
+    // 非板块模式 / 没有石板区：整张平铺。海在地面下面。
+    ground = new THREE.Group();
+    const sea = addSeaMesh(ground, map, terrain, theme, null, 48);
+    const tex = groundTex(srcCanvas);
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
-    // 地面必须吃光：Basic 材质是"平涂"，Lambert 才会被方向光照出明暗。
-    const mat = new THREE.MeshLambertMaterial({
-      map: tex,
-      depthWrite: false,
-      depthTest: false,
-      side: THREE.DoubleSide,
-    });
-    // 一张铺满地图的平面：世界 xz ∈ [0,W]×[0,H]，UV 同步。无无菱形网格缝。
+    const mat = groundMat(tex, false);
+    // 一张铺满地图的平面：世界 xz ∈ [0,W]×[0,H]，UV 同步。
     const geo = new THREE.PlaneGeometry(W, H, 1, 1);
     geo.rotateX(-Math.PI / 2);
     geo.translate(W / 2, 0, H / 2);
-    ground = new THREE.Group();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = -10;
     mesh.receiveShadow = true;
@@ -658,16 +1220,8 @@
   }
 
   function buildSolids() {
-    if (!group || !B || !DL.HdDraw) return;
-    const W = B.map()[0].length;
-    if (B.room() !== 'hub' || W < 64) return;
-    addHouse(60.2, 62.0);
-    addHouse(70.4, 57.2);
-    addHouse(54.2, 66.4);
-    addRock(49.5, 59.0, 0);
-    addRock(66.5, 70.8, 1);
-    addRock(58.8, 56.2, 2);
-    addRock(51.2, 70.5, 0);
+    // 2026-10-29：立牌全去掉。城里只留 NPC，房子/摊位/石头/树都不生成。
+    return;
   }
 
   function addRock(x, y, variant) {
@@ -770,7 +1324,7 @@
 
     buildGround();
     buildSolids();
-    buildCliffs();
+    // buildCliffs()  // 2026-10-29：山谷先去掉，岛的边界交给海和草地
     if (!assetsReady()) {
       spritesReady = false;
       return;
@@ -822,23 +1376,92 @@
     if (!map || !map[0]) return;
     const W = map[0].length;
     const H = map.length;
-    const halfX = (Pick.FRUSTUM_W / 2) / (zoom || 1);
-    const halfZ = ((Pick.FRUSTUM_H / 2) / (zoom || 1)) / Math.sin(Pick.PITCH);
-    if (W <= halfX * 2) look.x = W / 2;
-    else look.x = Math.max(halfX, Math.min(W - halfX, look.x));
-    if (H <= halfZ * 2) look.z = H / 2;
-    else look.z = Math.max(halfZ, Math.min(H - halfZ, look.z));
+    // 透视下可见地面是一个梯形：越远越宽。用四个屏幕角打射线，量出真实的地面范围，
+    // 别再拿正交那半屏宽去夹（夹少了地图边会露出底色）。
+    placeCamera();
+    let minX = -Infinity, maxX = Infinity, minZ = -Infinity, maxZ = Infinity;
+    const corners = [[-1, 1], [1, 1], [-1, -1], [1, -1]];
+    for (let i = 0; i < corners.length; i++) {
+      const hit = rayToGround(corners[i][0], corners[i][1]);
+      if (!hit) continue;
+      minX = Math.max(minX, look.x - hit.x);
+      maxX = Math.min(maxX, hit.x - look.x);
+      minZ = Math.max(minZ, look.z - hit.z);
+      maxZ = Math.min(maxZ, hit.z - look.z);
+    }
+    if (!isFinite(minX)) return;
+    // minX = −(向左伸出去多少) = 下界；maxX = 向右伸出去多少 = 上界要扣掉的量
+    if (W <= maxX - minX) look.x = W / 2;
+    else look.x = Math.max(minX, Math.min(W - maxX, look.x));
+    if (H <= maxZ - minZ) look.z = H / 2;
+    else look.z = Math.max(minZ, Math.min(H - maxZ, look.z));
   }
 
+  /* 相机
+     默认 = mir 定稿：yaw0 / pitch55 / fov32 / zoom1.70（竖向≈20 格）。
+     iso 等旧预设用 ?cam= 保留对比；iso 才是菱形 2:1（偏航 45° + 俯角 30° + 正交）。
+     开关 ?cam=…：
+       mir       正下俯视 + 中焦透视（默认，已定稿）
+       iso       斜角 45° + 俯角 30° + 正交（旧默认，菱形 2:1）
+       diag45    斜角 45° + 俯角 45° + 正交（更陡，菱形 1.41:1）
+       diag45p   斜角 45° + 俯角 45° + 透视
+       up45      正下 45° + 正交
+       now       正下 45° + 长焦透视
+     只换相机，玩法/拾取不动：点地走的是 rayToGround 射线，换投影自动跟着变。 */
+  const CAM = (function () {
+    const q = (global.location && global.location.search) || '';
+    const m = q.match(/(?:^|[?&])cam=([^&]+)/);
+    const k = m ? decodeURIComponent(m[1]) : 'mir';
+    if (k === 'now') return { k: k, yaw: 0, pitch: 45, ortho: false, fov: 22 };
+    if (k === 'iso') return { k: k, yaw: 45, pitch: 30, ortho: true };
+    if (k === 'up45') return { k: k, yaw: 0, pitch: 45, ortho: true };
+    if (k === 'diag45') return { k: k, yaw: 45, pitch: 45, ortho: true };
+    if (k === 'diag45p') return { k: k, yaw: 45, pitch: 45, ortho: false, fov: 22 };
+    return { k: 'mir', yaw: 0, pitch: 55, ortho: false, fov: 32 };
+  })();
+  const FOV = CAM.fov || 22;
+  const BASE_DIST = (Pick.FRUSTUM_W / 2) / Math.tan(FOV * Math.PI / 360);
+  // 正交时距离只决定"看多远"，不影响大小；取个够大、near/far 够宽的就行
+  const CAM_DIST = CAM.ortho ? 140 : BASE_DIST;
+
   function placeCamera() {
-    const s = Math.sin(Pick.PITCH);
-    const c = Math.cos(Pick.PITCH);
-    const dist = 24;
-    camera.position.set(look.x, dist * s, look.z + dist * c);
+    const yaw = CAM.yaw * Math.PI / 180;
+    const pit = CAM.pitch * Math.PI / 180;
+    const dist = CAM_DIST / (zoom || 1);
+    camera.position.set(
+      look.x + dist * Math.sin(yaw) * Math.cos(pit),
+      dist * Math.sin(pit),
+      look.z + dist * Math.cos(yaw) * Math.cos(pit)
+    );
     camera.up.set(0, 1, 0);
     camera.lookAt(look.x, 0, look.z);
-    camera.zoom = zoom;
+    if (CAM.ortho) {
+      // 画幅和透视版在焦点平面上对齐：竖向 = FRUSTUM_W 格 / zoom（透视的 fov 是竖向的！）
+      const halfH = (Pick.FRUSTUM_W / 2) / (zoom || 1);
+      const halfW = halfH * (Pick.VIEW_W / Pick.VIEW_H);
+      camera.left = -halfW;
+      camera.right = halfW;
+      camera.top = halfH;
+      camera.bottom = -halfH;
+      camera.near = 0.1;
+      camera.far = 600;
+    }
     camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+  }
+
+  // 屏幕 NDC → 地面格（透视投影必须用真射线，不能再用正交那套比例换算）
+  const _ndc = new THREE.Vector2();
+  const _ray = new THREE.Raycaster();
+  function rayToGround(nx, ny) {
+    _ndc.set(nx, ny);
+    _ray.setFromCamera(_ndc, camera);
+    const o = _ray.ray.origin;
+    const d = _ray.ray.direction;
+    if (!d || Math.abs(d.y) < 1e-6) return null;
+    const t = -o.y / d.y;
+    if (t <= 0) return null;
+    return { x: o.x + d.x * t, z: o.z + d.z * t };
   }
 
   function fit() {
@@ -858,13 +1481,34 @@
 
   // ---------- 每帧 ----------
 
+  // 小地图改成"等距缩略图"：格子按 45° 菱形画，和主画面一个视角。
+  // 尺寸缩到 150，挪到右下角（原来 180 在右上，太占地方）。
+  // 小地图跟主视角同向：上方 = 北（世界 −z），不做 45° 旋转。
+  // 纵向压扁 0.7 只是暗示"俯视角度"，不再歪成菱形。
   function miniLayout(map) {
     const w = mini.width;
     const h = mini.height;
     const mw = map[0].length;
     const mh = map.length;
-    const s = Math.min((w - 8) / mw, (h - 8) / mh);
-    return { mw: mw, mh: mh, s: s, ox: (w - mw * s) / 2, oy: (h - mh * s) / 2 };
+    const k = 0.7;
+    const s = Math.min((w - 8) / mw, (h - 8) / (mh * k));
+    return { mw: mw, mh: mh, s: s, k: k, ox: (w - mw * s) / 2, oy: (h - mh * s * k) / 2 };
+  }
+
+  // 格坐标 → 小地图像素（等距：x−y 走横轴，x+y 走竖轴）
+  function miniXY(lay, x, y) {
+    return { x: lay.ox + x * lay.s, y: lay.oy + y * lay.s * lay.k };
+  }
+
+  function miniColor(map, terrain, x, y) {
+    const m = map[y][x];
+    const t = terrain && terrain[y] ? terrain[y][x] : 0;
+    if (m === 2) return '#f0c840';
+    if (t === 3) return '#3F6E92';       // 海
+    if (t === 4) return '#E8D6A8';       // 沙滩
+    if (m === 1) return '#8A7F6C';       // 城墙
+    if (t === 1) return '#C9BEA8';       // 城内石板
+    return '#6FA24E';                    // 草地
   }
 
   function paintMiniBase() {
@@ -880,13 +1524,13 @@
     g.fillStyle = '#101623';
     g.fillRect(0, 0, miniBase.width, miniBase.height);
     const terrain = B.terrain && B.terrain();
+    const cw = Math.ceil(lay.s) + 1;
+    const ch = Math.ceil(lay.s * lay.k) + 1;
     for (let y = 0; y < lay.mh; y++) {
       for (let x = 0; x < lay.mw; x++) {
-        if (map[y][x] === 1) g.fillStyle = '#7a766c';
-        else if (map[y][x] === 2) g.fillStyle = '#f0c840';
-        else if (terrain && terrain[y] && terrain[y][x] === 1) g.fillStyle = '#c6a15c';
-        else g.fillStyle = '#3e7a32';
-        g.fillRect(lay.ox + x * lay.s, lay.oy + y * lay.s, Math.ceil(lay.s), Math.ceil(lay.s));
+        const p = miniXY(lay, x, y);
+        g.fillStyle = miniColor(map, terrain, x, y);
+        g.fillRect(p.x, p.y, cw, ch);
       }
     }
   }
@@ -903,11 +1547,13 @@
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e || e.hp <= 0) continue;
+      const p = miniXY(lay, e.x, e.y);
       g.fillStyle = e.boss ? '#ff5a5a' : '#ffd166';
-      g.fillRect(lay.ox + e.x * lay.s, lay.oy + e.y * lay.s, Math.max(2, lay.s), Math.max(2, lay.s));
+      g.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
     }
+    const pp = miniXY(lay, P.x, P.y);
     g.fillStyle = '#ffffff';
-    g.fillRect(lay.ox + P.x * lay.s, lay.oy + P.y * lay.s, Math.max(2, lay.s), Math.max(2, lay.s));
+    g.fillRect(pp.x - 2, pp.y - 2, 4, 4);
   }
 
   function tick() {
@@ -915,44 +1561,37 @@
     const t0 = performance.now();
     const P = B.P();
     const now = t0;
+    const seaT = now * 0.001;
+    for (let si = 0; si < seaMats.length; si++) seaMats[si].uniforms.uTime.value = seaT;
 
+    // A5：人与镜头都硬跟步插值。软跟会和匀速滑步打架，看起来像掉帧
+    const vis = (B.step && B.step()) || { x: P.x + 0.5, y: P.y + 0.5, t: 1, moving: false };
     const room = B.room() + '|' + B.map()[0].length + 'x' + B.map().length;
     if (room !== roomKey) {
       roomKey = room;
       spritesReady = false;
       rebuildRoom();
-      look.x = P.x + 0.5;
-      look.z = P.y + 0.5;
     }
     if (!spritesReady && assetsReady()) {
       spritesReady = true;
       rebuildRoom();
     }
-    // 相机平滑
-    look.x += (P.x + 0.5 - look.x) * 0.2;
-    look.z += (P.y + 0.5 - look.z) * 0.2;
+    look.x = vis.x;
+    look.z = vis.y;
+    // 地面分块：玩家换块了才干活（脚下那块同步补，四周排队）
+    if (gCtx) syncChunks();
     clampLook();
     placeCamera();
     if (renderer) renderer.setClearColor(groundSheet() === 'terrain-cave' ? '#1a2430' : '#7eb6e6', 1);
 
     // 主角位置/朝向
     if (hero) {
-      // 走路插值：逻辑是 70ms 跳一格，画面追过去；瞬移（换房/传送）超过 3 格就直接落位
-      const tx = P.x + 0.5, tz = P.y + 0.5;
-      const dt = Math.max(4, Math.min(64, now - (hero.userData.lastT || now - 16)));
-      hero.userData.lastT = now;
-      if (Math.abs(tx - hero.position.x) > 3 || Math.abs(tz - hero.position.z) > 3) {
-        hero.position.x = tx;
-        hero.position.z = tz;
-      } else {
-        const a = 1 - Math.exp(-dt / 22);
-        hero.position.x += (tx - hero.position.x) * a;
-        hero.position.z += (tz - hero.position.z) * a;
-      }
-      const moving = B.walking && B.walking();
+      hero.position.x = vis.x;
+      hero.position.z = vis.y;
+      const moving = !!vis.moving;
       const strike = now - (B.strikeAt ? B.strikeAt() : 0) < 260;
       const bob = moving ? Math.sin(now / 1000 * 8) * (2 / 48) : Math.sin(now / 1000 * 2) * (1 / 48);
-      hero.position.y = (hero.userData.foot || hero.position.y) + bob;
+      hero.position.y = (hero.userData.foot || 0) + bob;
       hero.rotation.z = strike || !moving ? 0 : (P.dir === 'l' ? 0.035 : P.dir === 'r' ? -0.035 : P.dir === 'u' ? -0.02 : 0.02);
       const dead = B.over && B.over() && P.hp <= 0;
       if (dead) {
@@ -970,7 +1609,10 @@
         const row = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
         let col;
         if (now - (B.strikeAt ? B.strikeAt() : 0) < 260) col = 3;
-        else if (B.walking && B.walking()) col = 1 + (Math.floor(now / 160) % 2);
+        else if (moving) {
+          const stepMs = (DL.DATA && DL.DATA.WALK_STEP_MS) || 180;
+          col = 1 + (Math.floor(now / stepMs) % 2);
+        }
         else col = 0;
         const next = heroFrame(col, row);
         if (next && hero.material.map !== next) {
@@ -1058,7 +1700,16 @@
     drawTags();
     if (showStats && statsEl) {
       const info = renderer.info.render;
-      statsEl.textContent = 'frame ' + (performance.now() - t0).toFixed(2) + ' ms  draws ' + info.calls + '  tris ' + info.triangles;
+      const frameMs = performance.now() - t0;
+      if (fpsLastT) {
+        const inst = 1000 / Math.max(1, now - fpsLastT);
+        fpsEma = fpsEma * 0.9 + inst * 0.1;
+      }
+      fpsLastT = now;
+      statsEl.textContent = 'fps ' + fpsEma.toFixed(0)
+        + '  frame ' + frameMs.toFixed(2) + ' ms'
+        + '  draws ' + info.calls
+        + '  tris ' + info.triangles;
     }
   }
 
@@ -1138,7 +1789,8 @@
     }
     const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
     const ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
-    const hit = Pick.groundHit(look.x, look.z, nx, ny, zoom);
+    const hit = rayToGround(nx, ny);
+    if (!hit) return;
     const cell = Pick.cellOf(hit.x, hit.z);
     B.clickCell(cell.x, cell.y);
   }
@@ -1181,11 +1833,9 @@
     if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) {
       renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
-    camera = new THREE.OrthographicCamera(
-      -Pick.FRUSTUM_W / 2, Pick.FRUSTUM_W / 2,
-      Pick.FRUSTUM_H / 2, -Pick.FRUSTUM_H / 2,
-      0.1, 240
-    );
+    camera = CAM.ortho
+      ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600)
+      : new THREE.PerspectiveCamera(FOV, Pick.VIEW_W / Pick.VIEW_H, 0.1, 400);
     scene = new THREE.Scene();
     // 环境光压到"能看清暗部"就够；主光是左上方向光。
     // 注意：这一版 three 的光强是物理单位，数值比老教程大（真实值 ≈ 老值 × π）。
@@ -1225,9 +1875,9 @@
     look = { x: P.x + 0.5, z: P.y + 0.5 };
     mini = document.createElement('canvas');
     mini.id = 'mini3d';
-    mini.width = 180;
-    mini.height = 180;
-    mini.style.cssText = 'position:fixed;right:12px;top:60px;width:180px;height:180px;z-index:6;border:1px solid rgba(150,176,220,.35);background:#101623;pointer-events:none;';
+    mini.width = 140;
+    mini.height = 140;
+    mini.style.cssText = 'position:fixed;right:12px;top:60px;width:140px;height:140px;z-index:6;border:1px solid rgba(150,176,220,.35);background:#101623;pointer-events:none;';
     document.body.appendChild(mini);
     showStats = /(?:^|[?&])stats=1(?:&|$)/.test(q);
     if (showStats) {
@@ -1264,6 +1914,20 @@
     },
     boot: boot,
     pointer: pointer,
+    // 调试用：现在驻留了哪些块、还排着几块、块多大
+    chunks: function () { return gChunks ? Array.from(gChunks.keys()) : []; },
+    // 视野四边形 / 需要哪些块（调试用：块数不对时先看这两个）
+    viewQuad: function () { return viewQuad(); },
+    ray: function (nx, ny) { return rayToGround(nx, ny); },
+    chunkNeed: function () { return gNeed.map(function (r) { return r.x0 + ',' + r.y0; }); },
+    pendingChunks: function () { return gQueue.length; },
+    chunkCell: CHUNK_CELLS,
+    // 格子 → 屏幕 NDC。透视下这个反算只有相机自己算得准，测试脚本也走这里，
+    // 免得测试用一套公式、游戏用另一套（以前就是这么漂的）。
+    cellToNdc: function (gx, gz) {
+      const v = new THREE.Vector3(gx, 0, gz).project(camera);
+      return { nx: v.x, ny: v.y };
+    },
     debug: function () {
       return {
         on: on,
@@ -1283,4 +1947,3 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
     else start();
   }
-})(typeof window !== 'undefined' ? window : globalThis);

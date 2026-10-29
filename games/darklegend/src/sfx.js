@@ -2,9 +2,8 @@
    仅：kill（怪死）/ equip（换装）/ test（开声确认）
    解锁后优先 WebAudio（可挂机时播）；HTMLAudio 兜底
 */
-(function (global) {
-  'use strict';
-  const DL = (global.DL = global.DL || {});
+import { DL } from './namespace.js';
+const global = globalThis;
   const MUTE_KEY = 'darklegend-sfx-mute';
   const hasAudio = typeof global.Audio === 'function';
 
@@ -224,4 +223,3 @@
     bindAutoUnlock, onChange, getLastError,
     MUTE_KEY, DROP_BY_RARITY: {},
   };
-})(typeof window !== 'undefined' ? window : globalThis);

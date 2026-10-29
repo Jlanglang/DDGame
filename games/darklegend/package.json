@@ -1,0 +1,18 @@
+{
+  "name": "darklegend",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node test-game.mjs && node test-three.mjs",
+    "test:input": "node -e \"console.log('前置：先 npm run dev，开着 http://localhost:8183')\" && node test-input.js"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.0.0"
+  }
+}

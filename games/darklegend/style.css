@@ -73,13 +73,13 @@ html, body {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
-  padding-right: 80px;
 }
 
 .hud-btns {
   position: absolute;
-  right: 0;
-  top: 0;
+  right: 12px;
+  top: 8px;
+  z-index: 7;
   display: flex;
   gap: 6px;
 }
@@ -271,6 +271,8 @@ body.engine-three .hud {
   border: 0;
   border-radius: 0 0 12px 0;
   pointer-events: none;
+  /* backdrop-filter 会让子级 fixed 相对本条定位，按钮会「跌」在左上角 */
+  backdrop-filter: none;
 }
 
 body.engine-three .hud-left,
@@ -291,7 +293,10 @@ body.engine-three .hud-btns {
   position: fixed;
   top: 8px;
   right: 12px;
+  left: auto;
   z-index: 7;
+  display: flex;
+  gap: 6px;
 }
 
 body.engine-three .icon-btn {

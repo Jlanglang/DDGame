@@ -1432,6 +1432,18 @@ try {
   dl.tick();
   ok('稀有靠近不关挂机', dl.autoFarm() === true);
 
+  // 鼠标点地 = 手动接管：挂机立刻关掉（否则点完一格 autoStep 又把人拉走）
+  {
+    ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick',
+      'stash', 'bookShop', 'trial', 'sfxGate'].forEach((id) => {
+      const n = sandbox.document.getElementById(id);
+      if (n) n.hidden = true;
+    });
+    ok('点地前挂机开着', dl.autoFarm() === true);
+    dl.clickCell(dl.P.x, dl.P.y);
+    ok('点地中断挂机', dl.autoFarm() === false);
+  }
+
   // 挂机无收益折扣（与手打同）
   dl.enterRoom('field1');
   ['intro', 'shop', 'menu', 'char', 'over', 'doorConfirm', 'lootPick'].forEach((id) => {

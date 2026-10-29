@@ -237,7 +237,10 @@ const D = DL.DATA;
   // A5 走路插值：逻辑整格跳；画面格心→格心匀速滑。变向等本格走完（传奇常规），转面立刻生效。
   let walkVis = null; // { fx, fy, tx, ty, start, dur } | null
   let walkVisPrev = null; // 上一步起点（拐角圆滑用）
-  let walkLine = null; // { pts, total, done } | null —— 点地寻路的真直线折线（画面沿它走）
+  // 点地寻路的真直线折线（画面沿它走）。位置按**时间**在整条折线上取点：
+  // { pts, total, done, t0, dur }。pts[0] 是「起步那一刻画面在哪儿」，不是格心——
+  // 连点换目标时从这里接着走，否则画面会从上一段的斜线横跳回格心（镜头硬跟，看着就是抖）。
+  let walkLine = null;
   let walkReadyAt = 0; // 下一格解锁时间
   let pendingTarget = null;
   // 摇杆/按键状态提前声明，供 walkInputHeld 闭包使用
@@ -286,25 +289,22 @@ const D = DL.DATA;
     const dur = walkVis.dur || WALK_STEP_MS;
     return Math.min(1, Math.max(0, (nowMs() - walkVis.start) / dur));
   }
-  // 沿折线取点：u∈[0,1] 按各段长度比例走
-  function pointOnLine(pts, u) {
+  // 沿折线按「格数」取点：ks[i] 是 pts[i] 对应的逻辑格编号（第几格，可为负=半拍），
+  // 段内直线插值。画面和逻辑同一拍（拐点处不会领先/落后），拐点又不跳。
+  function pointOnSteps(pts, ks, s) {
     const n = pts.length;
     if (!n) return { x: P.x, y: P.y };
-    if (n === 1) return { x: pts[0].x, y: pts[0].y };
-    let total = 0;
-    for (let i = 1; i < n; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-    if (!total) return { x: pts[0].x, y: pts[0].y };
-    let want = Math.min(1, Math.max(0, u)) * total;
+    if (n === 1 || !ks || ks.length !== n) return { x: pts[0].x, y: pts[0].y };
+    if (s <= ks[0]) return { x: pts[0].x, y: pts[0].y };
     for (let i = 1; i < n; i++) {
-      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-      if (want <= d || i === n - 1) {
-        const r = d > 0 ? Math.min(1, want / d) : 1;
+      if (s <= ks[i]) {
+        const d = ks[i] - ks[i - 1];
+        const r = d > 1e-6 ? Math.min(1, Math.max(0, (s - ks[i - 1]) / d)) : 1;
         return {
           x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r,
           y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r,
         };
       }
-      want -= d;
     }
     return { x: pts[n - 1].x, y: pts[n - 1].y };
   }
@@ -369,14 +369,14 @@ const D = DL.DATA;
   }
   function walkStepVis() {
     const movingInput = walkInputHeld();
-    // 点地寻路：画面沿拉直后的真直线折线走（逻辑仍一格一拍），
-    // 否则八向网格上的缓斜线会走成「斜一步、直一步」的蛇形。
-    // done===0 时还没迈第一步（可能在等上一格滑完），先沿用旧的逐格插值，免得镜头往回跳。
-    if (walkLine && walkLine.done > 0 && walkLine.pts && walkLine.pts.length > 1) {
-      const t = stepProgress();
-      const u = Math.min(1, Math.max(0, (walkLine.done - 1 + t) / Math.max(1, walkLine.total)));
-      const p = pointOnLine(walkLine.pts, u);
-      return { x: p.x + 0.5, y: p.y + 0.5, t: t, moving: t < 1 || movingInput || walkStepBusy() };
+    // 点地寻路：画面沿拉直后的真直线折线走（逻辑仍一格一拍）。
+    // 用「格数」在折线上取点：s = 已完成的格子数 + 本格进度，和逻辑同一拍；
+    // 拐点不跳、斜线匀速，而且换目标时 pts[0] 就是上一帧的画面位置，连点不会横跳。
+    if (walkLine && walkLine.pts && walkLine.pts.length > 1) {
+      const s = (walkLine.done - 1) + stepProgress();
+      const p = pointOnSteps(walkLine.pts, walkLine.ks, s);
+      const t = Math.min(1, Math.max(0, s / Math.max(1, walkLine.total)));
+      return { x: p.x + 0.5, y: p.y + 0.5, t: t, moving: s < walkLine.total - 1e-6 || movingInput || walkStepBusy() };
     }
     if (!walkVis) {
       return { x: P.x + 0.5, y: P.y + 0.5, t: 1, moving: movingInput };
@@ -2494,10 +2494,10 @@ const D = DL.DATA;
     el.btnFarm.disabled = !canFarmHere() || over;
     el.btnFarm.title = !canFarmHere()
       ? '进房间后才能挂机'
-      : (autoFarm ? '挂机中：再点关闭' : '挂机：自动打普通/精英');
+      : (autoFarm ? '挂机中：再点关闭（点地也会关）' : '挂机：自动打普通/精英');
   }
 
-  function setAutoFarm(on) {
+  function setAutoFarm(on, note) {
     const next = !!on && canFarmHere() && !over;
     if (autoFarm === next) { syncFarmBtn(); return autoFarm; }
     autoFarm = next;
@@ -2507,7 +2507,7 @@ const D = DL.DATA;
       log('挂机开启：只打普通/精英（稀有/首领要自己关挂再打）；收益与手打相同。', 'good');
       scheduleIdle();
     } else {
-      log('挂机已关闭。');
+      log(note || '挂机已关闭。');
     }
     syncFarmBtn();
     return autoFarm;
@@ -3342,18 +3342,72 @@ const D = DL.DATA;
       clearTimeout(walkTimer);
       walkTimer = null;
     }
+    // 折线还在跑：先把「现在画到哪儿」接进 walkVis，再丢掉折线。
+    // 这样撞怪停下、按方向键接管、换图回位都从当前位置接着滑，不会弹回格心。
+    if (walkLine && walkLine.pts && walkLine.pts.length > 1) {
+      const cur = walkStepVis();
+      const remain = walkStepBusy() ? Math.max(16, walkStepRemaining()) : WALK_STEP_MS;
+      walkVis = {
+        fx: cur.x - 0.5, fy: cur.y - 0.5,
+        tx: P.x, ty: P.y,
+        start: nowMs(), dur: remain,
+      };
+      walkVisPrev = null;
+    }
     walkLine = null;
     pendingTarget = null;
   }
 
   function walk(path) {
     const target = pendingTarget;   // 保留"走到后打谁"
+    // 先记下当前这一格的画面进度/位置：换目标后画面要从这里接着画，
+    // 而且 s（格数）要和逻辑同一拍——所以下面要把这张「步表」按原相位重新装上去。
+    const p0 = walkVis ? stepProgress() : 1;
+    const vNow = walkStepVis();
+    const from = { x: vNow.x - 0.5, y: vNow.y - 0.5 };
     stopWalk();
     pendingTarget = target;
-    // 画面折线：用 bfs 拉直后的关键点（起点/拐点/终点），逐格路径只管逻辑
-    walkLine = (path && path.pts && path.pts.length > 1)
-      ? { pts: path.pts, total: Math.max(1, path.length), done: 0 }
-      : null;
+    // 画面折线：用 bfs 拉直后的关键点（起点/拐点/终点），逐格路径只管逻辑。
+    // 折线的第一个点换成「停步那一瞬间画面在哪儿」，它对应的格数是 s0（还在这一格里的负数）：
+    // 连点换目标时就从当前位置接着滑，不会从格心起算横跳一下。
+    // ks[i] 是 pts[i] 对应的格数（累计 Chebyshev 步数），画面按格数在段内插值。
+    const steps = Math.max(1, path ? path.length : 1);
+    const s0 = Math.min(0, p0 - 1);
+    let pts = null, ks = null;
+    if (path && path.pts && path.pts.length > 1) {
+      pts = [];
+      ks = [];
+      if (s0 < -1e-4) {
+        pts.push({ x: from.x, y: from.y });
+        ks.push(s0);
+      }
+      let k = 0;
+      for (let i = 0; i < path.pts.length; i++) {
+        const q = path.pts[i];
+        if (i > 0) {
+          const prev = path.pts[i - 1];
+          k += Math.max(Math.abs(q.x - prev.x), Math.abs(q.y - prev.y));
+        }
+        // 起步锚点已经占住 pts[0]：跳过格心 P，直接从当前位置连到下一个拐点，
+        // 免得先退到 P 再走——那 0.2~0.7 格的回头就是连点时看到的「抖」。
+        if (i === 0 && pts.length) continue;
+        const last = pts.length ? pts[pts.length - 1] : null;
+        if (last && Math.abs(q.x - last.x) + Math.abs(q.y - last.y) <= 1e-6) continue;
+        pts.push({ x: q.x, y: q.y });
+        ks.push(k);
+      }
+      if (pts.length < 2) { pts = null; ks = null; }
+      else ks[ks.length - 1] = Math.max(steps, ks[ks.length - 2] + 1e-6);
+    }
+    walkLine = pts ? { pts: pts, ks: ks, total: steps, done: 0 } : null;
+    if (pts) {
+      // 步表按原相位重装：画面从 from 继续滑到格心 P，正好是这一格剩下的时间；
+      // 逻辑也用同一个闸门，两边同拍（抢跑会让人物先到、镜头再追，看着就是抖）。
+      const now = nowMs();
+      walkVis = { fx: from.x, fy: from.y, tx: P.x, ty: P.y, start: now - p0 * WALK_STEP_MS, dur: WALK_STEP_MS };
+      walkVisPrev = null;
+      walkReadyAt = now + (1 - p0) * WALK_STEP_MS;
+    }
     const token = walkToken;
     let i = 0;
     const step = () => {
@@ -3390,11 +3444,11 @@ const D = DL.DATA;
   }
 
   /* ---------------- 输入 ---------------- */
-  // 点地/点怪只有 3D 一条入口：ThreeView 把屏幕坐标换成格子后回调 handleCellClick
-  // 点到某一格：3D 视图共用这一套（BFS / 撞怪 / NPC / 换图）
+  // 点地/点怪唯一入口：ThreeView 把屏幕坐标换成格子后回调 handleCellClick（BFS / 撞怪 / NPC / 换图）
   function handleCellClick(wx, wy) {
     if (over || uiOpen()) return;
     if (DL.SingleTab && DL.SingleTab.isLost()) return;
+    if (autoFarm) setAutoFarm(false, '挂机已关闭（点地手动接管）。'); // 鼠标点地/手机点屏都算接管
     if (!S.canAct(P)) { blockAction(); return; }
     if (wx < 0 || wy < 0 || wx >= map[0].length || wy >= map.length) return;
     if (isWall(wx, wy)) return;
@@ -4388,38 +4442,34 @@ const D = DL.DATA;
     }
     const seed = (worldSeed >>> 0) ^ hashId(currentRoom || 'hub');
     terrain = DL.World.genTerrain(map, pts, seed);
-    // 海岛化（2026-10-29）：房间也做成岛——最外两圈变海、再往里一圈沙滩，
-    // 边界交给水和沙，不再用树/山谷。出口格（map===2）不动。
-    if (!hub) {
+    // 海岛化（2026-10-29）：野外房间（open）整图 96，陆地只占中间 48——
+    // genRoom 已经把陆地画好（map=0），这里只上色：map=1 → 海；靠海两圈 → 沙滩。
+    // 洞窟（cave）不碰：它的墙就是岩壁（terrain=2）。
+    const roomKind = currentRoom ? roomSpec(currentRoom) : null;
+    if (roomKind && roomKind.layout === 'open') {
       const W2 = map[0].length, H2 = map.length;
-      const cx2 = W2 / 2, cy2 = H2 / 2;
+      let lx0 = W2, lx1 = -1, ly0 = H2, ly1 = -1;
       for (let y = 0; y < H2; y++) {
         for (let x = 0; x < W2; x++) {
-          if (map[y][x] === 2) continue;
-          // 岸边跟着方向起伏：最外圈往里收多少，按角度做三个正弦（和主城同一套写法）
-          const th = Math.atan2(y - cy2, x - cx2);
-          const wave = 1.15 * Math.sin(3 * th + 0.7) + 0.75 * Math.sin(5 * th + 2.1) +
-            0.4 * Math.sin(9 * th + 4.2);
-          const shrink = 1.9 + wave;
-          // 沙滩宽度按角度起伏：岬角窄、海湾宽
-          const beach = 1.0 + 2.2 * (0.5 + 0.5 * Math.sin(2 * th + 1.1)) + 1.1 * (0.5 + 0.5 * Math.sin(7 * th + 0.3));
-          const d = Math.min(x, y, W2 - 1 - x, H2 - 1 - y);
-          if (d < shrink) { map[y][x] = 1; terrain[y][x] = 3; }
-          else if (d < shrink + beach) terrain[y][x] = 4;
-          else { map[y][x] = 0; terrain[y][x] = 0; }   // 小怪房间先全草皮：旧障碍墙也一并清掉
+          if (map[y][x] !== 0) continue;
+          if (x < lx0) lx0 = x;
+          if (x > lx1) lx1 = x;
+          if (y < ly0) ly0 = y;
+          if (y > ly1) ly1 = y;
         }
       }
-    }
-    if (!hub && back) {
-      // 出口到岛心挖一条走廊：不然出口被海水围成一粒孤岛，玩家找不到
-      const W3 = map[0].length, H3 = map.length;
-      const tx = Math.round(W3 / 2), ty = Math.round(H3 / 2);
-      const steps = Math.max(Math.abs(tx - back.x), Math.abs(ty - back.y));
-      for (let i = 0; i <= steps; i++) {
-        const t = steps ? i / steps : 0;
-        const px = Math.round(back.x + (tx - back.x) * t);
-        const py = Math.round(back.y + (ty - back.y) * t);
-        if (map[py] && map[py][px] !== 2) { map[py][px] = 0; terrain[py][px] = 0; }
+      for (let y = 0; y < H2; y++) {
+        for (let x = 0; x < W2; x++) {
+          if (map[y][x] === 2) continue;                         // 出口格不动
+          if (map[y][x] === 1) {
+            // 陆地内的是障碍（树/石头），陆地外才是海
+            const inLand = x >= lx0 && x <= lx1 && y >= ly0 && y <= ly1;
+            terrain[y][x] = inLand ? 2 : 3;
+            continue;
+          }
+          const dd = Math.min(x - lx0, lx1 - x, y - ly0, ly1 - y);
+          terrain[y][x] = dd < 2 ? 4 : 0;                        // 靠海两圈沙滩，里面草地
+        }
       }
     }
     props = buildProps(seed);

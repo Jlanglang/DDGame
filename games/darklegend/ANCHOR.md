@@ -50,26 +50,28 @@
 | 掉落概率/保底 | `data.js DROP`(165) `RESPAWN`(60)；`game.js rollDrop`(2342) `rollKillEquipDrops`(2352) |
 | 装备底材/属性倍率 | `data.js EQUIP_BASES`(218) `EQUIP_STAT_MUL`(325)；`game.js makeEquip`(934) |
 | 词缀（M2 冻结但在跑） | `game.js makeEquip`(934) 掷 affix、`core.js affixMult`(34) 已计入伤害，UI 占位 `affixSlot`(1076) |
-| 房间 / 地图 / 主城 | `data.js ROOMS`(349) `THEME_OF_ROOM`(13)；**野外图统一 48×48**（`ROOMS` 的 `size` 就是最终格数，`world.js genRoom`(219)/`size`(222) 不再 ×2.2；洞窟 44/48 保持）；`world.js genHub`(185)；`game.js enterRoom`(597) |
+| 房间 / 地图 / 主城 | `data.js ROOMS`(349) `THEME_OF_ROOM`(13)；**野外图 = 128×128 整图 + 中间 72×72 陆地 + 四周海**（`ROOMS` 的 `size` 就是陆地边长，`world.js genRoom`(219) 不再 ×2.2、陆地里不放障碍；海/沙滩在 `game.js refreshTerrain`(4372) 按 map=1 上色，陆地外 → terrain 3、靠海两圈 → 4；洞窟 44/48 保持）；`world.js genHub`(185)；`game.js enterRoom`(597) |
 | 城外野怪分布 / 密度 | `overworld.js placeFieldMobs`(110)：`plans` 里 `n` 是只数、`d0/d1` 是离城墙的距离（格，**d1=99 = 一直铺到草地边缘**，别再写死 12 那种数）、`side` 是边（north 北 / south 南 / any 四条边随机）、`shore` 是先在海边留几只；深度上限由 `edgeCells` 按列量（碰到沙滩/海就停），贴海判定 `SHORE_BAND`(109)=2 格；只站草地、彼此隔 `FIELD_GAP`(108)=5 格。死掉 8 秒后原地重生（`game.js respawnField`(2590)，玩家离 >6 格才刷） |
 | 战斗判定（伤害/范围） | `combat.js playerDamage`(19) `halfMoonCells`(34)；`game.js strike`(1944) `halfMoon`(3041) |
 | 怪 AI / BOSS 出招 | `data.js AI`(125)；`combat.js decide`(76)；`game.js enemiesTurn`(2611) `bossTrick`(2655) |
 | 状态（毒/烧/眩晕/麻痹） | `status.js DEFS`(23) `apply`(60) `tick`(86)；`game.js tickStatuses`(2673) |
 | 棋盘/墙掩码/图集（已无） | 2D 删掉后 `tiles.js`、`assets.js` 也删了；地面走 `iso-art.js`，立牌走 `hd-draw.js` |
-| 3D 画面 | `render-three.js rebuildRoom`(1444) `buildGround`(934) `addPlate`(622) `makeChunk`(659)/`syncChunks`(792)/`pumpChunks`(724)（地面分块）`addEnemy` `addProp` `tick`(1688)；`iso-ground.js paint`(369) |
-| 地面块大小 / 驻留圈 | `render-three.js` 的 `CHUNK_CELLS`(52)=**8 格**（块大小=走路手感的开关：16 格单块 30~42ms 会顿，8 格不顿）；驻留不是单独常量，是 `syncChunks`(792) 里 `addBox(keep, …, -1, …, +1)` 把视野块再外扩 1 圈；改完用 `asset-bench.html` ⑥ 对拍 + `?stats=1` 看帧时间 |
-| **走路一顿一顿 / 掉帧** | 先看是不是地面分块在生成：`render-three.js makeChunk`(659) → `iso-art.js groundSheet`(1759)。**一块的正常预算 ≤6ms**（165Hz 一帧才 6.06ms）：2026-10-29 实测老路 16~26ms/块、走路每 0.3s 掉 4~7 帧；病根是沙带「每块 getImageData×3 + 逐像素覆盖」。现在改成整图沙带遮罩 `sandMask`(2152)（`buildGround` 里和 `gSea` 一起建，16×16 格外的块只 drawImage 裁一块）→ 3.5~5.7ms/块。另有 `turfTileCached`(317 附近) 草皮砖缓存、`seaMask`(1636) 按地形数组缓存。**再动这几处先量**：`tmp/bench-ground.mjs`（各变体耗时）、`tmp/fps-probe.mjs`（走 8 段路看长帧）、`tmp/diff-ground.mjs`（老路/新路逐像素差，用来确认没改画面） |
-| 主角外观 / 攻击动作 | `render-three.js heroFrame`(330) 切 `hd-draw.heroSheet` 的 4×5 图集（4 向 × 待机/走路 2 帧/攻击 1 帧 + 倒地）；身高 `HERO_H`(1137)。**PNG 立牌已清空**，新图回来后在 `rebuildRoom` 里按 key 换回 |
-| 走路插值（A5） | `game.js`：`beginWalkStep`/`snapWalkVis`/`walkStepVis`/`walkVisPos`/`walkLine`；桥 `ThreeBridge.step()`；`render-three.js` tick 里 hero+look 跟 `vis`（换图/复活 `snapWalkVis`）。逻辑仍整格跳，只改画面 |
+| 3D 画面 | `render-three.js rebuildRoom`(1456) `buildGround`(946) `addPlate`(634) `makeChunk`(671)/`syncChunks`(804)/`pumpChunks`(736)（地面分块）`addEnemy` `addProp` `tick`(1700)；`iso-ground.js paint`(369) |
+| 地面块大小 / 驻留圈 | `render-three.js` 的 `CHUNK_CELLS`(52)=**8 格**（块大小=走路手感的开关：16 格单块 30~42ms 会顿，8 格不顿）；驻留不是单独常量，是 `syncChunks`(804) 里 `addBox(keep, …, -1, …, +1)` 把视野块再外扩 1 圈；改完用 `asset-bench.html` ⑥ 对拍 + `?stats=1` 看帧时间 |
+| **走路一顿一顿 / 掉帧** | 先看是不是地面分块在生成：`render-three.js makeChunk`(671) → `iso-art.js groundSheet`(1759)。**一块的正常预算 ≤6ms**（165Hz 一帧才 6.06ms）：2026-10-29 实测老路 16~26ms/块、走路每 0.3s 掉 4~7 帧；病根是沙带「每块 getImageData×3 + 逐像素覆盖」。现在改成整图沙带遮罩 `sandMask`(2152)（`buildGround` 里和 `gSea` 一起建，16×16 格外的块只 drawImage 裁一块）→ 3.5~5.7ms/块。另有 `turfTileCached`(317 附近) 草皮砖缓存、`seaMask`(1636) 按地形数组缓存。**再动这几处先量**：`tmp/bench-ground.mjs`（各变体耗时）、`tmp/fps-probe.mjs`（走 8 段路看长帧）、`tmp/diff-ground.mjs`（老路/新路逐像素差，用来确认没改画面） |
+| 主角外观 / 攻击动作 | `render-three.js heroFrame`(354) 切 `hd-draw.heroSheet` 的 4×5 图集（4 向 × 待机/走路 2 帧/攻击 1 帧 + 倒地）；身高 `HERO_H`(1169)。**PNG 立牌已清空**，新图回来后在 `rebuildRoom` 里按 key 换回 |
+| 走路插值（A5） | `game.js`：`beginWalkStep`/`snapWalkVis`/`walkStepVis`/`walkVisPos`/`walkLine`；桥 `ThreeBridge.step()`；`render-three.js` tick 里 hero+look **硬跟** `vis`（没有相机缓动，所以 `vis` 一跳镜头就抖；换图/复活 `snapWalkVis`）。逻辑仍整格跳，只改画面 |
 | **点地走成楼梯 / S 形** | 两层：① `world.js` `bfs`(147) → `tightenPath`(130) 用 `lineWalk`(84) 视线拉直，折点存进 `path.pts`；② `game.js` 的 `walkLine` 让画面沿 `pts` 之间的**真直线**走（逻辑仍一格一拍）。只拉直路径不够——八向网格的缓斜线永远是「斜一步、直一步」，贴着格心画就是蛇形。**别再退回「横一步+竖一步」的两格合并** |
+| **连点换目标 / 镜头抖** | `game.js` `walk`(3361)：折线带 `ks`（每个折点对应的格数，`s = done-1+stepProgress()`），`pointOnSteps` 按格数在段内插值——画面和逻辑同一拍，拐点不跳。换目标时 `pts[0]` 换成**当前画面位置**（`walkStepVis()`，格数取负数 `s0`），并跳过格心 `P` 直接连下一个拐点：否则新折线从格心起算，画面会横跳 0.2~0.7 格（`done=0` 时还会切回逐格插值，两套模型对不上）。`stopWalk` 把折线位置接进 `walkVis`，键盘接管/撞怪也不会弹回格心 |
 | 3D 崖壁（边缘山脊 / 野外孤石） | `render-three.js buildCliffs` / `addCliffSprite`（只往 `map=1` 的格子立，不会走穿）、`paintTex` 按「主题+变体+高度档」缓存；全部走 `iso-art.js` 程序化崖壁 |
 | 3D 地面材质（草地/石板/水/海/岸线） | `iso-art.js`：`paintGrass` `paintSlab` `paintWater` `paintSea` `shoreline` `seaMask` `groundSheet` `coastField`；海面在 `render-three.js` `addSeaMesh`（着色器，盖在沙上，`SEA_Y`）；改完看南岸和 `asset-bench.html` |
 | **浅水偏亮 / 海水颜色** | `render-three.js` `SEA_FRAG` 上方那组常量：`SEA_SHALLOW`（岸边水色）`SEA_SHORE_ALPHA`（越小越透沙、越亮）`SEA_CAUSTIC_SHORE/DEEP`（岸纹强度）`SEA_FOAM_ALPHA`；带宽在 `iso-art.js`：`SHALLOW_TILES`(3.8) 浅水、`SAND_TILES`(6.6) 沙带 |
-| 地面分块（大图流式加载） | `iso-art.js groundSheet`(1759) 的 `rect`/`margin`（块 + 1 格出血再裁）；对拍看 `asset-bench.html` ⑥（?margin=0 可关出血看反例）；块管理器在 `render-three.js`（`CHUNK_CELLS`(52) **8 格** + `syncChunks`(792) 外扩 1 圈）。海/沙两块传 `coast`+`coastPx` 和 `sandMask`，三者必须同尺寸（都由 `buildGround` 的 `gSea` 出） |
+| **水面动画（涌动 / 浪脊 / 碎沫 / 岸纹）** | 全在 `render-three.js` `SEA_FRAG` 的 ①–⑤ 段，`uTime` 由 `tick()`(1700) 每帧灌：① 慢涌改海面色、② 沿岸距推的浪脊、③ 碎沫跟涌浪舔沙（只动亮暗、`alpha` 仍按 `d`，不会露底衬）、④ 两层岸纹反向漂、⑤ 浪尖反光。**速度就是那几个 `uTime * X` 系数**：0 = 静止；④ 原来只有 0.07（1 秒走 0.03 格），看着像静态图，现在 0.55/0.40。碎沫宽度用 `fd` 的 `0.55` 摆幅，浪脊粗细看 `smoothstep(0.88, 0.995, …)` |
+| 地面分块（大图流式加载） | `iso-art.js groundSheet`(1759) 的 `rect`/`margin`（块 + 1 格出血再裁）；对拍看 `asset-bench.html` ⑥（?margin=0 可关出血看反例）；块管理器在 `render-three.js`（`CHUNK_CELLS`(52) **8 格** + `syncChunks`(804) 外扩 1 圈）。海/沙两块传 `coast`+`coastPx` 和 `sandMask`，三者必须同尺寸（都由 `buildGround` 的 `gSea` 出） |
 | 崖壁精灵（AI 图，已清空） | `iso-art.js setCliffSprites` / `cliffFoot`；图 `assets/iso/processed/cliff1..3.png` **已删**；重出图看 `docs/瓦片清单.md` §一·五 v4（img2img + `key-magenta.py`） |
 | **立牌口径（3D 素材 + 2.5D 固定视角）** | `docs/立牌统一规格.md`：五条硬规则 + 出图 prompt + 五条验收。入库 `tools/ingest-3d.py 原图.png 输出.png --world 2.15`（按色相抠洋红、剥烘死的影子、去水印、缩到 2.5× 屏高）。对拍：`bench-scene.html`（光/影/地八根滑杆，立牌已换程序化占位） |
 | 音效 / 存档 | `sfx.js SFX`(185)+`play`(196)、调用点 game 1085/1963；`game.js save`(1851) `load`(1880)、`SAVE_KEY`(28) |
-| 鼠标 / 手机触摸 | `game.js handleCellClick`(3393) `bindDpad`(3620)；3D 点击入口 `render-three.js pointer`(1899)（小地图区域已挡）；CSS 222 |
+| 鼠标 / 手机触摸 | `game.js handleCellClick`(3393) `bindDpad`(3620)；3D 点击入口 `render-three.js pointer`(1931)（小地图区域已挡）；CSS 222 |
 | **多开页面 / 单实例守卫** | `src/single-tab.js`（新文件，整份）；入口 `src/boot.js` 先建好 `DL.SingleTab`；`game.js` 启动段包在 `startGame()`(4548)、文件末尾的门(4732) 拿到锁才开局；`save`(1851)/`after`(2786)/`handleCellClick`(3393)/`onKey`(3652) 头部都有 `isLost()` 早退。刷新走 `sessionStorage` 的 `prevSelfId` 快速接管；判定窗口：`FRESH_MS`(8000) 心跳过期、`PING_WAIT_MS`(350)、`RETRY_MS`(600)。**别退回「只靠 localStorage 时间戳」**——后台标签的计时器会被节流，得靠 BroadcastChannel 的 ping/pong 判活 |
 
 ## 数值都在哪（全在 data.js）
@@ -87,7 +89,7 @@
 
 ## 画面：只有 3D（WebGL）
 - `render-three.js wanted()` 恒 true（只要求浏览器有 WebGL）；`?engine=canvas`、`?engine=three` 都不再生效。
-- `boot()`(1938) 用 `#view3d` 建 WebGL 渲染器（`powerPreference: high-performance`），每帧 `tick()`(1688) 从 `ThreeBridge`（game.js 4572）读状态；点击 `pointer`(1919) 只算格子再回调 `B.clickCell` → `handleCellClick`，不复制寻路/战斗。左上角 `#fps` 角标在 `tick()` 末尾按 1 秒窗口刷新（`?stats=1` 另有详情面板）。
+- `boot()`(1950) 用 `#view3d` 建 WebGL 渲染器（`powerPreference: high-performance`），每帧 `tick()`(1700) 从 `ThreeBridge`（game.js 4572）读状态；点击 `pointer`(1931) 只算格子再回调 `B.clickCell` → `handleCellClick`，不复制寻路/战斗。左上角 `#fps` 角标在 `tick()` 末尾按 1 秒窗口刷新（`?stats=1` 另有详情面板）。
 - 双击能跑的是 `dist/index.html`（`npm run build` 打出来的单文件）。源码 `index.html` 和验收台要 `npm run dev`（http://localhost:8183）。贴图仍是程序化画布，不从本地 PNG 上传纹理。
 - **打包是手动的**：改完源码只跑测试 + `npm run dev` 目视验证，**不要自动 `npm run build`**、不要动 `dist/`。主人说「打包 / 构建」再打，产物跟那一次提交一起走（`dist/index.html` 是 ~1MB 单文件，每改一次就重打会让 diff 暴涨）。
 - 调试参数：`?quality=low` `?shot=wide`(zoom 0.55) `?shot=map`(zoom 0.3，整座岛) `?stats=1` `?chunk=0`(关掉地面分块) `?cam=mir|iso|diag45|diag45p|up45|now`(切相机，默认 mir) `?room=<id>`(需带 shot) `?debug`。
@@ -139,6 +141,11 @@
 - 文档滞后两处：规则文档第 55 行仍把"双手槽是否回来"列为待定（实际 `EQUIP_SLOTS` 已有 glovesL/R，data.js 201）；词缀 R8 属 M2 冻结但代码已在掷 `affix` 并计算，只界面写"未鉴定"。
 - 冻结/未做只查文档：3D 低模、实时光照、连续世界、词缀、多区域 → `docs/STATUS.md` §四；A1–A7 与 B 类美术缺口 → `docs/豆豆暗黑传奇-进度与完成度.md` §还没做。
 - **点地走路别按格子折线画**：逻辑仍是一格一拍，但画面位置由 `walkLine` 决定——沿
-  `bfs` 拉直后的 `path.pts`（起点/拐点/终点）之间的真直线匀速走，`walkStepVis` 里
-  `u = (done-1+t)/total` 按弧长取点。贴着格心画的话，八向网格的缓斜线永远是「斜一步、直一步」，
-  看着就是楼梯或蛇形。手动按方向键会 `stopWalk` 接管，别让两条走法打架。
+  `bfs` 拉直后的 `path.pts`（起点/拐点/终点）之间的真直线走。贴着格心画的话，八向网格的缓斜线
+  永远是「斜一步、直一步」，看着就是楼梯或蛇形。手动按方向键会 `stopWalk` 接管，别让两条走法打架。
+- **画面折线的参数别退回 u=(done-1+t)/total 按弧长取**：`pts` 的折点是按格数拉出来的，
+  按弧长铺会把「斜段/直段长度不同」变成拐点处的一跳（`u` 与格数对不上），而且换目标时
+  `done=0` 会掉回逐格插值——两套模型在同一个格子里能差 0.2~0.7 格。相机是硬跟 `vis` 的，
+  这一跳就是主人说的「镜头抖」。现在走 `ks`（格数）+`pointOnSteps`，起点是当时的画面位置。
+  改完用假时钟连点验证：`step()` 逐帧位移应当 ≤ 一格的正常速度（约 0.09 格/16ms，斜线 0.13），
+  不能出现单帧 >0.2 的位移或来回反转。

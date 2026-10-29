@@ -208,13 +208,25 @@ global.THREE = THREE;
     '  vec3 foamC = ' + v3(SEA_FOAM_C) + ';',
     '  float abyss = smoothstep(0.35, ' + SHALLOW_TILES.toFixed(2) + ', d);',
     '  vec3 col = mix(aqua, deep, abyss);',
-    '  float fn = noise(vXZ * 6.0);',
-    '  float foam = smoothstep(0.40, 0.02, abs(d)) * smoothstep(0.40, 0.78, fn);',
+    // ① 慢涌：一层大尺度噪声往东南漂，海面底色不再是一块死色
+    '  float swell = noise(vXZ * vec2(0.55, 0.85) + vec2(uTime * 0.16, -uTime * 0.10));',
+    '  col *= 0.93 + swell * 0.14;',
+    // ② 浪脊：沿岸距走的缓波，一层层往沙滩推（越靠岸越亮；去深水会刻意压淡，免得像等高线）
+    '  float crest = smoothstep(0.88, 0.995, sin((d + (swell - 0.5) * 2.0) * 2.0 + uTime * 0.9));',
+    '  col += vec3(0.16, 0.21, 0.18) * crest * (1.0 - abyss * 0.75) * smoothstep(-0.10, 0.80, d);',
+    // ③ 碎沫：岸线那圈跟着涌浪一起舔沙。只让 foam 的亮暗在动、alpha 的空间判据还是 d，
+    //    所以岸线不会"涨潮"露出底衬的纯色。
+    '  float fn = noise(vXZ * 6.0 + vec2(uTime * 0.42, -uTime * 0.26));',
+    '  float fd = abs(d + (swell - 0.5) * 0.55);',
+    '  float foam = smoothstep(0.40, 0.02, fd) * smoothstep(0.34, 0.74, fn);',
     '  col = mix(col, foamC, foam);',
-    '  float c1 = caustic(vXZ * 2.6 + vec2(uTime * 0.07, uTime * 0.04));',
-    '  float c2 = caustic(vXZ * 4.8 + vec2(-uTime * 0.05, uTime * 0.06) + vec2(4.2, 1.7));',
+    // ④ 岸纹两层反向漂：原来是 uTime*0.07（一秒走 0.03 格），看着就是一张静态图
+    '  float c1 = caustic(vXZ * 2.6 + vec2(uTime * 0.55, uTime * 0.30));',
+    '  float c2 = caustic(vXZ * 4.8 + vec2(-uTime * 0.40, uTime * 0.46) + vec2(4.2, 1.7));',
     '  float cau = c1 * 0.62 + c2 * 0.38;',
     '  col += vec3(0.85, 0.95, 0.80) * cau * mix(' + SEA_CAUSTIC_SHORE.toFixed(2) + ', ' + SEA_CAUSTIC_DEEP.toFixed(2) + ', abyss);',
+    // ⑤ 浪尖反光：只在浪脊上闪一下，让"往岸边推"这件事有方向感
+    '  col += vec3(0.09, 0.13, 0.11) * crest * cau;',
     '  float wet = smoothstep(-0.45, 0.08, d);',
     '  float alpha = max(foam * ' + SEA_FOAM_ALPHA.toFixed(2) + ', mix(wet * ' + SEA_SHORE_ALPHA.toFixed(2) + ', 1.0, abyss));',
     '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), alpha);',

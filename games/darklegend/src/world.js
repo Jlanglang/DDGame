@@ -236,20 +236,22 @@ const global = globalThis;
       return { map: m, spawn: { x: a.x + 1, y: exit.y }, exit };
     }
 
-    // 开阔小房间：内部全部打通，撒少量障碍
-    const m = blank(size, size);
-    for (let y = 1; y < size - 1; y++) {
-      for (let x = 1; x < size - 1; x++) m[y][x] = 0;
+    // 开阔野外：整图 128，中间陆地 72×72 —— 主人 2026-10-29：
+    // 「整图 128×128，中间陆地 72×72，把砖先去掉」。海 / 沙滩由 game.refreshTerrain 上色。
+    // 陆地里的障碍（砖）先不放，全空草地。
+    const BOX = 128;                         // 整图边长（陆地 + 海）
+    const land = Math.min(size, BOX - 8);    // 陆地边长（spec.size，默认 72）
+    const m = blank(BOX, BOX);
+    const x0 = Math.floor((BOX - land) / 2);
+    const y0 = Math.floor((BOX - land) / 2);
+    for (let y = y0; y < y0 + land; y++) {
+      for (let x = x0; x < x0 + land; x++) m[y][x] = 0;
     }
-    const obstacles = Math.floor(size * 0.8);
-    for (let i = 0; i < obstacles; i++) {
-      const x = rndi(2, size - 3), y = rndi(2, size - 3);
-      if (Math.abs(x - 2) + Math.abs(y - Math.floor(size / 2)) < 3) continue; // 出口附近留空
-      m[y][x] = 1;
-    }
-    const exit = { x: 1, y: Math.floor(size / 2) };
+    // 出口高度按房间错开 ±2 格：没有障碍之后，靠这一点保证不同房间布局不同
+    const ey = y0 + Math.floor(land / 2) + rndi(-2, 2);
+    const exit = { x: x0, y: ey };
     m[exit.y][exit.x] = 2;
-    return { map: m, spawn: { x: 2, y: exit.y }, exit };
+    return { map: m, spawn: { x: x0 + 1, y: ey }, exit };
   }
 
   // 只给绘制用。0 地面 / 1 土路 / 2 墙。不改 map，不进存档。

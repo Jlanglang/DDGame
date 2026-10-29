@@ -348,21 +348,21 @@ const global = globalThis;
     ROOM_ENTER_SLACK: 10,
     ROOMS: [
       // 1–10：每张地图只刷一种怪；普通怪等级固定，精英 +1、稀有 +2
-      { id: 'field1', name: '鸡鸣村外', pool: ['chicken'], lvMin: 1, lvMax: 3, size: 48, layout: 'open', mobs: 10, cd: 0 },
-      { id: 'field2', name: '荒田', pool: ['scarecrow'], lvMin: 3, lvMax: 5, size: 48, layout: 'open', mobs: 11, cd: 0 },
-      { id: 'field2b', name: '荒田深处', pool: ['dog'], lvMin: 5, lvMax: 7, size: 48, layout: 'open', mobs: 11, cd: 0 },
+      { id: 'field1', name: '鸡鸣村外', pool: ['chicken'], lvMin: 1, lvMax: 3, size: 72, layout: 'open', mobs: 10, cd: 0 },
+      { id: 'field2', name: '荒田', pool: ['scarecrow'], lvMin: 3, lvMax: 5, size: 72, layout: 'open', mobs: 11, cd: 0 },
+      { id: 'field2b', name: '荒田深处', pool: ['dog'], lvMin: 5, lvMax: 7, size: 72, layout: 'open', mobs: 11, cd: 0 },
       { id: 'cave1', name: '稻草垛洞', pool: ['boar'], lvMin: 7, lvMax: 9, size: 44, layout: 'cave', mobs: 3, boss: true, bossLv: 10, cd: 20 },
       // 10–20
-      { id: 'field3', name: '狼谷', pool: ['wolf'], lvMin: 11, lvMax: 13, size: 48, layout: 'open', mobs: 12, cd: 0 },
-      { id: 'field3b', name: '蛛网洞', pool: ['spider'], lvMin: 13, lvMax: 15, size: 48, layout: 'open', mobs: 12, cd: 0 },
-      { id: 'field4', name: '石魔矿洞', pool: ['stone'], lvMin: 15, lvMax: 17, size: 48, layout: 'open', mobs: 12, cd: 0 },
-      { id: 'field4b', name: '山贼营地', pool: ['bandit'], lvMin: 17, lvMax: 19, size: 48, layout: 'open', mobs: 12, cd: 0 },
+      { id: 'field3', name: '狼谷', pool: ['wolf'], lvMin: 11, lvMax: 13, size: 72, layout: 'open', mobs: 12, cd: 0 },
+      { id: 'field3b', name: '蛛网洞', pool: ['spider'], lvMin: 13, lvMax: 15, size: 72, layout: 'open', mobs: 12, cd: 0 },
+      { id: 'field4', name: '石魔矿洞', pool: ['stone'], lvMin: 15, lvMax: 17, size: 72, layout: 'open', mobs: 12, cd: 0 },
+      { id: 'field4b', name: '山贼营地', pool: ['bandit'], lvMin: 17, lvMax: 19, size: 72, layout: 'open', mobs: 12, cd: 0 },
       { id: 'cave3', name: '山贼寨', pool: ['bandit'], lvMin: 19, lvMax: 21, size: 44, layout: 'cave', mobs: 4, boss: true, bossLv: 20, bossName: '山大王', bossGlyph: '🪓', cd: 20 },
       // 20–30
       { id: 'cave2', name: '古墓', pool: ['ghoul'], lvMin: 21, lvMax: 23, size: 48, layout: 'cave', mobs: 4, boss: true, bossLv: 25, bossName: '古墓尸王', bossGlyph: '💀', cd: 25 },
-      { id: 'field5', name: '木乃伊墓室', pool: ['mummy'], lvMin: 23, lvMax: 25, size: 48, layout: 'open', mobs: 13, cd: 0 },
-      { id: 'field6', name: '血蝠洞', pool: ['bat'], lvMin: 25, lvMax: 27, size: 48, layout: 'open', mobs: 13, cd: 0 },
-      { id: 'field6b', name: '恶魔祭坛', pool: ['demon'], lvMin: 27, lvMax: 29, size: 48, layout: 'open', mobs: 13, cd: 0 },
+      { id: 'field5', name: '木乃伊墓室', pool: ['mummy'], lvMin: 23, lvMax: 25, size: 72, layout: 'open', mobs: 13, cd: 0 },
+      { id: 'field6', name: '血蝠洞', pool: ['bat'], lvMin: 25, lvMax: 27, size: 72, layout: 'open', mobs: 13, cd: 0 },
+      { id: 'field6b', name: '恶魔祭坛', pool: ['demon'], lvMin: 27, lvMax: 29, size: 72, layout: 'open', mobs: 13, cd: 0 },
       { id: 'field7', name: '血月荒原', pool: ['wraith'], lvMin: 29, lvMax: 31, size: 48, layout: 'cave', mobs: 4, boss: true, bossLv: 30, bossName: '血月怨主', bossGlyph: '👻', cd: 30 },
     ],
 

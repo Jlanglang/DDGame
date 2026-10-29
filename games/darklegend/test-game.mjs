@@ -87,13 +87,11 @@ const worldCode = fs.readFileSync(path.join(ROOT, 'world.js'), 'utf8');
 const combatCode = fs.readFileSync(path.join(ROOT, 'combat.js'), 'utf8');
 const statusCode = fs.readFileSync(path.join(ROOT, 'status.js'), 'utf8');
 const sfxCode = fs.readFileSync(path.join(ROOT, 'sfx.js'), 'utf8');
-const tilesCode = fs.readFileSync(path.join(ROOT, 'tiles.js'), 'utf8');
 vm.createContext(sandbox);
 try {
   vm.runInContext(dataCode, sandbox, { filename: 'data.js' });
   vm.runInContext(coreCode, sandbox, { filename: 'core.js' });
   vm.runInContext(worldCode, sandbox, { filename: 'world.js' });
-  vm.runInContext(tilesCode, sandbox, { filename: 'tiles.js' });
   vm.runInContext(combatCode, sandbox, { filename: 'combat.js' });
   vm.runInContext(statusCode, sandbox, { filename: 'status.js' });
   vm.runInContext(sfxCode, sandbox, { filename: 'sfx.js' });
@@ -284,12 +282,7 @@ try {
   ok('Boss 未激怒贴身不打', C.decide({ lv: 1, boss: true, aggroOn: false, aggro: 0, ai: 'passive' }, 10, 1) === 'idle');
   ok('Boss 激怒后贴身攻击', C.decide({ lv: 1, boss: true, aggroOn: true, aggro: 0, ai: 'passive' }, 10, 1) === 'attack');
 
-  /* 17. 相机夹取：地图大时贴边、地图小时让视野溢出去 */
-  ok('相机：地图大于视野时夹到边界', dl.camTarget(-100, 768, 720) === 0, dl.camTarget(-100, 768, 720));
-  ok('相机：地图小于视野时允许负值', dl.camTarget(-200, 640, 720) === -80, dl.camTarget(-200, 640, 720));
-  ok('相机：视野内原样返回', dl.camTarget(24, 768, 720) === 24, dl.camTarget(24, 768, 720));
-
-  /* 18. 自动回合：pauseAuto 后必须能 resumeAuto，否则自动攻击永久停摆 */
+  /* 17. 自动回合：pauseAuto 后必须能 resumeAuto，否则自动攻击永久停摆 */
   dl.pauseAuto();
   ok('pauseAuto 后自动战斗关闭', dl.autoEnabled() === false, dl.autoEnabled());
   dl.resumeAuto();
@@ -718,17 +711,8 @@ try {
       [dl.P.x, dl.P.y, d10.x, d10.y]);
     dl.setHubReturnDoor(null);
     dl.genHub();
-    const TILE = DATA.TILE;
-    const VW = DATA.VIEW_W;
-    const mapW = 24 * TILE;
-    const lo = Math.min(0, mapW - VW);
-    const hi = Math.max(0, mapW - VW);
-    const want = dl.P.x * TILE + TILE / 2 - VW / 2;
-    const camX = Math.min(hi, Math.max(lo, want));
-    ok('出生点传送门名字在画面内', dl.doors().every((d) => {
-      const sx = d.x * TILE - camX + TILE / 2;
-      return sx >= 48 && sx <= VW - 48;
-    }), dl.doors().map((d) => `${d.name}@${d.x * TILE - camX + TILE / 2}`));
+    // 2D 相机没了，传送门不再做"画面内坐标"断言；只确认都存在且在地图里
+    ok('传送门坐标合法', dl.doors().every((d) => d.x >= 0 && d.y >= 0 && d.x < 24 && d.y < 24));
   }
   ok('房间等级覆盖到 30', DATA.ROOMS.some((r) => r.lvMax >= 30));
   ok('古墓首领 Lv.25', (() => {
@@ -1473,29 +1457,6 @@ try {
   ok('房间里没有仓库', dl.stashNpc() == null);
   ok('房间里打不开仓库', dl.openStash() === false);
   dl.genHub();
-
-  /* 瓦片：掩码 / 哈希 / 图集坐标。没有图集时不画瓦片。 */
-  const T = sandbox.DL.Tiles;
-  for (let mask = 0; mask < 16; mask++) {
-    const m = [[0, 0, 0], [0, 1, 0], [0, 0, 0]];
-    if (mask & 1) m[0][1] = 1;
-    if (mask & 2) m[1][2] = 1;
-    if (mask & 4) m[2][1] = 1;
-    if (mask & 8) m[1][0] = 1;
-    ok('墙掩码 ' + mask, T.wallMask(m, 1, 1) === mask, T.wallMask(m, 1, 1));
-  }
-  ok('地图边上的墙当实心', T.wallMask([[1]], 0, 0) === 15);
-  const doorN = [[0, 2, 0], [0, 1, 0], [0, 0, 0]];
-  ok('门不算墙邻居', T.wallMask(doorN, 1, 1) === 0, T.wallMask(doorN, 1, 1));
-  ok('格子哈希稳定', T.hash(3, 8, 12345) === T.hash(3, 8, 12345));
-  ok('不同格子哈希不同', T.hash(3, 8, 12345) !== T.hash(4, 8, 12345));
-  const srcFloor = T.atlasSrc(0x00);
-  ok('地面图在第 0 行第 0 列', srcFloor.sx === 0 && srcFloor.sy === 0, srcFloor);
-  const src23 = T.atlasSrc(0x23);
-  ok('0x23 是第 2 行第 3 列', src23.col === 3 && src23.row === 2 && src23.sx === 96 && src23.sy === 64, src23);
-  ok('墙 15 对应 0x1F', T.ATLAS.wall[15] === 0x1F);
-  ok('没有图集时不启用瓦片', T.ready === false && T.useTiles(true) === false);
-  ok('瓦片总开关开着', sandbox.DL.DATA.TILEMAP.enabled === true);
 } catch (err) {
   fail++;
   lines.push('  FAIL 异常：' + (err && err.stack ? err.stack.split('\n')[0] : err));

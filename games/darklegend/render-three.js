@@ -10,10 +10,6 @@
   if (!Pick) return;
 
   const CELL = Pick.CELL_PX;          // 48 px / 格
-  const MOB_ROW = {
-    chicken: 0, scarecrow: 1, dog: 2, boar: 3, wolf: 4, spider: 5,
-    stone: 6, bandit: 7, ghoul: 8, mummy: 9, bat: 10, demon: 11, wraith: 12,
-  };
 
   let B = null;                       // 游戏桥
   let on = false;
@@ -42,26 +38,11 @@
   let statsEl = null;
   let glLost = false;
   let showStats = false;
-  const textures = {};
-  const frameCache = {};
 
-  let warnedFileProto = false;
+  // 只剩 3D：不再有 2D Canvas 回退。file:// 也能跑（2026-10-29 起所有贴图都是程序化画布，
+  // 不再从本地 PNG 上传纹理，WebGL 不会被 CORS 拦）。
   function wanted() {
-    const q = (global.location && global.location.search) || '';
-    if (/(?:^|[?&])engine=canvas(?:&|$)/.test(q)) return false;
-    // file:// 下 WebGL 上传本地图片会被 CORS 拦（texSubImage2D SecurityError），3D 一定黑屏。
-    // 那就退回 2D（drawImage 不受这条限制），并在控制台说明怎么起服务。
-    if (global.location && global.location.protocol === 'file:') {
-      if (!warnedFileProto) {
-        warnedFileProto = true;
-        console.warn(
-          '[3D] 3D 模式需要 http:// 打开：file:// 下 WebGL 无法上传本地图片纹理。\n' +
-          '起服务：node tools/serve.mjs 8080\n' +
-          '然后访问 http://localhost:8080/games/darklegend/?engine=three'
-        );
-      }
-      return false;
-    }
+    if (typeof THREE === 'undefined' || !THREE.WebGLRenderer) return false;
     return true;
   }
 
@@ -72,17 +53,7 @@
     d.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);background:#101623;color:#eef2fa;padding:16px 18px;z-index:8;border-radius:10px;max-width:320px;text-align:center;line-height:1.5;';
     const p = document.createElement('div');
     p.textContent = msg;
-    const a = document.createElement('a');
-    a.textContent = '回到平面画面';
-    const loc = global.location;
-    let q = (loc && loc.search) || '';
-    q = q.replace(/([?&])engine=three(?=&|$)/, (_, sep) => (sep === '?' ? '?' : ''));
-    q = q.replace(/^\?&/, '?').replace(/&&/g, '&').replace(/[?&]$/, '');
-    if (!/(?:^|[?&])engine=canvas(?:&|$)/.test(q)) q += (q.indexOf('?') >= 0 ? '&' : '?') + 'engine=canvas';
-    a.href = (loc && loc.pathname ? loc.pathname : '') + q;
-    a.style.cssText = 'display:inline-block;margin-top:12px;color:#ffe08a;';
     d.appendChild(p);
-    d.appendChild(a);
     document.body.appendChild(d);
   }
 
@@ -113,7 +84,8 @@
   const heroFrames = {};
   function heroFrame(col, row) {
     const Hd = DL.HdDraw;
-    if (!Hd || !Hd.heroSheet) return frameTex('player', 4, 5, col, row);
+    // 素材库已清空：主角只走 hd-draw 的程序化图，PNG 图集等重建后再接
+    if (!Hd || !Hd.heroSheet) return null;
     const ck = col + ':' + row;
     if (heroFrames[ck]) return heroFrames[ck];
     if (!heroSheetTex) {
@@ -129,48 +101,6 @@
     t.repeat.set(1 / 4, 1 / 5);
     t.offset.set(col / 4, 1 - (row + 1) / 5);
     heroFrames[ck] = t;
-    return t;
-  }
-
-  // 主角攻击图集：4 格横排（待机 / 蓄力 / 挥出 / 收招），每格 128×128，按 UV 偏移切。
-  // 出图流程见 docs/角色设定.md §4.5；改帧只换 dou-atk.png，不用动代码。
-  let heroAtkTex = null;
-  // 攻击动作三段的切换时点（ms，相对出手瞬间）。要改节奏只动这三个数。
-  const ATK_MS = { total: 260, windup: 90, swing: 180 };
-  const heroAtkFrames = {};
-  function heroAtkFrame(i) {
-    if (!isoImg.heroAtk) return null;
-    if (heroAtkFrames[i]) return heroAtkFrames[i];
-    if (!heroAtkTex) heroAtkTex = isoTexture(isoImg.heroAtk);
-    if (!heroAtkTex) return null;
-    const t = heroAtkTex.clone();
-    t.needsUpdate = true;
-    t.repeat.set(1 / 4, 1);
-    t.offset.set(i / 4, 0);
-    heroAtkFrames[i] = t;
-    return t;
-  }
-
-  // 从图集切一张帧纹理（每张 sprite 自己克隆，offset 互不影响）
-  function frameTex(key, cols, rows, col, row) {
-    const ck = key + ':' + cols + ':' + rows + ':' + col + ':' + row;
-    if (frameCache[ck]) return frameCache[ck];
-    const im = DL.Assets && DL.Assets.image(key);
-    if (!im) return null;
-    if (!textures[key]) {
-      const t = new THREE.Texture(im);
-      if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-      // 精灵图集：线性过滤，但不开 mipmap（相邻帧会串色）
-      t.magFilter = THREE.LinearFilter;
-      t.minFilter = THREE.LinearFilter;
-      t.needsUpdate = true;
-      textures[key] = t;
-    }
-    const t = textures[key].clone();
-    t.needsUpdate = true;
-    t.repeat.set(1 / cols, 1 / rows);
-    t.offset.set(col / cols, 1 - (row + 1) / rows);
-    frameCache[ck] = t;
     return t;
   }
 
@@ -333,69 +263,9 @@
     return 'terrain-field';
   }
 
-  const isoImg = {};
-  let isoStarted = false;
-  let isoSettled = false;
-
-  function isoTexture(img) {
-    if (img._tex) return img._tex;
-    const t = new THREE.Texture(img);
-    if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
-    t.magFilter = THREE.LinearFilter;
-    t.minFilter = THREE.LinearFilter;
-    t.generateMipmaps = false;
-    t.needsUpdate = true;
-    img._tex = t;
-    return t;
-  }
-
-  function ensureIso() {
-    if (isoStarted) return;
-    isoStarted = true;
-    // ?iso=unified 走统归一那套（unify-sprites.py 产出），方便和原图 1:1 对拍
-    const dir = (/[?&]iso=unified/.test(location.search) ? 'assets/iso/unified/' : 'assets/iso/processed/');
-    const files = {
-      shop: dir + 'shop-v3.png?v=1',
-      tree: dir + 'tree-v3.png?v=1',
-      hero: dir + 'hero-dou.png?v=1',
-      heroAtk: 'assets/iso/processed/dou-atk.png?v=1',
-      stall: dir + 'stall-v3.png?v=1',
-      npc: dir + 'npc-v2.png?v=2',
-      chicken: dir + 'chicken-v2.png?v=2',
-    };
-    const keys = Object.keys(files);
-    let left = keys.length + 1;              // +1 = 崖壁精灵（3 张算一组）
-    const done = function () {
-      left -= 1;
-      if (left > 0) return;
-      isoSettled = true;
-      roomKey = '';
-      groundPainted = '';
-    };
-    keys.forEach(function (k) {
-      const im = new Image();
-      im.onload = function () { isoImg[k] = im; done(); };
-      im.onerror = function () { done(); };
-      im.src = files[k];
-    });
-    // 崖壁精灵：AI 出的 3 张（洋红底抠过的）。缺了不影响——iso-art 会退回程序化崖壁。
-    (function () {
-      const imgs = [];
-      let n = 3;
-      const fin = function () {
-        n -= 1;
-        if (n > 0) return;
-        if (imgs.length && DL.IsoArt && DL.IsoArt.setCliffSprites) DL.IsoArt.setCliffSprites(imgs);
-        done();
-      };
-      ['cliff1', 'cliff2', 'cliff3'].forEach(function (name) {
-        const im = new Image();
-        im.onload = function () { imgs.push(im); fin(); };
-        im.onerror = fin;
-        im.src = 'assets/iso/processed/' + name + '.png?v=1';
-      });
-    })();
-  }
+  // 素材库已清空（2026-10-29）：assets/ 只留 tiles + terrain。
+  // 3D 立牌（树/房/摊/人/怪/主角/袋子）全部改走 hd-draw.js 程序化画布 + paintTex 缓存；
+  // 新素材出好后按 key 逐个换回来（见 docs/立牌统一规格.md）。
 
   const tileCanvasCache = {};
 
@@ -591,109 +461,134 @@
     group = null;
   }
 
-  function isoBoard(img, height, order) {
-    const aspect = img.width / img.height;
-    return billboard(isoTexture(img), height * aspect, height, order);
-  }
-
-  // 立牌身高（世界单位），一把尺子量到底：豆豆 2.34 ≈ 1 个人
-  const TREE_H = 11.7;   // ≈5 人（豆豆 2.34）：单棵树的量级
-  const BORDER_TREE_H = 4.6;  // 边界那圈是同一张图排成墙，按 5 倍会变成绿色天花板、把入口埋掉
-  const HOUSE_H = 4.8;   // ≈2 人，门洞才不会像狗屋
-  const STALL_H = 3.0;   // ≈1.3 人，摊子比人高半头
+  // 立牌身高（世界单位），一把尺子量到底：豆豆 2.15 ≈ 1 个人。
+  // 数字按 hd-draw 程序化画布重新校准（画布是满幅的，没有 AI 图那种大块透明边）。
+  const HERO_H = 2.15;   // 1 个人
+  const TREE_H = 5.6;    // ≈2.6 人
+  const BORDER_TREE_H = 3.6;  // 边界树墙矮一档，不然树冠会把入口埋掉
+  const HOUSE_H = 4.8;   // ≈2.2 人，门洞才不会像狗屋
+  const STALL_H = 3.0;   // ≈1.4 人，摊子比人高半头
+  // 城里其余小物件：按 hd-draw townProp 的 index 顺序（0/1 摊位、2 篝火、3 水井、4 帐篷、5 栅栏…）
+  const TOWN_H = [STALL_H, STALL_H, 1.3, 1.6, 3.2, 0.9, 1.2, 1.0, 2.6, 1.4];
 
   function addProp(p) {
     const town = p.sheet === 'town';
     const idx = p.index || 0;
-    let img = null;
-    let w = 2.4;
-    let h = 2.2;
-    if (!town && isoImg.tree) {
-      img = isoImg.tree;
-      w = 3.2;
+    const Hd = DL.HdDraw;
+    if (!Hd) return;
+    let tex;
+    let h;
+    if (town) {
+      h = TOWN_H[idx] != null ? TOWN_H[idx] : 2.0;
+      tex = paintTex('town:' + idx, function () { return Hd.townProp(idx); });
+    } else {
       // 站在墙上（地图外圈）的是边界树墙：矮一档，不然树冠会把可玩区域和入口全盖住
       const m0 = B && B.map && B.map();
       const onWall = !!(m0 && m0[p.y] && m0[p.y][p.x] === 1);
       h = onWall ? BORDER_TREE_H : TREE_H;
-    } else if (town && (idx === 0 || idx === 1) && isoImg.stall) {
-      img = isoImg.stall;
-      w = 2.6;
-      h = STALL_H;
+      tex = paintTex('flora:' + idx, function () { return Hd.flora(idx); });
     }
-    if (!img) return;
-    const m = isoBoard(img, h, 1);
+    if (!tex) return;
+    const m = billboard(tex, h * (tex.image.width / tex.image.height), h, 1);
     m.position.x = p.x + 0.5 + (p.ox || 0) / CELL;
     m.position.z = p.y + 0.5 + (p.oy || 0) / CELL;
     own(m);
   }
 
   function addPerson(key, col, row, gx, gy, order) {
-    if (key !== 'npc' || !isoImg.npc) return null;
-    const m = isoBoard(isoImg.npc, 2.05, order);
+    const Hd = DL.HdDraw;
+    if (key !== 'npc' || !Hd || !Hd.npc) return null;
+    const tex = paintTex('npc:' + col, function () { return Hd.npc(col); });
+    if (!tex) return null;
+    const m = billboard(tex, HERO_H * (tex.image.width / tex.image.height), HERO_H, order);
     m.position.x = gx + 0.5;
     m.position.z = gy + 0.5;
     own(m);
     return m;
   }
 
-  const SMOOTH_MOB = { chicken: 1.35, scarecrow: 2.15, dog: 1.55, boar: 1.75 };
+  const MOB_H = { chicken: 1.35, scarecrow: 2.15, dog: 1.55, boar: 1.75 };
+  const MOB_GLYPH = {};
+  ((DL.DATA && DL.DATA.MON) || []).forEach(function (m) { MOB_GLYPH[m.id] = m.glyph; });
+
+  // 新素材还没出：hd-draw 没画过的怪先用 emoji 立牌占位，保证看得见、点得到。
+  function glyphCanvas(glyph) {
+    const c = document.createElement('canvas');
+    c.width = 160;
+    c.height = 160;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(30,20,12,0.28)';
+    g.beginPath();
+    g.ellipse(80, 148, 34, 9, 0, 0, Math.PI * 2);
+    g.fill();
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '92px system-ui';
+    g.fillText(glyph, 80, 82);
+    return c;
+  }
 
   function addEnemy(e) {
     const isBoss = !!e.boss;
-    if (!isBoss && e.id === 'chicken' && isoImg.chicken) {
-      const m = isoBoard(isoImg.chicken, 1.45, 3);
-      m.position.y -= 0.05;
-      m.position.x = e.x + 0.5;
-      m.position.z = e.y + 0.5;
-      m.userData.enemy = e;
-      m.userData.iso = true;
-      own(m);
-      return;
-    }
-    const smoothId = (!isBoss && SMOOTH_MOB[e.id]) ? e.id : (isBoss && B.room() === 'cave1' ? 'scarecrow' : null);
-    if (false && smoothId && DL.HdDraw && DL.HdDraw.mob) {
-      const tex = paintTex('mob:' + smoothId + ':0', function () { return DL.HdDraw.mob(smoothId, 0); });
-      if (tex) {
-        const h = isBoss ? 3.3 : SMOOTH_MOB[smoothId];
-        const m = billboard(tex, h * 0.9, h, 3);
-        m.position.y -= isBoss ? 0.35 : 0.15;
-        m.position.x = e.x + 0.5;
-        m.position.z = e.y + 0.5;
-        m.userData.enemy = e;
-        m.userData.smooth = smoothId;
-        own(m);
-        return;
-      }
-    }
-    let key, cols, rows, row, col;
-    if (isBoss) {
-      key = 'bosses';
-      cols = 4; rows = 4;
-      const room = B.room();
-      row = room === 'cave3' ? 1 : room === 'cave2' ? 2 : room === 'field7' ? 3 : 0;
-      col = 0;
-    } else {
-      key = 'mobs';
-      cols = 8; rows = 7;
-      const mob = MOB_ROW[e.id] != null ? MOB_ROW[e.id] : 0;
-      const cell = Pick.mobFrame(mob, 0);
-      row = cell.row;
-      col = cell.col;
-    }
-    const tex = frameTex(key, cols, rows, col, row);
+    const Hd = DL.HdDraw;
+    const known = !isBoss && Hd && Hd.mob && Hd.mob(e.id, 0);
+    const tex = known
+      ? paintTex('mob:' + e.id + ':0', function () { return Hd.mob(e.id, 0); })
+      : paintTex('mob-glyph:' + (isBoss ? 'boss' : e.id), function () {
+        const glyph = isBoss
+          ? ((DL.DATA && DL.DATA.BOSS && DL.DATA.BOSS.glyph) || '👹')
+          : (MOB_GLYPH[e.id] || '❓');
+        return glyphCanvas(glyph);
+      });
     if (!tex) return;
-    const px = isBoss ? 192 : 96;
-    const m = billboard(tex, px / CELL, px / CELL, 3);
-    m.position.y -= isBoss ? 0.4 : 0.2;
+    const h = isBoss ? 3.3 : (MOB_H[e.id] || 1.7);
+    const m = billboard(tex, h * (tex.image.width / tex.image.height), h, 3);
+    m.position.y -= isBoss ? 0.35 : 0.12;
     m.position.x = e.x + 0.5;
     m.position.z = e.y + 0.5;
     m.userData.enemy = e;
-    m.userData.sheet = {
-      key: key, cols: cols, rows: rows, row: row,
-      mob: isBoss ? 0 : (MOB_ROW[e.id] != null ? MOB_ROW[e.id] : 0),
-      boss: isBoss,
-    };
+    if (known) m.userData.smooth = e.id;
     own(m);
+  }
+
+  // 地上的装备袋：程序化小布包，颜色按袋里最好那件稀有度（紫 = 遗物）
+  const BAG_COLOR = { white: '#cfd8e6', blue: '#4a9eff', yellow: '#ffd54a', orange: '#ff8a3d', relic: '#c060ff' };
+
+  function bagCanvas(color) {
+    const c = document.createElement('canvas');
+    c.width = 96;
+    c.height = 96;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(30,20,12,0.3)';
+    g.beginPath();
+    g.ellipse(48, 86, 20, 6, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(30, 44);
+    g.quadraticCurveTo(26, 82, 48, 84);
+    g.quadraticCurveTo(70, 82, 66, 44);
+    g.closePath();
+    g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.22)';
+    g.beginPath();
+    g.moveTo(48, 50);
+    g.lineTo(66, 46);
+    g.quadraticCurveTo(66, 76, 48, 84);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = '#6a4c30';
+    g.lineWidth = 4;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(36, 46);
+    g.lineTo(60, 40);
+    g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.5)';
+    g.beginPath();
+    g.ellipse(40, 60, 5, 9, -0.3, 0, Math.PI * 2);
+    g.fill();
+    return c;
   }
 
   function addBag(b) {
@@ -703,9 +598,10 @@
       const i = order.indexOf(eq.rarity);
       if (i > best) best = i;
     }
-    const tex = frameTex('pickups', 5, 1, b.relic ? 4 : best, 0);
+    const colorKey = b.relic ? 'relic' : order[best];
+    const tex = paintTex('bag:' + colorKey, function () { return bagCanvas(BAG_COLOR[colorKey] || '#cfd8e6'); });
     if (!tex) return;
-    const m = billboard(tex, 64 / CELL, 64 / CELL, 2);
+    const m = billboard(tex, 0.72, 0.72, 2);
     m.position.x = b.x + 0.5;
     m.position.z = b.y + 0.5;
     m.userData.bag = b;
@@ -736,9 +632,8 @@
   }
 
   function assetsReady() {
-    const A = DL.Assets;
-    if (!A || !A.ready) return false;
-    return ['player', 'mobs', 'bosses', 'npc', 'pickups', 'flora', 'town'].every((k) => A.ready(k));
+    // 立牌全部程序化：只要 hd-draw 在，场景就能建（等新 PNG 素材回来再逐个接）
+    return !!(DL.HdDraw && DL.HdDraw.heroSheet);
   }
 
   function dropMesh(m) {
@@ -763,7 +658,7 @@
   }
 
   function buildSolids() {
-    if (!group || !B || !isoImg.shop) return;
+    if (!group || !B || !DL.HdDraw) return;
     const W = B.map()[0].length;
     if (B.room() !== 'hub' || W < 64) return;
     addHouse(60.2, 62.0);
@@ -787,7 +682,8 @@
   }
 
   function addHouse(x, z) {
-    const m = isoBoard(isoImg.shop, HOUSE_H, 1);
+    const tex = paintTex('house:shop', function () { return DL.HdDraw.house('shop'); });
+    const m = billboard(tex, HOUSE_H * (tex.image.width / tex.image.height), HOUSE_H, 1);
     m.position.set(x, HOUSE_H / 2, z);
     // 占地朝相机最下一行：相机在 +Z，脚底取更靠前的 z。
     m.userData.frontPad = 0.9;
@@ -902,13 +798,11 @@
       addPortal({ x: B.back().x, y: B.back().y, kind: boss ? 'boss' : 'exit', label: '出口' });
     }
 
-    // 优先用 4 格攻击图集（每格 128×128，待机 + 出击三帧）；没有就退回单张立牌
-    const atk0 = heroAtkFrame(0);
-    heroTex = atk0 || (isoImg.hero ? isoTexture(isoImg.hero) : null);
+    // 主角立牌：hd-draw 的 4×5 图集（4 向 × 4 帧 + 倒地帧），按方向/走路切帧
+    heroTex = heroFrame(0, 0);
     if (heroTex) {
-      hero = atk0 ? billboard(atk0, 2.34, 2.34, 4) : isoBoard(isoImg.hero, 2.15, 4);
-      hero.userData.iso = true;
-      hero.userData.atk = !!atk0;
+      hero = billboard(heroTex, HERO_H, HERO_H, 4);
+      hero.userData.iso = false;
       hero.userData.foot = hero.position.y;
       scene.add(hero);
       attachShadow(hero);
@@ -964,13 +858,6 @@
 
   // ---------- 每帧 ----------
 
-  function syncFrame(m, key, cols, rows, col, row) {
-    const tex = frameTex(key, cols, rows, col, row);
-    if (!tex || m.material.map === tex) return;
-    m.material.map = tex;
-    m.material.needsUpdate = true;
-  }
-
   function miniLayout(map) {
     const w = mini.width;
     const h = mini.height;
@@ -1025,8 +912,6 @@
 
   function tick() {
     if (!B || glLost) return;
-    ensureIso();
-    if (!isoSettled) return;
     const t0 = performance.now();
     const P = B.P();
     const now = t0;
@@ -1092,16 +977,6 @@
           hero.material.map = next;
           hero.material.needsUpdate = true;
         }
-      } else if (hero.userData.atk) {
-        // 攻击三帧：0–蓄力、蓄力–挥出、挥出–收招，其余时间回待机
-        const t = now - (B.strikeAt ? B.strikeAt() : 0);
-        const idx = (t >= 0 && t < ATK_MS.total)
-          ? (t < ATK_MS.windup ? 1 : t < ATK_MS.swing ? 2 : 3) : 0;
-        const next = heroAtkFrame(idx);
-        if (next && hero.material.map !== next) {
-          hero.material.map = next;
-          hero.material.needsUpdate = true;
-        }
       }
     }
 
@@ -1135,12 +1010,6 @@
           if (tex && m.material.map !== tex) {
             m.material.map = tex;
             m.material.needsUpdate = true;
-          }
-        } else {
-          const s = m.userData.sheet;
-          if (s && !s.boss) {
-            const cell = Pick.mobFrame(s.mob, Math.floor(now / 420) % 2);
-            syncFrame(m, s.key, s.cols, s.rows, cell.col, cell.row);
           }
         }
       }
@@ -1262,6 +1131,11 @@
     if (!on || !canvas || !B) return;
     const r = canvas.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    // 右上角是 3D 小地图（pointer-events:none，会穿透到这里）：点它不移动
+    if (mini) {
+      const mr = mini.getBoundingClientRect();
+      if (e.clientX >= mr.left && e.clientX <= mr.right && e.clientY >= mr.top && e.clientY <= mr.bottom) return;
+    }
     const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
     const ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
     const hit = Pick.groundHit(look.x, look.z, nx, ny, zoom);
@@ -1295,9 +1169,9 @@
     if (shot === 'wide' || shot === '3') zoom = 0.55;
 
     try {
-      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !low, alpha: false });
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !low, alpha: false, powerPreference: 'high-performance' });
     } catch (err) {
-      fail('这个浏览器开不了 3D。地址加上 ?engine=canvas 能回到原来的画面。');
+      fail('这个浏览器开不了 WebGL。3D 是唯一画面，没有 2D 回退了——换 Chrome / 开硬件加速再试。');
       return;
     }
     renderer.setClearColor('#7eb6e6', 1);
@@ -1350,6 +1224,7 @@
     const P = B.P();
     look = { x: P.x + 0.5, z: P.y + 0.5 };
     mini = document.createElement('canvas');
+    mini.id = 'mini3d';
     mini.width = 180;
     mini.height = 180;
     mini.style.cssText = 'position:fixed;right:12px;top:60px;width:180px;height:180px;z-index:6;border:1px solid rgba(150,176,220,.35);background:#101623;pointer-events:none;';
@@ -1396,7 +1271,9 @@
         ground: !!ground,
         group: group ? group.children.length : 0,
         hero: !!hero,
-        heroShadow: !!(hero && hero.userData && hero.userData.sw),
+        heroShadow: !!(hero && hero.userData && hero.userData.shadowMesh),
+        look: { x: look.x, z: look.z },
+        zoom: zoom,
       };
     },
   };

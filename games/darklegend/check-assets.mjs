@@ -1,5 +1,6 @@
-/* 校验暗黑传奇图集 PNG 头：尺寸、色深、命名。
-   默认只卡 P0（清单 §七）。--all 时 29 张都必须在。
+/* 校验暗黑传奇留下的图集 PNG 头：尺寸、色深、命名。
+   2026-10-29 素材库清空后只剩瓦片：assets/tiles + assets/terrain。
+   其余立牌/角色/道具已改走 hd-draw.js 程序化画布，不在这里卡。
    node games/darklegend/check-assets.mjs
 */
 import { existsSync, readFileSync } from 'fs';
@@ -7,38 +8,12 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), 'assets');
-const all = process.argv.includes('--all');
 
 const sheets = [
-  ['terrain/terrain-field.png', 512, 512, 'P0'],
-  ['terrain/terrain-cave.png', 512, 512, 'P0'],
-  ['terrain/terrain-waste.png', 512, 512, 'P0'],
-  ['chars/player-bean.png', 512, 640, 'P0'],
-  ['chars/mobs.png', 768, 672, 'P0'],
-  ['chars/bosses.png', 768, 768, 'P0'],
-  ['chars/npc.png', 384, 192, 'P0'],
-  ['items/pickups.png', 320, 64, 'P0'],
-  ['ui/avatar-bean.png', 256, 256, 'P0'],
-  ['props/props-field.png', 512, 512, 'P2'],
-  ['props/props-cave.png', 512, 512, 'P2'],
-  ['props/props-waste.png', 512, 512, 'P2'],
-  ['trees/trees-field.png', 768, 768, 'P2'],
-  ['trees/trees-cave.png', 768, 768, 'P2'],
-  ['trees/trees-waste.png', 768, 768, 'P2'],
-  ['chars/portals.png', 640, 512, 'P2'],
-  ['items/equip.png', 512, 576, 'P1'],
-  ['items/mats.png', 448, 128, 'P1'],
-  ['items/consumables.png', 320, 128, 'P1'],
-  ['ui/ui-icons.png', 384, 240, 'P1'],
-  ['ui/ui-slot.png', 512, 128, 'P1'],
-  ['ui/ui-buttons.png', 384, 192, 'P2'],
-  ['ui/ui-panels.png', 288, 96, 'P2'],
-  ['ui/ui-bars.png', 512, 64, 'P2'],
-  ['ui/ui-map.png', 160, 176, 'P2'],
-  ['ui/ui-stick.png', 256, 128, 'P2'],
-  ['fx/fx.png', 768, 896, 'P2'],
-  ['ui/logo.png', 1024, 256, 'P2'],
-  ['ui/favicon.png', 64, 64, 'P2'],
+  ['tiles/tiles-cave.png', 512, 512],
+  ['terrain/terrain-field.png', 512, 512],
+  ['terrain/terrain-cave.png', 512, 512],
+  ['terrain/terrain-waste.png', 512, 512],
 ];
 
 function pngInfo(buf) {
@@ -55,17 +30,11 @@ function pngInfo(buf) {
 }
 
 let fail = 0;
-let skip = 0;
-for (const [rel, w, h, batch] of sheets) {
+for (const [rel, w, h] of sheets) {
   const path = join(root, rel);
   if (!existsSync(path)) {
-    if (all || batch === 'P0') {
-      console.log(`FAIL 缺图 ${rel} (${batch} ${w}x${h})`);
-      fail++;
-    } else {
-      console.log(`SKIP ${rel} (${batch} 还没画)`);
-      skip++;
-    }
+    console.log(`FAIL 缺图 ${rel} (${w}x${h})`);
+    fail++;
     continue;
   }
   const info = pngInfo(readFileSync(path));
@@ -84,5 +53,5 @@ for (const [rel, w, h, batch] of sheets) {
   }
 }
 
-console.log(`RESULT fail=${fail} skip=${skip}`);
+console.log(`RESULT fail=${fail}`);
 process.exit(fail ? 1 : 0);

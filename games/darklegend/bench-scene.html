@@ -37,6 +37,7 @@
 <script src="vendor/three.iife.js"></script>
 <script src="three-pick.js"></script>
 <script src="iso-art.js"></script>
+<script src="hd-draw.js"></script>
 <script>
 (function () {
   'use strict';
@@ -61,15 +62,13 @@
   const START_LIT = /[?&]lit=1/.test(location.search);
   const START_GRID = /[?&]grid=1/.test(location.search);
 
-  // x/z 是格坐标；h 是世界高度（和 render-three 的常量同一把尺子）
-  const HERO_FILE = /[?&]hero=3d/.test(location.search)
-    ? 'assets/iso/bench-hero.png'
-    : 'assets/iso/processed/hero-dou.png';
+  // 素材库已清空（2026-10-29）：基准台改用 hd-draw 程序化立牌，
+  // 身高常量与 render-three.js 同一把尺子（TREE_H / HOUSE_H / STALL_H / HERO_H）。
   const SPEC = [
-    { file: 'assets/iso/processed/tree-v3.png', h: 11.7, x: -6.6, z: -2.6 },
-    { file: 'assets/iso/processed/shop-v3.png', h: 4.8, x: -2.4, z: -0.6 },
-    { file: 'assets/iso/processed/stall-v3.png', h: 3.0, x: 2.2, z: -1.4 },
-    { file: HERO_FILE, h: 2.34, x: 0.4, z: 2.6 },
+    { h: 5.6, x: -6.6, z: -2.6, make: function () { return DL.HdDraw.flora(0); } },
+    { h: 4.8, x: -2.4, z: -0.6, make: function () { return DL.HdDraw.house('shop'); } },
+    { h: 3.0, x: 2.2, z: -1.4, make: function () { return DL.HdDraw.townProp(0); } },
+    { h: 2.15, x: 0.4, z: 2.6, make: function () { return DL.HdDraw.npc(0); } },
   ];
 
   const cv = document.getElementById('stage');
@@ -153,7 +152,6 @@
     return t;
   })();
 
-  const loader = new THREE.TextureLoader();
   const items = [];
   let lit = START_LIT;
 
@@ -176,51 +174,53 @@
       : new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.45, side: THREE.DoubleSide });
   }
 
+  // 程序化立牌是同步生成的，forEach 里就会调 apply()；这两个量必须先声明（不能放后面，会踩 TDZ）
+  let kxNow = 0, kzNow = 0;
+
   SPEC.forEach(function (sp) {
-    loader.load(sp.file, function (tex) {
-      if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
-      tex.minFilter = THREE.LinearFilter;
-      tex.generateMipmaps = false;
-      const w = sp.h * (tex.image.width / tex.image.height);
+    const img = sp.make();
+    if (!img) return;
+    const tex = new THREE.CanvasTexture(img);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    const w = sp.h * (img.width / img.height);
 
-      const geo = new THREE.PlaneGeometry(w, sp.h);
-      const mesh = new THREE.Mesh(geo, spriteMat(tex));
-      mesh.position.set(sp.x, sp.h / 2, sp.z);
-      mesh.renderOrder = 20;
-      scene.add(mesh);
+    const geo = new THREE.PlaneGeometry(w, sp.h);
+    const mesh = new THREE.Mesh(geo, spriteMat(tex));
+    mesh.position.set(sp.x, sp.h / 2, sp.z);
+    mesh.renderOrder = 20;
+    scene.add(mesh);
 
-      const shMat = new THREE.MeshBasicMaterial({
-        map: blurredTex(tex.image, Math.max(4, sp.h * 2.2)),
-        color: 0x2b2530, transparent: true, opacity: P.sdark,
-        depthWrite: false, side: THREE.DoubleSide,
-      });
-      if ('toneMapped' in shMat) shMat.toneMapped = false;
-      const sh = new THREE.Mesh(new THREE.PlaneGeometry(w, sp.h), shMat);
-      sh.position.set(sp.x, 0.03, sp.z);
-      sh.renderOrder = 16;
-      scene.add(sh);
-
-      const cs = new THREE.Mesh(
-        new THREE.PlaneGeometry(w * 0.85, w * 0.4),
-        new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, opacity: 0.55 })
-      );
-      cs.rotation.x = -Math.PI / 2;
-      cs.position.set(sp.x + 0.05, 0.025, sp.z + 0.06);
-      scene.add(cs);
-
-      // 影子顶点：原始平面坐标存一份，改参数时只做线性映射
-      const base = new Float32Array(geo.attributes.position.array);
-      items.push({ mesh: mesh, shadow: sh, contact: cs, base: base, w: w, h: sp.h, tex: tex });
-      if (items.length === SPEC.length) apply();
+    const shMat = new THREE.MeshBasicMaterial({
+      map: blurredTex(img, Math.max(4, sp.h * 2.2)),
+      color: 0x2b2530, transparent: true, opacity: P.sdark,
+      depthWrite: false, side: THREE.DoubleSide,
     });
+    if ('toneMapped' in shMat) shMat.toneMapped = false;
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(w, sp.h), shMat);
+    sh.position.set(sp.x, 0.03, sp.z);
+    sh.renderOrder = 16;
+    scene.add(sh);
+
+    const cs = new THREE.Mesh(
+      new THREE.PlaneGeometry(w * 0.85, w * 0.4),
+      new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, opacity: 0.55 })
+    );
+    cs.rotation.x = -Math.PI / 2;
+    cs.position.set(sp.x + 0.05, 0.025, sp.z + 0.06);
+    scene.add(cs);
+
+    // 影子顶点：原始平面坐标存一份，改参数时只做线性映射
+    const base = new Float32Array(geo.attributes.position.array);
+    items.push({ mesh: mesh, shadow: sh, contact: cs, base: base, w: w, h: sp.h, tex: tex });
+    if (items.length === SPEC.length) apply();
   });
 
   function vecOf(azDeg, elDeg) {
     const az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180;
     return new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
   }
-
-  let kxNow = 0, kzNow = 0;
 
   function apply() {
     const L = vecOf(P.az, P.el);

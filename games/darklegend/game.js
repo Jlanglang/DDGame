@@ -13,46 +13,17 @@
   'use strict';
 
   const D = (window.DL && window.DL.DATA) || {};
-  if (!D.TILE) throw new Error('data.js 未加载');
+  if (!D.ROOMS) throw new Error('data.js 未加载');
   const Sfx = (window.DL && window.DL.Sfx) || {
     unlock() {}, enable() {}, play() {}, drop() {},
     isMuted() { return false; }, isUnlocked() { return true; },
     setMuted() { return false; }, toggleMute() { return false; },
     onChange() {}, getLastError() { return ''; },
   };
-  const TILE = D.TILE;
-  const VIEW_W = D.VIEW_W;
-  const VIEW_H = D.VIEW_H;
   const SAVE_KEY = D.SAVE_KEY;
   const LEGACY_KEY = D.LEGACY_KEY;
   const BAG_MAX = D.BAG_MAX;
-  const TILEMAP = D.TILEMAP || { enabled: false, atlasDir: 'assets/tiles/', theme: 'cave' };
   const STASH_MAX = D.STASH_MAX || 100;
-
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-
-  // 等比完整放入：逻辑 720×1120；用 min 留边（contain），避免手机 cover 裁掉右缘传送门
-  function resizeCanvas() {
-    const wrap = canvas.parentElement;
-    const availW = (wrap && wrap.clientWidth) || VIEW_W;
-    const availH = (wrap && wrap.clientHeight) || VIEW_H;
-    const scale = Math.min(availW / VIEW_W, availH / VIEW_H);
-    if (!(scale > 0)) return;
-    canvas.style.width = Math.floor(VIEW_W * scale) + 'px';
-    canvas.style.height = Math.floor(VIEW_H * scale) + 'px';
-
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.round(VIEW_W * dpr);
-    const h = Math.round(VIEW_H * dpr);
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    // 改 canvas 尺寸会重置上下文，像素图必须在这之后关掉平滑
-    ctx.imageSmoothingEnabled = false;
-  }
 
   const el = {};
   [
@@ -245,7 +216,6 @@
 
   /* ---------------- 状态 ---------------- */
   let map = [];
-  let seen = new Set();
   let enemies = [];
   let npc = null;
   let bookNpc = null;
@@ -263,9 +233,7 @@
   let lootTimer = null;
   let hurtTimer = null;
   const floaters = [];
-  const cam = { x: 0, y: 0 };
   let terrain = null;
-  let terrainCache = null;
   const MOB_ROW = {
     chicken: 0, scarecrow: 1, dog: 2, boar: 3, wolf: 4, spider: 5,
     stone: 6, bandit: 7, ghoul: 8, mummy: 9, bat: 10, demon: 11, wraith: 12,
@@ -310,16 +278,7 @@
 
   const isWall = (x, y) => DL.World.isWall(map, x, y);
   const enemyAt = (x, y) => enemies.find((e) => e.hp > 0 && e.x === x && e.y === y);
-  // 全亮视角：取消迷雾；以后想恢复视野，把这里换回 DL.World.visible(P.x, P.y, x, y, 半径)
-  const visible = () => true;
   const uiOpen = () => !el.shop.hidden || !el.menu.hidden || !el.char.hidden || !el.intro.hidden || !el.over.hidden || !el.doorConfirm.hidden || !el.lootPick.hidden || (el.sfxGate && !el.sfxGate.hidden) || (el.bookShop && el.bookShop.hidden === false) || (el.trial && el.trial.hidden === false) || (el.stash && el.stash.hidden === false);
-
-  /* ---------------- 地图（生成器在 world.js） ---------------- */
-  function centerCam() {
-    const mw = map[0].length * TILE, mh = map.length * TILE;
-    cam.x = camTarget(P.x * TILE + TILE / 2 - VIEW_W / 2, mw, VIEW_W);
-    cam.y = camTarget(P.y * TILE + TILE / 2 - VIEW_H / 2, mh, VIEW_H);
-  }
 
   /* ---------------- 主城 / 小世界 ---------------- */
   const ROOMS = DL.DATA.ROOMS;
@@ -353,11 +312,8 @@
   let fieldSpawns = [];
 
   function useOverworld() {
-    const q = (typeof location !== 'undefined' && location.search) || '';
-    if (/(?:^|[?&])engine=canvas(?:&|$)/.test(q) || !DL.Overworld) return false;
-    // file:// 下 WebGL 纹理会被 CORS 拦，3D 起不来；退回 2D（双击也能玩）
-    if (typeof location !== 'undefined' && location.protocol === 'file:') return false;
-    return true;
+    // 只剩 3D：野外（128×128）就是唯一的大地图，不再按协议 / 引擎参数切回主城小图
+    return !!DL.Overworld;
   }
 
   function applyOverworld() {
@@ -397,8 +353,6 @@
     refreshTerrain();
     terrain = ow.terrain;
     props = ow.props;
-    terrainCache = null;
-    centerCam();
   }
 
   // 主城：固定小村庄 + 传送门；若有进门记录则站在该门西侧（不踩门）
@@ -406,7 +360,6 @@
     mapRng = mulberry32(worldSeed);
     const h = DL.World.genHub(ROOMS);
     map = h.map;
-    seen = new Set();
     enemies = [];
     inCave = false;
     currentRoom = null;
@@ -434,7 +387,6 @@
     lastZoneLv = 1;
     S.clear(P);                     // 换图脱战：状态清零
     loadBags();
-    centerCam();
     refreshTerrain();
     if (useOverworld()) applyOverworld();
     log('你回到了主城。', 'good');
@@ -511,7 +463,6 @@
       ? DL.Overworld.caveMap()
       : DL.World.genRoom(spec, mapRng);
     map = r.map;
-    seen = new Set();
     inCave = true;
     currentRoom = roomId;
     over = false;
@@ -539,7 +490,6 @@
       log(`${spec.name}：首领还在休整（${Math.ceil(cd - (clock - cleared))} 分钟后刷新）。`, 'bad');
     }
 
-    centerCam();
     refreshTerrain();
     log(`进入 ${spec.name}（Lv.${spec.lvMin}–${spec.lvMax}）。点技能栏「挂机」刷普通/精英。`, 'good');
     return true;
@@ -2635,7 +2585,6 @@
     P.hp = Math.ceil(maxHp() * 0.6);
     P.mp = Math.ceil(maxMp() * 0.5);
     lastZoneLv = zoneLevel(P.x);
-    centerCam();
     syncHud();
     save();
     log('你在村口醒来，商人在旁边打盹。', 'good');
@@ -2657,7 +2606,6 @@
     P.x = villagePos.x;
     P.y = villagePos.y;
     lastZoneLv = zoneLevel(P.x);
-    centerCam();
     syncHud();
     save();
     log('图 1 已通关。洞里的首领还会再出现，继续刷。', 'good');
@@ -3083,7 +3031,6 @@
       resumeAuto();
       return;
     }
-    centerCam();
     syncHud();
     save();
     resumeAuto();
@@ -3161,7 +3108,6 @@
         }
         log('这扇门还没接上。', 'bad');
       }
-      centerCam();
       syncHud();
       save();
       scheduleIdle();
@@ -3278,20 +3224,8 @@
   }
 
   /* ---------------- 输入 ---------------- */
-  function onPointer(e) {
-    if (over || uiOpen()) return;
-    if (!S.canAct(P)) { blockAction(); return; }   // 被控：点哪儿都只消耗一回合
-    if (e.cancelable) e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const px = (e.clientX - rect.left) * (VIEW_W / rect.width);
-    const py = (e.clientY - rect.top) * (VIEW_H / rect.height);
-    if (px >= VIEW_W - 152 && py <= 152) return;   // 点在小地图上不移动
-    const wx = Math.floor((px + cam.x) / TILE);
-    const wy = Math.floor((py + cam.y) / TILE);
-    handleCellClick(wx, wy);
-  }
-
-  // 点到某一格：2D 画布和 3D 视图共用这一套（BFS / 撞怪 / NPC / 换图）
+  // 点地/点怪只有 3D 一条入口：ThreeView 把屏幕坐标换成格子后回调 handleCellClick
+  // 点到某一格：3D 视图共用这一套（BFS / 撞怪 / NPC / 换图）
   function handleCellClick(wx, wy) {
     if (over || uiOpen()) return;
     if (!S.canAct(P)) { blockAction(); return; }
@@ -3805,7 +3739,6 @@
       stopKeyMove();
       syncDpadActive();
     });
-    canvas.addEventListener('pointerdown', onPointer);
     if (document.addEventListener) {
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -4208,38 +4141,14 @@
   }
 
   /* ---------------- 渲染 ---------------- */
-  /* ---------------- 渲染分层 ----------------
-     第 0 层：背景色
-     第 1 层：地图（地面 / 墙 / 门）
-     1.5 层：地面特效（半月扇形）
-     第 2 层：实体（商人 / 怪 / 玩家）
-     2.5 层：上层特效（飘字）
-     第 3 层：UI（暗角 + 小地图；DOM HUD 独立）
+  /* ---------------- 渲染相关：3D 立牌要用的场景数据 ----------------
+     画面本体在 render-three.js（WebGL）。这里只剩：道具/地形生成、主题名。
+     2D Canvas 渲染已整体移除（2026-10-29）。
   */
-  // 相机夹取：地图比视野大时夹在 [0, size-view]；比视野小时允许负值，让玩家保持居中
-  function camTarget(v, mapSize, viewSize) {
-    const min = Math.min(0, mapSize - viewSize);
-    const max = Math.max(0, mapSize - viewSize);
-    return clamp(v, min, max);
-  }
-
-  function updateCamera() {
-    const mw = map[0].length * TILE;
-    const mh = map.length * TILE;
-    const tx = camTarget(P.x * TILE + TILE / 2 - VIEW_W / 2, mw, VIEW_W);
-    const ty = camTarget(P.y * TILE + TILE / 2 - VIEW_H / 2, mh, VIEW_H);
-    cam.x += (tx - cam.x) * 0.18;
-    cam.y += (ty - cam.y) * 0.18;
-  }
-
   function themeNow() {
     if (!currentRoom) return 'field';
     const table = D.THEME_OF_ROOM || {};
     return table[currentRoom] || 'field';
-  }
-
-  function terrainKey() {
-    return 'terrain-' + themeNow();
   }
 
   let props = [];
@@ -4280,14 +4189,12 @@
     }
     const seed = (worldSeed >>> 0) ^ hashId(currentRoom || 'hub');
     terrain = DL.World.genTerrain(map, pts, seed);
-    terrainCache = null;
     props = buildProps(seed);
   }
 
   // 场景道具：主城手工摆，房间按种子撒。全部是纯装饰，不参与碰撞（A 阶段）。
   function buildProps(seed) {
-    const A = window.DL && window.DL.Assets;
-    if (!A) return [];
+    // 3D 立牌全程序化，不再依赖 DL.Assets（2D 那条已删）
     const W = map[0].length, H = map.length;
     const theme = themeNow();
     const rnd = DL.Core && DL.Core.mulberry32 ? DL.Core.mulberry32((seed ^ 0x9e3779b9) >>> 0) : Math.random;
@@ -4394,562 +4301,13 @@
     return list;
   }
 
-  function blitSheet(g, im, id, dx, dy) {
-    const src = DL.Tiles.atlasSrc(id);
-    g.drawImage(im, src.sx, src.sy, src.sw, src.sh, dx, dy, TILE, TILE);
-  }
-
-  function paintTerrainTile(g, im, x, y) {
-    const R = DL.Tiles.REGION;
-    const t = map[y][x];
-    const forest = isBorder(x, y) && themeNow() !== 'cave';
-    blitSheet(g, im, DL.Tiles.baseVariant(x, y, worldSeed), x * TILE, y * TILE);
-    if (forest) {
-      g.fillStyle = 'rgba(10, 26, 6, 0.34)';
-      g.fillRect(x * TILE, y * TILE, TILE, TILE);
-      return;
-    }
-    if (t === 1) {
-      const m = DL.Tiles.maskOf(map, x, y, 1);
-      blitSheet(g, im, R.wall + m, x * TILE, y * TILE);
-      const corners = DL.Tiles.innerCorners(map, x, y, 1);
-      for (let i = 0; i < corners.length; i++) blitSheet(g, im, R.wallInner + corners[i], x * TILE, y * TILE);
-      return;
-    }
-    if (t === 2) {
-      blitSheet(g, im, R.door, x * TILE, y * TILE);
-      return;
-    }
-    if (terrain && terrain[y][x] === 1) {
-      const m = DL.Tiles.maskOf(terrain, x, y, 1);
-      blitSheet(g, im, R.path + m, x * TILE, y * TILE);
-      const corners = DL.Tiles.innerCorners(terrain, x, y, 1);
-      for (let i = 0; i < corners.length; i++) blitSheet(g, im, R.pathInner + corners[i], x * TILE, y * TILE);
-      return;
-    }
-    // 贴地装饰：错开半格画，弱化网格
-    const h = DL.Tiles.hash(x, y, worldSeed ^ 0x5bd1);
-    if (h % 100 < 22) {
-      const id = R.decal + ((h >>> 9) % 24);
-      const ox = ((h >>> 3) % 13) - 6;
-      const oy = ((h >>> 6) % 13) - 6;
-      const src = DL.Tiles.atlasSrc(id);
-      g.drawImage(im, src.sx, src.sy, src.sw, src.sh, x * TILE + ox, y * TILE + oy, TILE, TILE);
-    }
-  }
-
-  // 大尺度明暗：把 32px 的重复感压下去
-  function paintMacro(g) {
-    const W = map[0].length, H = map.length;
-    const rnd = DL.Core && DL.Core.mulberry32 ? DL.Core.mulberry32((worldSeed ^ 0x51ed270b) >>> 0) : Math.random;
-    for (let i = 0; i < 7; i++) {
-      const cx = rnd() * W * TILE;
-      const cy = rnd() * H * TILE;
-      const r = (2.5 + rnd() * 3.5) * TILE;
-      const grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-      const dark = rnd() < 0.55;
-      grd.addColorStop(0, dark ? 'rgba(20, 52, 12, 0.16)' : 'rgba(210, 240, 140, 0.10)');
-      grd.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = grd;
-      g.fillRect(cx - r, cy - r, r * 2, r * 2);
-    }
-  }
-
-  // 墙脚投影：墙压在地上，不是贴纸
-  function paintWallShadow(g) {
-    const W = map[0].length, H = map.length;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (map[y][x] !== 1 || (isBorder(x, y) && themeNow() !== 'cave')) continue;
-        if (y + 1 < H && map[y + 1][x] !== 1) {
-          g.fillStyle = 'rgba(0,0,0,0.20)';
-          g.fillRect(x * TILE, (y + 1) * TILE - 1, TILE, 4);
-          g.fillStyle = 'rgba(0,0,0,0.10)';
-          g.fillRect(x * TILE, (y + 1) * TILE + 3, TILE, 3);
-        }
-        if (x + 1 < W && map[y][x + 1] !== 1) {
-          g.fillStyle = 'rgba(0,0,0,0.12)';
-          g.fillRect((x + 1) * TILE - 1, y * TILE, 3, TILE);
-        }
-      }
-    }
-  }
-
-  function ensureTerrainCache() {
-    const A = window.DL && window.DL.Assets;
-    const im = A && A.image(terrainKey());
-    if (!im || !terrain || !map.length) return null;
-    const key = terrainKey() + '|' + (currentRoom || 'hub') + '|' + worldSeed + '|' + map.length + '|' + map[0].length;
-    if (terrainCache && terrainCache.key === key) return terrainCache.canvas;
-    const c = document.createElement('canvas');
-    c.width = map[0].length * TILE;
-    c.height = map.length * TILE;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[0].length; x++) paintTerrainTile(g, im, x, y);
-    }
-    paintMacro(g);
-    paintWallShadow(g);
-    terrainCache = { key: key, canvas: c };
-    return c;
-  }
-
-  function tilesReady() {
-    return !!(DL.Tiles && TILEMAP.enabled && DL.Tiles.useTiles(true));
-  }
-
-  function eachVisibleTile(paint) {
-    const x0 = Math.floor(cam.x / TILE) - 1;
-    const y0 = Math.floor(cam.y / TILE) - 1;
-    const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
-    const y1 = y0 + Math.ceil(VIEW_H / TILE) + 3;
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        if (x < 0 || y < 0 || x >= map[0].length || y >= map.length) continue;
-        if (Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8) seen.add(key(x, y));
-        const sx = Math.round(x * TILE - cam.x);
-        const sy = Math.round(y * TILE - cam.y);
-        paint(x, y, map[y][x], sx, sy);
-        if (x === P.x && y === P.y) {
-          ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
-          ctx.fillRect(sx, sy, TILE, TILE);
-          ctx.strokeStyle = 'rgba(120, 210, 255, 0.6)';
-          ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
-        }
-      }
-    }
-  }
-
-  // 第 1 层：色块（图集未就绪，或 TILEMAP.enabled = false）
-  function drawMapFallback() {
-    eachVisibleTile((x, y, t, sx, sy) => {
-      if (t === 1) ctx.fillStyle = '#d2c6b0';
-      else if (t === 2) ctx.fillStyle = '#c08a28';
-      else ctx.fillStyle = '#6fb446';
-      ctx.fillRect(sx, sy, TILE, TILE);
-      ctx.strokeStyle = 'rgba(255,255,255,0.035)';
-      ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-    });
-  }
-
-  // 第 1 层：瓦片。地面变体按格子哈希，墙按 4 邻域掩码。
-  function drawMapTiles() {
-    const atlas = DL.Tiles.image;
-    const A = DL.Tiles.ATLAS;
-    ctx.imageSmoothingEnabled = false;
-    eachVisibleTile((x, y, t, sx, sy) => {
-      let id;
-      if (t === 1) id = A.wall[DL.Tiles.wallMask(map, x, y)];
-      else if (t === 2) id = A.door;
-      else id = A.floor[DL.Tiles.hash(x, y, worldSeed) % A.floor.length];
-      const src = DL.Tiles.atlasSrc(id);
-      ctx.drawImage(atlas, src.sx, src.sy, src.sw, src.sh, sx, sy, TILE, TILE);
-    });
-  }
-
-  function drawMap() {
-    const cache = ensureTerrainCache();
-    if (cache) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(cache, Math.round(-cam.x), Math.round(-cam.y));
-      const sx = Math.round(P.x * TILE - cam.x);
-      const sy = Math.round(P.y * TILE - cam.y);
-      ctx.fillStyle = 'rgba(120, 210, 255, 0.20)';
-      ctx.fillRect(sx, sy, TILE, TILE);
-      ctx.strokeStyle = 'rgba(120, 210, 255, 0.6)';
-      ctx.strokeRect(sx + 1.5, sy + 1.5, TILE - 3, TILE - 3);
-      const x0 = Math.floor(cam.x / TILE) - 1;
-      const y0 = Math.floor(cam.y / TILE) - 1;
-      const x1 = x0 + Math.ceil(VIEW_W / TILE) + 3;
-      const y1 = y0 + Math.ceil(VIEW_H / TILE) + 3;
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          if (x < 0 || y < 0 || x >= map[0].length || y >= map.length) continue;
-          if (Math.max(Math.abs(x - P.x), Math.abs(y - P.y)) <= 8) seen.add(key(x, y));
-        }
-      }
-      return;
-    }
-    if (tilesReady()) drawMapTiles();
-    else drawMapFallback();
-  }
-
-  // 传送门 / 出口：光晕 + 大图标 + 名称
-  function drawPortal(x, y, icon, color, label) {
-    if (!visible(x, y)) return;
-    const sx = Math.round(x * TILE - cam.x + TILE / 2);
-    const sy = Math.round(y * TILE - cam.y + TILE / 2);
-    const g = ctx.createRadialGradient(sx, sy, 3, sx, sy, TILE * 1.1);
-    g.addColorStop(0, color + '66');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(sx, sy, TILE * 1.1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.textAlign = 'center';
-    ctx.font = '30px system-ui';
-    ctx.fillText(icon, sx, sy + 10);
-    if (label) {
-      ctx.font = 'bold 11px system-ui';
-      ctx.fillStyle = color;
-      ctx.fillText(label, sx, sy - 14);
-    }
-  }
-
-  // 1.5 层：地面特效（在实体下面）
-  function drawGroundFx() {
-    if (currentRoom) {
-      drawPortal(back.x, back.y, '🕳', '#8ab4ff', '出口');
-    } else {
-      for (const d of doors) drawPortal(d.x, d.y, '🚪', '#ffd166', d.name);
-    }
-    if (halfFlash > 0) {
-      halfFlash = Math.max(0, halfFlash - 0.06);
-      ctx.fillStyle = `rgba(255, 209, 102, ${0.28 * halfFlash})`;
-      for (const [hx, hy] of halfFlashCells) {
-        ctx.fillRect(Math.round(hx * TILE - cam.x), Math.round(hy * TILE - cam.y), TILE, TILE);
-      }
-    }
-  }
-
-  // 1.6 层：地上的掉落袋（颜色/字母 = 袋里最好的品级，品级本来就该直接看得见）
-  const RAR_ORDER = ['white', 'blue', 'yellow', 'orange'];
-  function bestRarityOf(items) {
-    let best = 'white';
-    for (const eq of items) {
-      if (RAR_ORDER.indexOf(eq.rarity) > RAR_ORDER.indexOf(best)) best = eq.rarity;
-    }
-    return RARITY[best] || RARITY.white;
-  }
-
-  function drawBags() {
-    if (!activeBags.length) return;
-    const t = Date.now() / 380;
-    for (const b of activeBags) {
-      const sx = Math.round(b.x * TILE - cam.x + TILE / 2);
-      const sy = Math.round(b.y * TILE - cam.y + TILE / 2);
-      if (sx < -TILE || sy < -TILE || sx > VIEW_W + TILE || sy > VIEW_H + TILE) continue;
-      const rar = b.relic ? RARITY.yellow : bestRarityOf(b.items);
-      const col = rar.color;
-      const pulse = 0.5 + 0.3 * Math.sin(t + b.x + b.y);
-      const g = ctx.createRadialGradient(sx, sy, 2, sx, sy, TILE * 0.95);
-      g.addColorStop(0, col + 'cc');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.globalAlpha = pulse;
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(sx, sy, TILE * 0.95, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.textAlign = 'center';
-      ctx.font = '22px system-ui';
-      ctx.fillText(b.relic ? '🎒' : '💰', sx, sy + 8);
-      // 品级字母：地上就能看见
-      ctx.font = 'bold 11px system-ui';
-      const lw = ctx.measureText ? ctx.measureText(rar.letter).width : 8;
-      ctx.fillStyle = 'rgba(6, 10, 18, 0.8)';
-      ctx.fillRect(sx - lw / 2 - 3, sy - 21, lw + 6, 12);
-      ctx.fillStyle = col;
-      ctx.fillText(rar.letter, sx, sy - 12);
-      if (b.items.length > 1) {
-        ctx.font = 'bold 10px system-ui';
-        ctx.fillStyle = col;
-        ctx.fillText(`×${b.items.length}`, sx + 15, sy + 2);
-      }
-    }
-  }
-
-  function tryActor(key, index, cols, cell, gx, gy, opt) {
-    const A = window.DL && window.DL.Assets;
-    if (!A || !A.ready(key)) return false;
-    opt = opt || {};
-    const footX = Math.round(gx * TILE - cam.x + TILE / 2);
-    const footY = Math.round(gy * TILE - cam.y + (opt.foot || 26));
-    ctx.imageSmoothingEnabled = true;
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    if (ctx.ellipse) ctx.ellipse(footX, footY, (opt.w || 48) * 0.28, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    return A.draw(ctx, key, index, cols, cell, footX, footY, opt);
-  }
-
-  // 场景道具：按脚底 y 和玩家前后分层，树冠能盖住角色
-  function drawProps(layer) {
-    if (!props.length) return;
-    const A = window.DL && window.DL.Assets;
-    if (!A) return;
-    const pBase = P.y * TILE + 30;
-    ctx.imageSmoothingEnabled = true;
-    for (let i = 0; i < props.length; i++) {
-      const p = props[i];
-      const baseY = p.y * TILE + 30 + (p.oy || 0);
-      const front = baseY > pBase;
-      if ((layer === 'front') !== front) continue;
-      const sx = Math.round(p.x * TILE - cam.x + TILE / 2 + (p.ox || 0));
-      const sy = Math.round(baseY - cam.y);
-      if (sx < -200 || sy < -200 || sx > VIEW_W + 200 || sy > VIEW_H + 200) continue;
-      const w = p.w || 128, h = p.h || 128;
-      ctx.globalAlpha = p.alpha != null ? p.alpha : 0.18;
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      if (ctx.ellipse) ctx.ellipse(sx, sy, w * 0.30, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      A.draw(ctx, p.sheet, p.index, 4, 128, sx, sy, { w: w, h: h, anchorX: 64, anchorY: 118 });
-    }
-  }
-
-  // 第 2 层：实体
-  function drawEntities() {
-    ctx.imageSmoothingEnabled = true;
-    const bob = (Date.now() / 700) % 2 | 0;
-    // 商人
-    if (npc) {
-      const sx = npc.x * TILE - cam.x + TILE / 2;
-      const sy = npc.y * TILE - cam.y + TILE / 2;
-      ctx.font = '30px system-ui';
-      ctx.textAlign = 'center';
-      if (!tryActor('npc', bob * 4, 4, 96, npc.x, npc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
-        ctx.fillText('🧑‍🌾', sx, sy + 10);
-      }
-      ctx.font = 'bold 10px system-ui';
-      ctx.fillStyle = '#ffd166';
-      ctx.fillText('商人', sx, sy - 18);
-    }
-
-    // 技能书商人
-    if (bookNpc) {
-      const sx = bookNpc.x * TILE - cam.x + TILE / 2;
-      const sy = bookNpc.y * TILE - cam.y + TILE / 2;
-      ctx.font = '30px system-ui';
-      ctx.textAlign = 'center';
-      if (!tryActor('npc', 2 + bob * 4, 4, 96, bookNpc.x, bookNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
-        ctx.fillText('📖', sx, sy + 10);
-      }
-      ctx.font = 'bold 10px system-ui';
-      ctx.fillStyle = '#7ee0a0';
-      ctx.fillText('技能书', sx, sy - 18);
-    }
-
-    // 村长
-    if (trialNpc) {
-      const sx = trialNpc.x * TILE - cam.x + TILE / 2;
-      const sy = trialNpc.y * TILE - cam.y + TILE / 2;
-      ctx.font = '30px system-ui';
-      ctx.textAlign = 'center';
-      if (!tryActor('npc', 1 + bob * 4, 4, 96, trialNpc.x, trialNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
-        ctx.fillText('📜', sx, sy + 10);
-      }
-      ctx.font = 'bold 10px system-ui';
-      ctx.fillStyle = '#ffb74d';
-      ctx.fillText('村长', sx, sy - 18);
-    }
-
-    // 仓库（只在主城）
-    if (stashNpc) {
-      const sx = stashNpc.x * TILE - cam.x + TILE / 2;
-      const sy = stashNpc.y * TILE - cam.y + TILE / 2;
-      ctx.font = '30px system-ui';
-      ctx.textAlign = 'center';
-      if (!tryActor('npc', 3 + bob * 4, 4, 96, stashNpc.x, stashNpc.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26 })) {
-        ctx.fillText('📦', sx, sy + 10);
-      }
-      ctx.font = 'bold 10px system-ui';
-      ctx.fillStyle = '#8ab4ff';
-      ctx.fillText('仓库', sx, sy - 18);
-    }
-
-    // 敌人
-    for (const e of enemies) {
-      if (e.hp <= 0) continue;
-      if (!visible(e.x, e.y)) continue;
-      const sx = e.x * TILE - cam.x + TILE / 2;
-      const sy = e.y * TILE - cam.y + TILE / 2;
-      const grade = GRADE[e.grade] || GRADE.normal;
-      ctx.textAlign = 'center';
-      ctx.font = `${e.boss ? 40 : e.elite ? 34 : 30}px system-ui`;
-      // 精英/稀有：脚下画一圈，远处也能认出来
-      if (e.elite || e.rare || e.boss) {
-        ctx.strokeStyle = grade.color;
-        ctx.globalAlpha = 0.75;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(sx, sy, TILE * 0.56, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-      let drewMob = false;
-      const fr = (Date.now() / 420) % 2 | 0;
-      if (e.boss) {
-        const brow = currentRoom === 'cave3' ? 1 : currentRoom === 'cave2' ? 2 : currentRoom === 'field7' ? 3 : 0;
-        drewMob = tryActor('bosses', brow * 4 + fr, 4, 192, e.x, e.y, { w: 96, h: 96, anchorX: 96, anchorY: 172, foot: 29, flip: e.x > P.x });
-      } else if (MOB_ROW[e.id] != null) {
-        drewMob = tryActor('mobs', MOB_ROW[e.id] * 4 + fr, 8, 96, e.x, e.y, { w: 48, h: 48, anchorX: 48, anchorY: 86, foot: 26, flip: e.x > P.x });
-      }
-      if (!drewMob) ctx.fillText(e.glyph, sx, sy + 10);
-      // 品级染色 + 深色底衬，贴在一起时也读得清
-      const label = `Lv.${e.lv} ${e.name}`;
-      ctx.font = 'bold 10px system-ui';
-      const lw = (ctx.measureText ? ctx.measureText(label).width : 40) || 40;
-      const ly = sy - 22 - (((e.x * 7 + e.y * 3) % 2) * 8);
-      ctx.fillStyle = 'rgba(6, 10, 18, 0.72)';
-      ctx.fillRect(sx - lw / 2 - 3, ly - 9, lw + 6, 12);
-      ctx.fillStyle = grade.color;
-      ctx.fillText(label, sx, ly);
-      const w = 28;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(sx - w / 2, sy - 18, w, 4);
-      ctx.fillStyle = '#e05a5a';
-      ctx.fillRect(sx - w / 2, sy - 18, w * clamp(e.hp / e.maxHp, 0, 1), 4);
-      // 状态图标（R15.2 符号 + 剩余回合）
-      const stTxt = S.text(e);
-      if (stTxt) {
-        ctx.font = 'bold 10px system-ui';
-        ctx.fillStyle = '#ffb066';
-        ctx.fillText(stTxt, sx, sy - 34);
-      }
-    }
-
-    // 玩家
-    const px = P.x * TILE - cam.x + TILE / 2;
-    const py = P.y * TILE - cam.y + TILE / 2;
-    ctx.font = '36px system-ui';
-    ctx.textAlign = 'center';
-    const dirRow = { d: 0, l: 1, r: 2, u: 3 }[P.dir] || 0;
-    const step = walkTimer ? 1 + ((Date.now() / 160) | 0) % 2 : 0;
-    if (!tryActor('player', dirRow * 4 + step, 4, 128, P.x, P.y, { w: 64, h: 64, anchorX: 64, anchorY: 116, foot: 28 })) {
-      ctx.fillText('🧙', px, py + 12);
-      const [fx, fy] = facingVec();
-      ctx.fillStyle = '#ffd166';
-      ctx.beginPath();
-      ctx.arc(px + fx * 18, py + fy * 18, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // 2.5 层：上层特效（在实体上面）
-  function drawFloaters() {
-    for (let i = floaters.length - 1; i >= 0; i--) {
-      const f = floaters[i];
-      f.life -= 0.03;
-      f.y -= 0.02;
-      if (f.life <= 0) { floaters.splice(i, 1); continue; }
-      ctx.globalAlpha = Math.min(1, f.life * 2);
-      ctx.fillStyle = f.color;
-      ctx.font = 'bold 18px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(f.text, f.x * TILE - cam.x + TILE / 2, f.y * TILE - cam.y);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  // 第 3 层：暗角
-  function drawVignette() {
-    const px = P.x * TILE - cam.x + TILE / 2;
-    const py = P.y * TILE - cam.y + TILE / 2;
-    const g = ctx.createRadialGradient(px, py, 120, px, py, 520);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.15)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  }
-
-  function draw() {
-    if (window.DL && DL.ThreeView && DL.ThreeView.active()) {
-      requestAnimationFrame(draw);
-      return;
-    }
-    if (!map.length) return;
-    updateCamera();
-    ctx.fillStyle = '#24331a';
-    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    drawMap();          // 1
-    drawGroundFx();     // 1.5
-    drawProps('back');  // 1.7
-    drawBags();         // 1.6
-    drawEntities();     // 2
-    drawProps('front'); // 2.2 树冠/摊位盖住角色
-    drawFloaters();     // 2.5
-    drawVignette();     // 3
-    drawMinimap();      // 3
-    requestAnimationFrame(draw);
-  }
-
-  function drawMinimap() {
-    const size = 132, pad = 10;
-    const x0 = VIEW_W - size - pad;
-    const y0 = pad;
-    ctx.save();
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = 'rgba(6, 10, 18, 0.82)';
-    ctx.fillRect(x0, y0, size, size);
-    ctx.strokeStyle = 'rgba(150, 176, 220, 0.28)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x0 + 0.5, y0 + 0.5, size - 1, size - 1);
-
-    const mw = map[0].length, mh = map.length;
-    const s = (size - 8) / Math.max(mw, mh);
-    const ox = x0 + 4, oy = y0 + 4;
-    for (let y = 0; y < mh; y++) {
-      for (let x = 0; x < mw; x++) {
-        if (!seen.has(key(x, y))) continue;
-        const t = map[y][x];
-        if (t === 1) continue;
-        ctx.fillStyle = t === 2 ? '#b8860b' : (inCave ? '#2a2745' : ZONE_FLOOR[zoneLevel(x) - 1]);
-        ctx.fillRect(ox + x * s, oy + y * s, Math.max(1, s), Math.max(1, s));
-      }
-    }
-    // 区域边界（每 10 格一条竖线）
-    if (!inCave) {
-      for (let zx = 10; zx < mw; zx += 10) {
-        ctx.strokeStyle = 'rgba(255, 138, 61, 0.22)';
-        ctx.beginPath();
-        ctx.moveTo(ox + zx * s, oy);
-        ctx.lineTo(ox + zx * s, oy + mh * s);
-        ctx.stroke();
-      }
-    }
-    if (npc && seen.has(key(npc.x, npc.y))) {
-      ctx.fillStyle = '#ffd166';
-      ctx.fillRect(ox + npc.x * s - 1, oy + npc.y * s - 1, 3, 3);
-    }
-    if (bookNpc && seen.has(key(bookNpc.x, bookNpc.y))) {
-      ctx.fillStyle = '#7ee0a0';
-      ctx.fillRect(ox + bookNpc.x * s - 1, oy + bookNpc.y * s - 1, 3, 3);
-    }
-    if (trialNpc && seen.has(key(trialNpc.x, trialNpc.y))) {
-      ctx.fillStyle = '#ffb74d';
-      ctx.fillRect(ox + trialNpc.x * s - 1, oy + trialNpc.y * s - 1, 3, 3);
-    }
-    if (stashNpc && seen.has(key(stashNpc.x, stashNpc.y))) {
-      ctx.fillStyle = '#8ab4ff';
-      ctx.fillRect(ox + stashNpc.x * s - 1, oy + stashNpc.y * s - 1, 3, 3);
-    }
-    for (const b of activeBags) {
-      ctx.fillStyle = (b.relic ? RARITY.yellow : bestRarityOf(b.items)).color;
-      ctx.fillRect(ox + b.x * s - 1.5, oy + b.y * s - 1.5, 3, 3);
-    }
-    for (const e of enemies) {
-      if (e.hp <= 0 || !visible(e.x, e.y)) continue;
-      ctx.fillStyle = (GRADE[e.grade] || GRADE.normal).color;
-      ctx.fillRect(ox + e.x * s - 1, oy + e.y * s - 1, 2.5, 2.5);
-    }
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(ox + P.x * s - 1, oy + P.y * s - 1, 3, 3);
-    ctx.restore();
-  }
-
   /* ---------------- 启动 ---------------- */
   const loaded = load();
   if (!worldSeed) worldSeed = randomSeed();
   genHub();
-  // 截图 / 自动化 / 3D 模式：跳过音效门和开场说明（音效门会挡住点击，uiOpen 为真）
-  const threeHttp = location.protocol !== 'file:'
-    && !/(?:^|[?&])engine=canvas(?:&|$)/.test(location.search);
+  // 只跑 3D（WebGL）。截图 / 自动化同样跳音效门和开场说明
   const quietStart = location.search.includes('shot')
-    || location.search.includes('debug')
-    || threeHttp;
+    || location.search.includes('debug');
   if (!loaded) {
     P.hp = maxHp();
     P.mp = maxMp();
@@ -4975,29 +4333,8 @@
     el.intro.hidden = true;
     if (el.sfxGate) el.sfxGate.hidden = true;
   }
-  resizeCanvas();
-  if (DL.Tiles && TILEMAP.enabled) DL.Tiles.load(TILEMAP.atlasDir, TILEMAP.theme || 'field');
-  if (DL.Assets && TILEMAP.enabled) {
-    const q = '?v=' + (TILEMAP.atlasVer || 169);
-    ['field', 'cave', 'waste'].forEach((name) => {
-      DL.Assets.loadOne('terrain-' + name, 'assets/terrain/terrain-' + name + '.png' + q, () => { terrainCache = null; });
-    });
-    DL.Assets.loadOne('player', 'assets/chars/player-bean.png' + q);
-    DL.Assets.loadOne('mobs', 'assets/chars/mobs.png' + q);
-    DL.Assets.loadOne('bosses', 'assets/chars/bosses.png' + q);
-    DL.Assets.loadOne('npc', 'assets/chars/npc.png' + q);
-    DL.Assets.loadOne('pickups', 'assets/items/pickups.png' + q);
-    DL.Assets.loadOne('flora', 'assets/props/flora.png' + q);
-    DL.Assets.loadOne('town', 'assets/props/town.png' + q);
-  }
-  window.addEventListener('resize', resizeCanvas);
-  window.addEventListener('orientationchange', resizeCanvas);
   bind();
   syncHud();
-  if (location.search.includes('shot') || threeHttp) {
-    el.intro.hidden = true;
-    if (el.sfxGate) el.sfxGate.hidden = true;
-  }
   const shotQuery = /[?&]room=([^&]+)/.exec(location.search || '');
   const shotRoom = shotQuery ? decodeURIComponent(shotQuery[1]) : '';
   if (shotRoom && location.search.includes('shot')) enterRoom(shotRoom);
@@ -5025,7 +4362,6 @@
     };
     if (DL.ThreeView.bind) DL.ThreeView.bind(DL.ThreeBridge);
   }
-  draw();
   scheduleIdle();
   refreshTimer = setInterval(() => {
     respawnField();
@@ -5066,8 +4402,6 @@
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
       genHub, enterRoom, leaveRoom, canEnterRoom, roomEnterNeedLv, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,
-      cam: () => ({ x: cam.x, y: cam.y }),
-      camTarget,
       doors: () => doors,
       roomsForDoor,
       hubReturnDoor: () => hubReturnDoor,

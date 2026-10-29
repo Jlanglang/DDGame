@@ -32,7 +32,7 @@
   <div id="turnHint" hidden>请横屏游玩</div>
 
   <div class="canvas-wrap">
-    <canvas id="game" width="720" height="1120"></canvas>
+    <!-- 只剩 3D：2D canvas 已删除，画面全部走 #view3d 的 WebGL -->
     <canvas id="view3d" hidden></canvas>
   </div>
 
@@ -321,8 +321,6 @@
 <script src="core.js?v=170"></script>
 <script src="world.js?v=172"></script>
 <script src="overworld.js?v=184"></script>
-<script src="tiles.js?v=170"></script>
-<script src="assets.js?v=170"></script>
 <script src="combat.js?v=170"></script>
 <script src="status.js?v=170"></script>
 <script src="sfx.js?v=170"></script>
@@ -331,7 +329,7 @@
 <script src="hd-draw.js?v=197"></script>
 <script src="iso-ground.js?v=213"></script>
 <script src="iso-art.js?v=2"></script>
-<script src="render-three.js?v=216"></script>
-<script src="game.js?v=190"></script>
+<script src="render-three.js?v=218"></script>
+<script src="game.js?v=192"></script>
 </body>
 </html>

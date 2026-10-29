@@ -7,19 +7,9 @@
   const DL = (global.DL = global.DL || {});
 
   DL.DATA = {
-    /* ---------- 视口与存档 ---------- */
-    TILE: 32,
-    VIEW_W: 720,
-    VIEW_H: 1120,
-    /* 瓦片换皮（M1.64）：关掉就回到纯色块。图集 404 时同样走色块。 */
-    TILEMAP: {
-      enabled: true,
-      atlasDir: 'assets/tiles/',
-      smoothing: false,
-      decorDensity: 0.06,
-      theme: 'field',
-      atlasVer: 169,
-    },
+    /* ---------- 存档 ---------- */
+    /* TILE / VIEW_W / VIEW_H / TILEMAP 是已删除的 2D Canvas 模式留下的；
+       3D 用 three-pick.js 的 48px/格，这里不再需要。 */
     /* 房间 → 地形主题。没写的用 field。主城固定 field。 */
     THEME_OF_ROOM: {
       field1: 'field', field2: 'field', field2b: 'field', field3: 'field',

@@ -4,8 +4,9 @@
    零依赖：用 Chrome 的 --remote-debugging-pipe 直接对话（fd 3 写、fd 4 读），
    不装 ws、不起端口、不写临时文件。和 test-game.mjs 的分工：
    - test-game.mjs      纯逻辑（Node + DOM 桩），改规则先跑它
-   - test-input.js      真浏览器（布局换算 + 事件 + 寻路），改输入/UI 跑它
+   - test-input.js      真浏览器（3D 坐标换算 + 事件 + 寻路），改输入/UI 跑它
 
+   2026-10-29 起只剩 3D：坐标走 DL.ThreePick.ndcForGround，点击打在 #view3d 上。
    不覆盖：真机上的手势冲突（touch-action / 系统手势）——那条仍要主人真机确认。
 */
 const { spawn } = require('node:child_process');
@@ -32,8 +33,9 @@ async function main() {
   const url = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/') + '?debug';
 
   const proc = spawn(CHROME, [
-    '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--hide-scrollbars', '--remote-debugging-pipe', '--allow-file-access-from-files',
+    '--headless=new', '--disable-gpu', '--enable-unsafe-swiftshader', '--no-first-run',
+    '--no-default-browser-check', '--hide-scrollbars', '--remote-debugging-pipe',
+    '--allow-file-access-from-files',
   ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
 
   const input = proc.stdio[3], output = proc.stdio[4];
@@ -83,18 +85,24 @@ async function main() {
     await wait(100);
   }
   ok('页面加载出 __dl', await ev('!!window.__dl'));
+  // 3D 是唯一画面：没起来就整条输入链路都没意义
+  for (let i = 0; i < 60; i++) {
+    if (await ev('!!(window.DL && DL.ThreeView && DL.ThreeView.active())')) break;
+    await wait(100);
+  }
+  ok('3D 视图已启动（WebGL）', await ev('!!(window.DL && DL.ThreeView && DL.ThreeView.active())'));
 
   // 关掉开场遮罩、停掉自动回合，测试才有确定性
   await ev('__dl.hideIntro(); __dl.pauseAuto(); 1');
 
-  // 页面里的坐标换算：格子 → 客户端像素（跟 game.js 用同一套 cam / TILE）
+  // 格坐标 → 客户端像素：和 render-three.js 的 pointer() 用同一套反算
   await ev(`
-    window.__tileToClient = function (tx, ty) {
-      const c = document.getElementById('game');
+    window.__cellToClient = function (gx, gy) {
+      const c = document.getElementById('view3d');
       const r = c.getBoundingClientRect();
-      const cam = __dl.cam();
-      const sx = tx * 32 + 16 - cam.x, sy = ty * 32 + 16 - cam.y;
-      return [r.left + sx * r.width / 720, r.top + sy * r.height / 1120];
+      const d = DL.ThreeView.debug();
+      const n = DL.ThreePick.ndcForGround(d.look.x, d.look.z, gx + 0.5, gy + 0.5, d.zoom);
+      return [r.left + (n.nx + 1) / 2 * r.width, r.top + (1 - n.ny) / 2 * r.height];
     }; 1`);
 
   const tap = async (x, y) => {
@@ -106,12 +114,16 @@ async function main() {
   /* 1. 点小地图不该让人物动 */
   const p0 = await ev('[__dl.P.x, __dl.P.y]');
   const mini = await ev(`(() => {
-    const c = document.getElementById('game');
-    const r = c.getBoundingClientRect();
-    return [r.left + (720 - 60) * r.width / 720, r.top + 60 * r.height / 1120];
+    const m = document.getElementById('mini3d');
+    if (!m) return null;
+    const r = m.getBoundingClientRect();
+    return [r.left + r.width / 2, r.top + r.height / 2];
   })()`);
-  await tap(mini[0], mini[1]);
-  await wait(400);
+  ok('3D 小地图存在', !!mini, mini);
+  if (mini) {
+    await tap(mini[0], mini[1]);
+    await wait(400);
+  }
   const p1 = await ev('[__dl.P.x, __dl.P.y]');
   ok('点小地图不移动', p0[0] === p1[0] && p0[1] === p1[1], [p0, p1]);
 
@@ -126,7 +138,7 @@ async function main() {
   })()`);
   ok('找到一个可走的目标格', !!goal, goal);
   const p2 = await ev('[__dl.P.x, __dl.P.y]');
-  const pt = await ev(`__tileToClient(${goal[0]}, ${goal[1]})`);
+  const pt = await ev(`__cellToClient(${goal[0]}, ${goal[1]})`);
   await tap(pt[0], pt[1]);
   await wait(1600);
   const p3 = await ev('[__dl.P.x, __dl.P.y]');
@@ -150,8 +162,8 @@ async function main() {
     return null;
   })()`);
   ok('房间里能找到贴脸的怪', !!foe, foe);
-  await wait(500);                       // 等相机追上，坐标才算得准
-  const foePt = await ev(`__tileToClient(${foe.gx}, ${foe.gy})`);
+  await wait(600);                       // 等 3D 相机追上，坐标才算得准
+  const foePt = await ev(`__cellToClient(${foe.gx}, ${foe.gy})`);
   await tap(foePt[0], foePt[1]);
   await wait(300);
   const hpNow = await ev(`(() => {

@@ -47,9 +47,22 @@ const global = globalThis;
     g.fill();
   }
 
+  /* 画内透视（2026-10-30）：立牌会绕底边后仰 21°（`render-three` 的 `TILT=0.6`），
+     所以"看板子"的有效俯角是 55° − 21° = 34°，偏航跟相机一样是 0°。
+     以前这里硬写 `dx = 0.62d / dy = 0.36d`，等于俯角 35° + **偏航 45°**——
+     偏航差 45° 才是"纸片感"的根：玩家明明从正南看，画里却露着右侧面。
+     两个系数就是世界深度向量投到屏幕的 (x, y)：`dx = d·sin(yaw)`、`dy = d·cos(yaw)·sin(pitch)`。
+     `?art=old` 可切回旧画法做对照（只在 hd-draw 重画时生效，纹理有缓存）。 */
+  const ART_OLD = /[?&]art=old/.test((globalThis.location && globalThis.location.search) || '');
+  const ART_YAW = 0;          // 必须跟 render-three 的 CAM.yaw 一致（mir = 0）
+  const ART_PITCH = 34;       // = 相机 55° − 立牌后仰 21°；改 TILT 就要跟着改
+  const ART_COSY = Math.cos(ART_YAW * Math.PI / 180);
+  const ART_DX = ART_OLD ? 0.62 : Math.sin(ART_YAW * Math.PI / 180);
+  const ART_DY = ART_OLD ? 0.36 : ART_COSY * Math.sin(ART_PITCH * Math.PI / 180);
+
   function isoBox(g, x, y, w, h, d, front, side, top) {
-    const dx = d * 0.62;
-    const dy = d * 0.36;
+    const dx = d * ART_DX;
+    const dy = d * ART_DY;
     g.fillStyle = side;
     g.beginPath();
     g.moveTo(x + w, y);
@@ -74,22 +87,34 @@ const global = globalThis;
   }
 
   function gable(g, x, y, w, rise, d, roof, roofSide) {
-    const dx = d * 0.62;
-    const dy = d * 0.36;
+    const dx = d * ART_DX;
+    const dy = d * ART_DY;
     const mid = x + w * 0.5;
+    if (dx < 0.5) {
+      // 偏航 0：右侧面正好侧对相机、看不见。屋顶的进深改用"整块三角往上挪 dy"表现，
+      // 先画深色那块、再把正面三角盖上去，边缘就自然露出一圈厚度。
+      g.fillStyle = roofSide;
+      g.beginPath();
+      g.moveTo(x - 12, y + 4 - dy);
+      g.lineTo(mid, y - rise - dy);
+      g.lineTo(x + w + 8, y + 2 - dy);
+      g.closePath();
+      g.fill();
+    } else {
+      g.fillStyle = roofSide;
+      g.beginPath();
+      g.moveTo(x + w + 8, y + 2);
+      g.lineTo(mid, y - rise);
+      g.lineTo(mid + dx * 0.85, y - rise - dy * 0.45);
+      g.lineTo(x + w + dx, y - dy);
+      g.closePath();
+      g.fill();
+    }
     g.fillStyle = roof;
     g.beginPath();
     g.moveTo(x - 12, y + 4);
     g.lineTo(mid, y - rise);
     g.lineTo(x + w + 8, y + 2);
-    g.closePath();
-    g.fill();
-    g.fillStyle = roofSide;
-    g.beginPath();
-    g.moveTo(x + w + 8, y + 2);
-    g.lineTo(mid, y - rise);
-    g.lineTo(mid + dx * 0.85, y - rise - dy * 0.45);
-    g.lineTo(x + w + dx, y - dy);
     g.closePath();
     g.fill();
     g.strokeStyle = 'rgba(60, 24, 16, 0.28)';
@@ -514,6 +539,184 @@ const global = globalThis;
     return c;
   }
 
+  /* 椰子树（2026-10-30 v2）：海岛只认这一种树——弯干 + 七片棕榈叶 + 两颗椰子。
+     2026-10-30 主人指出「体积大小不对」：v1 的画布上下各留一大截空白，立牌按整张图定高，
+     实际看着只有名义高度的八成。现在画完立刻按内容外框裁一刀（`trim()`），
+     `PALM_H` 就是真正量出来的高度，和人物（2.15）用同一把尺子。 */
+  const PALM = {
+    trunk: ['#b08a58', '#7a5a34', '#5a4024'],
+    ring: 'rgba(74, 52, 30, 0.35)',
+    leaf: ['#9ed070', '#68a848', '#346828'],
+    nut: ['#9a6a34', '#5c3818'],
+  };
+
+  // 按内容外框裁画布：立牌的高度是按图像比例算的，留白会直接变成"变小"
+  function trim(c, x, y, w, h) {
+    const t = document.createElement('canvas');
+    t.width = w;
+    t.height = h;
+    t.getContext('2d').drawImage(c, x, y, w, h, 0, 0, w, h);
+    return t;
+  }
+
+  function palm(variant) {
+    const c = document.createElement('canvas');
+    c.width = 300;
+    c.height = 470;
+    const g = c.getContext('2d');
+    const v = (variant | 0) % 3;
+    const bx = 116 + v * 12;            // 树根
+    const ty = 150;                     // 树冠高度
+    const tx = bx + 44 + (v - 1) * 8;   // 树冠中心：整体往右歪
+    contact(g, bx + 10, 440, 46, 10);
+
+    // 树干：五段拼，越往上越细；相邻段换深浅，看着像有节
+    const at = function (t) {
+      return {
+        x: bx + (tx - bx) * t + Math.sin(t * Math.PI) * 12,
+        y: 440 - (440 - ty) * t,
+      };
+    };
+    g.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const p0 = at(i / 5), p1 = at((i + 1) / 5);
+      g.lineWidth = 26 - 13 * (i / 5);
+      g.strokeStyle = i % 2 ? PALM.trunk[1] : PALM.trunk[0];
+      g.beginPath();
+      g.moveTo(p0.x, p0.y);
+      g.lineTo(p1.x, p1.y);
+      g.stroke();
+    }
+    // 横纹：隔一段一道，远看就是椰子树干的那种节
+    g.strokeStyle = PALM.ring;
+    g.lineWidth = 2;
+    for (let i = 1; i < 7; i++) {
+      const t = i / 7;
+      const p = at(t);
+      const half = (26 - 13 * t) * 0.5;
+      g.beginPath();
+      g.moveTo(p.x - half, p.y - 1);
+      g.lineTo(p.x + half, p.y + 2);
+      g.stroke();
+    }
+
+    // 叶子：从树冠放射出去，越贴地平线越下垂
+    const fronds = 7;
+    for (let i = 0; i < fronds; i++) {
+      const a = -Math.PI * 0.96 + (i / (fronds - 1)) * Math.PI * 0.92;
+      const len = 92 + (i % 3) * 12;
+      const midX = tx + Math.cos(a) * len * 0.55;
+      const midY = ty + Math.sin(a) * len * 0.45 - 20;
+      const ex = tx + Math.cos(a) * len;
+      const ey = ty + Math.sin(a) * len * 0.5 + 28;
+      g.beginPath();
+      g.moveTo(tx, ty);
+      g.quadraticCurveTo(midX, midY, ex, ey);
+      g.quadraticCurveTo(midX, midY + 24, tx, ty + 8);
+      g.closePath();
+      // 朝左上的亮、朝右下的暗
+      const lit = Math.cos(a) < 0 ? 0 : 1;
+      g.fillStyle = PALM.leaf[lit ? 1 : 0];
+      g.fill();
+      // 叶脉：从树冠到叶尖一根细线，让每片叶子不糊成一块
+      g.strokeStyle = PALM.leaf[2];
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(tx, ty + 2);
+      g.quadraticCurveTo(midX, midY + 8, ex, ey);
+      g.stroke();
+    }
+
+    // 椰子：两颗，挂在树冠下面一点
+    sphere(g, tx - 8, ty + 16, 11, PALM.nut[0], '#7a4c22', PALM.nut[1]);
+    sphere(g, tx + 12, ty + 22, 9, PALM.nut[0], '#7a4c22', PALM.nut[1]);
+
+    return trim(c, 56, 62, 236, 396);
+  }
+
+  /* 海边渔屋（2026-10-30 v2）：沙滩上的一栋矮脚小屋。
+     比例按「人」重算：人 2.15，屋脊 3.9（≈1.8 人），门洞 2.1（≈1 人高，
+     正好比人高一头），屋顶占全高约三成。v1 的问题是门只有 0.8 格高、画布又留白，
+     所以人站旁边像个狗屋——现在门加高、画布裁到内容外框。 */
+  const HUT = {
+    wall: '#e6d3aa',
+    wood: '#a9784a',
+    roof: '#8a6a3a',
+    post: ['#8d6438', '#5c4024', '#c4a06a'],
+  };
+
+  function beachHut(variant) {
+    const c = document.createElement('canvas');
+    c.width = 320;
+    c.height = 390;
+    const g = c.getContext('2d');
+    const v = (variant | 0) % 3;
+    // 偏航 0 之后看不见右侧面，屋身只能靠"墙 + 顶"读体积，所以墙加高、屋顶压扁：
+    // 墙 240 / 屋顶 46 + 进深 29 —— 门占全高约 58%，站在门口正好比人高一点。
+    const x = 70, w = 160, d = 52, foot = 356, h = 240;
+    const dx = d * ART_DX, dy = d * ART_DY;
+    contact(g, 170, 384, 96, 12);
+
+    // 桩：比屋身窄、往沙里扎一截。有脚才像海边的屋，不然像直接埋在沙里
+    const posts = [
+      [x + 12, 384], [x + w - 26, 384],
+      [x + 12 + dx, 384 - dy], [x + w - 26 + dx, 384 - dy],
+    ];
+    for (let i = 0; i < posts.length; i++) {
+      isoBox(g, posts[i][0], posts[i][1], 14, 26, 8, HUT.post[0], HUT.post[1], HUT.post[2]);
+    }
+
+    isoBox(g, x, foot, w, h, d, HUT.wall, shade(HUT.wall, 0.30), mix(HUT.wall, 0.26));
+    // 墙脚一圈深色＝潮气，把屋身和沙面分开
+    g.fillStyle = 'rgba(74, 52, 30, 0.22)';
+    g.fillRect(x, foot - 18, w, 18);
+
+    gable(g, x - 6, foot - h + 4, w + 12, 46, d, HUT.roof, shade(HUT.roof, 0.26));
+    // 草顶散边：沿屋檐挑几撮，别让它像一块光滑的三角板
+    g.strokeStyle = shade(HUT.roof, 0.16);
+    g.lineWidth = 2;
+    for (let i = 0; i < 15; i++) {
+      const ex = x - 4 + i * 12;
+      g.beginPath();
+      g.moveTo(ex, foot - h + 6);
+      g.lineTo(ex + (v ? 3 : -3), foot - h + 20);
+      g.stroke();
+    }
+
+    // 门：200px ≈ 2.4 格（比人 2.15 高一头），往里凹一格、透暖光
+    g.fillStyle = shade(HUT.wood, 0.45);
+    g.fillRect(x + 50, foot - 206, 60, 206);
+    g.fillStyle = '#3a2818';
+    g.fillRect(x + 54, foot - 200, 52, 200);
+    g.fillStyle = 'rgba(255, 196, 110, 0.55)';
+    g.fillRect(x + 60, foot - 190, 40, 150);
+
+    // 窗：门左边一扇，暖光。小屏上就是两个亮点，够认出"屋里有人"
+    g.fillStyle = '#6a4c30';
+    g.fillRect(x + 12, foot - 236, 34, 30);
+    g.fillStyle = 'rgba(255, 214, 140, 0.78)';
+    g.fillRect(x + 16, foot - 232, 26, 22);
+
+    // 渔网：从屋檐垂下来挂在右半边，两向斜线交叉；两颗浮标给"渔"的识别
+    g.strokeStyle = 'rgba(236, 230, 208, 0.8)';
+    g.lineWidth = 1.6;
+    for (let i = 0; i < 5; i++) {
+      g.beginPath();
+      g.moveTo(x + 118 + i * 10, foot - h + 14);
+      g.lineTo(x + 106 + i * 10, foot - 10);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(x + 106 + i * 10, foot - 10);
+      g.lineTo(x + 122 + i * 10, foot - 30);
+      g.stroke();
+    }
+    sphere(g, x + 126, foot - h + 34, 9, '#ffb27a', '#e07028', '#a33a18');
+    sphere(g, x + 150, foot - h + 52, 7, '#ffb27a', '#e07028', '#a33a18');
+
+    // 偏航 0 之后屋顶往上多出 dy 一截，裁框跟着放宽（见 gable 的说明）
+    return trim(c, 52, 40, 192, 346);
+  }
+
   function rock(variant) {
     const c = document.createElement('canvas');
     c.width = 180;
@@ -733,4 +936,6 @@ const global = globalThis;
     caveMouth: caveMouth,
     flora: flora,
     townProp: townProp,
+    beachHut: beachHut,
+    palm: palm,
   };

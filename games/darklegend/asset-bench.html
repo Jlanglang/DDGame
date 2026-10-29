@@ -40,7 +40,7 @@
   <h1>地面验收台 · 现在的游戏</h1>
   <div class="sub">
     这张台子只对<b>现在跑的这个游戏</b>负责：主城是 <b>128×128 的岛</b>（<code>DL.Overworld.build</code>），
-    地面 10 种材质，海 → 沙滩 → 草 → 城内石板；城内石板走 <code>slabSheet</code> + 板砖几何。
+    地面 11 种材质，海 → 沙滩 → 草 → 城内一格一块的地砖（2026-10-30 砖色改沙色）。
     标 1:1 的图都是<b>游戏像素</b>（每格 48px），没有缩放——缩略图会骗人。
     判据：色板落在 15 色内 / 光源在左上 / 边界有机不是直角 / 同材质铺开不出现棋盘格 / 缝上不能出线。
   </div>
@@ -58,7 +58,8 @@
     <option value="64">64</option>
   </select></label>
   <label>铺装 <select id="pave">
-    <option value="slab" selected>石板（游戏用的就是这个）</option>
+    <option value="slab" selected>石板（城内，砖色已改沙色）</option>
+    <option value="sandroad">沙土路（备用：整片沙地，当前不用）</option>
     <option value="brick">砖铺（现在没用）</option>
     <option value="path">土路</option>
   </select></label>
@@ -102,10 +103,11 @@
   <div class="wide"><canvas id="chunkSeam"></canvas></div>
   <div class="cap" id="chunkLog"></div>
 
-  <h2>⑦ 石板（城内） <small>slabSheet，mir：1 格一块</small></h2>
+  <h2>⑦ 石板（城内） <small>slabSheet，mir：1 格一块；2026-10-30 砖色改沙色</small></h2>
   <p class="hint">
-    城内走 <code>slabSheet({tile:1})</code> + TilePlate 浅 V 槽（窄缝、浅槽；砖不放大）：
-    <b>缝由几何画</b>，贴图只看板面色差/磨损/细裂。立体效果在游戏里看。
+    城内 31×31 就是这个：<code>slabSheet({tile:1})</code> + TilePlate 浅 V 槽（窄缝、浅槽；砖不放大），
+    <b>缝由几何画</b>，贴图只看板面色差/砂砾/磕边。砖面是暖沙色（不是灰石），配色见 <code>paintSlabFace</code>。
+    想对比整片沙地：铺装选「沙土路」（备用材质，当前游戏不用）。
   </p>
   <div class="wide"><canvas id="slab"></canvas></div>
 
@@ -161,9 +163,10 @@ if (location.protocol === 'file:') {
     grass: '城外草地、野外房间底材',
     soil: '荒田主题（waste）的底材',
     rock: '洞窟主题（cave）的底材',
-    path: '房间里的土路（style.path 换掉就是砖/石板）',
+    path: '房间里的土路（style.path 换掉就是沙土路/石板）',
     brick: '⚠ 现在没用：按画布排砖，大图分块会错缝',
-    slab: '城内石板（style.path="slab" + big:true，一格一块）',
+    slab: '城内地面（2026-10-30 砖色改沙色，一格一块）',
+    sandroad: '⚠ 备用：整片沙地（2026-10-30 试过，当前不用）',
     water: '池塘（房间里的水；连到地图边的算海）',
     mud: '水边过渡，基本只在验收台出现',
     sea: '岛外圈的海（overworld 的 terrain=3）',

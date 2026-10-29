@@ -70,7 +70,8 @@ global.THREE = THREE;
   let glLost = false;
   let showStats = false;
 
-  /* 板块地面：默认开（一块砖 = 一格 = 一个人站的位置）。
+  /* 石板板块地面：默认开（一块砖 = 一格 = 一个人站的位置）。
+     2026-10-30：地砖保留，砖色改成沙地色（见 iso-art 的 paintSlabFace / slabSheet）。
      想看旧平面：?tiles=flat */
   const TILES_PLATE = (function () {
     const q = (global.location && global.location.search) || '';
@@ -373,17 +374,61 @@ global.THREE = THREE;
     return t;
   }
 
-  function billboard(tex, w, h, order) {
+  /* 立牌倾斜（默认开，2026-10-30）
+     主人反馈：从上方走下来时，立牌像"一张纸片立起来"。
+     根因是几何上的：板面永远竖直，而相机以 55° 俯视，竖直面被投影压掉 cos55≈0.57，
+     地面却按 sin55≈0.82 显示——于是人和房子在屏幕上比脚下格子矮胖，而且永远看不到顶面，
+     怎么调大小都拧巴（现在的 H 常量全在替这个压扁做补偿）。
+     打开后板面绕**底边**后仰 (90°−pitch)=35°，被压扁的程度从 cos55 抬到 cos20≈0.94。
+     代价：脚底只靠接触阴影/剪影锚定，树这种高物体会有一点"往后躺"的观感。 */
+  const TILT = (function () {
+    const q = (global.location && global.location.search) || '';
+    const m = /[?&]tilt=([\d.]+)/.exec(q);
+    if (m) return Math.min(1, Math.max(0, Number(m[1])));
+    return 0.6;   // 2026-10-30 主人拍板：0.6（后仰 21°）。`?tilt=0` 旧观感、`?tilt=1` 最"正"
+  })();
+
+  /* 后仰带来的"人变大"补偿（2026-10-30 第二轮，主人：tilt=1 时人看起来大不少）
+     后仰后板面几乎正对相机，投影从 cos55≈0.574 变成 cos20≈0.940，屏幕上就是高了 1.63 倍。
+     这里按两个投影系数的商把板面整体缩回去，**开关前后屏幕尺寸一致**；
+     缩放是等比的（宽高一起缩），所以不再是"压扁"，只是个小一点、瘦一点的人。
+     `?pscale=1.1` 可以在补偿后再放大一点，方便微调。 */
+  const PSCALE = (function () {
+    const q = (global.location && global.location.search) || '';
+    const m = /[?&]pscale=([\d.]+)/.exec(q);
+    return m ? Math.max(0.3, Math.min(2.5, Number(m[1]))) : 1;
+  })();
+
+  function tiltScale() {
+    if (!TILT) return 1;
+    const p = CAM.pitch * Math.PI / 180;
+    const th = (90 - CAM.pitch) * TILT * Math.PI / 180;
+    return Math.cos(p) / Math.cos(p - th) * PSCALE;
+  }
+
+  function billboard(tex, w, hRaw, order) {
+    // 后仰补偿：等比缩到和"竖直立牌"一样的屏幕尺寸（宽高一起缩，不压扁）
+    const k = tiltScale();
+    w *= k;
+    const h = hRaw * k;
     const geo = new THREE.PlaneGeometry(w, h);
     const mat = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
     });
     const m = new THREE.Mesh(geo, mat);
     m.renderOrder = order;
-    m.position.y = h / 2;
     // 立牌必须正对相机。相机一转偏航（斜角 45°），固定朝 +Z 的板子会被斜看成
     // cos45 = 0.707，人物和房子横向压扁 29%——这是改相机最容易踩的坑。
     m.rotation.y = CAM.yaw * Math.PI / 180;
+    if (TILT) {
+      // 原点从"中心"挪到"底边"，绕底边后仰；底边始终钉在地面 y=0.02
+      geo.translate(0, h / 2, 0);
+      m.rotation.order = 'YXZ';
+      m.rotation.x = -(90 - CAM.pitch) * Math.PI / 180 * TILT;
+      m.position.y = 0.02;
+    } else {
+      m.position.y = h / 2;
+    }
     return m;
   }
 
@@ -587,7 +632,7 @@ global.THREE = THREE;
     sun.updateMatrixWorld();
   }
 
-  /* ---------- 板块地面（?tiles=plate） ----------
+  /* ---------- 板块地面（?tiles=flat 退回整张平铺） ----------
      几何在 tile-plate.js（游戏和验收台共用同一份）。这里只负责取样每格色调。 */
   // mir：浅槽 + 窄缝（粗黑 V 槽会盖住贴图）。砖仍 1 格一块——放大砖会让一屏显得空。
   const PLATE_H = 0.014;
@@ -951,7 +996,7 @@ global.THREE = THREE;
     if (!map || !map.length || !map[0]) return;
     const theme = DL.IsoGround && DL.IsoGround.themeOf ? DL.IsoGround.themeOf(groundSheet()) : 'field';
 
-    // 地面贴图：iso-art（48px/格）。big=true → 石板区一格一块（一块砖一个人）
+    // 地面贴图：iso-art（48px/格）。城内一格一块石板砖，砖色是沙色（2026-10-30）
     let srcCanvas = null;
     let W = map[0].length;
     let H = map.length;
@@ -959,7 +1004,7 @@ global.THREE = THREE;
     // 地图外那圈海在下面按整图岸距场铺（要等 gSea 出来），这里先关掉旧的，别露上一张图的
     if (outerSea) outerSea.visible = false;
 
-    // 大图（>30 格）：不整张画，只同步画脚下那一块。石板区照旧单独一张（40ms 级）
+    // 大图（>30 格）：不整张画，只同步画脚下那一块。
     // ?chunk=0 关掉分块（退回整张一次画完），用来对比"冻一下"和"补块"哪个更舒服
     if (A && A.groundSheet && !NO_CHUNK && (W > 30 || H > 30)) {
       ground = new THREE.Group();
@@ -976,7 +1021,8 @@ global.THREE = THREE;
         m0.frustumCulled = false;
         ground.add(m0);
       }
-      addPlate(map, terrain, theme, W, H, ground);
+      // 石板板块（城内一格一块，砖色是沙色）
+      if (TILES_PLATE) addPlate(map, terrain, theme, W, H, ground);
       // px：小图（房间 24 格）保持 48px 清晰；大图按 4096 封顶降档（128×128 → 32px）。
       const chunkPx = Math.min(48, Math.max(24, Math.floor(4096 / Math.max(W, H))));
       // 岸距场按整张图算一次，各块共用 + UV 走地图比例（以前每块重算，海边一块 15~30ms）。
@@ -1027,7 +1073,7 @@ global.THREE = THREE;
       H = field.H;
     }
 
-    // 石板区（城内）：一块块抬起来的砖 + 城外一张平铺底材。
+    // 石板区（城内）：一块块抬起来的砖 + 城外一张平铺底材。砖色是沙色（2026-10-30）。
     // UV 从 0 开始铺，不做整图偏移——偏移那套算错过，砖面会采到海，整片发暗。
     if (TILES_PLATE && DL.IsoArt && DL.IsoArt.slabSheet) {
       ground = new THREE.Group();
@@ -1171,6 +1217,8 @@ global.THREE = THREE;
   const BORDER_TREE_H = 3.6;  // 边界树墙矮一档，不然树冠会把入口埋掉
   const HOUSE_H = 4.8;   // ≈2.2 人，门洞才不会像狗屋
   const STALL_H = 3.0;   // ≈1.4 人，摊子比人高半头
+  const HUT_H = 4.1;     // ≈1.9 人：门洞 57.8% 全高 ≈ 2.4 格，比人(2.15)高一头
+  const PALM_H = 7.3;    // ≈3.4 人：椰子树该比屋脊还高一倍，压到 4.9 像竹子
   // 城里其余小物件：按 hd-draw townProp 的 index 顺序（0/1 摊位、2 篝火、3 水井、4 帐篷、5 栅栏…）
   const TOWN_H = [STALL_H, STALL_H, 1.3, 1.6, 3.2, 0.9, 1.2, 1.0, 2.6, 1.4];
 
@@ -1181,6 +1229,23 @@ global.THREE = THREE;
     if (!Hd) return;
     let tex;
     let h;
+    if (p.sheet === 'beachHut' || p.sheet === 'palm') {
+      // 海岛地标：渔屋 + 椰子树。落点由 overworld.js 定（findBeachHut / placeBeachPalms），
+      // 这里只管立起来。两种都纯装饰、不碰撞。
+      const isHut = p.sheet === 'beachHut';
+      h = isHut ? HUT_H : PALM_H;
+      tex = paintTex(p.sheet + ':' + idx, function () {
+        return isHut ? Hd.beachHut(idx) : Hd.palm(idx);
+      });
+      if (!tex) return;
+      const m = billboard(tex, h * (tex.image.width / tex.image.height), h, 1);
+      m.position.x = p.x + 0.5;
+      m.position.z = p.y + 0.5;
+      // 底座比脚点宽，遮挡按脚底再往前推一点；椰子树细，少推
+      m.userData.frontPad = isHut ? 0.7 : 0.35;
+      own(m);
+      return;
+    }
     if (town) {
       h = TOWN_H[idx] != null ? TOWN_H[idx] : 2.0;
       tex = paintTex('town:' + idx, function () { return Hd.townProp(idx); });

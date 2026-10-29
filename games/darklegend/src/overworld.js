@@ -1,5 +1,5 @@
 /* 豆豆海岛幻想 · 主城（岛屿版，2026-10-29 按主人手绘分布图重做；2026-10-29 晚陆地收到 96×96）
-   整图 128×128：外面一圈海 → 陆地约 96×96（草地，北面是森林）→ 中间方城主城 31×31（石墙 + 石板地，安全区）。
+   整图 128×128：外面一圈海 → 陆地约 96×96（草地，北面是森林）→ 中间方城主城 31×31（一格一块铺装地面，沙色砖，安全区）。
    城内：左边三个铺子（武器 / 药水 / 技能），右边按等级段排的传送门。
    立牌全去掉（房子、摊位、树、石头），只留 NPC —— NPC 和玩家一样高（2.15）。
    所有坐标都按 CITY / CX,CY 的比例算，别再写死绝对格数：改 N 或陆地半径时只有几何比例要跟着调。 */
@@ -7,9 +7,10 @@ import { DL } from './namespace.js';
 const global = globalThis;
   const N = 128;                             // 整图边长
   const CX = N / 2, CY = N / 2;
-  /* 主城安全区（石板地）：2026-10-29 主人要求「安全区缩小，缩掉的那圈用草地补」→ 41×41 → 31×31。
-     石板只到城里为止：城外本来就是草地，城一缩，缩掉的一圈自动变回草地，
-     野怪也因此能走到离墙 3 格的地方（placeFieldMobs 的 free() 挡的是 CITY±3）。
+  /* 主城安全区：2026-10-29 主人要求「安全区缩小，缩掉的那圈用草地补」→ 41×41 → 31×31。
+     2026-10-30 主人：「地砖改回去，颜色换成沙地色」→ 城内仍是整片铺装（一格一块石板，
+     砖色见 iso-art 的 paintSlabFace / slabSheet）。
+     野怪仍进不了城（placeFieldMobs 的 free() 挡的是 CITY±3）。
      城内 NPC / 传送门按 fy(比例) 排，别再写死 +8 / +18 这种绝对格数。 */
   const CITY_HALF = Math.round(20 * 3 / 4);   // 15 → 31×31（原 20 → 41×41）
   const CITY = { x0: CX - CITY_HALF, y0: CY - CITY_HALF, x1: CX + CITY_HALF, y1: CY + CITY_HALF };
@@ -41,10 +42,10 @@ const global = globalThis;
         const inCity = x >= CITY.x0 && x <= CITY.x1 && y >= CITY.y0 && y <= CITY.y1;
         const onWall = inCity && (x === CITY.x0 || x === CITY.x1 || y === CITY.y0 || y === CITY.y1);
         let m = 0, t = 0;
-        if (d > R) { m = 1; t = 3; }               // 海：不可走
-        else if (d > R - beachW) { m = 0; t = 4; }    // 沙滩：贴着海的一圈
-                else if (inCity) { m = 0; t = 1; }         // 城内：石板地
-        else { m = 0; t = 0; }                     // 城外：草地（北面留给森林）
+        if (d > R) { m = 1; t = 3; }                // 海：不可走
+        else if (d > R - beachW) { m = 0; t = 4; }  // 沙滩：贴着海的一圈
+        else if (inCity) { m = 0; t = 1; }          // 城内：铺装地面（砖色走沙色，见 iso-art）
+        else { m = 0; t = 0; }                      // 城外：草地（北面留给森林）
         mr.push(m); tr.push(t);
       }
       map.push(mr);
@@ -73,7 +74,18 @@ const global = globalThis;
       if (map[d.y] && map[d.y][d.x] !== 1) map[d.y][d.x] = 2;
     });
 
-    const props = [];        // 立牌全去掉：房子 / 摊位 / 树 / 石头都不生成
+    /* 城内地面（2026-10-30 主人：地砖保留，颜色换成沙地色）：
+       31×31 整片 terrain=1，材质仍是石板砖（一格一块），砖色走沙色（iso-art paintSlabFace）；
+       城界是方城边界，想改成参差边再动 build 开头 inCity 那行。
+       terrain 只是画面（地形编码），不动 map（碰撞）；门格本来就是 1。 */
+
+    // 立牌仍然全去掉（房子 / 摊位 / 树 / 石头），只留一件地标：南岸沙滩上的渔屋。
+    // 纯装饰、不参与碰撞（game.js buildProps 那条注释说的 A 阶段规则没变）。
+    const props = [];
+    const hut = findBeachHut(map, terrain);
+    if (hut) props.push({ sheet: 'beachHut', index: 0, x: hut.x, y: hut.y });
+    // 椰子树：海岛只认这一种树，围着渔屋撒几棵（不是森林，别铺满）
+    for (const p of placeBeachPalms(map, terrain, hut)) props.push(p);
     // 出生点：城内南门内侧
     const spawn = { x: CX, y: CITY.y1 - 3 };
     // 城外野怪：只放 1~5 级（鸡 / 稻草人 / 野狗），站在城墙外的草地上。
@@ -195,6 +207,62 @@ const global = globalThis;
       // ② 剩下的铺满整条边（含海边）：按 hash 顺序贪心
       const rest = shuffled(cells, p * 31 + 7);
       for (let i = 0; i < rest.length && placed < plan.n; i++) take(rest[i]);
+    }
+    return out;
+  }
+
+  // 南岸渔屋（2026-10-30）：主城正南那片沙滩上的一栋小屋，出门往下走就能看见。
+  // 只收「脚下一格是沙滩、身后一格是草地」的格子——站在沙滩上沿，屋子不会陷进浅水，
+  // 也不会孤零零杵在草地中间。落点尽量贴中轴、尽量靠城，改岛形不用手调坐标。
+  const HUT_MIN_D = 30;     // 离城中心至少几格（别把屋盖到城墙根）
+  const HUT_AXIS = 16;      // 离中轴最远几格（太偏就看不见了）
+  function findBeachHut(map, terrain) {
+    let best = null;
+    for (let y = CY + HUT_MIN_D; y < N - 1; y++) {
+      for (let x = 1; x < N - 1; x++) {
+        if (map[y][x] !== 0 || terrain[y][x] !== 4) continue;        // 只站沙滩
+        if (!terrain[y - 1] || terrain[y - 1][x] !== 0) continue;    // 身后（更靠内陆）必须还是草地
+        const dx = Math.abs(x - CX);
+        if (dx > HUT_AXIS) continue;
+        const score = dx * 8 + (y - CY);
+        if (!best || score < best.score) best = { x: x, y: y, score: score };
+      }
+    }
+    return best;
+  }
+
+  // 椰子树（2026-10-30）：主人定「不要那种阔叶树，要就椰子树」——岛上唯一的树就是它。
+  // 只在渔屋周围那片沙滩上撒几棵，彼此隔 PALM_GAP 格，离渔屋至少 3 格（别把屋门挡住）。
+  // 用 hash 排序取点，同一份地图每次都是同一批位置，读档不会乱跳。
+  const PALM_N = 5;         // 撒几棵
+  const PALM_GAP = 4;       // 彼此至少隔几格
+  const PALM_R = 14;        // 离渔屋多远以内找位置（太远就散成一条线，不成"屋边几棵椰树"）
+  function placeBeachPalms(map, terrain, hut) {
+    if (!hut) return [];
+    const cells = [];
+    for (let y = hut.y - PALM_R; y <= hut.y + PALM_R; y++) {
+      for (let x = hut.x - PALM_R; x <= hut.x + PALM_R; x++) {
+        if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1) continue;
+        if (map[y][x] !== 0 || terrain[y][x] !== 4) continue;                 // 只站沙滩
+        const d = Math.max(Math.abs(x - hut.x), Math.abs(y - hut.y));
+        if (d < 3) continue;                                                   // 别贴到渔屋脸上
+        cells.push({ x: x, y: y, d: d });
+      }
+    }
+    // 由近到远取：先围着渔屋铺一圈，剩下的才往远处走；同距离用 hash 定，读档不会乱跳
+    cells.sort(function (a, b) {
+      if (a.d !== b.d) return a.d - b.d;
+      return hash(a.x * 13 + 5, a.y * 7 + 11) - hash(b.x * 13 + 5, b.y * 7 + 11);
+    });
+    const out = [];
+    for (let i = 0; i < cells.length && out.length < PALM_N; i++) {
+      const c = cells[i];
+      let ok = true;
+      for (let j = 0; j < out.length; j++) {
+        const d = Math.max(Math.abs(out[j].x - c.x), Math.abs(out[j].y - c.y));
+        if (d < PALM_GAP) { ok = false; break; }
+      }
+      if (ok) out.push({ sheet: 'palm', index: out.length % 3, x: c.x, y: c.y });
     }
     return out;
   }

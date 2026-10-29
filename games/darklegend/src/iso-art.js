@@ -34,6 +34,15 @@ const global = globalThis;
   const SAND_TILES = 6.6;     // 岸上沙带（原 3.6）
   const SHALLOW_TILES = 3.8;  // 水里浅色带（原 1.8；着色器读它，见 render-three SEA_FRAG）
 
+  /* 草地笔触（2026-10-30 定为「一片绿 + 零星点缀」）。
+     主人先后否掉两种极端：① 纯平涂（糊、一块绿布）；② 满屏碎草/草叶（脏、冒出来）。
+     这张图现在只有三样东西：
+       - 底色：几乎就是 PALETTES.field.base 的纯绿；
+       - 极淡的大块明暗（让地面不是一块死色，看不出花纹）；
+       - 每几十格一丛小草、偶尔一朵小花（真正意义上的"零星几颗"）。 */
+  const GRASS_CLUMP_P = 0.012; // 落簇概率：约每 80 格一丛（一屏二三十颗，不能再多了）
+  const GRASS_R = 0.18;        // 草簇半径（格）；叶长 ≈ 1.35 倍
+
   /* ================= 色板：明亮暖色童话，一套 ×3 主题 ================= */
 
   const PALETTES = {
@@ -83,7 +92,8 @@ const global = globalThis;
     rock: { name: '岩地', tier: '底材', note: '洞窟底材。冷灰紫、带裂缝' },
     path: { name: '土路', tier: '覆盖', note: '2 格宽的路。圆群遮罩 → 边缘有机起伏，撒碎石' },
     brick: { name: '砖铺', tier: '覆盖', note: '暂不用于地面。俯视长砖；红砖太抢，留给屋顶' },
-    slab: { name: '石板', tier: '覆盖', note: '主城地面。mir 俯视一格一块；宽夯土缝 + 不规则石面，勿画成瓷砖勾缝' },
+    slab: { name: '石板', tier: '覆盖', note: '主城地面（2026-10-30 砖色改沙色）：mir 俯视一格一块；不规则磕边 + 暖沙面 + 暖土缝，别画成灰瓷砖' },
+    sandroad: { name: '沙土路', tier: '覆盖', note: '备用（当前不用）：2026-10-30 试过的整片沙地。暖沙底 + 沙粒 + 零星小草，不画潮痕' },
     water: { name: '水面', tier: '覆盖', note: '池塘/河。横向波纹，边缘浅、中心深' },
     mud: { name: '泥沼', tier: '覆盖', note: '水边过渡。深褐压住水的硬边，免得水像贴纸' },
     sea: { name: '海', tier: '覆盖', note: '地图外侧。比池塘深、波纹更大；村子临海就是它' },
@@ -269,10 +279,11 @@ const global = globalThis;
   }
 
   // 草簇：根部一团暗影 + 5~7 根叶，扇形偏左上（光源左上）
+  // 叶身别混 ink（棕黑）：混了就是"脏绿"，在草地上像一块污渍。深色也从绿里出。
   function grassClump(g, x, y, s, T, h) {
-    const body = mix(T.baseLo, T.ink, 0.12);        // 叶身：比底色深一档就够
-    const lite = mix(T.baseHi, T.cream, 0.2);       // 叶尖：亮一档
-    g.fillStyle = hexA(mix(T.baseLo, T.ink, 0.3), 0.12);
+    const body = mix(T.baseLo, '#4C7A36', 0.45);     // 叶身：同色相的深绿
+    const lite = mix(T.baseHi, T.cream, 0.25);       // 叶尖：亮一档
+    g.fillStyle = hexA(mix(T.baseLo, '#4C7A36', 0.4), 0.14);
     g.beginPath();
     g.ellipse(x, y + 0.5, s * 0.85, s * 0.22, 0, 0, TAU);
     g.fill();
@@ -281,18 +292,20 @@ const global = globalThis;
       const a = (i / Math.max(1, n - 1) - 0.5) * 1.5 + (rnd(h, i) - 0.5) * 0.35;
       const len = s * (0.75 + rnd(h, 8 + i) * 0.6);
       const bx = x + (rnd(h, 20 + i) - 0.5) * s * 0.55;
-      blade(g, bx, y, len, a, body, lite, Math.max(1, s * 0.16));
+      blade(g, bx, y + rnd(h, 40 + i) * s * 0.18, len, a, body, lite, Math.max(1.4, s * 0.2));
     }
   }
 
   // 小草：一笔一根、三根一簇。3~6px 的小 V，靠密度和双色出"草皮"，不靠单根大草叶。
+  // 三根叶统一往左上倒一点（光在左上），整片才有"风掠过"的方向感；
+  // 每根还带随机偏角，不然一簇簇都一样、铺出来是规则格子。
   function miniTuft(g, x, y, s, colDark, colLite, h) {
     g.lineCap = 'round';
     for (let k = 0; k < 3; k++) {
-      const a = (k - 1) * 0.5 + (rnd(h, 10 + k) - 0.5) * 0.3;
+      const a = -0.20 + (k - 1) * 0.34 + (rnd(h, 10 + k) - 0.5) * 0.28;
       const len = s * (0.75 + rnd(h, 20 + k) * 0.5);
       g.strokeStyle = rnd(h, 30 + k) < 0.35 ? colLite : colDark;
-      g.lineWidth = 1;
+      g.lineWidth = 1.4;
       g.beginPath();
       g.moveTo(x, y);
       g.lineTo(x + Math.sin(a) * len, y - Math.cos(a) * len);
@@ -300,13 +313,18 @@ const global = globalThis;
     }
   }
 
-  // 草皮细纹砖：192px 平铺。整张图靠它铺密度，逐格撒草太贵。
+  // 草皮细纹砖：384px 平铺。整张图靠它铺密度，逐格撒草太贵。
+  // 这层是"连续短草"——远看是一整片毛绒的绿，不靠稀疏大簇撑场面。
+  // 砖大一点（384）是为了在 32px/格的野外把重复感摊薄：192 的砖在屏幕上只剩 6 格一个循环，
+  // 眼睛能看出"网格"。颜色压在中低对比：太深会在屏幕上变成一层脏点。
   function turfTile(size, T, seed) {
     const c = makeCanvas(size, size);
     const g = c.getContext('2d');
-    const dark = mix(T.baseLo, T.ink, 0.15);
-    const lite = mix(T.baseHi, T.cream, 0.25);
-    const n = Math.round((size * size) / 70);
+    // 只用草绿自己的深浅（baseHi/baseLo），不混 cream / ink：
+    // 混白是白点、混棕是脏点。同色系的纹理才干净。
+    const dark = T.baseLo;
+    const lite = mix(T.baseHi, T.base, 0.30);
+    const n = Math.round((size * size) / 130);  // 稀一点：密了就是"一层脏点"
     for (let i = 0; i < n; i++) {
       const h = hash(seed + 61, i);
       miniTuft(g, rnd(h, 0) * size, rnd(h, 1) * size, 2.2 + rnd(h, 2) * 2.6, dark, lite, h);
@@ -327,13 +345,13 @@ const global = globalThis;
   }
 
   function turf(g, W, H, T, seed, win) {
-    const TILE = 192;
+    const TILE = 384;
     const pat = g.createPattern(turfTileCached(TILE, T, seed), 'repeat');
     if (!pat) return;
     g.save();
-    g.globalAlpha = 0.62;
+    g.globalAlpha = 0.13;
     // 图案按"用户空间原点"排相位。分块时把原点挪回世界原点，平铺才接得上
-    // （24 格 = 1152px = 6×192 本来是对齐的，但 1 格出血 48px 会让相位差 48）
+    // （24 格 = 1152px = 3×384 本来是对齐的，但 1 格出血 48px 会让相位差 48）
     const phx = win ? (((win.ox % TILE) + TILE) % TILE) : 0;
     const phy = win ? (((win.oy % TILE) + TILE) % TILE) : 0;
     g.translate(-phx, -phy);
@@ -410,47 +428,76 @@ const global = globalThis;
     else paintGrass(g, W, H, px, T, seed, cells, wx);
   }
 
-  // 草地：低频明暗 + 草皮细纹 + 草簇。三样缺一个就回到"一块绿布"。
+  // 草地：一片绿 + 很淡的大块明暗 + 零星小草/花（2026-10-30 主人定的口径）。
   function paintGrass(g, W, H, px, T, seed, cells, wx) {
     g.fillStyle = T.base;
     g.fillRect(0, 0, W, H);
 
-    // ① 低频明暗：块要比一格大（0.5~1.6 格），随机撒；太整齐就成了棋盘格。
-    //    亮斑只用"偏亮的草绿"，不用 baseHi 原色——原色撒多了像一层雾
+    // ① 低频明暗：只有大而柔的两三档，没花纹。地面主体就是一片绿。
     const S = blobSpace(W, H, px, wx && wx.win, wx && wx.cellsFull);
-    for (let i = 0; i < Math.round(S.n * 0.8); i++) {
+    for (let i = 0; i < Math.round(S.n * 0.10); i++) {
       const h = hash(seed + 3, i);
-      const r = px * (0.45 + rnd(h, 2) * 1.15);
+      const r = px * (2.5 + rnd(h, 2) * 4.0);
       const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
       if (!S.hit(cx, cy, r)) continue;
       softBlob(g, cx, cy, r,
-        rnd(h, 3) < 0.45 ? mix(T.baseHi, T.base, 0.45) : T.baseLo, 0.12 + rnd(h, 4) * 0.09, h);
+        rnd(h, 3) < 0.5 ? mix(T.baseHi, T.cream, 0.18) : mix(T.baseLo, T.base, 0.5),
+        0.03 + rnd(h, 4) * 0.03, h);
+    }
+    // 中频只留几块很淡的过渡，别叠出"云影"
+    for (let i = 0; i < Math.round(S.n * 0.14); i++) {
+      const h = hash(seed + 31, i);
+      const r = px * (0.8 + rnd(h, 2) * 1.2);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      softBlob(g, cx, cy, r,
+        rnd(h, 3) < 0.5 ? mix(T.baseHi, T.base, 0.4) : mix(T.baseLo, T.base, 0.55), 0.03 + rnd(h, 4) * 0.03, h);
     }
 
-    // ② 草皮细纹：192px 小砖平铺。靠它给"毛毯"的密度，
-    //    不靠逐格撒草——576 格逐格撒草要几万笔，进房间会卡一下
+    // ② 极淡的绒：384px 大砖平铺，alpha 只有 0.13——只在近处看出"不是纯色"，远看是一整片绿
     turf(g, W, H, T, seed + 5, wx && wx.win);
 
-    // ③ 草簇：0.9 簇/格，比细纹大一圈，打破平铺感
-    for (let i = 0; i < Math.round(cells * 0.9); i++) {
-      const h = hash(seed + 17, i);
-      grassClump(g, rnd(h, 0) * W, 6 + rnd(h, 1) * (H - 12),
-        px * (0.13 + rnd(h, 2) * 0.12), T, h);
+    // ③ 草簇：按格锚定（分块才和整张一致），GRASS_CLUMP_P 概率撒一丛 ≈ 每 80 格一颗。
+    //    以前按画布撒 0.9 簇/格 → 满屏冒草；现在只做"零星几颗"的点缀。
+    const cw = Math.max(1, Math.round(W / px));
+    const ch = Math.max(1, Math.round(H / px));
+    const gx0 = wx && wx.win ? Math.round(wx.win.ox / px) : 0;
+    const gy0 = wx && wx.win ? Math.round(wx.win.oy / px) : 0;
+    for (let gy = 0; gy < ch; gy++) {
+      for (let gx = 0; gx < cw; gx++) {
+        const hc = hash(seed + 17, (gx0 + gx) * 977 + (gy0 + gy) * 131);
+        if (rnd(hc, 9) < GRASS_CLUMP_P) {
+          const h = hash(hc, 1);
+          grassClump(g, (gx + 0.15 + rnd(h, 0) * 0.7) * px,
+            (gy + 0.55 + rnd(h, 1) * 0.42) * px,
+            px * GRASS_R * (0.7 + rnd(h, 2) * 0.5), T, h);
+        }
+      }
     }
 
-    // ④ 小花 / 小石：打散重复感，密度低，多了像撒糖
-    for (let i = 0; i < Math.round(cells * 0.08); i++) {
-      const h = hash(seed + 77, i);
-      g.fillStyle = [T.cream, '#E9A8B4', T.path][h % 3];
-      g.beginPath();
-      g.arc(rnd(h, 0) * W, rnd(h, 1) * H, 1.5 + rnd(h, 2) * 1.5, 0, TAU);
-      g.fill();
-    }
-    for (let i = 0; i < Math.round(cells * 0.14); i++) {
-      const h = hash(seed + 91, i);
-      g.globalAlpha = 0.5;
-      pebble(g, rnd(h, 0) * W, rnd(h, 1) * H, 1.5 + rnd(h, 2) * 1.5, T.stoneLo, T.stone);
-      g.globalAlpha = 1;
+    // ④ 零星的小花 / 小石：真的是"几颗"——约每 120 格一朵花、每 80 格一块小石。
+    for (let gy = 0; gy < ch; gy++) {
+      for (let gx = 0; gx < cw; gx++) {
+        const h = hash(seed + 77, (gx0 + gx) * 613 + (gy0 + gy) * 719);
+        if (rnd(h, 0) < 0.008) {
+          // 白花：两三个小白瓣 + 一点暖黄心，1~2px 大小，不扎眼
+          const fx = (gx + 0.25 + rnd(h, 1) * 0.5) * px, fy = (gy + 0.25 + rnd(h, 2) * 0.5) * px;
+          g.fillStyle = T.cream;
+          g.beginPath();
+          g.arc(fx, fy, 1.1 + rnd(h, 3) * 0.6, 0, TAU);
+          g.fill();
+          g.fillStyle = hexA(T.path, 0.9);
+          g.beginPath();
+          g.arc(fx, fy, 0.5, 0, TAU);
+          g.fill();
+        }
+        if (rnd(h, 4) < 0.012) {
+          g.globalAlpha = 0.35;
+          pebble(g, (gx + 0.2 + rnd(h, 5) * 0.6) * px, (gy + 0.2 + rnd(h, 6) * 0.6) * px,
+            1.4 + rnd(h, 7) * 1.0, T.stoneLo, T.stone);
+          g.globalAlpha = 1;
+        }
+      }
     }
   }
 
@@ -589,6 +636,51 @@ const global = globalThis;
     }
   }
 
+  /* 沙土路：岛心广场 / 路（2026-10-30 起替代石板砖）。
+     底色取「沙 + 土路」的中间调，撒细沙粒和零星碎石；不画潮痕（那是海岸沙滩的，摆在城中心会怪）。
+     和 paintPath 的差别：总体更浅更干、几乎不铺石子路那种密集碎石。 */
+  function paintSandRoad(g, W, H, px, T, o, win) {
+    // 底色只比土路亮一点点：太浅就成了「草地中间一块白沙滩」，主城会被读成沙坑。
+    g.fillStyle = mix(T.path, T.cream, 0.16);
+    g.fillRect(0, 0, W, H);
+    const cells = (W * H) / (px * px);
+    // 低频沙土斑：暗的压深、亮的提一点（亮斑不能太亮，否则整片像发了霉）
+    const S = blobSpace(W, H, px, win, 0);
+    for (let i = 0; i < Math.round(S.n * 0.9); i++) {
+      const h = hash(83, i);
+      const r = px * (0.3 + rnd(h, 2) * 0.8);
+      const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
+      if (!S.hit(cx, cy, r)) continue;
+      const dark = rnd(h, 3) < 0.62;
+      softBlob(g, cx, cy, r, dark ? T.pathLo : T.cream, (dark ? 0.14 : 0.07) + rnd(h, 4) * 0.08, h);
+    }
+    // 沙粒
+    for (let i = 0; i < Math.round(cells * 12); i++) {
+      const h = hash(87, i);
+      g.fillStyle = hexA(rnd(h, 0) < 0.5 ? T.pathLo : T.cream, 0.12 + rnd(h, 1) * 0.16);
+      g.beginPath();
+      g.arc(rnd(h, 2) * W, rnd(h, 3) * H, 0.5 + rnd(h, 4) * 0.8, 0, TAU);
+      g.fill();
+    }
+    // 零星碎石
+    for (let i = 0; i < Math.round(cells * 1.4); i++) {
+      const h = hash(89, i);
+      g.globalAlpha = 0.7;
+      pebble(g, rnd(h, 0) * W, rnd(h, 1) * H, 1.2 + rnd(h, 2) * 1.8, T.stoneLo, T.cream);
+      g.globalAlpha = 1;
+    }
+    // 沙地里冒出来的零星草（约每 7 格一丛）：一大片沙地不至于空得像沙漠。
+    // 草要看得见：alpha 0.55 + 略大的尺寸，否则在 32px/格 下只剩几个像素。
+    const tufts = Math.round(cells / 7);
+    for (let i = 0; i < tufts; i++) {
+      const h = hash(91, i);
+      g.globalAlpha = 0.55;
+      tuft(g, rnd(h, 0) * W, rnd(h, 1) * H, px * (0.16 + rnd(h, 2) * 0.1),
+        mix(T.baseLo, T.baseHi, 0.4), rnd(h, 3) - 0.5);
+      g.globalAlpha = 1;
+    }
+  }
+
   function paintBrick(g, W, H, px, T) {
     g.fillStyle = T.mortar;
     g.fillRect(0, 0, W, H);
@@ -617,15 +709,17 @@ const global = globalThis;
 
   /* mir 石板：要「夯土石砖」不是「地板瓷砖」。
      忌：圆角光面、奶油高光描边、均匀椭圆斑。
-     要：暖土色、不规则磕边、砂砾、脏缝、哑光。 */
+     要：不规则磕边、砂砾、脏缝、哑光。
+     2026-10-30 主人：砖形保留，但砖色整体换成沙地色（暖沙，不再是灰褐石）。 */
   function paintSlabFace(g, bx, by, bw, bh, px, T, h) {
     const pick = rnd(h, 0);
-    // 中暗褐灰石面：别奶油瓷砖，也别比土缝还深成「沙上饼干」
+    // 沙色砖面：和 sandroad 同一个暖沙基调，只做深浅变化
+    const sand = mix(T.path, T.cream, 0.16);
     let base;
-    if (pick < 0.28) base = mix(T.stoneLo, T.pathLo, 0.25 + rnd(h, 1) * 0.25);
-    else if (pick < 0.55) base = mix(T.rockLo, T.soilLo, 0.35 + rnd(h, 1) * 0.25);
-    else if (pick < 0.78) base = mix(T.stone, T.ink, 0.2 + rnd(h, 2) * 0.18);
-    else base = mix(T.mud, T.stoneLo, 0.2 + rnd(h, 2) * 0.25);
+    if (pick < 0.28) base = mix(sand, T.soilHi, 0.35 + rnd(h, 1) * 0.22);
+    else if (pick < 0.55) base = mix(sand, T.pathLo, 0.14 + rnd(h, 1) * 0.2);
+    else if (pick < 0.78) base = mix(sand, T.cream, 0.16 + rnd(h, 2) * 0.16);
+    else base = mix(sand, T.soilLo, 0.1 + rnd(h, 2) * 0.18);
 
     // 紧缝：每边 1.5%~3%。暗十字再宽就显空
     const iL = bw * (0.015 + rnd(h, 4) * 0.015);
@@ -652,16 +746,16 @@ const global = globalThis;
     const grd = g.createLinearGradient(x0, y0, x1, y1);
     grd.addColorStop(0, mix(base, T.pathLo, 0.08));
     grd.addColorStop(0.4, base);
-    grd.addColorStop(1, mix(base, T.ink, 0.28));
+    grd.addColorStop(1, mix(base, T.pathLo, 0.22));
     g.fillStyle = grd;
     g.fill();
 
-    // 石面脏斑：深褐 / 泥色，面积大一点才读得出「风化」
-    const blot = 4 + (rnd(h, 30) * 5 | 0);
+    // 砖面脏斑：沙色砖上只留很淡的暖土斑（原来是深褐/墨，改沙色后会把砖面弄脏）
+    const blot = 3 + (rnd(h, 30) * 4 | 0);
     for (let i = 0; i < blot; i++) {
       g.fillStyle = hexA(
-        rnd(h, 31 + i) < 0.4 ? T.mud : (rnd(h, 32 + i) < 0.5 ? T.ink : T.soilLo),
-        0.1 + rnd(h, 33 + i) * 0.14
+        rnd(h, 31 + i) < 0.45 ? T.soilLo : T.pathLo,
+        0.06 + rnd(h, 33 + i) * 0.09
       );
       g.beginPath();
       g.ellipse(
@@ -674,10 +768,10 @@ const global = globalThis;
       g.fill();
     }
 
-    // 砂砾密铺
+    // 砂砾密铺（用暖土色 + 一点亮沙，别让黑点抢戏）
     const grit = 22 + (rnd(h, 40) * 22 | 0);
     for (let i = 0; i < grit; i++) {
-      g.fillStyle = hexA(rnd(h, 41 + i) < 0.55 ? T.ink : T.pathLo, 0.14 + rnd(h, 42 + i) * 0.22);
+      g.fillStyle = hexA(rnd(h, 41 + i) < 0.45 ? T.pathLo : T.cream, 0.12 + rnd(h, 42 + i) * 0.16);
       const s = 0.7 + rnd(h, 43 + i) * 1.8;
       g.fillRect(
         x0 + (x1 - x0) * rnd(h, 44 + i),
@@ -686,13 +780,13 @@ const global = globalThis;
       );
     }
 
-    // 磕边轻压暗，别把缝再画宽一圈
-    g.strokeStyle = hexA(T.ink, 0.14 + rnd(h, 50) * 0.08);
+    // 磕边轻压暗，别把缝再画宽一圈（沙色砖用暖褐压，别用墨）
+    g.strokeStyle = hexA(T.pathLo, 0.18 + rnd(h, 50) * 0.1);
     g.lineWidth = Math.max(1, px * 0.014);
     g.stroke();
 
     if (rnd(h, 52) < 0.55) {
-      g.strokeStyle = hexA(T.ink, 0.2 + rnd(h, 53) * 0.12);
+      g.strokeStyle = hexA(T.soilLo, 0.22 + rnd(h, 53) * 0.12);
       g.lineWidth = Math.max(1, px * 0.016);
       g.beginPath();
       let cx0 = x0 + (x1 - x0) * (0.15 + rnd(h, 54) * 0.5);
@@ -715,8 +809,8 @@ const global = globalThis;
   }
 
   function paintSlabBig(g, W, H, px, T, win) {
-    // 缝 = 略深于石面的夯土，别墨黑十字
-    g.fillStyle = mix(T.mudLo, T.ink, 0.18);
+    // 缝 = 比沙面深一档的暖土色（沙色砖配黑缝会像瓷砖，别用 ink 调深）
+    g.fillStyle = mix(T.soilLo, T.mudLo, 0.55);
     g.fillRect(0, 0, W, H);
     const cells = (W * H) / (px * px);
     for (let i = 0; i < Math.round(cells * 14); i++) {
@@ -1563,6 +1657,7 @@ const global = globalThis;
     path: paintPath,
     brick: paintBrick,
     slab: paintSlab,
+    sandroad: paintSandRoad,
     water: paintWater,
     mud: paintMud,
     sea: paintSea,
@@ -1800,7 +1895,7 @@ const global = globalThis;
     paintBase(g, W, H, px, T, base, seed, dens, { win: win, cellsFull: cols * rows * dens });
 
     // 2) 分类 + 覆盖层
-    const groups = { path: [], brick: [], slab: [], sand: [], water: [], mud: [], sea: [] };
+    const groups = { path: [], brick: [], slab: [], sandroad: [], sand: [], water: [], mud: [], sea: [] };
     const style = o.style || {};
     // 同样是水：连到地图边界的算"海"，被陆地围住的算"池塘"。
     // 光看 terrain=3 分不出来，而海和池塘的色深浅、波纹完全不是一回事。
@@ -1945,8 +2040,12 @@ const global = globalThis;
       const cx = (x - (ox || 0) + 0.5) * px, cy = (y - (oy || 0) + 0.5) * px;
       const jx = (rnd(h, 0) - 0.5) * px * 0.6;
       const jy = (rnd(h, 1) - 0.5) * px * 0.6;
-      if (kind === 'path' || kind === 'slab') {
-        if (rnd(h, 2) < 0.55) pebble(g, cx + jx, cy + jy, 1.4 + rnd(h, 3) * 2, kind === 'path' ? T.pathLo : T.stoneLo, T.cream);
+      if (kind === 'path' || kind === 'slab' || kind === 'sandroad') {
+        // 沙土路少撒一点碎石（整片纹理已经铺过了，这里只是格心点缀）。
+        // 砖面改沙色后，碎石也用暖土色，灰石子会显得脏。
+        if (rnd(h, 2) < (kind === 'sandroad' ? 0.3 : 0.55)) {
+          pebble(g, cx + jx, cy + jy, 1.4 + rnd(h, 3) * 2, T.pathLo, T.cream);
+        }
       } else if (kind === 'water') {
         if (rnd(h, 4) < 0.3) {
           g.strokeStyle = hexA(T.waterHi, 0.6);
@@ -2000,8 +2099,8 @@ const global = globalThis;
     const c = makeCanvas(W, H);
     const g = c.getContext('2d');
 
-    // 夯土底：只在窄缝透出，别做成粗黑十字
-    g.fillStyle = mix(T.mudLo, T.ink, 0.18);
+    // 缝：比沙面深一档的暖土色（2026-10-30 砖色改沙色后，别再用黑褐缝）
+    g.fillStyle = mix(T.soilLo, T.mudLo, 0.55);
     g.fillRect(0, 0, W, H);
     for (let i = 0; i < Math.round((cols * rows) * 12); i++) {
       const hh = hash(seed * 17 + 3, i);

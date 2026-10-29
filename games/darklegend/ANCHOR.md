@@ -1,5 +1,5 @@
 # 豆豆海岛幻想 · 锚点表
-> 改这个游戏先读这一份：**18 个 `src/*.js` 11951 行 + 页面 1660 行 + 测试 2052 行 ≈ 15663 行**（另有 8 个 .py 生成器不参与运行）。先看 `docs/STATUS.md` 定做什么，玩法数值以 `docs/豆豆暗黑传奇-规则与任务.md` 为准，画面验收看 `docs/渲染规格.md` §八；本表只记「改这个 → 动哪几个函数」，不重复文档。**2026-10-29 起只剩 3D（WebGL），2D Canvas 渲染整条已删除。行号已于 2026-10-29 对 `src/` 全量校准。**
+> 改这个游戏先读这一份：**18 个 `src/*.js` 12937 行 + 页面 1660 行 + 测试 2052 行 ≈ 16649 行**（另有 8 个 .py 生成器不参与运行）。先看 `docs/STATUS.md` 定做什么，玩法数值以 `docs/豆豆暗黑传奇-规则与任务.md` 为准，画面验收看 `docs/渲染规格.md` §八；本表只记「改这个 → 动哪几个函数」，不重复文档。**2026-10-29 起只剩 3D（WebGL），2D Canvas 渲染整条已删除。行数已于 2026-10-30 按 `src/` 重算。**
 
 ## 一句话
 主城 24×24 + 14 个房间（`ROOMS`）的回合制刷宝：走一格 = 一回合，由 `after()` 排下一拍；装备落地成袋、走上去才捡；画面是 three.js **mir 俯视透视**（yaw0° / pitch55° / fov32 / zoom1.70，竖向≈20 格；WebGL），没有 2D 回退；旧等距用 `?cam=iso`。
@@ -7,24 +7,24 @@
 ## 文件分层
 | 文件 | 行数 | 层 | 管什么 |
 |---|---|---|---|
-| `src/data.js` | 393 | data | 全部表与常量（`DL.DATA`），无逻辑 |
+| `src/data.js` | 394 | data | 全部表与常量（`DL.DATA`），无逻辑 |
 | `src/core.js` | 107 | core | 纯公式：成长、装备区间、等级差查表 |
-| `src/world.js` | 323 | world | `genHub` `genRoom`（`size` 直接是最终格数，不再 ×2.2）`genTerrain`、`bfs`（朝目标排序）、`tightenPath`（视线拉直）、`canStep` |
-| `src/overworld.js` | 228 | world | **128×128 整图 + 陆地约 96×96**（`ISLAND_R`(17)=48 + 正弦湾；`CITY` 31×31 居中 = 安全区）+ **城外野怪**（`placeFieldMobs`(110)：1~5 级鸡/稻草人/野狗 47 只，只站草地、离城 ≥3 格、离出生点 ≥6 格、彼此隔 `FIELD_GAP`(108)=5 格；**鸡铺满南野（墙根到沙滩边）、野狗在北墙外、稻草人四条边随机**，三边都靠 `SHORE_BAND`(109) 在贴海那圈先留几只）+ `caveMap`（`applyOverworld` 用；现在恒启用） |
+| `src/world.js` | 326 | world | `genHub` `genRoom`（`size` 直接是最终格数，不再 ×2.2）`genTerrain`、`bfs`（朝目标排序）、`tightenPath`（视线拉直）、`canStep` |
+| `src/overworld.js` | 328 | world | **128×128 整图 + 陆地约 96×96**（`ISLAND_R`(17)=48 + 正弦湾；`CITY` 31×31 居中 = 安全区）+ **城外野怪**（`placeFieldMobs`(110)：1~5 级鸡/稻草人/野狗 47 只，只站草地、离城 ≥3 格、离出生点 ≥6 格、彼此隔 `FIELD_GAP`(108)=5 格；**鸡铺满南野（墙根到沙滩边）、野狗在北墙外、稻草人四条边随机**，三边都靠 `SHORE_BAND`(109) 在贴海那圈先留几只）+ **南岸渔屋 + 椰子树**（`findBeachHut`(250) 定屋、`placeBeachPalms`(271) 在屋边撒 5 棵椰子；这两样是岛上仅有的道具）+ `caveMap`（`applyOverworld` 用；现在恒启用） |
 | `src/combat.js` | 133 | combat | `playerDamage` `enemyDamage` `halfMoonCells` `decide` `nextStep` |
 | `src/status.js` | 169 | status | `DEFS` + `apply` `tick` `onHit` `canAct` `list` |
-| `src/game.js` | 4733 | game | 编排 + 全部 DOM 绑定（2D 绘制已删，分段见下）；**启动段包在 `startGame()`(4548) 里**，由单实例守卫决定开不开 |
-| `src/render-three.js` | 2069 | 3D | mir 俯视场景：地面分块/立牌/接触阴影/排序/迷你图/拾取/帧率角标；**唯一画面**；相机开关 `?cam=`（默认 mir，iso 保留） |
-| `src/hd-draw.js` 737 + `src/iso-ground.js` 481 + `src/three-pick.js` 60 | — | 3D 素材 | **立牌真身**（PNG 素材清空后全走它）：`heroSheet` `npc` `mob` `house` `rock` `caveMouth` `flora` `townProp` / 菱形地面 `paint`(369) / 屏幕→格射线 |
-| `src/iso-art.js` 2174 | — | 3D 地面 | **地面材质真身**：10 种材质画法、`groundSheet`（`cutSea` 时海不进覆盖层，靠海岸距铺沙；可传整图 `coast`+`coastPx` 只裁块）、`coastField`（弯曲岸距）、`sandMask`（沙带遮罩，整图一次、块里裁）、`cropCanvas`、`seaSheet`（验收台旧海面）、`seaMask`（海/池塘）、`shoreline`（池塘岸线）、崖壁 `cliff`/`cliffHeight`；验收台 `asset-bench.html`（⑥ 整张 vs 分块） |
+| `src/game.js` | 4786 | game | 编排 + 全部 DOM 绑定（2D 绘制已删，分段见下）；**启动段包在 `startGame()`(4548) 里**，由单实例守卫决定开不开 |
+| `src/render-three.js` | 2167 | 3D | mir 俯视场景：地面分块/立牌/接触阴影/排序/迷你图/拾取/帧率角标；**唯一画面**；相机开关 `?cam=`（默认 mir，iso 保留）；**草地细节层** `addGrassDetail`（屏幕级草叶 shader，见「想改什么」）；**海岛地标**（渔屋 / 椰子树）走 `addProp` 的 `beachHut`/`palm` 分支 |
+| `src/hd-draw.js` 942 + `src/iso-ground.js` 481 + `src/three-pick.js` 60 | — | 3D 素材 | **立牌真身**（PNG 素材清空后全走它）：`heroSheet` `npc` `mob` `house` `beachHut` `palm` `rock` `caveMouth` `flora` `townProp` / 菱形地面 `paint`(369) / 屏幕→格射线 |
+| `src/iso-art.js` | 2293 | — | 3D 地面 | **地面材质真身**：10 种材质画法、`groundSheet`（`cutSea` 时海不进覆盖层，靠海岸距铺沙；可传整图 `coast`+`coastPx` 只裁块）、`coastField`（弯曲岸距）、`sandMask`（沙带遮罩，整图一次、块里裁）、`cropCanvas`、`seaSheet`（验收台旧海面）、`seaMask`（海/池塘）、`shoreline`（池塘岸线）、崖壁 `cliff`/`cliffHeight`；验收台 `asset-bench.html`（⑥ 整张 vs 分块） |
 | `src/sfx.js` | 226 | audio | `SFX` 音名表 + WebAudio/WAV 兜底，`MUTE_KEY` |
-| `src/main.js` 17 + `src/boot.js` 6 + `src/namespace.js` 5 | — | shell | `main.js` 是唯一 ESM 入口，按依赖顺序 import；**`boot.js` 必须排在 `game.js` 前**——它先建单实例守卫，`game.js` 才按 `DL.SingleTab` 决定开不开局；`namespace.js` 建 `DL` 命名空间 |
-| `src/single-tab.js` | 259 | shell | **单实例守卫**：同一个存档只许一个页面在跑。BroadcastChannel ping/pong（判死活，不受后台计时器节流）+ localStorage 心跳锁（兜底）。`createSingleTab()` → `ready` / `role` / `onLost`；抢不到锁只显示遮罩，另一个页面关掉后自动接管；`save()`/`after()` 里有 `isLost()` 早退兜底 |
-| `index.html` 325 + `style.css` 1335 | — | shell | HUD/DOM 与布局。左上角常驻 `#fps` 帧率角标（1 秒窗口）；开发页只留一行 `<script type="module" src="./src/main.js">`；双击入口是 `dist/index.html`（928 KB 单文件） |
-| 测试 5 件 | 2052 | test | test-game 1582 / test-input 191 / balance 159 / test-three 63 / check-assets 57 |
+| `src/main.js` 18 + `src/boot.js` 9 + `src/namespace.js` 5 | — | shell | `main.js` 是唯一 ESM 入口，按依赖顺序 import；**`boot.js` 必须排在 `game.js` 前**——它先建单实例守卫，`game.js` 才按 `DL.SingleTab` 决定开不开局；`namespace.js` 建 `DL` 命名空间 |
+| `src/single-tab.js` | 316 | shell | **单实例守卫**：同一个存档只许一个页面在跑。BroadcastChannel ping/pong（判死活，不受后台计时器节流）+ localStorage 心跳锁（兜底）。`createSingleTab()` → `ready` / `role` / `onLost`；抢不到锁只显示遮罩，另一个页面关掉后自动接管；`save()`/`after()` 里有 `isLost()` 早退兜底 |
+| `index.html` 326 + `style.css` 1336 | — | shell | HUD/DOM 与布局。左上角常驻 `#fps` 帧率角标（1 秒窗口）；开发页只留一行 `<script type="module" src="./src/main.js">`；双击入口是 `dist/index.html`（928 KB 单文件） |
+| 测试 5 件 | 2080 | test | test-game 1605 / test-input 192 / balance 160 / test-three 64 / check-assets 58 |
 | `gen-*.py` 8 个 | — | 素材 | 生成 `assets/**` 的老管线；**产出已被清空**（2026-10-29），新素材按 `docs/立牌统一规格.md` 重出 |
 
-## game.js 4733 行的分段地图
+## game.js 4786 行的分段地图
 | 行区间 | 段 | 关键函数（行号） |
 |---|---|---|
 | 1–458 | 骨架 | `P` 初始(187)、全部 `let` 状态(230)、`useOverworld`(454)、`uiOpen`(421) |
@@ -65,11 +65,16 @@
 | **连点换目标 / 镜头抖** | `game.js` `walk`(3361)：折线带 `ks`（每个折点对应的格数，`s = done-1+stepProgress()`），`pointOnSteps` 按格数在段内插值——画面和逻辑同一拍，拐点不跳。换目标时 `pts[0]` 换成**当前画面位置**（`walkStepVis()`，格数取负数 `s0`），并跳过格心 `P` 直接连下一个拐点：否则新折线从格心起算，画面会横跳 0.2~0.7 格（`done=0` 时还会切回逐格插值，两套模型对不上）。`stopWalk` 把折线位置接进 `walkVis`，键盘接管/撞怪也不会弹回格心 |
 | 3D 崖壁（边缘山脊 / 野外孤石） | `render-three.js buildCliffs` / `addCliffSprite`（只往 `map=1` 的格子立，不会走穿）、`paintTex` 按「主题+变体+高度档」缓存；全部走 `iso-art.js` 程序化崖壁 |
 | 3D 地面材质（草地/石板/水/海/岸线） | `iso-art.js`：`paintGrass` `paintSlab` `paintWater` `paintSea` `shoreline` `seaMask` `groundSheet` `coastField`；海面在 `render-three.js` `addSeaMesh`（着色器，盖在沙上，`SEA_Y`）；改完看南岸和 `asset-bench.html` |
+| **草地风格（2026-10-30 定稿：一片绿 + 零星点缀）** | **只走贴图** `iso-art.js paintGrass`：底色 = `PALETTES.field.base`，上面只有 ① 很淡的大块明暗（`softBlob`，alpha 0.03~0.06）② alpha 0.13 的绒纹（`turfTile`，384px 砖）③ **每约 80 格一颗**小草（`GRASS_CLUMP_P`=0.012、`GRASS_R`=0.18）④ ~1/120 格一朵小白花、~1/80 格一块小石。**不要屏幕级草叶层**（试过 shader 版：满屏冒草、发脏，主人两次否掉）。要调疏密只动 `GRASS_CLUMP_P` 和 ④ 里那两个概率 |
+| **城内地砖颜色（2026-10-30 改成沙色）** | 地砖本身没动：`overworld.js` 的 `inCity` 仍是 31×31 整片 `terrain=1`，`render-three.js` 仍是 `style:{path:'slab'}` + `addPlate`(657) 叠 `slabSheet` 一格一块（`TILES_PLATE`(76) 默认开，`?tiles=flat` 退回平铺）。改的只是**配色**，全在 `iso-art.js`：① 砖面 `paintSlabFace` 的 `base` 由灰石色换成 `mix(T.path, T.cream, 0.16)` 的暖沙色再分四档深浅；② 缝 `paintSlabBig` / `slabSheet` 用 `mix(T.soilLo, T.mudLo, 0.55)`（别再回到 `mix(T.mudLo,T.ink,…)` 的黑褐缝）；③ 脏斑/砂砾/磕边改暖土色，不用 `ink`。另有一个没启用的 `sandroad` 材质（整片沙地，`paintSandRoad`(642)）留着备用，`style.path` 换成 `'sandroad'` 就能切回沙地 |
 | **浅水偏亮 / 海水颜色** | `render-three.js` `SEA_FRAG` 上方那组常量：`SEA_SHALLOW`（岸边水色）`SEA_SHORE_ALPHA`（越小越透沙、越亮）`SEA_CAUSTIC_SHORE/DEEP`（岸纹强度）`SEA_FOAM_ALPHA`；带宽在 `iso-art.js`：`SHALLOW_TILES`(3.8) 浅水、`SAND_TILES`(6.6) 沙带 |
 | **水面动画（涌动 / 浪脊 / 碎沫 / 岸纹）** | 全在 `render-three.js` `SEA_FRAG` 的 ①–⑤ 段，`uTime` 由 `tick()`(1700) 每帧灌：① 慢涌改海面色、② 沿岸距推的浪脊、③ 碎沫跟涌浪舔沙（只动亮暗、`alpha` 仍按 `d`，不会露底衬）、④ 两层岸纹反向漂、⑤ 浪尖反光。**速度就是那几个 `uTime * X` 系数**：0 = 静止；④ 原来只有 0.07（1 秒走 0.03 格），看着像静态图，现在 0.55/0.40。碎沫宽度用 `fd` 的 `0.55` 摆幅，浪脊粗细看 `smoothstep(0.88, 0.995, …)` |
 | 地面分块（大图流式加载） | `iso-art.js groundSheet`(1759) 的 `rect`/`margin`（块 + 1 格出血再裁）；对拍看 `asset-bench.html` ⑥（?margin=0 可关出血看反例）；块管理器在 `render-three.js`（`CHUNK_CELLS`(52) **8 格** + `syncChunks`(804) 外扩 1 圈）。海/沙两块传 `coast`+`coastPx` 和 `sandMask`，三者必须同尺寸（都由 `buildGround` 的 `gSea` 出） |
 | 崖壁精灵（AI 图，已清空） | `iso-art.js setCliffSprites` / `cliffFoot`；图 `assets/iso/processed/cliff1..3.png` **已删**；重出图看 `docs/瓦片清单.md` §一·五 v4（img2img + `key-magenta.py`） |
 | **立牌口径（3D 素材 + 2.5D 固定视角）** | `docs/立牌统一规格.md`：五条硬规则 + 出图 prompt + 五条验收。入库 `tools/ingest-3d.py 原图.png 输出.png --world 2.15`（按色相抠洋红、剥烘死的影子、去水印、缩到 2.5× 屏高）。对拍：`bench-scene.html`（光/影/地八根滑杆，立牌已换程序化占位） |
+| **海岛渔屋 / 椰子树（沙滩那两样地标）** | ① 屋子落点 `overworld.js findBeachHut`(250)：只收「沙滩格 + 身后一格是草地」的格子，`HUT_MIN_D`(248)=30 离城中心最少格数、`HUT_AXIS`(249)=16 离中轴最远格数。② 椰子树 `placeBeachPalms`(271)：离屋 `PALM_R`(270)=14 以内、由近到远取 `PALM_N`(268)=5 棵、彼此隔 `PALM_GAP`=4 格、离屋 ≥3 格。③ 外观 `hd-draw.js palm`(537) / `beachHut`(623)，配色常量 `PALM`/`HUT`。④ 立起来在 `render-three.js addProp`（`beachHut`/`palm` 共用一个分支），高度 `HUT_H`(1220)=**4.1**（≈1.9 人，门洞 57.8% 全高 ≈ 2.4 格）、`PALM_H`(1199)=**7.3**（≈3.4 人）。**量高度的尺子只有一把：人 = 2.15**；`hd-draw` 两张画布画完都过 `trim()` 裁到内容外框，否则留白会让立牌"看着变小"——2026-10-30 就是这么踩的一次 |
+| **画内透视（屋子的斜边、顶面往哪退）** | `hd-draw.js` 顶部 `ART_YAW`(57)=0 / `ART_PITCH`(58)=34：`isoBox`(63) 和 `gable`(89) 的 `dx/dy` 不再硬写 `0.62d/0.36d`（那是俯角 35° **偏航 45°**），改成按相机算的 `dx=d·sin(yaw)`、`dy=d·cos(yaw)·sin(pitch)`。**34° = 相机 55° − 立牌后仰 21°**，改 `TILT` 必须同步改 `ART_PITCH`。偏航 0 时右侧面侧对相机、自然消失，屋顶进深改成"整块三角上移 dy"。`?art=old` 切回旧画法对照（纹理有缓存，只在重画时生效） |
+| **立牌像纸片 / 被压扁（视角）** | 根因是几何：板面竖直、相机 55° 俯视 → 竖直面被投影压掉 `cos55≈0.57`，地面却按 `sin55≈0.82` 显示，所以人和房子比脚下格子矮胖、顶面永远看不见。`render-three.js billboard`(409) 的 `TILT`(384)：**默认 0.6**（2026-10-30 主人拍板），板面绕**底边**后仰 `0.6×(90°−pitch)=21°`。② 后仰会把投影从 `cos55≈0.574` 抬高（全开 1.0 时是 `cos20≈0.940`，屏幕高 1.63 倍，主人当场看出「人看起来大不少」），所以 `tiltScale`(402) 按两个投影系数的商 **等比**缩回去——0.6 档是 `0.574/0.829≈0.692`（屏幕高不变、宽收 31%）——开关前后屏幕尺寸一致，不再是压扁，只是变小一号。`?tilt=0` 旧观感、`?tilt=1` 最"正"、`?tilt=0.6` 是默认；`?pscale=1.15` 可在补偿后再放大微调。**改高度常量时画面必须是同一个 tilt 状态**，否则等于换了一把尺子 |
 | 音效 / 存档 | `sfx.js SFX`(185)+`play`(196)、调用点 game 1085/1963；`game.js save`(1851) `load`(1880)、`SAVE_KEY`(28) |
 | 鼠标 / 手机触摸 | `game.js handleCellClick`(3393) `bindDpad`(3620)；3D 点击入口 `render-three.js pointer`(1931)（小地图区域已挡）；CSS 222 |
 | **多开页面 / 单实例守卫** | `src/single-tab.js`（新文件，整份）；入口 `src/boot.js` 先建好 `DL.SingleTab`；`game.js` 启动段包在 `startGame()`(4548)、文件末尾的门(4732) 拿到锁才开局；`save`(1851)/`after`(2786)/`handleCellClick`(3393)/`onKey`(3652) 头部都有 `isLost()` 早退。刷新走 `sessionStorage` 的 `prevSelfId` 快速接管；判定窗口：`FRESH_MS`(8000) 心跳过期、`PING_WAIT_MS`(350)、`RETRY_MS`(600)。**别退回「只靠 localStorage 时间戳」**——后台标签的计时器会被节流，得靠 BroadcastChannel 的 ping/pong 判活 |
@@ -98,7 +103,7 @@
 ## 测试
 | 命令 | 现状 |
 |---|---|
-| `node games/darklegend/test-game.mjs` | **387 项**（Node+DOM 桩）；`import ./src/game.js`（不带 overworld，和改前的加载集合一致） |
+| `node games/darklegend/test-game.mjs` | **390 项**（Node+DOM 桩）；`import ./src/game.js`（不带 overworld，和改前的加载集合一致） |
 | `node games/darklegend/test-input.js` | 真 Chrome `http://localhost:8183/?debug`，8 项：3D 已启动、点小地图不动、点地走、点怪掉血。先 `npm run dev` |
 | `node games/darklegend/test-three.mjs` / `check-assets.mjs` | 515 项射线往返（不开 WebGL）/ 只剩瓦片 4 张 PNG 头（tiles-cave + terrain×3，已不被运行时加载，留着等重建） |
 | `node games/darklegend/test-single-tab.js` | 真 Chrome 开两个标签，14 项：第二个被拦（无 `__dl`、有遮罩）、关掉第一个后自动接管、刷新不把自己锁住。先 `npm run dev`；末尾可传 URL（如 `file:///…/dist/index.html?debug`）测双击版 |

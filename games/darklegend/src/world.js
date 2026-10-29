@@ -217,7 +217,9 @@ const global = globalThis;
   /* ---------- 小世界房间 ---------- */
   // layout: 'open'（开阔+障碍）| 'cave'（两房间+走廊）
   function genRoom(spec, rng) {
-    const size = Math.round((spec.size || 20) * 2.2);  // 线性 ×2.2 ≈ 面积 ×5（主人 2026-10-29 定）
+    // size 就是最终格数（2026-10-29 晚主人定：野外图 72×72）。
+    // 旧版是「size × 2.2」，数据里写 24/26；现在数据直接写格数，别再乘。
+    const size = spec.size || 20;
     const r = rng || Math.random;
     const rndi = (a, b) => Math.floor(a + r() * (b - a + 1));
 

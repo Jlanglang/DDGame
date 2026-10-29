@@ -202,6 +202,16 @@ try {
   dl.attack(1, '普攻');
   ok('攻击使怪物掉血', mon.hp < 200, mon.hp);
 
+  /* 11b. 连点普攻不抢攻：手动 act 和挂机共用 playerNextStrikeAt 这一个出手间隔 */
+  dl.resetEnemyClock();
+  dl.act('attack');
+  const hpOneTap = mon.hp;
+  const turnOneTap = dl.state().turn;
+  dl.act('attack');              // 同一拍里再点一次：应该完全无效（不掉血、不推进回合）
+  ok('连点普攻只算一次', mon.hp === hpOneTap && dl.state().turn === turnOneTap,
+    [hpOneTap, mon.hp, turnOneTap, dl.state().turn]);
+  dl.resetEnemyClock();
+
   /* 12. 技能 MP 与 CD（先学会半月） */
   dl.P.skills.half = true;
   dl.rest();

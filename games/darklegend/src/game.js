@@ -260,6 +260,9 @@ const D = DL.DATA;
   const playerCombatMs = () => (P.skills && P.skills.swordMaster ? Math.round(COMBAT_MS / 2) : COMBAT_MS);
   const MOVE_MS = D.MOVE_MS || 180;                     // 走路节奏（快得多）
   const ENEMY_ACT_MS = D.ENEMY_ACT_MS || 1000;          // 怪行动：1 次/秒
+  // 拍子抖动容差：setTimeout 偶尔早到几毫秒，严格的 `now < CD` 会让整拍空转
+  //（玩家不出手、enemiesTurn 也没跑 → 看着像「回血顿 1 秒、怪也不出手」）
+  const ACT_GRACE_MS = 40;
   const WALK_STEP_MS = D.WALK_STEP_MS || 180;           // 点地/摇杆每格（R3.8）
   const IDLE_MS = COMBAT_MS;                            // 旧名兼容
   function nowMs() {
@@ -2623,7 +2626,7 @@ const D = DL.DATA;
       if (action === 'giveup') { e.aggroOn = false; e.playerEngaged = false; continue; }   // 被动怪追 3 格就放弃
       if (action === 'attack' && !allowAttack) continue;
       if (action !== 'attack' && action !== 'chase') continue;
-      if (now < (e.nextActAt || 0)) continue;
+      if (now + ACT_GRACE_MS < (e.nextActAt || 0)) continue;
       e.nextActAt = now + ENEMY_ACT_MS;
 
       if (action === 'attack') {
@@ -2839,7 +2842,7 @@ const D = DL.DATA;
   // 贴身自动出手（挂机打合格怪；手控打任意贴身）
   function autoStrikeAdjacent(target, fromFarm) {
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    if (now < playerNextStrikeAt) return;
+    if (now + ACT_GRACE_MS < playerNextStrikeAt) return;
     playerNextStrikeAt = now + playerCombatMs();
     faceTo(target.x, target.y);
     if (fromFarm) {
@@ -2909,14 +2912,13 @@ const D = DL.DATA;
     if (!S.canAct(P)) { blockAction(); return turn !== t; }
 
     // 自动喝药（挂机/手控都开；红优先于蓝）
+    // 挂机手感：喝药**不占整拍**。以前这里 `after(); return true;` 会吞掉一整拍
+    // （COMBAT_MS = 1 秒），那 1 秒里玩家不出手，怪的行动又常卡在拍边，看着就是
+    // 「回血顿 1 秒、怪也不攻击」。喝完接着走本拍（打 / 走 / 结算），节奏不断。
     if (P.autoPot > 0 && P.potionCd.red <= Date.now() &&
-      P.hp <= maxHp() * P.autoPot / 100) {
-      if (drink('red')) { after(); return true; }
-    }
+      P.hp <= maxHp() * P.autoPot / 100) drink('red');
     if (P.autoMp > 0 && P.potionCd.blue <= Date.now() &&
-      P.mp <= maxMp() * P.autoMp / 100) {
-      if (drink('blue')) { after(); return true; }
-    }
+      P.mp <= maxMp() * P.autoMp / 100) drink('blue');
     // 自动回城：阈值以下且有回城卷
     if (tryAutoTown()) return true;
 
@@ -3021,11 +3023,11 @@ const D = DL.DATA;
     return DL.Combat.adjacentTarget(enemies, P.x, P.y, P.dir);
   }
 
-  function attack(mult, tag) {
+  function attack(mult, tag, viaUi) {
     const t = adjacentTarget();
     if (!t) { log('身边没有敌人。'); return false; }
-    strike(t, mult, tag);
-    return true;
+    if (viaUi) { const now = nowMs(); if (now < playerNextStrikeAt) return false; playerNextStrikeAt = now + playerCombatMs(); }  // 连点不抢攻：手动也占同一个出手间隔
+    strike(t, mult, tag); return true;
   }
 
   // 半月：朝向前方的九宫格半边 5 格（规则见 combat.js）
@@ -3108,7 +3110,7 @@ const D = DL.DATA;
     if (over || uiOpen()) return;
     stopWalk();
     if (!blockAction()) return;
-    if (kind === 'attack') { if (attack(1.2, '攻击')) after(); }
+    if (kind === 'attack') { if (attack(1.2, '攻击', true)) after(); }
     else if (kind === 'half') { if (halfMoon()) after(); }
     else if (kind === 'fire') { if (fireSword()) after(); }
     else if (kind === 'potion' || kind === 'red') { if (drink('red')) after(); }

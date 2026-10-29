@@ -22,8 +22,8 @@ const KEY = 'darklegend-tab-lock';
 const CHANNEL = 'darklegend-single-tab';
 const HEARTBEAT_MS = 1000;   // owner 写心跳的间隔
 const FRESH_MS = 8000;       // 心跳超过这么久没更新 = 上一个页面已经不在了
-const PING_WAIT_MS = 700;    // 探测时等 pong 的时间
-const RETRY_MS = 1200;       // 等待中重试的间隔
+const PING_WAIT_MS = 350;    // 探测时等 pong 的时间（BroadcastChannel 是即时投递，350ms 足够）
+const RETRY_MS = 600;        // 等待中重试的间隔（刷新后撞上一次探测也能很快恢复）
 const SETTLE_MS = 260;       // claim 后等一拍，看锁最后落在谁手上
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,6 +35,9 @@ export function createSingleTab() {
   let pongSeen = false;
   let beatTimer = null;
   let waitTimer = null;
+  // 页面正在卸载：卸货期间浏览器可能先 pagehide 再补一个 visibilitychange(hidden)，
+  // 后者以前会把手动删掉的锁又写回去 —— 刷新后新页面就白等 8 秒。这个标志一置上就再也不写锁。
+  let released = false;
   const lostCbs = [];
   let readyResolve = null;
 
@@ -50,6 +53,17 @@ export function createSingleTab() {
 
   const now = () => Date.now();
 
+  // 本标签是不是刚刷新过：sessionStorage 按标签隔离、刷新会保留，里面存着上一轮的 id。
+  // 刷新时锁通常是「上一轮自己」留下的死锁，直接接管；只有锁属于别的页面才排队等。
+  let prevSelfId = '';
+  let isReload = false;
+  let fastTried = false;        // 「直接接管」只许走一次，省得跟另一个活页面反复抢
+  try {
+    prevSelfId = sessionStorage.getItem('darklegend-tab-self') || '';
+    isReload = !!prevSelfId;
+    sessionStorage.setItem('darklegend-tab-self', id);
+  } catch { /* 隐私模式等：当新标签处理 */ }
+
   function readLock() {
     if (!lsOk) return null;
     try {
@@ -61,6 +75,7 @@ export function createSingleTab() {
   }
 
   function writeLock() {
+    if (released) return;
     if (!lsOk) return;
     try { localStorage.setItem(KEY, JSON.stringify({ id, ts: now() })); } catch { /* 忽略 */ }
   }
@@ -166,13 +181,34 @@ export function createSingleTab() {
 
   // ---- 抢锁 ----
   async function probe() {
+    if (released) return false;
     if (!ch && !lsOk) return true;              // 两个通道都没有：放行
+    // 本标签刷新（F5 / Ctrl+R）：锁没人持着，或者锁就是「上一轮自己」留下的，
+    // 直接接管——先给 150ms 让可能还活着的旧实例应答（复制标签页会被逮到）。
+    if (isReload && !fastTried) {
+      const own = readLock();
+      if (!own || own.id === prevSelfId) {
+        fastTried = true;
+        pongSeen = false;
+        send('ping');
+        await sleep(150);
+        if (pongSeen) return false;
+        send('claim');
+        writeLock();
+        await sleep(SETTLE_MS);
+        const after = readLock();
+        return !(after && after.id !== id);
+      }
+    }
     pongSeen = false;
     send('ping');
     await sleep(PING_WAIT_MS);
     if (pongSeen) return false;
     const lock = readLock();
-    if (lock && lock.id !== id && now() - lock.ts < FRESH_MS) return false;
+    const fresh = lock && lock.id !== id && now() - lock.ts < FRESH_MS;
+    // 锁新鲜就等，但「本标签刚刷新」且没有活着的页面回应时例外：
+    // 那是自己上一轮留下的死锁，直接接管，否则刷新要白等（真踩过）。
+    if (fresh && !isReload) return false;
     // 试着占：先写锁 + 广播，再等一拍看锁有没有被另一个同时在抢的页面盖掉
     send('claim');
     writeLock();
@@ -223,6 +259,8 @@ export function createSingleTab() {
   }
 
   function release() {
+    if (released) return;
+    released = true;
     if (role === 'owner') {
       send('bye');
       dropLock();
@@ -230,6 +268,8 @@ export function createSingleTab() {
     if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
     clearTimeout(waitTimer);
     waitTimer = null;
+    try { ch && ch.close(); } catch { /* 忽略 */ }
+    ch = null;
   }
 
   if (typeof window !== 'undefined') {

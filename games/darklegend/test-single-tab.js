@@ -17,7 +17,7 @@ const CHROME = [
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
 ].find((f) => fs.existsSync(f));
 
-const URL = 'http://localhost:8183/?debug';
+const URL = process.argv[2] || 'http://localhost:8183/?debug';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {

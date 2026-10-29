@@ -9,7 +9,7 @@
 |---|---|---|---|
 | `src/data.js` | 393 | data | 全部表与常量（`DL.DATA`），无逻辑 |
 | `src/core.js` | 107 | core | 纯公式：成长、装备区间、等级差查表 |
-| `src/world.js` | 321 | world | `genHub` `genRoom` `genTerrain`、`bfs`（朝目标排序）、`tightenPath`（视线拉直）、`canStep` |
+| `src/world.js` | 323 | world | `genHub` `genRoom`（`size` 直接是最终格数，不再 ×2.2）`genTerrain`、`bfs`（朝目标排序）、`tightenPath`（视线拉直）、`canStep` |
 | `src/overworld.js` | 228 | world | **128×128 整图 + 陆地约 96×96**（`ISLAND_R`(17)=48 + 正弦湾；`CITY` 31×31 居中 = 安全区）+ **城外野怪**（`placeFieldMobs`(110)：1~5 级鸡/稻草人/野狗 47 只，只站草地、离城 ≥3 格、离出生点 ≥6 格、彼此隔 `FIELD_GAP`(108)=5 格；**鸡铺满南野（墙根到沙滩边）、野狗在北墙外、稻草人四条边随机**，三边都靠 `SHORE_BAND`(109) 在贴海那圈先留几只）+ `caveMap`（`applyOverworld` 用；现在恒启用） |
 | `src/combat.js` | 133 | combat | `playerDamage` `enemyDamage` `halfMoonCells` `decide` `nextStep` |
 | `src/status.js` | 169 | status | `DEFS` + `apply` `tick` `onHit` `canAct` `list` |
@@ -50,7 +50,7 @@
 | 掉落概率/保底 | `data.js DROP`(165) `RESPAWN`(60)；`game.js rollDrop`(2342) `rollKillEquipDrops`(2352) |
 | 装备底材/属性倍率 | `data.js EQUIP_BASES`(218) `EQUIP_STAT_MUL`(325)；`game.js makeEquip`(934) |
 | 词缀（M2 冻结但在跑） | `game.js makeEquip`(934) 掷 affix、`core.js affixMult`(34) 已计入伤害，UI 占位 `affixSlot`(1076) |
-| 房间 / 地图 / 主城 | `data.js ROOMS`(348) `THEME_OF_ROOM`(13)；`world.js genRoom`(219) `genHub`(185)；`game.js enterRoom`(597) |
+| 房间 / 地图 / 主城 | `data.js ROOMS`(349) `THEME_OF_ROOM`(13)；**野外图统一 48×48**（`ROOMS` 的 `size` 就是最终格数，`world.js genRoom`(219)/`size`(222) 不再 ×2.2；洞窟 44/48 保持）；`world.js genHub`(185)；`game.js enterRoom`(597) |
 | 城外野怪分布 / 密度 | `overworld.js placeFieldMobs`(110)：`plans` 里 `n` 是只数、`d0/d1` 是离城墙的距离（格，**d1=99 = 一直铺到草地边缘**，别再写死 12 那种数）、`side` 是边（north 北 / south 南 / any 四条边随机）、`shore` 是先在海边留几只；深度上限由 `edgeCells` 按列量（碰到沙滩/海就停），贴海判定 `SHORE_BAND`(109)=2 格；只站草地、彼此隔 `FIELD_GAP`(108)=5 格。死掉 8 秒后原地重生（`game.js respawnField`(2590)，玩家离 >6 格才刷） |
 | 战斗判定（伤害/范围） | `combat.js playerDamage`(19) `halfMoonCells`(34)；`game.js strike`(1944) `halfMoon`(3041) |
 | 怪 AI / BOSS 出招 | `data.js AI`(125)；`combat.js decide`(76)；`game.js enemiesTurn`(2611) `bossTrick`(2655) |
@@ -70,7 +70,7 @@
 | **立牌口径（3D 素材 + 2.5D 固定视角）** | `docs/立牌统一规格.md`：五条硬规则 + 出图 prompt + 五条验收。入库 `tools/ingest-3d.py 原图.png 输出.png --world 2.15`（按色相抠洋红、剥烘死的影子、去水印、缩到 2.5× 屏高）。对拍：`bench-scene.html`（光/影/地八根滑杆，立牌已换程序化占位） |
 | 音效 / 存档 | `sfx.js SFX`(185)+`play`(196)、调用点 game 1085/1963；`game.js save`(1851) `load`(1880)、`SAVE_KEY`(28) |
 | 鼠标 / 手机触摸 | `game.js handleCellClick`(3393) `bindDpad`(3620)；3D 点击入口 `render-three.js pointer`(1899)（小地图区域已挡）；CSS 222 |
-| **多开页面 / 单实例守卫** | `src/single-tab.js`（新文件，整份）；入口 `src/boot.js` 先建好 `DL.SingleTab`；`game.js` 启动段包在 `startGame()`(4548)、文件末尾的门(4732) 拿到锁才开局；`save`(1851)/`after`(2786)/`handleCellClick`(3393)/`onKey`(3652) 头部都有 `isLost()` 早退。判定窗口：`FRESH_MS`(8000) 心跳过期、`PING_WAIT_MS`(700)、`RETRY_MS`(1200)。**别退回「只靠 localStorage 时间戳」**——后台标签的计时器会被节流，得靠 BroadcastChannel 的 ping/pong 判活 |
+| **多开页面 / 单实例守卫** | `src/single-tab.js`（新文件，整份）；入口 `src/boot.js` 先建好 `DL.SingleTab`；`game.js` 启动段包在 `startGame()`(4548)、文件末尾的门(4732) 拿到锁才开局；`save`(1851)/`after`(2786)/`handleCellClick`(3393)/`onKey`(3652) 头部都有 `isLost()` 早退。刷新走 `sessionStorage` 的 `prevSelfId` 快速接管；判定窗口：`FRESH_MS`(8000) 心跳过期、`PING_WAIT_MS`(350)、`RETRY_MS`(600)。**别退回「只靠 localStorage 时间戳」**——后台标签的计时器会被节流，得靠 BroadcastChannel 的 ping/pong 判活 |
 
 ## 数值都在哪（全在 data.js）
 | 表（行） | 关键字段 | 谁用 |
@@ -99,7 +99,7 @@
 | `node games/darklegend/test-game.mjs` | **387 项**（Node+DOM 桩）；`import ./src/game.js`（不带 overworld，和改前的加载集合一致） |
 | `node games/darklegend/test-input.js` | 真 Chrome `http://localhost:8183/?debug`，8 项：3D 已启动、点小地图不动、点地走、点怪掉血。先 `npm run dev` |
 | `node games/darklegend/test-three.mjs` / `check-assets.mjs` | 515 项射线往返（不开 WebGL）/ 只剩瓦片 4 张 PNG 头（tiles-cave + terrain×3，已不被运行时加载，留着等重建） |
-| `node games/darklegend/test-single-tab.js` | 真 Chrome 开两个标签，14 项：第二个被拦（无 `__dl`、有遮罩）、关掉第一个后自动接管、刷新不把自己锁住。先 `npm run dev` |
+| `node games/darklegend/test-single-tab.js` | 真 Chrome 开两个标签，14 项：第二个被拦（无 `__dl`、有遮罩）、关掉第一个后自动接管、刷新不把自己锁住。先 `npm run dev`；末尾可传 URL（如 `file:///…/dist/index.html?debug`）测双击版 |
 | `node games/darklegend/balance.mjs --check` | 超范围 exit 1；**当前就有 1 红**（30 级装备占攻 23.6%，目标 35–65），不是你改坏的 |
 
 ## 雷区
@@ -111,7 +111,7 @@
 - `hd-draw.js` 是立牌唯一来源（`heroSheet` `npc` `mob` `house` `rock` `caveMouth` `flora` `townProp` 全在 render-three 里用），改它就是改画面。`mob` 只画了鸡/稻草人/野狗/野猪四种，其余怪用 emoji 立牌占位（`glyphCanvas`）。
 - 3D 视口是 16:9（`three-pick.js` 的 `VIEW_W/H = 1280×720`）：**竖屏手机上是上下留黑边的横条 + "请横屏游玩"**；要改竖屏视锥得同时动 `three-pick` / `clampLook` / 点击反算。
 - 新弹窗必须登记进 `uiOpen()`(361)，否则 `after`/`walk`/挂机在背后继续跑；加存档字段要 `save`(1851)+`load`(1880) 成对改，`v:4`(1858) 是手写的。
-- **单实例守卫的两个坑（2026-10-29 加的）**：① `dist/index.html` 是单文件，`vite-plugin-singlefile` 会把动态 `import()` 内联成**同步执行**——「用 `.then()` 包住游戏加载」在开发页有效、双击版拦不住。所以启动段整段包进 `startGame()`(4548)，由 `game.js` 自己看 `DL.SingleTab.ready` 决定开不开；`src/boot.js` 必须排在 `game.js` 前先建守卫。② 后台标签的 `setInterval` 会被节流到 1 分钟，**光靠 localStorage 心跳会把还活着的后台页误判成已关闭**，判活得靠 BroadcastChannel 的 ping/pong；切回前台（`visibilitychange`/`pageshow`）要重新核对锁归谁——手机上一个标签冻久了会被别的页面接管，回来就该让位（显示"本页已经把存档交出去了"）。
+- **单实例守卫的三个坑（2026-10-29 加的）**：① `dist/index.html` 是单文件，`vite-plugin-singlefile` 会把动态 `import()` 内联成**同步执行**——「用 `.then()` 包住游戏加载」在开发页有效、双击版拦不住。所以启动段整段包进 `startGame()`(4548)，由 `game.js` 自己看 `DL.SingleTab.ready` 决定开不开；`src/boot.js` 必须排在 `game.js` 前先建守卫。② 后台标签的 `setInterval` 会被节流到 1 分钟，**光靠 localStorage 心跳会把还活着的后台页误判成已关闭**，判活得靠 BroadcastChannel 的 ping/pong；切回前台（`visibilitychange`/`pageshow`）要重新核对锁归谁——手机上一个标签冻久了会被别的页面接管，回来就该让位（显示"本页已经把存档交出去了"）。③ **刷新会踩死锁**：卸载时可能先 `pagehide`（删锁）再补一个 `visibilitychange(hidden)`（又把锁写回去），新页面读到新鲜锁就以为"另一个页面在跑"，白等 8 秒。现在 `released` 标志一置上就禁写；并且 `sessionStorage` 里存着上一轮的 id（`prevSelfId`），刷新时只要锁属于上一轮的自己就直接接管（`fastTried` 保证只抢一次，复制标签页那一类会退回正常排队）。
 - 地面分块（`groundSheet` 的 `rect`）：`px` 必须按**整张地图**算（`MAX_SIDE/max(cols,rows)`），
   按块算会让各块 px 不同、纹理拼不上；`brick` 与小 `slab` 是按**画布**从头排砖的（只有 `big:true`
   的大石板按格对齐），大图分块会错缝——真要在大图用，先改成按格锚定。

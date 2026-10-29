@@ -1,4 +1,4 @@
-/* 豆豆暗黑传奇 · M1.1
+/* 豆豆海岛幻想 · M1.1
    本轮改动（对应评审 P0）：
    1. 所有行动（含移动）推进回合；攻击会激怒怪物，怪物会追击、反击
    2. 点击地面/怪物自动寻路（BFS），鼠标与触摸通用
@@ -236,6 +236,8 @@ const D = DL.DATA;
   let walkToken = 0;
   // A5 走路插值：逻辑整格跳；画面格心→格心匀速滑。变向等本格走完（传奇常规），转面立刻生效。
   let walkVis = null; // { fx, fy, tx, ty, start, dur } | null
+  let walkVisPrev = null; // 上一步起点（拐角圆滑用）
+  let walkLine = null; // { pts, total, done } | null —— 点地寻路的真直线折线（画面沿它走）
   let walkReadyAt = 0; // 下一格解锁时间
   let pendingTarget = null;
   // 摇杆/按键状态提前声明，供 walkInputHeld 闭包使用
@@ -276,27 +278,77 @@ const D = DL.DATA;
   function walkVisDur() {
     return walkStepBusy() ? Math.max(16, walkStepRemaining()) : WALK_STEP_MS;
   }
+  function stepProgress() {
+    if (!walkVis) return 1;
+    const dur = walkVis.dur || WALK_STEP_MS;
+    return Math.min(1, Math.max(0, (nowMs() - walkVis.start) / dur));
+  }
+  // 沿折线取点：u∈[0,1] 按各段长度比例走
+  function pointOnLine(pts, u) {
+    const n = pts.length;
+    if (!n) return { x: P.x, y: P.y };
+    if (n === 1) return { x: pts[0].x, y: pts[0].y };
+    let total = 0;
+    for (let i = 1; i < n; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    if (!total) return { x: pts[0].x, y: pts[0].y };
+    let want = Math.min(1, Math.max(0, u)) * total;
+    for (let i = 1; i < n; i++) {
+      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      if (want <= d || i === n - 1) {
+        const r = d > 0 ? Math.min(1, want / d) : 1;
+        return {
+          x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r,
+          y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r,
+        };
+      }
+      want -= d;
+    }
+    return { x: pts[n - 1].x, y: pts[n - 1].y };
+  }
   function walkVisPos() {
     if (!walkVis) return { x: P.x, y: P.y, t: 1 };
     const dur = walkVis.dur || WALK_STEP_MS;
     const t = Math.min(1, Math.max(0, (nowMs() - walkVis.start) / dur));
-    return {
-      x: walkVis.fx + (walkVis.tx - walkVis.fx) * t,
-      y: walkVis.fy + (walkVis.ty - walkVis.fy) * t,
-      t: t,
-    };
+    const bx = walkVis.fx, by = walkVis.fy, cx = walkVis.tx, cy = walkVis.ty;
+    let x = bx + (cx - bx) * t;
+    let y = by + (cy - by) * t;
+    // 拐角圆滑：用 Catmull-Rom 过「上一步起点 → 本步起点 → 本步终点」，
+    // t=0 正好在本步起点、t=1 正好在终点（端点不跳，否则每步开头会往回顿一下）。
+    // 只抹平浅拐（45°）；90° 直角仍走硬拐，不然会切墙角。共线时曲线=直线。
+    if (walkVisPrev) {
+      const ax = walkVisPrev.x, ay = walkVisPrev.y;
+      const ux = bx - ax, uy = by - ay, vx = cx - bx, vy = cy - by;
+      const lu = Math.sqrt(ux * ux + uy * uy) || 1;
+      const lv = Math.sqrt(vx * vx + vy * vy) || 1;
+      const dot = (ux * vx + uy * vy) / (lu * lv);
+      const k = Math.min(1, Math.max(0, (dot - 0.35) / 0.6));
+      if (k > 0.01) {
+        const ex = cx + (cx - bx), ey = cy + (cy - by);   // 末点外推
+        const t2 = t * t, t3 = t2 * t;
+        const cr = (p0, p1, p2, p3) => 0.5 * (2 * p1 + (-p0 + p2) * t
+          + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+          + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+        x += (cr(ax, bx, cx, ex) - x) * k;
+        y += (cr(ay, by, cy, ey) - y) * k;
+      }
+    }
+    return { x: x, y: y, t: t };
   }
   function beginWalkStep(ox, oy, nx, ny) {
     const now = nowMs();
+    if (walkLine && walkLine.done < walkLine.total) walkLine.done += 1;
     // 从上一段画面位置接着滑，避免换步闪一下；时长固定满拍（匀速）
     const cur = walkVisPos();
     const fx = walkVis ? cur.x : ox;
     const fy = walkVis ? cur.y : oy;
+    walkVisPrev = walkVis ? { x: walkVis.fx, y: walkVis.fy } : null;
     walkVis = { fx: fx, fy: fy, tx: nx, ty: ny, start: now, dur: WALK_STEP_MS };
     walkReadyAt = now + WALK_STEP_MS;
   }
   function snapWalkVis() {
     walkVis = null;
+    walkVisPrev = null;
+    walkLine = null;
     walkReadyAt = 0;
   }
   function faceWalkDir(dx, dy) {
@@ -314,6 +366,15 @@ const D = DL.DATA;
   }
   function walkStepVis() {
     const movingInput = walkInputHeld();
+    // 点地寻路：画面沿拉直后的真直线折线走（逻辑仍一格一拍），
+    // 否则八向网格上的缓斜线会走成「斜一步、直一步」的蛇形。
+    // done===0 时还没迈第一步（可能在等上一格滑完），先沿用旧的逐格插值，免得镜头往回跳。
+    if (walkLine && walkLine.done > 0 && walkLine.pts && walkLine.pts.length > 1) {
+      const t = stepProgress();
+      const u = Math.min(1, Math.max(0, (walkLine.done - 1 + t) / Math.max(1, walkLine.total)));
+      const p = pointOnLine(walkLine.pts, u);
+      return { x: p.x + 0.5, y: p.y + 0.5, t: t, moving: t < 1 || movingInput || walkStepBusy() };
+    }
     if (!walkVis) {
       return { x: P.x + 0.5, y: P.y + 0.5, t: 1, moving: movingInput };
     }
@@ -3132,6 +3193,8 @@ const D = DL.DATA;
     if (over) return false;
     dx = Math.sign(dx); dy = Math.sign(dy);
     if (!dx && !dy) return false;
+    // 手动走（按键/摇杆）接管：取消点地寻路，别让画面折线跟逻辑打架
+    if (!fromWalk) stopWalk();
     if (!S.canAct(P)) {                 // 麻痹/眩晕：走不动
       if (!fromWalk) blockAction();
       return false;
@@ -3274,6 +3337,7 @@ const D = DL.DATA;
       clearTimeout(walkTimer);
       walkTimer = null;
     }
+    walkLine = null;
     pendingTarget = null;
   }
 
@@ -3281,6 +3345,10 @@ const D = DL.DATA;
     const target = pendingTarget;   // 保留"走到后打谁"
     stopWalk();
     pendingTarget = target;
+    // 画面折线：用 bfs 拉直后的关键点（起点/拐点/终点），逐格路径只管逻辑
+    walkLine = (path && path.pts && path.pts.length > 1)
+      ? { pts: path.pts, total: Math.max(1, path.length), done: 0 }
+      : null;
     const token = walkToken;
     let i = 0;
     const step = () => {

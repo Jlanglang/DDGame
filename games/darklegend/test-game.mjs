@@ -1,4 +1,4 @@
-// 豆豆暗黑传奇 · 回归测试（Node + DOM 桩）
+// 豆豆海岛幻想 · 回归测试（Node + DOM 桩）
 // 用法：node test-game.mjs
 // 覆盖：初始化 / 回合 / 寻路 / 区域 / 时钟 / 装备 / 商店 / 死亡复活 / 存档 / 固定种子 / 战斗
 import fs from 'node:fs';
@@ -1291,6 +1291,19 @@ try {
     // 等长路径（切比雪夫）：应先斜再直，不能先直再斜
     const skew = W.bfs(m, 0, 0, 2, 1, null);
     ok('斜点不先直走', skew && skew.length === 2 && skew[0].x === 1 && skew[0].y === 1, skew);
+    // 正右/正下方的等长路径必须成一条直线：BFS 按「朝目标」排序后，
+    // 不再先斜出去两格再拐回来（点地走到一半看着像绕路）
+    const open5 = [
+      [0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0],
+    ];
+    const straight = W.bfs(open5, 0, 0, 4, 0, null);
+    ok('正右方走直线', straight && straight.length === 4 && straight.every((s) => s.y === 0), straight);
+    const straightDown = W.bfs(open5, 0, 0, 0, 4, null);
+    ok('正下方走直线', straightDown && straightDown.length === 4 && straightDown.every((s) => s.x === 0), straightDown);
     const wallCorner = [
       [0, 1, 0],
       [1, 0, 0],

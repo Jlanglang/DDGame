@@ -1,4 +1,4 @@
-/* 豆豆暗黑传奇 · 数值体检（零依赖，不碰游戏）
+/* 豆豆海岛幻想 · 数值体检（零依赖，不碰游戏）
    用法：
      node games/darklegend/balance.mjs          看曲线
      node games/darklegend/balance.mjs --check  超范围返回 1（提交前跑）
@@ -57,7 +57,7 @@ const gearShare = (lv) => {
 
 const L = [];
 const push = (s = '') => L.push(s);
-push('# 豆豆暗黑传奇 · 数值体检');
+push('# 豆豆海岛幻想 · 数值体检');
 push('');
 push(`数据来源：data.js / core.js；公式：game.js（COMBAT_MS=${COMBAT_MS}）；装备按同级白装。`);
 push('');

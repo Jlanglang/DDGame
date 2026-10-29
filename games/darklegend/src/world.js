@@ -1,4 +1,4 @@
-/* 豆豆暗黑传奇 · 世界层（可替换）
+/* 豆豆海岛幻想 · 世界层（可替换）
    结构：一个主城 + N 个小世界房间。
    - 主城：固定小场景，放传送门，人物在里面
    - 房间：独立小地图，从传送门进入；有刷新 CD
@@ -52,32 +52,94 @@ const global = globalThis;
     [1, 0], [-1, 0], [0, 1], [0, -1],
   ];
 
-  // 把「横一步+竖一步」收成斜一步（可走才收），进一步消直→斜折线
-  function tightenPath(map, sx, sy, path) {
-    if (!path || path.length < 2) return path;
-    const out = [];
+  // 每格先试「朝目标」的那几步。BFS 只保证步数最短，等长路径一大把，
+  // 按固定顺序展开会先斜出去再拐回来（点正右方 → 走成 S 形，看着像绕路）。
+  const _dirScore = new Float64Array(8);
+  const _dirOrder = new Uint8Array(8);
+  function sortDirsToward(cx, cy, tx, ty) {
+    const vx = tx - cx, vy = ty - cy;
+    const vl = Math.sqrt(vx * vx + vy * vy) || 1;
+    for (let i = 0; i < 8; i++) {
+      const dx = DIRS8[i][0], dy = DIRS8[i][1];
+      const diag = dx !== 0 && dy !== 0;
+      // 方向对齐度；完全对齐时正交略优先（少一个折点）
+      _dirScore[i] = (dx * vx + dy * vy) / ((diag ? Math.SQRT2 : 1) * vl) + (diag ? 0 : 1e-6);
+      _dirOrder[i] = i;
+    }
+    for (let i = 1; i < 8; i++) {
+      const k = _dirOrder[i];
+      let j = i - 1;
+      while (j >= 0 && _dirScore[_dirOrder[j]] < _dirScore[k]) {
+        _dirOrder[j + 1] = _dirOrder[j];
+        j -= 1;
+      }
+      _dirOrder[j + 1] = k;
+    }
+    return _dirOrder;
+  }
+
+  // 从 (x0,y0) 到 (x1,y1) 的八向直线：按 n=max(|dx|,|dy|) 等分，每格取整落点，
+  // 让斜步均匀铺开（不会「走三步斜一下」）；每步都过 canStep（不穿角），
+  // 挡路格不踩（终点除外）。out 给了就把走过的格子填进去；某步过不去就回滚并返回 false。
+  function lineWalk(map, x0, y0, x1, y1, blocked, out) {
+    const mark = out ? out.length : 0;
+    const dx = x1 - x0, dy = y1 - y0;
+    const n = Math.max(Math.abs(dx), Math.abs(dy));
+    if (!n) return true;
+    let px = x0, py = y0;
+    for (let i = 1; i <= n; i++) {
+      const nx = x0 + Math.round((dx * i) / n);
+      const ny = y0 + Math.round((dy * i) / n);
+      const mx = nx - px, my = ny - py;
+      if (!mx && !my) break;                 // 浮点保护，正常不会发生
+      if (!canStep(map, px, py, mx, my)) break;
+      px = nx; py = ny;
+      if (blocked && blocked(px, py) && !(px === x1 && py === y1)) break;
+      if (out) out.push({ x: px, y: py });
+    }
+    if (px === x1 && py === y1) return true;
+    if (out) out.length = mark;
+    return false;
+  }
+
+  // 视线拉直：从当前格尽量往远处直连，只在真挡路的地方留拐点。
+  // 老版本只会把「横一步 + 竖一步」收成斜一步；缓斜长线（例如横 17 格、竖 6 格）
+  // 会一步直、一步斜地交替，走起来就是下楼梯。现在整段重铺成一条均匀的斜线。
+  const PULL_HOP = 64;   // 单次最多往前试多少格，长路防 n² 太贵
+
+  // 拉直后的关键折点：起点 + 各拐点 + 终点。画面沿这些点之间的真直线走，
+  // 逐格路径只是逻辑（一格一拍），两者不必重合。
+  function pullPoints(map, sx, sy, path, blocked) {
+    const pts = [{ x: sx, y: sy }];
+    if (!path || !path.length) return pts;
     let x = sx, y = sy;
     let i = 0;
     while (i < path.length) {
-      if (i + 1 < path.length) {
-        const a = path[i], b = path[i + 1];
-        const ax = a.x - x, ay = a.y - y;
-        const bx = b.x - a.x, by = b.y - a.y;
-        const orthPair = (Math.abs(ax) + Math.abs(ay) === 1) && (Math.abs(bx) + Math.abs(by) === 1)
-          && ((ax === 0) !== (ay === 0)) && ((bx === 0) !== (by === 0))
-          && ax * bx === 0 && ay * by === 0;
-        if (orthPair && canStep(map, x, y, ax + bx, ay + by)
-          && a.x + bx === b.x && a.y + by === b.y) {
-          out.push({ x: b.x, y: b.y });
-          x = b.x; y = b.y;
-          i += 2;
-          continue;
-        }
+      const last = Math.min(path.length - 1, i + PULL_HOP);
+      let hit = i;
+      for (let j = last; j > i; j--) {
+        if (lineWalk(map, x, y, path[j].x, path[j].y, blocked, null)) { hit = j; break; }
       }
-      out.push(path[i]);
-      x = path[i].x; y = path[i].y;
-      i += 1;
+      pts.push(path[hit]);
+      x = path[hit].x; y = path[hit].y;
+      i = hit + 1;
     }
+    return pts;
+  }
+
+  function tightenPath(map, sx, sy, path, blocked) {
+    if (!path || path.length < 2) {
+      const short = path || [];
+      short.pts = pullPoints(map, sx, sy, short, blocked);
+      return short;
+    }
+    const pts = pullPoints(map, sx, sy, path, blocked);
+    const out = [];
+    for (let k = 1; k < pts.length; k++) {
+      // 理论上不会失败：每一跳都是合法单步。真失败就到此为止，别交出断头路。
+      if (!lineWalk(map, pts[k - 1].x, pts[k - 1].y, pts[k].x, pts[k].y, blocked, out)) break;
+    }
+    out.pts = pts;
     return out;
   }
 
@@ -101,9 +163,11 @@ const global = globalThis;
           k = prev[k];
         }
         path.reverse();
-        return tightenPath(map, sx, sy, path);
+        return tightenPath(map, sx, sy, path, blocked);
       }
-      for (const [dx, dy] of DIRS8) {
+      const order = sortDirsToward(cx, cy, tx, ty);
+      for (let oi = 0; oi < 8; oi++) {
+        const dx = DIRS8[order[oi]][0], dy = DIRS8[order[oi]][1];
         if (!canStep(map, cx, cy, dx, dy)) continue;
         const nx = cx + dx, ny = cy + dy;
         if (blocked && blocked(nx, ny) && !(nx === tx && ny === ty)) continue;

@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>豆豆暗黑传奇</title>
+<title>豆豆海岛幻想</title>
 <link rel="stylesheet" href="style.css?v=174">
 </head>
 <body>
 <div id="stage">
   <header class="hud">
     <div class="hud-left">
+      <span class="fps" id="fps" title="实时帧率">-- fps</span>
       <div class="lv" id="lv">Lv.1</div>
     </div>
     <div class="hud-right">
@@ -278,7 +279,7 @@
 
   <div class="menu" id="menu" hidden>
     <div class="sheet-card">
-      <h3>豆豆暗黑传奇</h3>
+      <h3>豆豆海岛幻想</h3>
       <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人按空格或点「交谈」开商店；西南角仓库同样交谈存取。E 挂机。J 普攻，1 半月，2 烈火，Q 红药，F 蓝药，R 撤退，C 角色。东边三扇传送门是 1–10 / 10–20 / 20–30。</p>
       <p class="menu-help"><b>被动怪</b>（鸡、稻草人、<b>首领</b>）不主动追人；鸡/稻草人挨打追 3 格放弃，首领挨打后会持续还手。主动怪（野狗、野猪）进 5 格就追。首领横扫会<b>眩晕</b>，腐气会<b>麻痹</b>；烈火会点燃（🔥）。</p>
       <p class="menu-help"><b>鸡会啄你 1–3 点血</b>（不看防御），金币只有 1–5、还常常不掉。<b>刷鸡到 5 级就没经验了</b>（比怪高 4 级起经验归零），该换门了。</p>
@@ -300,7 +301,7 @@
   <div class="intro" id="intro" hidden>
     <div class="intro-card">
       <p class="over-k">主城 · 鸡鸣村</p>
-      <h2>豆豆暗黑传奇</h2>
+      <h2>豆豆海岛幻想</h2>
       <ul>
         <li><b>点击地面</b>移动，<b>点击怪物</b>攻击</li>
         <li>WASD 可斜走（组合键），J 普攻</li>

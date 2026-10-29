@@ -15,10 +15,17 @@
   - 推 `master` 自动部署（GitHub Pages）。
 - `D:\DP\bridge-defense` 是旧副本，**已冻结**，不要再去改。
 - 本地调试工具在 `D:\DP\.tools\`（不参与部署）。
+- **验收默认归主人**：改完只说清「改了什么、怎么打开看」，画面与手感由主人自己验收。
+  - 默认**不主动截图、不录屏**，也不跑全量回归基线；只跑与本次改动直接相关的一两条自检（见第 2 节）。
+  - 主人明确说「截图 / 跑回归 / 回归测试 / 给我看看」时才做，连同测试结果一起交。
+  - 改纯逻辑、不碰画面时，跑对应单测即可，不必开浏览器。
 - **先本地跑，确认后再提交**：改完 → 本地验证 → 告诉主人「改好了，本地可跑」→ **等主人确认** → 才 `git commit` / `git push`。
   - 默认**不自动 commit、不自动 push**，哪怕 SSH 通、哪怕改动很小。
   - 主人说「可以 / 提交吧 / 推吧」再动手；提交前先 `git status` 确认改动范围。
   - 没有可用 SSH 凭据时如实说明；不要改走 HTTPS，也不要把认证失败当网络问题反复重试。
+- **打包也是手动的**：改完只跑相关自检、本地能跑即可，**默认不跑 `npm run build`**，`dist/` 不动。
+  - 主人明确说「打包 / 构建 / build」时才打；产物 `dist/` 跟当次提交一起走。
+  - 原因：`dist/index.html` 是 ~1MB 单文件，每改一次源码就重打会让 diff 暴涨、提交变慢，也没必要。
 - 提交信息用中文：改了什么、为什么。
 - 新游戏放 `games/<id>/`。**先填 [`docs/游戏原型草图模板.md`](docs/游戏原型草图模板.md)**（一句话 + 七问 + 有地图就画格子草图），填完再写代码。
   然后做三件事：根 `index.html` 加一张卡、写一份 `games/<id>/ANCHOR.md`、在本文件第 2 节加一行。
@@ -32,7 +39,7 @@
 | `hero` | 豆豆勇者 | 横版动作 | **1280×720** | [ANCHOR](games/hero/ANCHOR.md) | `test-input.js`、`test-stage.js`、`test-save.js`、`test-shop.js` |
 | `cube` | 豆豆魔方 | 益智 / 3D | 720×1600 | [ANCHOR](games/cube/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
 | `rhythm` | 节奏豆豆 | 节奏 / 音乐 | 720×1600 | [ANCHOR](games/rhythm/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
-| `darklegend` | 豆豆暗黑传奇 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`balance.mjs --check`。Vite 工程化，双击玩 `dist/index.html` |
+| `darklegend` | 豆豆海岛幻想 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`balance.mjs --check`。Vite 工程化，双击玩 `dist/index.html` |
 | `catchalien` | 豆豆捉外星人 | 推理 | 720×1600 | [ANCHOR](games/catchalien/ANCHOR.md) | `test-logic.mjs` |
 | `zombie` | 豆豆大战僵尸 | 放置 / 策略 | **1280×720** | [ANCHOR](games/zombie/ANCHOR.md) | `test-sim.js` |
 | `cardfight` | 卡牌战斗 | 养成 / 策略 | 多页自适应 | [ANCHOR](games/cardfight/ANCHOR.md) | `test-combat.js` |
@@ -44,7 +51,8 @@
 
 ## 3. 输入：PC + 手机触摸必须同时可用 ⚠️
 
-**每个游戏都要在鼠标和触摸两种输入下验证，不能只测桌面。**
+**每个游戏在代码上都必须同时支持鼠标和触摸，不能只按桌面写。**
+实际手感默认由主人验收（见第 1 节）；主人要求回归时，再按下面几条逐条测。
 手机上「拖到一半断掉」几乎都是下面第一条没做。
 
 - 画布加 `touch-action: none`；`html/body` 加 `overscroll-behavior: none`。
@@ -67,14 +75,14 @@
 ## 4. 代码约定
 
 - 竖屏 720×1600；**例外**：`hero`、`zombie` 是 1280×720 横屏，竖屏时提示「把手机横过来」（可跳过）。
-- 双击 `index.html` 即可玩；零依赖、零构建（`stickyfeet` 仍自带 `vendor/`）。`darklegend` 例外：源码是 ESM，开发用 `games/darklegend` 里的 `npm run dev`；双击玩的是 `games/darklegend/dist/index.html`。three 钉在 `0.170.0`，不要装 latest。
+- 双击 `index.html` 即可玩；零依赖、零构建（`stickyfeet` 仍自带 `vendor/`）。`darklegend` 例外：源码是 ESM，开发用 `games/darklegend` 里的 `npm run dev`；双击玩的是 `games/darklegend/dist/index.html`（**手动打包**，见第 1 节）。three 钉在 `0.170.0`，不要装 latest。
 - 中文 UI；大数字用万 / 亿。
 - 所有美术程序化生成（或仓库现有素材），不引外部图片。
 - 2.5D 画面必须遵守 [`docs/渲染规格.md`](docs/渲染规格.md)：
   45° 等距投影一致、每个立地物体脚下有椭圆接触阴影、统一色板与光源方向；
   角色 / 怪物 / NPC 用 2D 等距精灵，禁止用几何体拼生物；地面瓦片和阴影贴片用代码生成。
 - 数值、节奏、曲线都要是**有名字的常量**（放各游戏的 `BAL` / `data.js`），别散在函数里写死。
-- 改完先本地跑通 + 输入测试，再 commit / push（见第 1 节）。
+- 改完跑与本次改动相关的自检、本地能跑通即可；**画面与真机手感交给主人验收**，不主动截图、不跑全量回归（主人要求时才做，见第 1 节）。
 
 ## 5. 文档地图
 

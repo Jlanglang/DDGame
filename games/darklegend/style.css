@@ -66,7 +66,21 @@ html, body {
   backdrop-filter: blur(6px);
 }
 
-.hud-left { flex: 1; min-width: 0; }
+.hud-left { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+/* 帧率常驻左上角（数字每 500ms 刷一次，不逐帧写 DOM） */
+.fps {
+  font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(8, 12, 20, 0.55);
+}
+.fps[data-level="warn"] { color: #e0b050; }
+.fps[data-level="bad"] { color: #e07070; }
 .hud-right {
   position: relative;
   text-align: right;

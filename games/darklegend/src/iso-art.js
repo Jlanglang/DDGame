@@ -1,4 +1,4 @@
-/* 豆豆暗黑传奇 · 地面美术（iso-art）
+/* 豆豆海岛幻想 · 地面美术（iso-art）
    ------------------------------------------------------------------
    和 iso-ground.js 的区别（那份保留，不删，可回退）：
    1. 分辨率：6px/格 → 48px/格（8 倍细节，糊的根因之一）
@@ -26,6 +26,13 @@ const global = globalThis;
 
   const PX = 48;              // 每格像素（俯视）。24 格 → 1152px
   const TAU = Math.PI * 2;
+
+  /* 海岸带宽度（格）。按主人看图调宽：浅色 +2 格、沙滩 +3 格。
+     沙滩 = 岸距 > -SAND_TILES 的像素全铺沙；浅色 = 水里离岸 SHALLOW_TILES 格内还是 aqua。
+     两个值都必须 ≤ COAST_REACH，否则岸距场被削平、沙带会突然断头。 */
+  const COAST_REACH = 8;      // 岸距场编码半宽（格）：d ∈ [-8,8]，R 通道 = (d+8)/16*255
+  const SAND_TILES = 6.6;     // 岸上沙带（原 3.6）
+  const SHALLOW_TILES = 3.8;  // 水里浅色带（原 1.8；着色器读它，见 render-three SEA_FRAG）
 
   /* ================= 色板：明亮暖色童话，一套 ×3 主题 ================= */
 
@@ -154,6 +161,14 @@ const global = globalThis;
     const c = document.createElement('canvas');
     c.width = Math.max(1, w | 0);
     c.height = Math.max(1, h | 0);
+    return c;
+  }
+
+  // 从整图岸距场里裁一块（逐块生成地面块时用，比重新算 chamfer 便宜两个数量级）。
+  // 源分辨率可以比目标低（整图场按低 px 算一次），这里按比例放大到目标尺寸。
+  function cropCanvas(src, sx, sy, sw, sh, dw, dh) {
+    const c = makeCanvas(dw || sw, dh || sh);
+    c.getContext('2d').drawImage(src, Math.round(sx), Math.round(sy), Math.max(1, Math.round(sw)), Math.max(1, Math.round(sh)), 0, 0, c.width, c.height);
     return c;
   }
 
@@ -1787,7 +1802,7 @@ const global = globalThis;
       // 海改走单独的水面网格（seaSheet）。留在这里会带上覆盖层的墨影，看起来像贴在草上。
       if (o.cutSea && kind === 'sea') continue;
       // 靠海的沙带不按格子铺，改由岸距铺成一条弯的。格子沙会把台阶留在草边上。
-      if (o.cutSea && kind === 'sand' && seaNear(seaTag, cols, rows, x0, y0, x1, y1, 6)) continue;
+      if (o.cutSea && kind === 'sand' && seaNear(seaTag, cols, rows, x0, y0, x1, y1, COAST_REACH)) continue;
       // a. 整片纹理
       const lay = makeCanvas(W, H);
       const lg = lay.getContext('2d');
@@ -1831,7 +1846,16 @@ const global = globalThis;
       blotches(g, W, H, ['#ffffff', '#f6ecd6'], Math.round((W * H) / (px * px * 9)), seed + 5, 0.1);
       g.restore();
       // 岸上大约 3 格、以及海里，都铺沙。水是盖在上面的半透明层，不在这里挖洞。
-      const field = coastField(terrain, cols, rows, x0, y0, x1, y1, px);
+      // 岸距场可以由调用方传整图那张（o.coast + o.coastPx），这里只裁一块再缩放到本块尺寸 ——
+      // 逐块重算 chamfer + 逐像素噪声是 15~30ms/块，走路一进海边就掉帧。
+      let field;
+      if (o.coast && o.coastPx > 0) {
+        const s = px / o.coastPx;
+        field = cropCanvas(o.coast, x0 * o.coastPx, y0 * o.coastPx,
+          W / s, H / s, W, H);
+      } else {
+        field = coastField(terrain, cols, rows, x0, y0, x1, y1, px);
+      }
       if (field && field.width === W && field.height === H) {
         const sandLay = makeCanvas(W, H);
         paintSand(sandLay.getContext('2d'), W, H, px, T, o, win);
@@ -1840,8 +1864,8 @@ const global = globalThis;
         const img = g.getImageData(0, 0, W, H);
         const pix = img.data;
         for (let i = 0; i < fd.length; i += 4) {
-          const d = fd[i] / 255 * 8 - 4;
-          if (d > -3.6) {
+          const d = fd[i] / 255 * (COAST_REACH * 2) - COAST_REACH;
+          if (d > -SAND_TILES) {
             pix[i] = sd[i];
             pix[i + 1] = sd[i + 1];
             pix[i + 2] = sd[i + 2];
@@ -1998,14 +2022,16 @@ const global = globalThis;
   }
 
   /* 岸距图。给水面着色器和地面挖洞共用，两边必须是同一条岸。
-     R：弯曲后的有符号距离，0 = 岸，正 = 海里（格），负 = 岸上。编码 (d+4)/8，范围 -4..4。
+     R：弯曲后的有符号距离，0 = 岸，正 = 海里（格），负 = 岸上。编码 (d+R)/(2R)，R=COAST_REACH=8，范围 -8..8。
      G：255 = 几何海格（格子本身是海），0 = 陆地。
-     海在窗口外 3 格以内也算，好让相邻块的岸对得上。没有海返回 null。
+     海在窗口外 COAST_REACH 格以内也算，好让相邻块的岸对得上。没有海返回 null。
      画布第 0 行 = 世界 y0。贴图 flipY 要关掉。 */
   function coastField(terrain, cols, rows, x0, y0, x1, y1, px) {
     if (!terrain || px < 1 || x1 <= x0 || y1 <= y0) return null;
     const seaTag = seaMask(terrain, rows, cols);
-    const halo = 6;
+    // 扫描范围 = 编码半宽：沙滩要读到 6.6 格的岸距，halo 小于它沙带会被削断，
+    // 岸边会多出一条 6 格处、被噪声戳成毛茬的假边。整图只算一次（12px/格），多两格可忽略。
+    const halo = COAST_REACH;
     const hx0 = Math.max(0, x0 - halo);
     const hy0 = Math.max(0, y0 - halo);
     const hx1 = Math.min(cols, x1 + halo);
@@ -2066,9 +2092,9 @@ const global = globalThis;
         // 慢弯大约 ±1.2 格，再加一圈小起伏。1 格的台阶会被这两下抹掉。
         const wob = (vnoise(wx * 0.38, wy * 0.38, 11) - 0.5) * 2.4
           + (vnoise(wx * 1.35, wy * 1.35, 19) - 0.5) * 0.7;
-        d = Math.max(-4, Math.min(4, d + wob));
+        d = Math.max(-COAST_REACH, Math.min(COAST_REACH, d + wob));
         const o = (py * W + ix) * 4;
-        pix[o] = Math.round((d + 4) / 8 * 255);
+        pix[o] = Math.round((d + COAST_REACH) / (COAST_REACH * 2) * 255);
         pix[o + 1] = sea[si] ? 255 : 0;
         pix[o + 2] = 0;
         pix[o + 3] = 255;
@@ -2143,6 +2169,9 @@ const global = globalThis;
     PX: PX,
     PALETTES: PALETTES,
     KINDS: KINDS,
+    COAST_REACH: COAST_REACH,
+    SAND_TILES: SAND_TILES,
+    SHALLOW_TILES: SHALLOW_TILES,
     kindOf: kindOf,
     groundSheet: groundSheet,
     coastField: coastField,

@@ -1,4 +1,4 @@
-/* 豆豆暗黑传奇 · Three.js 2.5D 视图（接真游戏状态）
+/* 豆豆海岛幻想 · Three.js 2.5D 视图（接真游戏状态）
    只读 DL.ThreeBridge 的状态，点击交给游戏自己的 handleCellClick。
    地面是 2:1 菱形瓦片。立地物体脚下有同一方向的椭圆接触阴影。
    相机固定 45° 正交，不旋转。
@@ -25,9 +25,11 @@ global.THREE = THREE;
   let zoom = 1.70;
   let look = { x: 12, z: 12 };
   let fpsLastT = 0;
+  let fpsFrames = 0;
   let fpsEma = 60;
   let roomKey = '';
   let ground = null;
+  let outerSea = null;                // 地图外兜底的一圈深海（不是地图内的海面着色器）
   let group = null;                   // 当前房间的所有立牌
   let hero = null;
   let heroTex = null;
@@ -43,10 +45,15 @@ global.THREE = THREE;
      需要的块按**视野四角射线**算（斜角 45° 下视野是斜的，固定"周围 3×3"盖不住屏幕角），
      其余 requestIdleCallback 一次补一块，视野外的释放显存。
      块边界靠 groundSheet 的 1 格出血对齐（验收台 ⑥ 实测：缝带差 2.25 vs 块内 2.46）。 */
-  const CHUNK_CELLS = 16;      // 每块 16 格：48px 下 768px ≈ 1.5 屏
+  // 块大小 = 走路手感的直接开关（实测，硬件 WebGL，1280×720，走 26 格）：
+  //   16 格 → 单块 30~42ms，掉帧 68ms，能明显感到顿；12 格 → 20~25ms，仍掉 3~5 帧；
+  //    8 格 → 2~15ms，整段 0 次 >25ms（默认视角常驻 22 块 ≈ 20MB 贴图）。
+  // 想改大块省 draw call，先回头量这两组数：块越大单次卡顿越明显。
+  const CHUNK_CELLS = 8;       // 每块 8 格：48px 下 384px（含 1 格出血 10 格 / 480px）；再小到 6 格不掉帧也不涨，块多了反而费 draw call
   const NO_CHUNK = /(?:^|[?&])chunk=0(?:&|$)/.test((global.location && global.location.search) || '');
   let gCtx = null;             // { map, terrain, theme, px, cols, rows }
   let gChunks = null;          // Map<'x,y', { mesh, tex }>
+  let gSea = null;             // 整图岸距场 { tex, W, H }：海面着色器共用，别按块重算
   let gQueue = [];             // 待生成 [{x0,y0,x1,y1}]
   let gIdle = 0;               // requestIdleCallback / setTimeout 句柄
   let gRangeKey = '';          // 视野覆盖的块范围（变了才重算 need / 释放）
@@ -59,6 +66,7 @@ global.THREE = THREE;
   let miniBase = null;
   let miniKey = '';
   let statsEl = null;
+  let fpsEl = null;
   let glLost = false;
   let showStats = false;
 
@@ -80,6 +88,7 @@ global.THREE = THREE;
   function active() { return on; }
 
   function fail(msg) {
+    if (fpsEl) fpsEl.hidden = true;    // 3D 起不来就没有帧率可报
     const d = document.createElement('div');
     d.style.cssText = 'position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);background:#101623;color:#eef2fa;padding:16px 18px;z-index:8;border-radius:10px;max-width:320px;text-align:center;line-height:1.5;';
     const p = document.createElement('div');
@@ -141,7 +150,8 @@ global.THREE = THREE;
     const i = seaMats.indexOf(mat);
     if (i >= 0) seaMats.splice(i, 1);
     const tex = mat.uniforms && mat.uniforms.uDist && mat.uniforms.uDist.value;
-    if (tex && tex.dispose) tex.dispose();
+    // 整图共用的岸距贴图由 gSea 统一管，别跟着单块释放
+    if (tex && tex.dispose && !(mat.userData && mat.userData.sharedDist)) tex.dispose();
     if (mat.uniforms && mat.uniforms.uDist) mat.uniforms.uDist.value = null;
     mat.dispose();
   }
@@ -157,6 +167,18 @@ global.THREE = THREE;
     '  gl_Position = projectionMatrix * viewMatrix * w;',
     '}',
   ].join('\n');
+  // 岸距场编码半宽 + 浅水带宽：和 iso-art 共用同一套数（那边是唯一真身），改宽度只动 iso-art。
+  const COAST_REACH = (DL.IsoArt && DL.IsoArt.COAST_REACH) || 8;
+  const SHALLOW_TILES = (DL.IsoArt && DL.IsoArt.SHALLOW_TILES) || 3.8;
+  /* 海水的颜色/亮度全在这儿调（着色器里的数直接就是屏幕颜色）。 */
+  const SEA_SHALLOW = [0.20, 0.56, 0.64];   // 岸边浅水（原 0.30/0.78/0.74：整条海岸亮得像发光的薄荷带）
+  const SEA_DEEP = [0.16, 0.46, 0.52];      // 深水
+  const SEA_FOAM_C = [0.94, 0.97, 0.94];    // 碎沫
+  const SEA_CAUSTIC_SHORE = 0.34;           // 岸纹强度（岸边，原 0.55）
+  const SEA_CAUSTIC_DEEP = 0.10;            // 岸纹强度（深处，原 0.12）
+  const SEA_FOAM_ALPHA = 0.72;              // 碎沫最大不透明度（原 0.85）
+  const SEA_SHORE_ALPHA = 0.74;             // 岸边水的不透明度（原 0.62）：越小越透出沙子，浅水越亮
+  const v3 = (c) => 'vec3(' + c.map(function (n) { return n.toFixed(2); }).join(', ') + ')';
   const SEA_FRAG = [
     'uniform sampler2D uDist;',
     'uniform float uTime;',
@@ -180,11 +202,11 @@ global.THREE = THREE;
     '  return pow(1.0 - abs(n * 2.0 - 1.0), 6.0);',
     '}',
     'void main() {',
-    '  float d = texture2D(uDist, vUv).r * 8.0 - 4.0;',
-    '  vec3 aqua = vec3(0.30, 0.78, 0.74);',
-    '  vec3 deep = vec3(0.16, 0.46, 0.52);',
-    '  vec3 foamC = vec3(0.96, 0.98, 0.95);',
-    '  float abyss = smoothstep(0.35, 1.8, d);',
+    '  float d = texture2D(uDist, vUv).r * ' + (COAST_REACH * 2).toFixed(1) + ' - ' + COAST_REACH.toFixed(1) + ';',
+    '  vec3 aqua = ' + v3(SEA_SHALLOW) + ';',
+    '  vec3 deep = ' + v3(SEA_DEEP) + ';',
+    '  vec3 foamC = ' + v3(SEA_FOAM_C) + ';',
+    '  float abyss = smoothstep(0.35, ' + SHALLOW_TILES.toFixed(2) + ', d);',
     '  vec3 col = mix(aqua, deep, abyss);',
     '  float fn = noise(vXZ * 6.0);',
     '  float foam = smoothstep(0.40, 0.02, abs(d)) * smoothstep(0.40, 0.78, fn);',
@@ -192,9 +214,9 @@ global.THREE = THREE;
     '  float c1 = caustic(vXZ * 2.6 + vec2(uTime * 0.07, uTime * 0.04));',
     '  float c2 = caustic(vXZ * 4.8 + vec2(-uTime * 0.05, uTime * 0.06) + vec2(4.2, 1.7));',
     '  float cau = c1 * 0.62 + c2 * 0.38;',
-    '  col += vec3(0.85, 0.95, 0.80) * cau * mix(0.55, 0.12, abyss);',
+    '  col += vec3(0.85, 0.95, 0.80) * cau * mix(' + SEA_CAUSTIC_SHORE.toFixed(2) + ', ' + SEA_CAUSTIC_DEEP.toFixed(2) + ', abyss);',
     '  float wet = smoothstep(-0.45, 0.08, d);',
-    '  float alpha = max(foam * 0.85, mix(wet * 0.62, 1.0, abyss));',
+    '  float alpha = max(foam * ' + SEA_FOAM_ALPHA.toFixed(2) + ', mix(wet * ' + SEA_SHORE_ALPHA.toFixed(2) + ', 1.0, abyss));',
     '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), alpha);',
     '}',
   ].join('\n');
@@ -227,14 +249,14 @@ global.THREE = THREE;
     if (!data || data.length < 4) return true;
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 1] > 127) return true;
-      if (data[i] / 255 * 8 - 4 > -0.55) return true;
+      if (data[i] / 255 * (COAST_REACH * 2) - COAST_REACH > -0.55) return true;
     }
     return false;
   }
 
   // 一块水面。不透明着色器铺在地面底下，陆地贴图挖洞才看得见。
   // 浅处是沙色，远处变深，两层亮纹按世界坐标滚动，碎沫只留在岸距 0 附近。
-  function addSeaMesh(parent, map, terrain, theme, rect, px) {
+  function addSeaMesh(parent, map, terrain, theme, rect, px, shared) {
     if (!DL.IsoArt || !DL.IsoArt.coastField || !map || !map[0]) return null;
     const x0 = rect ? rect.x0 : 0;
     const y0 = rect ? rect.y0 : 0;
@@ -243,16 +265,37 @@ global.THREE = THREE;
     const w = x1 - x0;
     const h = y1 - y0;
     if (w <= 0 || h <= 0) return null;
-    const cv = DL.IsoArt.coastField(terrain, map[0].length, map.length, x0, y0, x1, y1, shorePx(map, px));
-    if (!cv || !fieldWet(cv)) return null;
-    const tex = distTex(cv);
+    // 内陆块没有水：先扫一格出血，没海/沙就连网格都别建。
+    if (rect && terrain) {
+      let wet = false;
+      const ty0 = Math.max(0, y0 - 1), ty1 = Math.min(map.length, y1 + 1);
+      const tx0 = Math.max(0, x0 - 1), tx1 = Math.min(map[0].length, x1 + 1);
+      for (let y = ty0; y < ty1 && !wet; y++) {
+        for (let x = tx0; x < tx1; x++) {
+          const t = terrain[y][x];
+          if (map[y][x] === 1 || t === 2 || t === 3 || t === 4) { wet = true; break; }
+        }
+      }
+      if (!wet) return null;
+    }
+    // 岸距场：整张图算一次（gSea），各块共用同一张贴图、UV 走地图比例。
+    // 以前每块各算一遍（chamfer + 逐像素噪声），海边的块一块 15~30ms，一进海岸就掉帧。
+    let cv = null, tex = null, uW = w, uH = h;
+    if (shared && shared.tex) {
+      tex = shared.tex; uW = shared.W; uH = shared.H;
+    } else {
+      cv = DL.IsoArt.coastField(terrain, map[0].length, map.length, x0, y0, x1, y1, shorePx(map, px));
+      if (!cv || !fieldWet(cv)) return null;
+      tex = distTex(cv);
+    }
     const geo = new THREE.PlaneGeometry(w, h, 1, 1);
     geo.rotateX(-Math.PI / 2);
     geo.translate(x0 + w / 2, SEA_Y, y0 + h / 2);
     const uv = geo.attributes.uv;
     const pos = geo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
-      uv.setXY(i, (pos.getX(i) - x0) / w, (pos.getZ(i) - y0) / h);
+      // 共用整图岸距场时 UV 用地图比例，各块纹理才能严丝合缝
+      uv.setXY(i, pos.getX(i) / uW, pos.getZ(i) / uH);
     }
     uv.needsUpdate = true;
     const mat = new THREE.ShaderMaterial({
@@ -268,12 +311,13 @@ global.THREE = THREE;
       depthTest: false,
       side: THREE.DoubleSide,
     });
+    mat.userData.sharedDist = !!(shared && shared.tex);   // 共用贴图不能跟着块一起 dispose
     seaMats.push(mat);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = -9;
     mesh.frustumCulled = false;
     parent.add(mesh);
-    return { mesh: mesh, tex: tex };
+    return { mesh: mesh, tex: mat.userData.sharedDist ? null : tex };
   }
 
   function dropSea(rec) {
@@ -574,7 +618,7 @@ global.THREE = THREE;
 
   /* ---------- 石板区（城内广场 / 路） ----------
      mir：平面贴图（夯土缝 + 不规则石块）。不用 TilePlate 方格 V 槽——那套读成瓷砖勾缝。
-     实测 41×41 很快，不分块。 */
+     实测 41×41 很快，不分块；安全区缩到 31×31 后更轻（贴图 1984²，几毫秒）。 */
   function addPlate(map, terrain, theme, W, H, parent) {
     if (!(DL.IsoArt && DL.IsoArt.slabSheet)) return false;
     let bx0 = Infinity, by0 = Infinity, bx1 = -1, by1 = -1;
@@ -591,7 +635,10 @@ global.THREE = THREE;
     }
     if (!(bx1 >= bx0 && by1 >= by0)) return false;
     const cols = bx1 - bx0 + 1, rows = by1 - by0 + 1;
-    const sheet = DL.IsoArt.slabSheet(cols, rows, { tile: 1, px: 64, theme: theme, seed: 7 });
+    // 贴图最长边封顶 ~2688px：31 格时 64px/格（1984²）；以后城放大自动降像素，
+    // 免得一块广场变成 3520² / 49MB 一张贴图，手机扛不住
+    const px = Math.max(32, Math.min(64, Math.floor(2688 / Math.max(cols, rows))));
+    const sheet = DL.IsoArt.slabSheet(cols, rows, { tile: 1, px: px, theme: theme, seed: 7 });
     const tex = groundTex(sheet);
     const geo = new THREE.PlaneGeometry(cols, rows, 1, 1);
     geo.rotateX(-Math.PI / 2);
@@ -617,6 +664,7 @@ global.THREE = THREE;
       cv = DL.IsoArt.groundSheet(c.map, c.terrain, c.theme, {
         px: c.px, seed: 7, style: { path: 'slab' }, big: true, cutSea: true,
         rect: { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 }, margin: 1,
+        coast: gSea ? gSea.canvas : null, coastPx: gSea ? gSea.px : 0,
       });
     } catch (e) {
       console.warn('[3D] 地面块生成失败', e);
@@ -626,7 +674,7 @@ global.THREE = THREE;
     const w = r.x1 - r.x0, h = r.y1 - r.y0;
     const sea = addSeaMesh(ground, c.map, c.terrain, c.theme, {
       x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1,
-    }, c.px);
+    }, c.px, gSea);
     // 一块 = 一个平面，世界尺寸按格数；四面和邻块共边（整数格坐标，不会裂）
     const geo = new THREE.PlaneGeometry(w, h, 1, 1);
     geo.rotateX(-Math.PI / 2);
@@ -822,6 +870,66 @@ global.THREE = THREE;
     if (gQueue.length) schedulePump();
   }
 
+  // 地图外的一圈海。128×128 的图里陆地只占 96，`?shot=map` 会同时看到图内和图外：
+  // 图内是海面着色器（有亮纹），图外要是纯色，边界就是一条硬边。
+  // 所以外面用**同一个着色器**铺四条：UV 走地图比例，超出部分被 clamp 到图边的深水，
+  // 亮纹按世界坐标走，接缝看不出来。
+  let outerSeaMat = null;
+  function updateOuterSea(W, H, field) {
+    if (!field || !field.tex) {
+      if (outerSea) outerSea.visible = false;
+      return;
+    }
+    if (!outerSea) {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uDist: { value: field.tex }, uTime: { value: 0 } },
+        vertexShader: SEA_VERT,
+        fragmentShader: SEA_FRAG,
+        transparent: true,
+        premultipliedAlpha: false,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      });
+      mat.userData.sharedDist = true;     // 贴图是整图共用的，别跟着这条释放
+      seaMats.push(mat);
+      outerSeaMat = mat;
+      outerSea = new THREE.Group();
+      for (let i = 0; i < 4; i++) {
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 1, 1), mat);
+        mesh.renderOrder = -13;          // 一切地面之前
+        mesh.frustumCulled = false;
+        outerSea.add(mesh);
+      }
+      scene.add(outerSea);
+    }
+    outerSea.visible = true;
+    outerSeaMat.uniforms.uDist.value = field.tex;
+    const D = Math.max(W, H) * 2;
+    // 北 / 南 / 西 / 东：东南西含四角，北含左右两条
+    const quads = [
+      [W / 2, -D / 2, W + 2 * D, D],
+      [W / 2, H + D / 2, W + 2 * D, D],
+      [-D / 2, H / 2, D, H],
+      [W + D / 2, H / 2, D, H],
+    ];
+    for (let i = 0; i < 4; i++) {
+      const q = quads[i];
+      const mesh = outerSea.children[i];
+      const g = new THREE.PlaneGeometry(q[2], q[3], 1, 1);
+      g.rotateX(-Math.PI / 2);
+      g.translate(q[0], SEA_Y, q[1]);
+      const uv = g.attributes.uv;
+      const pos = g.attributes.position;
+      for (let k = 0; k < pos.count; k++) {
+        uv.setXY(k, pos.getX(k) / W, pos.getZ(k) / H);
+      }
+      uv.needsUpdate = true;
+      if (mesh.geometry) mesh.geometry.dispose();
+      mesh.geometry = g;
+    }
+  }
+
   function buildGround() {
     clearChunks();                 // 先放掉旧块（要 ground 还在才能摘网格）
     dropGround();
@@ -835,6 +943,8 @@ global.THREE = THREE;
     let W = map[0].length;
     let H = map.length;
     const A = DL.IsoArt;
+    // 地图外那圈海在下面按整图岸距场铺（要等 gSea 出来），这里先关掉旧的，别露上一张图的
+    if (outerSea) outerSea.visible = false;
 
     // 大图（>30 格）：不整张画，只同步画脚下那一块。石板区照旧单独一张（40ms 级）
     // ?chunk=0 关掉分块（退回整张一次画完），用来对比"冻一下"和"补块"哪个更舒服
@@ -854,7 +964,21 @@ global.THREE = THREE;
         ground.add(m0);
       }
       addPlate(map, terrain, theme, W, H, ground);
-      gCtx = { map: map, terrain: terrain, theme: theme, px: 48, cols: W, rows: H };
+      // px：小图（房间 24 格）保持 48px 清晰；大图按 4096 封顶降档（128×128 → 32px）。
+      const chunkPx = Math.min(48, Math.max(24, Math.floor(4096 / Math.max(W, H))));
+      // 岸距场按整张图算一次，各块共用 + UV 走地图比例（以前每块重算，海边一块 15~30ms）。
+      // 分辨率另算：128×128 在 32px 下要 1.5s，用 12px/格 只要 ~0.2s；距离场是平滑的，够用。
+      if (gSea && gSea.tex && gSea.tex.dispose) gSea.tex.dispose();
+      gSea = null;
+      try {
+        const fieldPx = Math.max(8, Math.min(chunkPx, Math.floor(1536 / Math.max(W, H))));
+        const seaCv = A.coastField(terrain, W, H, 0, 0, W, H, fieldPx);
+        if (seaCv && fieldWet(seaCv)) gSea = { tex: distTex(seaCv), W: W, H: H, canvas: seaCv, px: fieldPx };
+      } catch (e) {
+        console.warn('[3D] 整图岸距场生成失败，退回逐块算', e);
+      }
+      updateOuterSea(W, H, gSea);
+      gCtx = { map: map, terrain: terrain, theme: theme, px: chunkPx, cols: W, rows: H };
       gChunks = new Map();
       gRangeKey = '';
     gNeed = [];
@@ -1698,14 +1822,23 @@ global.THREE = THREE;
     drawMini();
     renderer.render(scene, camera);
     drawTags();
+    // 帧率常驻（左上角 HUD #fps）：1 秒窗口统计一次。
+    // 别用瞬时值——高刷屏上 rAF 会 165→276 乱跳，看不出真实手感；也别逐帧写 DOM。
+    fpsFrames += 1;
+    if (!fpsLastT) fpsLastT = now;
+    if (now - fpsLastT >= 1000) {
+      fpsEma = fpsFrames * 1000 / (now - fpsLastT);
+      fpsFrames = 0;
+      fpsLastT = now;
+      if (fpsEl) {
+        const v = Math.round(fpsEma);
+        fpsEl.textContent = v + ' fps';
+        fpsEl.dataset.level = v >= 50 ? 'ok' : (v >= 30 ? 'warn' : 'bad');
+      }
+    }
     if (showStats && statsEl) {
       const info = renderer.info.render;
       const frameMs = performance.now() - t0;
-      if (fpsLastT) {
-        const inst = 1000 / Math.max(1, now - fpsLastT);
-        fpsEma = fpsEma * 0.9 + inst * 0.1;
-      }
-      fpsLastT = now;
       statsEl.textContent = 'fps ' + fpsEma.toFixed(0)
         + '  frame ' + frameMs.toFixed(2) + ' ms'
         + '  draws ' + info.calls
@@ -1819,6 +1952,7 @@ global.THREE = THREE;
     const m = q.match(/(?:^|[?&])shot=([^&]+)/);
     const shot = m ? decodeURIComponent(m[1]) : '';
     if (shot === 'wide' || shot === '3') zoom = 0.55;
+    if (shot === 'map') zoom = 0.3;      // 整座岛（128×128 图里看陆地 96×96）
 
     try {
       renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !low, alpha: false, powerPreference: 'high-performance' });
@@ -1886,6 +2020,7 @@ global.THREE = THREE;
       document.body.appendChild(statsEl);
     }
     on = true;
+    fpsEl = document.getElementById('fps');
     fit();
     placeCamera();
     roomKey = '';

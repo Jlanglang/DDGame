@@ -1849,6 +1849,8 @@ const D = DL.DATA;
 
   /* ---------------- 存档 ---------------- */
   function save() {
+    // 单实例守卫：本页已经把锁交给别的页面了，绝不能再写存档（否则两边互相盖）
+    if (DL.SingleTab && DL.SingleTab.isLost()) return;
     try {
       const gear = {};
       for (const id of SLOT_IDS) gear[id] = P[id];
@@ -2783,6 +2785,7 @@ const D = DL.DATA;
   // pace: 'combat' 打怪节奏（~1s）| 'move' 走路节奏（更快，怪只追不砍）
   function after(opts) {
     if (over) return;
+    if (DL.SingleTab && DL.SingleTab.isLost()) return;   // 锁没了：回合也别再往下走
     const pace = (opts && opts.pace) || 'combat';
     nextIdleMs = pace === 'move' ? MOVE_MS : playerCombatMs();
     const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -3389,6 +3392,7 @@ const D = DL.DATA;
   // 点到某一格：3D 视图共用这一套（BFS / 撞怪 / NPC / 换图）
   function handleCellClick(wx, wy) {
     if (over || uiOpen()) return;
+    if (DL.SingleTab && DL.SingleTab.isLost()) return;
     if (!S.canAct(P)) { blockAction(); return; }
     if (wx < 0 || wy < 0 || wx >= map[0].length || wy >= map.length) return;
     if (isWall(wx, wy)) return;
@@ -3646,6 +3650,7 @@ const D = DL.DATA;
   }
 
   function onKey(e) {
+    if (DL.SingleTab && DL.SingleTab.isLost()) return;
     if (e.target && /input|textarea/i.test(e.target.tagName || '')) return;
     const k = (e.key || '').toLowerCase();
     if (uiOpen()) {
@@ -4530,7 +4535,17 @@ const D = DL.DATA;
     return list;
   }
 
-  /* ---------------- 启动 ---------------- */
+  /* ---------------- 启动 ----------------
+     拆成 startGame() 是为了单实例守卫（src/single-tab.js）：抢不到锁的页面不读档、
+     不建 3D、不开时钟、不存盘，只盖一层遮罩，等另一个页面让出后再接管。 */
+  function hubRegen() {
+    if (currentRoom || over || P.hp <= 0) return false;
+    if (P.hp >= maxHp()) return false;
+    P.hp = Math.min(maxHp(), P.hp + maxHp() * 0.01);
+    return true;
+  }
+
+  function startGame() {
   const loaded = load();
   if (!worldSeed) worldSeed = randomSeed();
   genHub();
@@ -4563,6 +4578,8 @@ const D = DL.DATA;
     if (el.sfxGate) el.sfxGate.hidden = true;
   }
   bind();
+  // 单实例守卫：极端情况下锁被另一个页面拿走（这里本来不该发生），立刻停表、停挂机、停存档
+  if (DL.SingleTab) DL.SingleTab.onLost(() => { pauseAuto(); });
   syncHud();
   const shotQuery = /[?&]room=([^&]+)/.exec(location.search || '');
   const shotRoom = shotQuery ? decodeURIComponent(shotQuery[1]) : '';
@@ -4600,13 +4617,6 @@ const D = DL.DATA;
     spawnWild();
     syncHud();
   }, 7000);
-  // 主城缓慢回血：每秒 1% 最大 HP
-  function hubRegen() {
-    if (currentRoom || over || P.hp <= 0) return false;
-    if (P.hp >= maxHp()) return false;
-    P.hp = Math.min(maxHp(), P.hp + maxHp() * 0.01);
-    return true;
-  }
 
   startClockTimer();
   save();
@@ -4712,4 +4722,12 @@ const D = DL.DATA;
         enemyCount: enemies.filter((e) => e.hp > 0).length,
       }),
     };
+    window.__dl.DL = DL;
   }
+  }   // startGame
+
+  /* ---------------- 启动入口 ---------------- */
+  // 单实例守卫：拿到锁才真正开局；抢不到只显示遮罩，等另一个页面关掉后自动接管。
+  // 没有 DL.SingleTab（Node 测试 / 直接 import game.js）时照旧同步启动。
+  if (DL.SingleTab) DL.SingleTab.ready.then((ok) => { if (ok) startGame(); });
+  else startGame();

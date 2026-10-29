@@ -314,9 +314,21 @@ const global = globalThis;
     return c;
   }
 
+  // 平铺砖按「色板 + 种子」缓存：同一块地面每次 groundSheet 都要重画一遍砖，
+  // 那 527 簇 miniTuft（≈1500 笔）在分块加载时是白花的固定开销（2026-10-29 实测）。
+  const turfCache = new WeakMap();
+  function turfTileCached(size, T, seed) {
+    let m = turfCache.get(T);
+    if (!m) { m = new Map(); turfCache.set(T, m); }
+    const k = size + '|' + seed;
+    let c = m.get(k);
+    if (!c) { c = turfTile(size, T, seed); m.set(k, c); }
+    return c;
+  }
+
   function turf(g, W, H, T, seed, win) {
     const TILE = 192;
-    const pat = g.createPattern(turfTile(TILE, T, seed), 'repeat');
+    const pat = g.createPattern(turfTileCached(TILE, T, seed), 'repeat');
     if (!pat) return;
     g.save();
     g.globalAlpha = 0.62;
@@ -1618,7 +1630,20 @@ const global = globalThis;
      terrain=3 只说明"这是水"，分不出湖还是海。规则很简单：
      能顺着水走到地图边界的 = 海（外面还有水），被陆地围死的 = 池塘。 */
 
+  // 同一张地形反复问同一件事（分块时每块问一次），算一次就够了。
+  // 按地形数组身份缓存——换图 = 换数组，自然失效。
+  const seaMaskCache = new WeakMap();
   function seaMask(terrain, rows, cols) {
+    if (!terrain || typeof terrain !== 'object') return new Uint8Array(rows * cols);
+    let m = seaMaskCache.get(terrain);
+    if (!m) { m = new Map(); seaMaskCache.set(terrain, m); }
+    const key = cols + 'x' + rows;
+    let hit = m.get(key);
+    if (!hit) { hit = seaMaskRaw(terrain, rows, cols); m.set(key, hit); }
+    return hit;
+  }
+
+  function seaMaskRaw(terrain, rows, cols) {
     const tag = new Uint8Array(rows * cols);
     if (!terrain) return tag;
     const isW = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows && terrain[y] && terrain[y][x] === 3;
@@ -1849,30 +1874,46 @@ const global = globalThis;
       // 岸距场可以由调用方传整图那张（o.coast + o.coastPx），这里只裁一块再缩放到本块尺寸 ——
       // 逐块重算 chamfer + 逐像素噪声是 15~30ms/块，走路一进海边就掉帧。
       let field;
+      let fs = 1;                     // 岸距场：一格 = fs 个源像素
       if (o.coast && o.coastPx > 0) {
-        const s = px / o.coastPx;
+        fs = px / o.coastPx;
         field = cropCanvas(o.coast, x0 * o.coastPx, y0 * o.coastPx,
-          W / s, H / s, W, H);
+          W / fs, H / fs, W, H);
       } else {
         field = coastField(terrain, cols, rows, x0, y0, x1, y1, px);
       }
       if (field && field.width === W && field.height === H) {
         const sandLay = makeCanvas(W, H);
-        paintSand(sandLay.getContext('2d'), W, H, px, T, o, win);
-        const sd = sandLay.getContext('2d').getImageData(0, 0, W, H).data;
-        const fd = field.getContext('2d').getImageData(0, 0, W, H).data;
-        const img = g.getImageData(0, 0, W, H);
-        const pix = img.data;
-        for (let i = 0; i < fd.length; i += 4) {
-          const d = fd[i] / 255 * (COAST_REACH * 2) - COAST_REACH;
-          if (d > -SAND_TILES) {
-            pix[i] = sd[i];
-            pix[i + 1] = sd[i + 1];
-            pix[i + 2] = sd[i + 2];
-            pix[i + 3] = 255;
+        const sg = sandLay.getContext('2d');
+        paintSand(sg, W, H, px, T, o, win);
+        // 沙带（岸距 > -SAND_TILES 的像素）走遮罩：整图那张由调用方预算好（o.sandMask，
+        // 和 o.coast 同尺寸），这里只 drawImage 裁一块 + destination-in。
+        // 以前是每块 getImageData ×3 + 逐像素覆盖 —— 一块 12~16ms，走路每 0.3 秒顿一下。
+        const mask = o.sandMask && o.sandMask.width > 0
+          ? cropCanvas(o.sandMask, x0 * o.coastPx, y0 * o.coastPx, W / fs, H / fs, W, H)
+          : null;
+        if (mask) {
+          sg.globalCompositeOperation = 'destination-in';
+          sg.drawImage(mask, 0, 0);
+          sg.globalCompositeOperation = 'source-over';
+          g.drawImage(sandLay, 0, 0);
+        } else {
+          // 没给遮罩（房间整张画 / 验收台）仍用逐像素那条老路
+          const sd = sg.getImageData(0, 0, W, H).data;
+          const fd = field.getContext('2d').getImageData(0, 0, W, H).data;
+          const img = g.getImageData(0, 0, W, H);
+          const pix = img.data;
+          for (let i = 0; i < fd.length; i += 4) {
+            const d = fd[i] / 255 * (COAST_REACH * 2) - COAST_REACH;
+            if (d > -SAND_TILES) {
+              pix[i] = sd[i];
+              pix[i + 1] = sd[i + 1];
+              pix[i + 2] = sd[i + 2];
+              pix[i + 3] = 255;
+            }
           }
+          g.putImageData(img, 0, 0);
         }
-        g.putImageData(img, 0, 0);
       }
       shoreline(g, px, T, terrain, rows, cols, seed, shoreWin, seaTag);
     } else {
@@ -2104,6 +2145,33 @@ const global = globalThis;
     return c;
   }
 
+  /* 沙带遮罩：把整图岸距场压成一张 alpha 图（沙 = 不透明，其余透明）。
+     分块时由调用方整图建一次，块里只裁一块贴到 sand 层上 —— 省掉每块三次
+     getImageData + 逐像素覆盖（实测一块 12~16ms，是走路掉帧的主因）。
+     128×128 的图在 12px/格 下是 1536²，建一次 10~20ms；没有海就返回 null。 */
+  function sandMask(coast) {
+    if (!coast || !coast.width || !coast.height) return null;
+    const W = coast.width, H = coast.height;
+    const c = makeCanvas(W, H);
+    const g = c.getContext('2d');
+    if (!g.createImageData || !g.putImageData) return null;
+    let src = null;
+    let img = null;
+    try {
+      src = coast.getContext('2d').getImageData(0, 0, W, H);
+      img = g.createImageData(W, H);
+    } catch (e) { return null; }
+    if (!src || !src.data || !img || !img.data) return null;
+    const s = src.data, d = img.data;
+    // 和原来那条逐像素覆盖用同一个判据：d > -SAND_TILES ⇔ R > thr
+    const thr = (COAST_REACH - SAND_TILES) / (COAST_REACH * 2) * 255;
+    for (let i = 0; i < s.length; i += 4) {
+      if (s[i] > thr) { d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
   // 两遍倒角距离：正交 1，对角 1.414。够岸边那一两格用，不必上真正的欧氏距离。
   function chamfer(d, w, h) {
     const DIAG = 1.41421356;
@@ -2175,6 +2243,7 @@ const global = globalThis;
     kindOf: kindOf,
     groundSheet: groundSheet,
     coastField: coastField,
+    sandMask: sandMask,
     seaSheet: seaSheet,
     slabSheet: slabSheet,
     patch: patch,

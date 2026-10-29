@@ -665,6 +665,7 @@ global.THREE = THREE;
         px: c.px, seed: 7, style: { path: 'slab' }, big: true, cutSea: true,
         rect: { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 }, margin: 1,
         coast: gSea ? gSea.canvas : null, coastPx: gSea ? gSea.px : 0,
+        sandMask: gSea ? gSea.sand : null,
       });
     } catch (e) {
       console.warn('[3D] 地面块生成失败', e);
@@ -973,7 +974,11 @@ global.THREE = THREE;
       try {
         const fieldPx = Math.max(8, Math.min(chunkPx, Math.floor(1536 / Math.max(W, H))));
         const seaCv = A.coastField(terrain, W, H, 0, 0, W, H, fieldPx);
-        if (seaCv && fieldWet(seaCv)) gSea = { tex: distTex(seaCv), W: W, H: H, canvas: seaCv, px: fieldPx };
+        if (seaCv && fieldWet(seaCv)) {
+          // 沙带遮罩也整图建一次：块里只裁一块，别再逐像素覆盖（那是走路顿的主因）
+          const sand = A.sandMask ? A.sandMask(seaCv) : null;
+          gSea = { tex: distTex(seaCv), W: W, H: H, canvas: seaCv, px: fieldPx, sand: sand };
+        }
       } catch (e) {
         console.warn('[3D] 整图岸距场生成失败，退回逐块算', e);
       }

@@ -98,18 +98,24 @@ const global = globalThis;
   }
 
   // 城外野怪布点：1~5 级（鸡 1 / 稻草人 3 / 野狗 5）按离城墙远近分层，
-  // 只站草地（terrain 0），离城墙 ≥3 格、离出生点 ≥6 格，彼此至少隔 5 格。
-  // 分布范围（主人要求）：野狗只在上方（北墙外）、鸡主要在下方（南墙外）、稻草人四条边随机。
+  // 只站草地（terrain 0），离城墙 ≥3 格、离出生点 ≥6 格，彼此至少隔 FIELD_GAP 格。
+  // 分布范围（主人要求）：野狗只在上方（北墙外）、鸡在下方（南墙外）、稻草人四条边随机。
+  // 2026-10-29 晚主人反馈「鸡全挤在墙根、沙滩和海边一只都没有」→ 现在每条边都从 d0
+  // 一直铺到「草地边缘」：深度上限不再写死 12 格，按列量出草地铺到哪儿为止（碰到沙/水就停），
+  // 再在贴边那两三格先放几只 shore，保证沙滩/海跟前也有怪。改岛形或海滩宽度不用重调数字。
   // y 轴向下：上方 = y 小 = 北墙 y0；下方 = y 大 = 南墙 y1，别弄反。
   // 全用 hash 决定，同一个 seed 每次进来站位一致（不会读档后怪物乱跳）。
+  const FIELD_GAP = 5;      // 怪彼此至少隔几格（切比雪夫距离）
+  const SHORE_BAND = 2;     // 离草地边缘（沙滩/海）这么近就算「海边」
   function placeFieldMobs(map, terrain, spawn) {
-    // d0/d1 = 离城墙的距离（格）；side = 在哪条边外：north 北 / south 南 / any 四条边随机
+    // d0/d1 = 离城墙的距离（格），d1 给小了就是只在内圈；side = 哪条边外：north 北 / south 南 / any 四条边随机
+    // shore = 先在贴海那圈放几只（0 表示不专门留）
     // 顺序：先把只站一条边的（狗 / 鸡）放好，最后放四条边随机的稻草人去填空。
     // 反过来的话，稻草人的「彼此 ≥5 格」会把南/北两条带全盖住（实测只剩 27 只）。
     const plans = [
-      { id: 'dog', n: 11, d0: 8, d1: 18, side: 'north' },      // 只在上方：北墙外靠海边
-      { id: 'chicken', n: 15, d0: 3, d1: 12, side: 'south' },  // 贴着南墙外：出生点一出来就在脚边
-      { id: 'scarecrow', n: 14, d0: 6, d1: 11, side: 'any' },  // 四条边随机
+      { id: 'dog', n: 11, d0: 8, d1: 99, side: 'north', shore: 4 },      // 只在上方：北墙外一直到北岸
+      { id: 'chicken', n: 22, d0: 3, d1: 99, side: 'south', shore: 6 },  // 南野整片：墙根铺到沙滩边
+      { id: 'scarecrow', n: 14, d0: 6, d1: 99, side: 'any', shore: 3 },  // 四条边随机
     ];
     const out = [];
     const free = function (x, y) {
@@ -119,36 +125,76 @@ const global = globalThis;
       if (x >= CITY.x0 - 3 && x <= CITY.x1 + 3 && y >= CITY.y0 - 3 && y <= CITY.y1 + 3) return false;
       if (Math.max(Math.abs(x - spawn.x), Math.abs(y - spawn.y)) <= 5) return false;
       for (let i = 0; i < out.length; i++) {
-        if (Math.max(Math.abs(out[i].x - x), Math.abs(out[i].y - y)) < 5) return false;
+        if (Math.max(Math.abs(out[i].x - x), Math.abs(out[i].y - y)) < FIELD_GAP) return false;
       }
       return true;
     };
-    // 沿墙方向：t 取 -1~1。比城墙再宽 8 格——城外草地本来就宽，
-    // 只贴着墙宽排的话（31 格的城只剩 27 格），40 只怪按「彼此 ≥5 格」根本塞不下。
-    const alongWall = function (t, half) { return Math.round(t * (half + 8)); };
-    const pick = function (plan, h) {
-      const uSide = (h % 1000) / 1000;
-      const uD = ((h >>> 10) % 1000) / 1000;
-      const uT = ((h >>> 20) % 1000) / 1000;
-      const d = Math.round(plan.d0 + uD * (plan.d1 - plan.d0));
-      let side = plan.side;
-      if (side === 'any') side = ['north', 'east', 'south', 'west'][Math.floor(uSide * 4) % 4];
-      const o = alongWall(uT * 2 - 1, CITY_HALF);
-      if (side === 'north') return { x: CX + o, y: CITY.y0 - d };
-      if (side === 'south') return { x: CX + o, y: CITY.y1 + d };
-      if (side === 'east') return { x: CITY.x1 + d, y: CY + o };
-      return { x: CITY.x0 - d, y: CY + o };
+    // 一条边外的全部草地格：从城墙往外一格格走，碰到沙滩/海/图边就停（max = 这条边草地的深度）。
+    // edge=1 表示「已经在贴海那圈草地上」，用来保证沙滩跟前有怪。
+    const edgeCells = function (side, d0, d1) {
+      const cells = [];
+      const push = function (x, y, d, max) {
+        if (d < d0) return;
+        cells.push({ x: x, y: y, d: d, edge: d >= max - SHORE_BAND });
+      };
+      if (side === 'south' || side === 'north') {
+        const down = side === 'south';
+        const wall = down ? CITY.y1 : CITY.y0;
+        for (let x = 1; x < N - 1; x++) {
+          let max = 0;
+          for (let d = 1; d <= d1; d++) {
+            const y = wall + (down ? d : -d);
+            if (y < 1 || y >= N - 1) break;
+            if (map[y][x] !== 0 || (terrain[y] && terrain[y][x] !== 0)) break;
+            max = d;
+          }
+          for (let d = 1; d <= max; d++) push(x, wall + (down ? d : -d), d, max);
+        }
+      } else {
+        const east = side === 'east';
+        const wall = east ? CITY.x1 : CITY.x0;
+        for (let y = 1; y < N - 1; y++) {
+          let max = 0;
+          for (let d = 1; d <= d1; d++) {
+            const x = wall + (east ? d : -d);
+            if (x < 1 || x >= N - 1) break;
+            if (map[y][x] !== 0 || (terrain[y] && terrain[y][x] !== 0)) break;
+            max = d;
+          }
+          for (let d = 1; d <= max; d++) push(wall + (east ? d : -d), y, d, max);
+        }
+      }
+      return cells;
+    };
+    // hash 排序 = 稳定的「随机」顺序：同一份地图每次都是同一批站位
+    const shuffled = function (list, salt) {
+      return list.slice().sort(function (a, b) {
+        return hash(a.x * 31 + salt, a.y * 17 + salt) - hash(b.x * 31 + salt, b.y * 17 + salt);
+      });
     };
     for (let p = 0; p < plans.length; p++) {
       const plan = plans[p];
+      const cells = [];
+      const sides = plan.side === 'any' ? ['north', 'east', 'south', 'west'] : [plan.side];
+      for (let s = 0; s < sides.length; s++) {
+        const got = edgeCells(sides[s], plan.d0, plan.d1);
+        for (let i = 0; i < got.length; i++) cells.push(got[i]);
+      }
       let placed = 0;
-      for (let i = 0; i < 2500 && placed < plan.n; i++) {
-        const h = hash(p * 977 + i * 31 + 7, placed * 131 + 19);
-        const pt = pick(plan, h);
-        if (!free(pt.x, pt.y)) continue;
+      const take = function (pt) {
+        if (placed >= plan.n) return;
+        if (!free(pt.x, pt.y)) return;
         out.push({ id: plan.id, x: pt.x, y: pt.y });
         placed += 1;
+      };
+      // ① 先在海边留几只：只从贴沙那两三格挑，互相隔 FIELD_GAP
+      if (plan.shore) {
+        const shore = shuffled(cells.filter(function (c) { return c.edge; }), p * 31 + 3);
+        for (let i = 0; i < shore.length && placed < Math.min(plan.n, plan.shore); i++) take(shore[i]);
       }
+      // ② 剩下的铺满整条边（含海边）：按 hash 顺序贪心
+      const rest = shuffled(cells, p * 31 + 7);
+      for (let i = 0; i < rest.length && placed < plan.n; i++) take(rest[i]);
     }
     return out;
   }

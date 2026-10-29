@@ -39,7 +39,7 @@
 | `hero` | 豆豆勇者 | 横版动作 | **1280×720** | [ANCHOR](games/hero/ANCHOR.md) | `test-input.js`、`test-stage.js`、`test-save.js`、`test-shop.js` |
 | `cube` | 豆豆魔方 | 益智 / 3D | 720×1600 | [ANCHOR](games/cube/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
 | `rhythm` | 节奏豆豆 | 节奏 / 音乐 | 720×1600 | [ANCHOR](games/rhythm/ANCHOR.md) | `test-core.mjs`、`test-input.js` |
-| `darklegend` | 豆豆海岛幻想 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`balance.mjs --check`。Vite 工程化，双击玩 `dist/index.html` |
+| `darklegend` | 豆豆海岛幻想 | 刷装 / 传奇 | 720×1600 | [ANCHOR](games/darklegend/ANCHOR.md) | `test-game.mjs`、`test-input.js`、`test-three.mjs`、`test-single-tab.js`、`balance.mjs --check`。Vite 工程化，双击玩 `dist/index.html` |
 | `catchalien` | 豆豆捉外星人 | 推理 | 720×1600 | [ANCHOR](games/catchalien/ANCHOR.md) | `test-logic.mjs` |
 | `zombie` | 豆豆大战僵尸 | 放置 / 策略 | **1280×720** | [ANCHOR](games/zombie/ANCHOR.md) | `test-sim.js` |
 | `cardfight` | 卡牌战斗 | 养成 / 策略 | 多页自适应 | [ANCHOR](games/cardfight/ANCHOR.md) | `test-combat.js` |

@@ -82,7 +82,7 @@
 ## 数值都在哪（全在 data.js）
 | 表（行） | 关键字段 | 谁用 |
 |---|---|---|
-| `GROWTH` 384 | baseHp/hpPerLv/baseAtk/baseDef/expBase/expRate | `core.maxHp/atkRange/needExp`(63–76) |
+| `WEAPON_ATK` 387 + `GROWTH` 391 | 武器 `minBase/minPer/maxBase/maxPer`；`atkPerLv` **0.48**（30 级白装武器占攻约 70%） | `makeEquip`(937)、`core.atkRange`(66)；体检 `balance.mjs` |
 | `MON` 76 + `BOSS` 91 + `GRADE` 136 | lv/aggro/ai/atkMin/atkMax/gold；品级 hp/atk/lvAdd/exp/p | `makeEnemy`(887) `poolMon`(708) |
 | `DROP` 165 + `RARITY` 155 | c/b/a/s、elite/rare/boss、potion；mult/letter/color | `rollDrop`(2339) `rollKillEquipDrops`(2349) `makeEquip`(933) |
 | `EQUIP_BASES` 218 + `EQUIP_STAT_MUL` 325 | ilvl/name、atk/def/hp 倍率 | `makeEquip`(933) |

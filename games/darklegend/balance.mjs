@@ -24,9 +24,11 @@ const monStats = (lv, grade = 'normal') => {
   };
 };
 const playerAtk = (lv, ilvl = lv) => {
-  const base = 5 + 1.5 * (lv - 1);
-  const wMin = Math.round(4 + 0.2 * ilvl);
-  const wMax = Math.max(wMin, Math.round(8 + 0.4 * ilvl));
+  const g = D.GROWTH;
+  const w = D.WEAPON_ATK;
+  const base = Math.round(g.baseAtk + g.atkPerLv * (lv - 1));
+  const wMin = Math.round(w.minBase + w.minPer * (ilvl - 1));
+  const wMax = Math.max(wMin, Math.round(w.maxBase + w.maxPer * (ilvl - 1)));
   return { min: base + wMin, max: base + wMax, base, gear: (wMin + wMax) / 2 };
 };
 const playerDef = (lv, ilvl = lv) => {
@@ -114,7 +116,7 @@ push('## 5. 检查');
 push('');
 const checks = [
   ['30 级刀数（毕业段）', hitsToKill(30), 5, 45, '5–45'],
-  ['30 级装备占攻', gearShare(30).atk * 100, 35, 65, '35%–65%'],
+  ['30 级装备占攻', gearShare(30).atk * 100, 68, 75, '68%–75%'],
   ['30 级每级只数', killsPerLevel(30).kills, 80, 500, '80–500'],
   ['1→30 总时长', totalHours(), 1, 8, '1–8 小时'],
 ];

@@ -381,11 +381,16 @@ const global = globalThis;
       '#262b42', '#292c44', '#2d2d46', '#322e48', '#372f4a',
     ],
 
+    /* 武器攻击区间（R7.3 / v17）。按 (ilvl-1) 长，1 级仍是 4–8。
+       30 级白装 30–60（均值 45），基础攻 19，武器占攻击约 70%。
+       总攻击和改前接近，怪的刀数不动。护甲公式没跟着改。 */
+    WEAPON_ATK: { minBase: 4, minPer: 0.9, maxBase: 8, maxPer: 1.8 },
+
     /* ---------- 成长系数（公式在 core，数值在这） ---------- */
     GROWTH: {
       baseHp: 60, hpPerLv: 18,
       baseMp: 15, mpPerLv: 3,
-      baseAtk: 5, atkPerLv: 1.5,
+      baseAtk: 5, atkPerLv: 0.48, // v17：30 级基础攻 19，把差额补进武器
       baseDef: 3, defPerLv: 1,
       /* 有挂机后拉高升级需求，拉长可玩时长（约 ×1.8～2 于旧曲线） */
       expBase: 180, expRate: 1.20,

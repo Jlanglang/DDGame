@@ -946,8 +946,9 @@ const D = DL.DATA;
     const mul = EQUIP_STAT_MUL[base] || { atk: 0, def: 0, hp: 0 };
 
     // 基础区间：所有品质相同（品质不碰属性）；按槽位倍率折算。等级=固定穿戴需求
-    const atkMin0 = mul.atk ? Math.round((4 + 0.2 * lv) * mul.atk) : 0;
-    const atkMax0 = mul.atk ? Math.max(atkMin0, Math.round((8 + 0.4 * lv) * mul.atk)) : 0;
+    const wa = D.WEAPON_ATK;
+    const atkMin0 = mul.atk ? Math.round((wa.minBase + wa.minPer * (lv - 1)) * mul.atk) : 0;
+    const atkMax0 = mul.atk ? Math.max(atkMin0, Math.round((wa.maxBase + wa.maxPer * (lv - 1)) * mul.atk)) : 0;
     const defMin0 = mul.def ? Math.round((2 + 0.2 * lv) * mul.def) : 0;
     const defMax0 = mul.def ? Math.max(defMin0, Math.round((4 + 0.4 * lv) * mul.def)) : 0;
     const hp0 = mul.hp ? Math.round((15 + 3 * lv) * mul.hp) : 0;
@@ -1561,8 +1562,9 @@ const D = DL.DATA;
     el.charExpFill.style.width = `${clamp(P.exp / needExp(), 0, 1) * 100}%`;
     el.charPower.textContent = powerOf();
     el.charGold.textContent = P.gold;
-    const baseAtk = Math.round(5 + 1.5 * (P.lv - 1));
-    const baseDef = Math.round(3 + (P.lv - 1));
+    const g = D.GROWTH;
+    const baseAtk = Math.round(g.baseAtk + g.atkPerLv * (P.lv - 1));
+    const baseDef = Math.round(g.baseDef + g.defPerLv * (P.lv - 1));
     const ar = atkRange(P);
     const dr = defRange(P);
     const eqALo = sumEqAtkMin(P), eqAHi = sumEqAtkMax(P);

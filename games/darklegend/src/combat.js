@@ -30,17 +30,18 @@ const global = globalThis;
   }
 
   /* ---------- 目标选择 ---------- */
-  // 半月：朝向前方的九宫格半边 5 格（正前、前左、前右、正左、正右）
-  function halfMoonCells(px, py, dir) {
-    const [fx, fy] = dirVec(dir);
-    const [sx, sy] = fx !== 0 ? [0, 1] : [1, 0];
-    return [
-      [px + fx, py + fy],
-      [px + fx + sx, py + fy + sy],
-      [px + fx - sx, py + fy - sy],
-      [px + sx, py + sy],
-      [px - sx, py - sy],
-    ];
+  // 旋风斩（v18.1，原名半月弯刀）：身周 8 邻 = 360°，被围时一次扫一圈。
+  // 旧版只扫身前 5 格——怪从背后/侧面咬你时打不到，所以像摆设。
+  // dir 参数留着兼容调用方，范围不再看朝向。
+  function halfMoonCells(px, py) {
+    const out = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        out.push([px + dx, py + dy]);
+      }
+    }
+    return out;
   }
 
   function targetsAt(enemies, cells) {

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>豆豆海岛幻想</title>
-<link rel="stylesheet" href="style.css?v=174">
+<link rel="stylesheet" href="style.css?v=175">
 </head>
 <body>
 <div id="stage">
@@ -47,13 +47,9 @@
     </div>
     <div class="skill-pad actions" id="skillPad" aria-label="技能">
       <button id="btnAtk" type="button">⚔ 攻击<kbd>J</kbd></button>
-      <button id="btnHalf" type="button">🌙 半月<kbd>1</kbd><span class="cost">6</span><span class="cd" id="halfCd"></span></button>
+      <button id="btnHalf" type="button">🌪 旋风<kbd>1</kbd><span class="cost">6</span><span class="cd" id="halfCd"></span></button>
       <button id="btnFire" type="button">🔥 烈火<kbd>2</kbd><span class="cost">12</span><span class="cd" id="fireCd"></span></button>
-      <button id="btnPotion" type="button">🧪 红药 <b class="badge" id="potionCount">3</b><kbd>Q</kbd><span class="cd" id="potionCd"></span></button>
-      <button id="btnMpPotion" type="button">💙 蓝药 <b class="badge" id="mpPotionCount">3</b><kbd>F</kbd><span class="cd" id="mpPotionCd"></span></button>
       <button id="btnFarm" type="button" title="挂机（只打普通/精英）" aria-label="挂机" aria-pressed="false">挂机<kbd>E</kbd></button>
-      <button id="btnInteract" type="button" disabled title="靠近 NPC 交谈">💬 交谈<kbd>空格</kbd></button>
-      <button id="btnRetreat" type="button">↩ 撤退<kbd>R</kbd></button>
     </div>
   </div>
 
@@ -61,10 +57,20 @@
     <div class="tips" id="tips">点击地面移动 · 点击怪物攻击 · WASD 也能走</div>
     <div class="bars-side">
       <div class="status-row" id="pStatus" hidden></div>
-      <div class="bars">
-        <div class="bar hp"><i id="hpFill"></i><span id="hpText">60 / 60</span></div>
-        <div class="bar mp"><i id="mpFill"></i><span id="mpText">15 / 15</span></div>
-        <div class="bar exp"><i id="expFill"></i><span id="expText">经验 0 / 100</span></div>
+      <div class="bars-row">
+        <div class="bars">
+          <div class="bar hp"><i id="hpFill"></i><span id="hpText">60 / 60</span></div>
+          <div class="bar mp"><i id="mpFill"></i><span id="mpText">15 / 15</span></div>
+          <div class="bar exp"><i id="expFill"></i><span id="expText">经验 0 / 100</span></div>
+        </div>
+        <div class="pot-dock" aria-label="药水">
+          <button id="btnPotion" class="pot" type="button" title="红药（Q）">
+            <span class="p-ico">🧪</span><b class="p-num" id="potionCount">0</b><span class="cd" id="potionCd"></span>
+          </button>
+          <button id="btnMpPotion" class="pot" type="button" title="蓝药（F）">
+            <span class="p-ico">💙</span><b class="p-num" id="mpPotionCount">0</b><span class="cd" id="mpPotionCd"></span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -139,7 +145,7 @@
   <div class="sheet" id="bookShop" hidden>
     <div class="sheet-card">
       <div class="sheet-head"><h3>技能书商人</h3><span class="sheet-gold" id="bookShopGold">0</span></div>
-      <p class="menu-help">半月弯刀 3 万，烈火剑法 10 万；已学会不再出售。</p>
+      <p class="menu-help">旋风斩 3 万，烈火剑法 10 万；已学会不再出售。</p>
       <div class="book-shop-list" id="bookShopList"></div>
       <button type="button" class="ghost" id="bookShopClose">离开</button>
     </div>
@@ -280,14 +286,13 @@
   <div class="menu" id="menu" hidden>
     <div class="sheet-card">
       <h3>豆豆海岛幻想</h3>
-      <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人按空格或点「交谈」开商店；西南角仓库同样交谈存取。E 挂机。J 普攻，1 半月，2 烈火，Q 红药，F 蓝药，R 撤退，C 角色。东边三扇传送门是 1–10 / 10–20 / 20–30。</p>
+      <p class="menu-help">点击地面移动（可斜走），点击怪物攻击。WASD 可组合斜走。靠近商人/仓库按 <b>J</b>（或空格）交谈——攻击键会自动变成「交谈」；E 挂机；J 普攻 / 交谈；1 旋风；2 烈火；Q 红药；F 蓝药；C 角色。东边三扇传送门是 1–10 / 10–20 / 20–30。</p>
       <p class="menu-help"><b>被动怪</b>（鸡、稻草人、<b>首领</b>）不主动追人；鸡/稻草人挨打追 3 格放弃，首领挨打后会持续还手。主动怪（野狗、野猪）进 5 格就追。首领横扫会<b>眩晕</b>，腐气会<b>麻痹</b>；烈火会点燃（🔥）。</p>
       <p class="menu-help"><b>鸡会啄你 1–3 点血</b>（不看防御），金币只有 1–5、还常常不掉。<b>刷鸡到 5 级就没经验了</b>（比怪高 4 级起经验归零），该换门了。</p>
       <p class="menu-help">怪掉的<b>装备会落在地上变成钱袋</b>（袋子上的 C/B/A/S 是里面最好的品级），走上去就捡，捡起来能一件一件挑。<b>死了会掉一件身上的装备</b>，留在原地，回去还能捡。</p>
       <p class="menu-help">地图种子：<b id="seedText">-</b>（同一存档固定）</p>
       <p class="menu-help">音效：<button type="button" class="ghost" id="menuMute">🔊 开启</button>（顶栏喇叭也可切）</p>
       <button type="button" id="menuClose">继续游戏</button>
-      <button type="button" class="ghost" id="menuRetreat">撤退（R）</button>
       <button type="button" class="danger" id="menuRestart">重开新档</button>
     </div>
   </div>
@@ -305,8 +310,8 @@
       <ul>
         <li><b>点击地面</b>移动，<b>点击怪物</b>攻击</li>
         <li>WASD 可斜走（组合键），J 普攻</li>
-        <li>1 半月 · 2 烈火 · Q 红药 · F 蓝药 · E 挂机 · 空格交谈</li>
-        <li>被怪缠住时人物锁定，按 R 撤退</li>
+        <li>J 攻击/交谈 · 1 旋风 · 2 烈火 · Q 红药 · F 蓝药 · E 挂机</li>
+        <li>被围时直接走就行（不锁走位）；R 是后退一步</li>
         <li>烈火会点燃敌人，烧起来每回合掉血</li>
         <li>被首领眩晕/麻痹时会少一回合，注意血线</li>
         <li>技能栏「挂机」：自动找普通/精英打，稀有/首领要手打</li>

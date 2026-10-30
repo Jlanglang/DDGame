@@ -20,7 +20,7 @@
 | `src/sfx.js` | 226 | audio | `SFX` 音名表 + WebAudio/WAV 兜底，`MUTE_KEY` |
 | `src/main.js` 18 + `src/boot.js` 9 + `src/namespace.js` 5 | — | shell | `main.js` 是唯一 ESM 入口，按依赖顺序 import；**`boot.js` 必须排在 `game.js` 前**——它先建单实例守卫，`game.js` 才按 `DL.SingleTab` 决定开不开局；`namespace.js` 建 `DL` 命名空间 |
 | `src/single-tab.js` | 316 | shell | **单实例守卫**：同一个存档只许一个页面在跑。BroadcastChannel ping/pong（判死活，不受后台计时器节流）+ localStorage 心跳锁（兜底）。`createSingleTab()` → `ready` / `role` / `onLost`；抢不到锁只显示遮罩，另一个页面关掉后自动接管；`save()`/`after()` 里有 `isLost()` 早退兜底 |
-| `index.html` 326 + `style.css` 1336 | — | shell | HUD/DOM 与布局。左上角常驻 `#fps` 帧率角标（1 秒窗口）；开发页只留一行 `<script type="module" src="./src/main.js">`；双击入口是 `dist/index.html`（928 KB 单文件） |
+| `index.html` 326 + `style.css` 1378 | — | shell | HUD/DOM 与布局。左上角常驻 `#fps` 帧率角标（1 秒窗口）；**底栏 v18.5**：左侧摇杆、血条右边两个药水格（`.pot-dock`）、右下 **4 键圆盘**（攻击居中 70px，旋风/烈火/挂机 58px 绕一圈，整盘 190×190）；**交谈并进攻击键**（`game.js syncAtkBtn`/`onAttackOrTalk`，靠近 NPC 时按钮变「💬 交谈」），**没有撤退键**；`style.css?v=` 改样式后记得 +1 破缓存；开发页只留一行 `<script type="module" src="./src/main.js">`；双击入口是 `dist/index.html`（单文件） |
 | 测试 5 件 | 2080 | test | test-game 1605 / test-input 192 / balance 160 / test-three 64 / check-assets 58 |
 | `gen-*.py` 8 个 | — | 素材 | 生成 `assets/**` 的老管线；**产出已被清空**（2026-10-29），新素材按 `docs/立牌统一规格.md` 重出 |
 
@@ -45,14 +45,15 @@
 ## 想改什么 → 去哪
 | 想改 | 动这几个 |
 |---|---|
-| 怪血/攻/防/经验/金币 | `game.js makeEnemy`(888) + `data.js GRADE`(136)；**同步 `balance.mjs`(29–50)** |
+| 怪血/攻/防/经验/金币 | `data.js MON_CURVE`(99) + `GRADE`(152)；`game.js makeEnemy`(891) 只负责拼装。**v18 割草化**：hp `18×1.07^L`、expBase 5（原 1.16 / 10）、普通怪攻 ×0.45；`balance.mjs` 引用同一张表，改公式不用再去同步它的副本 |
+| **割草手感（普通怪几刀 / 走位 / 被围疼不疼）** | 刀数看 `MON_CURVE.hpRate`（1.07 → 30 级普通怪约 3 刀）；被围疼不疼看 `GRADE.normal.atk`（0.45）。**v18.2：锁战机制已整条去掉**——`game.js combatTargets`(2826) 返回空、`inCombat`(2830) 恒 false，任何时候都能走位；`retreat`(3271) 改成「后撤一步」不扣血。改完跑 `balance.mjs --check` + `test-game.mjs` |
 | 玩家成长/升级曲线 | `data.js GROWTH`(384) → `core.js maxHp/atkRange/needExp`(63–76) |
 | 掉落概率/保底 | `data.js DROP`(165) `RESPAWN`(60)；`game.js rollDrop`(2342) `rollKillEquipDrops`(2352) |
 | 装备底材/属性倍率 | `data.js EQUIP_BASES`(218) `EQUIP_STAT_MUL`(325)；`game.js makeEquip`(934) |
 | 词缀（M2 冻结但在跑） | `game.js makeEquip`(934) 掷 affix、`core.js affixMult`(34) 已计入伤害，UI 占位 `affixSlot`(1076) |
 | 房间 / 地图 / 主城 | `data.js ROOMS`(349) `THEME_OF_ROOM`(13)；**野外图 = 128×128 整图 + 中间 72×72 陆地 + 四周海**（`ROOMS` 的 `size` 就是陆地边长，`world.js genRoom`(219) 不再 ×2.2、陆地里不放障碍；海/沙滩在 `game.js refreshTerrain`(4372) 按 map=1 上色，陆地外 → terrain 3、靠海两圈 → 4；洞窟 44/48 保持）；`world.js genHub`(185)；`game.js enterRoom`(597) |
 | 城外野怪分布 / 密度 | `overworld.js placeFieldMobs`(110)：`plans` 里 `n` 是只数、`d0/d1` 是离城墙的距离（格，**d1=99 = 一直铺到草地边缘**，别再写死 12 那种数）、`side` 是边（north 北 / south 南 / any 四条边随机）、`shore` 是先在海边留几只；深度上限由 `edgeCells` 按列量（碰到沙滩/海就停），贴海判定 `SHORE_BAND`(109)=2 格；只站草地、彼此隔 `FIELD_GAP`(108)=5 格。死掉 8 秒后原地重生（`game.js respawnField`(2590)，玩家离 >6 格才刷） |
-| 战斗判定（伤害/范围） | `combat.js playerDamage`(19) `halfMoonCells`(34)；`game.js strike`(1944) `halfMoon`(3041) |
+| 战斗判定（伤害/范围） | `combat.js playerDamage`(19) `halfMoonCells`(36)（**v18.1：身周 8 邻 = 360°，不看朝向**）；`game.js strike`(1951) `halfMoon`(3050)（**旋风斩**，×1.2，CD 5 秒 = `data.js SKILL_CD_MS.half`） |
 | 怪 AI / BOSS 出招 | `data.js AI`(125)；`combat.js decide`(76)；`game.js enemiesTurn`(2611) `bossTrick`(2655) |
 | 状态（毒/烧/眩晕/麻痹） | `status.js DEFS`(23) `apply`(60) `tick`(86)；`game.js tickStatuses`(2673) |
 | 棋盘/墙掩码/图集（已无） | 2D 删掉后 `tiles.js`、`assets.js` 也删了；地面走 `iso-art.js`，立牌走 `hd-draw.js` |
@@ -82,21 +83,22 @@
 ## 数值都在哪（全在 data.js）
 | 表（行） | 关键字段 | 谁用 |
 |---|---|---|
-| `WEAPON_ATK` 387 + `GROWTH` 391 | 武器 `minBase/minPer/maxBase/maxPer`；`atkPerLv` **0.48**（30 级白装武器占攻约 70%） | `makeEquip`(937)、`core.atkRange`(66)；体检 `balance.mjs` |
-| `MON` 76 + `BOSS` 91 + `GRADE` 136 | lv/aggro/ai/atkMin/atkMax/gold；品级 hp/atk/lvAdd/exp/p | `makeEnemy`(887) `poolMon`(708) |
-| `DROP` 165 + `RARITY` 155 | c/b/a/s、elite/rare/boss、potion；mult/letter/color | `rollDrop`(2339) `rollKillEquipDrops`(2349) `makeEquip`(933) |
-| `EQUIP_BASES` 218 + `EQUIP_STAT_MUL` 325 | ilvl/name、atk/def/hp 倍率 | `makeEquip`(933) |
-| `POTIONS` 176 + `SHOP` 337 + `BOOK_SHOP` 54 | tiers.amount、redMul/blueMul、price | `buyPotion`(3818) `buy`(3860) `buyBook`(3739) |
-| `RESPAWN` 60 + `ROOM_ENTER_SLACK` 347 | normalDelayMs/elitePityMax/rarePityMax/bossDefaultCd | `tryRoomRespawn`(771) `canEnterRoom`(586) |
-| `CRUSH` 145 + `EXP_GAP` 371 + `GOLD_GAP_NORMAL` 375 | 碾压级差、等级差倍率 | `isCrush`(880) `kill`(1954) |
-| `TRIAL` 112 + `AI` 125 | rewardPct/collectNeed/orbPct；leash/passiveChase/bossStunP | `rollTrialTask`(2071) `decide`(76) |
-| `THEME_OF_ROOM` 13 + `ZONE_FLOOR` 378 | 视觉主题、地面色 | `themeNow`(4339)、`iso-ground.themeOf`(53) |
+| `WEAPON_ATK` 400 + `GROWTH` 403 | 武器 `minBase/minPer/maxBase/maxPer`；`atkPerLv` **0.48**（30 级白装武器占攻约 70%） | `makeEquip`(937)、`core.atkRange`(66)；体检 `balance.mjs` |
+| `MON` 76 + `BOSS` 91 + `MON_CURVE` 99 + `GRADE` 152 | lv/aggro/ai/atkMin/atkMax/gold；品级 hp/atk/lvAdd/exp/p；**曲线 hp 1.07 / expBase 5 / 普通怪 atk 0.45（v18）** | `makeEnemy`(891) `poolMon`(708) |
+| `DROP` 178 + `RARITY` 168 | c/b/a/s、elite/rare/boss、potion；mult/letter/color | `rollDrop`(2339) `rollKillEquipDrops`(2349) `makeEquip`(933) |
+| `EQUIP_BASES` 231 + `EQUIP_STAT_MUL` 338 | ilvl/name、atk/def/hp 倍率 | `makeEquip`(933) |
+| `POTIONS` 189 + `SHOP` 350 + `BOOK_SHOP` 54 | tiers.amount、redMul/blueMul、price | `buyPotion`(3818) `buy`(3860) `buyBook`(3739) |
+| `RESPAWN` 60 + `ROOM_ENTER_SLACK` 361 | normalDelayMs/elitePityMax/rarePityMax/bossDefaultCd | `tryRoomRespawn`(771) `canEnterRoom`(586) |
+| `CRUSH` 158 + `EXP_GAP` 385 + `GOLD_GAP_NORMAL` 389 | 碾压级差、等级差倍率 | `isCrush`(880) `kill`(1954) |
+| `TRIAL` 125 + `AI` 138 | rewardPct/collectNeed/orbPct；leash/passiveChase/bossStunP | `rollTrialTask`(2071) `decide`(76) |
+| `THEME_OF_ROOM` 13 + `ZONE_FLOOR` 392 | 视觉主题、地面色 | `themeNow`(4339)、`iso-ground.themeOf`(53) |
 
 ## 画面：只有 3D（WebGL）
 - `render-three.js wanted()` 恒 true（只要求浏览器有 WebGL）；`?engine=canvas`、`?engine=three` 都不再生效。
 - `boot()`(1950) 用 `#view3d` 建 WebGL 渲染器（`powerPreference: high-performance`），每帧 `tick()`(1700) 从 `ThreeBridge`（game.js 4572）读状态；点击 `pointer`(1931) 只算格子再回调 `B.clickCell` → `handleCellClick`，不复制寻路/战斗。左上角 `#fps` 角标在 `tick()` 末尾按 1 秒窗口刷新（`?stats=1` 另有详情面板）。
 - 双击能跑的是 `dist/index.html`（`npm run build` 打出来的单文件）。源码 `index.html` 和验收台要 `npm run dev`（http://localhost:8183）。贴图仍是程序化画布，不从本地 PNG 上传纹理。
 - **打包是手动的**：改完源码只跑测试 + `npm run dev` 目视验证，**不要自动 `npm run build`**、不要动 `dist/`。主人说「打包 / 构建」再打，产物跟那一次提交一起走（`dist/index.html` 是 ~1MB 单文件，每改一次就重打会让 diff 暴涨）。
+- **Windows 上 `npm run build` 偶发 `[vite:esbuild-transpile] remove …\Temp\esbuild-xxx: Access is denied`**（杀软/句柄占用临时文件，2026-10-30 踩过两次；手动删那些 `%TEMP%\esbuild-*` 目录能过）。**解法：把 TMP/TEMP 指到工作区再打**——`$env:TMP='D:\DDGame\tmp\esbtmp'; $env:TEMP=$env:TMP; npm run build`，打完删掉临时目录。
 - 调试参数：`?quality=low` `?shot=wide`(zoom 0.55) `?shot=map`(zoom 0.3，整座岛) `?stats=1` `?chunk=0`(关掉地面分块) `?cam=mir|iso|diag45|diag45p|up45|now`(切相机，默认 mir) `?room=<id>`(需带 shot) `?debug`。
 - 地图尺寸 / 陆地大小：`overworld.js` 的 `N`=128 是**整图**，`ISLAND_R`(17)=48 决定**陆地约 96×96**（再往外到图边都是海），`CITY_HALF`(14)=15 是城内 **31×31 的安全区**（2026-10-29 从 41 缩到 3/4；城外那圈自动变回草地，野怪能刷到离墙 3 格）；改完确认出生点、铺子、三个门都还落在可走格上。
 
@@ -107,7 +109,7 @@
 | `node games/darklegend/test-input.js` | 真 Chrome `http://localhost:8183/?debug`，8 项：3D 已启动、点小地图不动、点地走、点怪掉血。先 `npm run dev` |
 | `node games/darklegend/test-three.mjs` / `check-assets.mjs` | 515 项射线往返（不开 WebGL）/ 只剩瓦片 4 张 PNG 头（tiles-cave + terrain×3，已不被运行时加载，留着等重建） |
 | `node games/darklegend/test-single-tab.js` | 真 Chrome 开两个标签，14 项：第二个被拦（无 `__dl`、有遮罩）、关掉第一个后自动接管、刷新不把自己锁住。先 `npm run dev`；末尾可传 URL（如 `file:///…/dist/index.html?debug`）测双击版 |
-| `node games/darklegend/balance.mjs --check` | 超范围 exit 1；**当前就有 1 红**（30 级装备占攻 23.6%，目标 35–65），不是你改坏的 |
+| `node games/darklegend/balance.mjs --check` | 超范围 exit 1；**v18 起全绿**（30 级普通怪 2.9 刀、装备占攻 70.3%、每级 266 只、纯砍总时长 1.8 小时） |
 
 ## 雷区
 - **源码是 ESM。** 双击只能开 `dist/index.html`。源码 `index.html` 和 `asset-bench.html` / `bench-scene.html` / `light-test.html` 要开发服务器。`package.json` 不要写 `"type": "module"`，否则 `test-input.js` 的 `require` 会崩。

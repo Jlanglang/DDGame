@@ -366,7 +366,7 @@
       chart: { k: 'beat1', n: 7 },
       visual: V([{ k: 'phone', x: 400, y: 830, f: '#f3e6c8' }], { k: 'none' }, { k: 'handset', f: '#2a241c', w: 108, h: 18, travel: 'y', dy: 78, sprite: 'phone-prop', sw: 150, sh: 42 }, [400, 748]) },
 
-    // 52-54：按 docs/节奏豆豆-五十关进度.md 的目录做，句子四条都不重复
+    // 52-54：按 games/rhythm/docs/节奏豆豆-五十关进度.md 的目录做，句子四条都不重复
     { id: 'stack', name: '叠碗', btn: '叠', mode: 'beat', diff: 3, bpm: 108, part: 'stack', prop: 'bowl', theme: T.kitchen, music: M.kitchen,
       chart: { raw: [E] },
       visual: V([{ k: 'bowl', x: 400, y: 866, f: '#f6f1e6' }], { k: 'none' }, { k: 'lid', f: '#f6f1e6', r: 46, travel: 'y', dy: -300, ey: 4 }, [400, 858]) },

@@ -502,7 +502,7 @@ npm run build
 | 文件 | 改什么 |
 |---|---|
 | `games/darklegend/ANCHOR.md` | 文件分层表加 `src/` 前缀；**"雷区"加一条：源码用 ESM，双击只能开 `dist/index.html`**；测试命令更新 |
-| `docs/STATUS.md` | 加一条轮次：`1m 工程化`；性能/测试数字更新 |
+| `games/darklegend/docs/STATUS.md` | 加一条轮次：`1m 工程化`；性能/测试数字更新 |
 | `AGENTS.md` | 第 2 节表格加注「darklegend 例外：Vite 工程化，产物在 `dist/`」；第 4 节「零构建」加例外说明 |
 | `games/darklegend/package.json` 的 `test` 脚本 | 补 `test-input.js` 前置说明 |
 

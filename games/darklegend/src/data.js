@@ -38,7 +38,7 @@ const global = globalThis;
     SKILL_BOOK: {
       chance: 0.10, // 每次击杀对应首领的掉书概率
       byBossLv: {
-        20: 'half',  // 山大王 → 半月弯刀
+        20: 'half',  // 山大王 → 旋风斩
         30: 'fire',  // 血月怨主 → 烈火剑法
       },
     },
@@ -48,11 +48,11 @@ const global = globalThis;
       { id: 'swordMaster', name: '剑术精通', unlockLv: 10, desc: '攻速 ×2' },
     ],
     /* 技能真实 CD（毫秒）：按玩家当前攻速换算回合，保证实际时间不因攻速减半 */
-    SKILL_CD_MS: { half: 2000, fire: 3000 },
+    SKILL_CD_MS: { half: 5000, fire: 3000 },
 
     /* ---------- 技能书商人（M1.47）：城东书商，只卖两本技能书 ---------- */
     BOOK_SHOP: {
-      half: { name: '半月弯刀', price: 30000 },
+      half: { name: '旋风斩', price: 30000 },
       fire: { name: '烈火剑法', price: 100000 },
     },
 
@@ -89,6 +89,19 @@ const global = globalThis;
       { id: 'demon', name: '恶魔', glyph: '😈', lv: 27, aggro: 6, ai: 'active', mat: 'horn' },
     ],
     BOSS: { id: 'boss', name: '巨型稻草人', glyph: '👹', lv: 10, aggro: 0, ai: 'passive' },
+
+    /* ---------- 怪物曲线（v18 割草化） ----------
+       原 hp 18×1.16^L 是"每只都像 BOSS"的根源：30 级普通怪 1545 血、33 刀。
+       割草目标：普通怪 1–3 刀、精英 ≈×3、稀有 ≈×8、首领 ≈×10。
+       hp 改 1.07 后 30 级普通怪约 137 血、2.9 刀；经验同步 ×0.5，让"杀得多"而不是
+       "砍得久"成为主要节奏（每级只数翻倍，纯砍总时长仍 ≈1 小时）。
+       改这里必须同步 balance.mjs（它引用同一张表）。 */
+    MON_CURVE: {
+      hpBase: 18, hpRate: 1.07,
+      atkBase: 10, atkPerLv: 4,
+      defBase: 2, defRate: 1.075,
+      expBase: 5, expRate: 1.12,
+    },
 
     /* ---------- 材料（怪物特色掉落：10% 自动拾取、可堆叠、可出售） ---------- */
     MATS: {
@@ -133,8 +146,11 @@ const global = globalThis;
 
     /* 怪物品级：普通 / 精英 / 稀有（等级 +0/+1/+2，概率 94/5/1） */
     /* color：名字染色，让玩家一眼看出是精英还是稀有 */
+    /* v18.1：普通怪攻击 0.8 → 0.45。割草时身边常围 3–5 只，旧值 30 级被围
+       每秒掉 180+（三只各 60），9 秒躺；现在普通怪是"草"，精英/稀有/首领
+       仍是威胁（精英 ×1.2 = 普通的 2.7 倍）。 */
     GRADE: {
-      normal: { name: '', color: '#c6cfdf', hp: 1, atk: 0.8, lvAdd: 0, p: 0.94, exp: 1 },
+      normal: { name: '', color: '#c6cfdf', hp: 1, atk: 0.45, lvAdd: 0, p: 0.94, exp: 1 },
       elite: { name: '精英', color: '#4a9eff', hp: 3, atk: 1.2, lvAdd: 1, p: 0.05, exp: 3 },
       rare: { name: '稀有', color: '#ffd54a', hp: 8, atk: 1.6, lvAdd: 2, p: 0.01, exp: 6 },
       /* 首领血量偏厚：同级拉扯约 1～2 分钟，打得久才有击杀期待感 */

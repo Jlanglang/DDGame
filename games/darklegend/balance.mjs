@@ -14,13 +14,14 @@ const Core = DL.Core;
 
 /* ---- game.js 里的公式（改 game.js 要同步这里） ---- */
 const COMBAT_MS = D.COMBAT_MS;
+const MC = D.MON_CURVE;
 const monStats = (lv, grade = 'normal') => {
   const g = D.GRADE[grade];
   return {
-    hp: 18 * Math.pow(1.16, lv) * g.hp,
-    atk: (10 + 4 * lv) * g.atk,
-    def: 2 * Math.pow(1.075, lv) * (grade === 'boss' ? 1.5 : grade === 'rare' ? 1.4 : grade === 'elite' ? 1.2 : 1),
-    exp: 10 * Math.pow(1.12, lv - 1) * g.exp,
+    hp: MC.hpBase * Math.pow(MC.hpRate, lv) * g.hp,
+    atk: (MC.atkBase + MC.atkPerLv * lv) * g.atk,
+    def: MC.defBase * Math.pow(MC.defRate, lv) * (grade === 'boss' ? 1.5 : grade === 'rare' ? 1.4 : grade === 'elite' ? 1.2 : 1),
+    exp: MC.expBase * Math.pow(MC.expRate, lv - 1) * g.exp,
   };
 };
 const playerAtk = (lv, ilvl = lv) => {
@@ -103,8 +104,8 @@ push('');
 push('| Lv | HP | 玩家每刀 | 刀数 | 时长 |');
 push('|---|---|---|---|---|');
 for (const lv of [10, 20, 25, 30]) {
-  const hp = 18 * Math.pow(1.16, lv) * D.GRADE.boss.hp;
-  const def = 2 * Math.pow(1.075, lv) * 1.5;
+  const hp = MC.hpBase * Math.pow(MC.hpRate, lv) * D.GRADE.boss.hp;
+  const def = MC.defBase * Math.pow(MC.defRate, lv) * 1.5;
   const atk = (playerAtk(lv).min + playerAtk(lv).max) / 2;
   const dmg = Math.max(1, atk - def);
   const hits = hp / dmg;
@@ -115,7 +116,8 @@ push('');
 push('## 5. 检查');
 push('');
 const checks = [
-  ['30 级刀数（毕业段）', hitsToKill(30), 5, 45, '5–45'],
+  // v18 割草化：普通怪目标是 1–3 刀（30 级实算 2.9），不再是"每只都像 BOSS"的 5–45 刀
+  ['30 级刀数（毕业段）', hitsToKill(30), 1.5, 6, '1.5–6'],
   ['30 级装备占攻', gearShare(30).atk * 100, 68, 75, '68%–75%'],
   ['30 级每级只数', killsPerLevel(30).kills, 80, 500, '80–500'],
   ['1→30 总时长', totalHours(), 1, 8, '1–8 小时'],

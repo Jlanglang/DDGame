@@ -212,14 +212,14 @@ try {
     [hpOneTap, mon.hp, turnOneTap, dl.state().turn]);
   dl.resetEnemyClock();
 
-  /* 12. 技能 MP 与 CD（先学会半月） */
+  /* 12. 技能 MP 与 CD（先学会旋风斩） */
   dl.P.skills.half = true;
   dl.rest();
   const mp0 = dl.state().mp;
   const cd0 = dl.state().cd;
   dl.halfMoon();
-  ok('半月消耗 MP', dl.state().mp < mp0, [mp0, dl.state().mp]);
-  ok('半月进入 CD', (dl.state().cd.half || 0) > 0, dl.state().cd);
+  ok('旋风斩消耗 MP', dl.state().mp < mp0, [mp0, dl.state().mp]);
+  ok('旋风斩进入 CD', (dl.state().cd.half || 0) > 0, dl.state().cd);
 
   /* 13. 自动回合可暂停 */
   dl.pauseAuto();
@@ -271,7 +271,11 @@ try {
 
   /* 16. 战斗规则纯函数 */
   const C = sandbox.window.DL.Combat;
-  ok('半月覆盖 5 格', C.halfMoonCells(5, 5, 'r').length === 5, C.halfMoonCells(5, 5, 'r').length);
+  {
+    const hm = C.halfMoonCells(5, 5, 'r');
+    ok('旋风斩覆盖身周 8 格', hm.length === 8 && !hm.some(([x, y]) => x === 5 && y === 5), hm.length);
+    ok('旋风斩不看朝向（背后也打得到）', hm.some(([x, y]) => x === 4 && y === 4) && hm.some(([x, y]) => x === 4 && y === 6));
+  }
   ok('普攻伤害最低 1', C.playerDamage(1, 1, 9999, 1) >= 1, C.playerDamage(1, 1, 9999, 1));
   ok('防秒杀上限：普通 ≤35% maxHP', C.enemyDamage(9999, 0, 0, 100, false) <= 35, C.enemyDamage(9999, 0, 0, 100, false));
   ok('防秒杀上限：Boss ≤50% maxHP', C.enemyDamage(9999, 0, 0, 100, true) <= 50, C.enemyDamage(9999, 0, 0, 100, true));
@@ -285,16 +289,16 @@ try {
   dl.resumeAuto();
   ok('resumeAuto 后自动战斗恢复', dl.autoEnabled() === true, dl.autoEnabled());
 
-  /* 19. 技能书：初始只有普攻；20 级 BOSS→半月、30 级 BOSS→烈火 */
+  /* 19. 技能书：初始只有普攻；20 级 BOSS→旋风斩、30 级 BOSS→烈火 */
   dl.genHub();
   dl.P.skills.half = false;
   dl.P.skills.fire = false;
-  ok('初始未学半月', dl.state().skills.half === false, dl.state().skills);
+  ok('初始未学旋风斩', dl.state().skills.half === false, dl.state().skills);
   ok('初始未学烈火', dl.state().skills.fire === false, dl.state().skills);
   dl.rest();
   const mpBefore = dl.state().mp;
-  ok('未学半月不可释放', dl.halfMoon() === false);
-  ok('未学半月不耗 MP', dl.state().mp === mpBefore, [mpBefore, dl.state().mp]);
+  ok('未学旋风斩不可释放', dl.halfMoon() === false);
+  ok('未学旋风斩不耗 MP', dl.state().mp === mpBefore, [mpBefore, dl.state().mp]);
   {
     const elite = { boss: false, elite: true, lv: 12, name: '精英' };
     const b10 = { boss: true, lv: 10, name: '稻草王' };
@@ -308,23 +312,23 @@ try {
     ok('10 级首领不掉技能书', dl.rollSkillBookDrop(b10) == null);
     ok('25 级首领不掉技能书', dl.rollSkillBookDrop(b25) == null);
     SB.chance = 0;
-    ok('0% 概率不掉半月', dl.rollSkillBookDrop(b20) == null);
+    ok('0% 概率不掉旋风斩', dl.rollSkillBookDrop(b20) == null);
     SB.chance = 1;
     const halfBook = dl.rollSkillBookDrop(b20);
-    ok('20 级首领掉半月书', halfBook && halfBook.skill === 'half', halfBook);
-    ok('捡半月书才学会', dl.state().skills.half === false);
-    ok('学习半月书', dl.learnSkillBook(halfBook) === true && dl.state().skills.half === true);
-    ok('已学会不再掉半月', dl.rollSkillBookDrop(b20) == null);
+    ok('20 级首领掉旋风斩书', halfBook && halfBook.skill === 'half', halfBook);
+    ok('捡旋风斩书才学会', dl.state().skills.half === false);
+    ok('学习旋风斩书', dl.learnSkillBook(halfBook) === true && dl.state().skills.half === true);
+    ok('已学会不再掉旋风斩', dl.rollSkillBookDrop(b20) == null);
     const fireBook = dl.rollSkillBookDrop(b30);
     ok('30 级首领掉烈火书', fireBook && fireBook.skill === 'fire', fireBook);
     ok('学习烈火书', dl.learnSkillBook(fireBook) === true && dl.state().skills.fire === true);
     SB.chance = bookChance;
   }
-  /* 19b. 技能书商人：半月 3 万 / 烈火 10 万 */
+  /* 19b. 技能书商人：旋风斩 3 万 / 烈火 10 万 */
   dl.P.skills.half = false;
   dl.P.skills.fire = false;
   dl.setGold(30000);
-  ok('买半月 3 万', dl.buyBook('half') === true && dl.state().skills.half === true);
+  ok('买旋风斩 3 万', dl.buyBook('half') === true && dl.state().skills.half === true);
   ok('买后金币 0', dl.state().gold === 0, dl.state().gold);
   ok('已学会不再卖', dl.buyBook('half') === false);
   dl.setGold(9999);
@@ -404,7 +408,7 @@ try {
   dl.P.skills.half = true;
   dl.P.cd.half = 0;
   dl.rest();
-  ok('学会后可释放半月', dl.halfMoon() === true);
+  ok('学会后可释放旋风斩', dl.halfMoon() === true);
 
   /* 被动：剑术精通（10 级自动学，攻速 ×2） */
   dl.P.lv = 9;
@@ -428,12 +432,12 @@ try {
   dl.P.cd.half = 0;
   dl.P.mp = 100;
   dl.halfMoon();
-  ok('默认半月 CD 2 回合', dl.P.cd.half === 2, dl.P.cd.half);
+  ok('默认旋风斩 CD 5 回合', dl.P.cd.half === 5, dl.P.cd.half);
   dl.P.cd.half = 0;
   dl.P.mp = 100;
   dl.P.skills.swordMaster = true;
   dl.halfMoon();
-  ok('剑术精通层半月 CD 4 回合（实际仍 2 秒）', dl.P.cd.half === 4, dl.P.cd.half);
+  ok('剑术精通层旋风斩 CD 10 回合（实际仍 5 秒）', dl.P.cd.half === 10, dl.P.cd.half);
 
   /* 20. 怪物：1 级鸡 / 2 级鸡(精英) / 3 级鸡(稀有) */
   const DATA = sandbox.window.DL.DATA;
@@ -452,7 +456,8 @@ try {
     // 同级对照：首领血约普通的 ×10（野猪 Lv7 vs 稻草人王 Lv10 不比）；用公式倍率验收
     ok('首领血量倍率 ×10', DATA.GRADE.boss.hp === 10, DATA.GRADE.boss.hp);
     ok('首领攻击倍率 ×1.35', DATA.GRADE.boss.atk === 1.35, DATA.GRADE.boss.atk);
-    ok('Lv10 首领血量约 800+', b.maxHp >= 750 && b.maxHp <= 900, b.maxHp);
+    // v18 割草化：怪血曲线改 1.07，Lv10 首领 354 血（旧 1.16 曲线是 794）
+    ok('Lv10 首领血量约 350+', b.maxHp >= 330 && b.maxHp <= 380, b.maxHp);
     void n;
   }
 
@@ -1014,8 +1019,9 @@ try {
     dl.attack(1, '普攻');
     return dl.state().exp;
   };
-  ok('1 级打鸡 10 经验', killChickenAt(1) === 10, killChickenAt(1));
-  ok('4 级打鸡还是 10 经验', killChickenAt(4) === 10, killChickenAt(4));
+  // v18 割草化：怪经验基准也收了一半（MON_CURVE.expBase 10→5），断言跟表走，不再写死 10
+  ok('1 级打鸡 ' + DATA.MON_CURVE.expBase + ' 经验', killChickenAt(1) === DATA.MON_CURVE.expBase, killChickenAt(1));
+  ok('4 级打鸡还是 ' + DATA.MON_CURVE.expBase + ' 经验', killChickenAt(4) === DATA.MON_CURVE.expBase, killChickenAt(4));
   ok('5 级打鸡 0 经验（刷鸡到头）', killChickenAt(5) === 0, killChickenAt(5));
   ok('8 级打鸡 0 经验', killChickenAt(8) === 0, killChickenAt(8));
 
@@ -1357,8 +1363,17 @@ try {
     ok('未开战可走开', walked === true && dl.P.y !== py);
     dl.setPos(chick.x - 1, chick.y);
     dl.engage(chick);
-    ok('交战后锁战', chick.playerEngaged === true && dl.inCombat() === true);
-    ok('交战后不能朝空地走', dl.move(0, -1) === false);
+    // v18.2：锁战整条去掉——普通怪、精英都不再钉住走位
+    ok('普通怪开战不锁走位（可边走边打）', chick.playerEngaged === true && dl.inCombat() === false);
+    const elite = dl.makeEnemy(DATA.MON.find((m) => m.id === 'chicken'), 'elite');
+    elite.x = dl.P.x + 1; elite.y = dl.P.y; elite.hp = 50;
+    es.push(elite);
+    dl.engage(elite);
+    ok('精英开战也不锁走位（v18.2 去掉锁战）', dl.inCombat() === false);
+    dl.setPos(chick.x - 1, chick.y);
+    elite.x = dl.P.x + 1; elite.y = dl.P.y;
+    ok('开战后能朝空地走', dl.move(0, -1) === true);
+    es.length = 0; es.push(chick);
     dl.setPos(chick.x - 1, chick.y);
     chick.playerEngaged = true;
     dl.tick();
@@ -1395,7 +1410,7 @@ try {
     rare.hp = 999;
     es.push(rare);
     dl.halfMoon();
-    ok('半月不命中稀有', rare.hp === 999 && rare.playerEngaged === false, [rare.hp, rare.playerEngaged]);
+    ok('旋风斩不命中稀有', rare.hp === 999 && rare.playerEngaged === false, [rare.hp, rare.playerEngaged]);
   }
   // pause 后 resume 必须重启世界时钟（否则房内补刷停死）
   {

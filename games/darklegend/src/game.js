@@ -33,7 +33,7 @@ const D = DL.DATA;
   const el = {};
   [
     'lv', 'hpFill', 'hpText', 'mpFill', 'mpText', 'expFill', 'expText', 'gold', 'gear', 'tips', 'log',
-    'btnAtk', 'btnHalf', 'btnFire', 'btnPotion', 'btnMpPotion', 'btnFarm', 'btnInteract', 'btnRetreat', 'btnMenu', 'btnMute',
+    'btnAtk', 'btnHalf', 'btnFire', 'btnPotion', 'btnMpPotion', 'btnFarm', 'btnMenu', 'btnMute',
     'halfCd', 'fireCd', 'potionCount', 'potionCd', 'mpPotionCount', 'mpPotionCd',
     'logWrap', 'logToggle', 'dpad', 'stickBase', 'stickKnob',
     'over', 'overK', 'overT', 'overS', 'overBtn', 'overAlt',
@@ -41,7 +41,7 @@ const D = DL.DATA;
     'stash', 'stashCount', 'stashGrid', 'stashBag', 'stashClose',
     'bookShop', 'bookShopGold', 'bookShopList', 'bookShopClose',
     'trial', 'trialRound', 'trialDesc', 'trialProg', 'trialReward', 'trialTurnIn', 'trialAbandon', 'trialClose', 'trialExpOrbs', 'trialUseOrb', 'trialMats', 'trialSellMats', 'trialModePick', 'trialSwitch',
-    'menu', 'menuClose', 'menuRetreat', 'menuRestart', 'menuMute',
+    'menu', 'menuClose', 'menuRestart', 'menuMute',
     'btnChar', 'char', 'charLv', 'charExpFill', 'charExpText', 'charPower', 'charGold',
     'charTabs', 'paneGear', 'paneBag', 'paneSkills', 'skillList',
     'charStats', 'charSlots', 'bagCount', 'bagList', 'charClose', 'autoPot', 'autoMp', 'autoTown', 'potStock',
@@ -195,7 +195,7 @@ const D = DL.DATA;
     bag: [],
     stash: [],                              // 仓库：只存装备，上限 STASH_MAX
     cd: { half: 0, fire: 0 },
-    skills: { half: false, fire: false, swordMaster: false },   // 技能书解锁：半月 / 烈火；被动：剑术精通
+    skills: { half: false, fire: false, swordMaster: false },   // 技能书解锁：旋风斩 / 烈火；被动：剑术精通
     autoPot: 50, autoMp: 0, autoTown: 0,
     townScrolls: 0,
     potionCd: { red: 0, blue: 0 },
@@ -409,8 +409,6 @@ const D = DL.DATA;
   let lastZoneLv = 1;
   let zoneMsgTurn = -99;
   let leveledUp = false;
-  let combatLock = false;
-  let combatMsgTurn = -99;
   let halfFlash = 0;
   let halfFlashCells = [];
   let worldSeed = 0;
@@ -892,7 +890,9 @@ const D = DL.DATA;
     const g = GRADE[gradeKey] || GRADE.normal;
     const lv = mon.lv + (g.lvAdd || 0);
     const isBoss = gradeKey === 'boss';
-    const hp = 18 * Math.pow(1.16, lv) * g.hp;
+    // 曲线在 data.js MON_CURVE（v18 割草化：hp 1.16→1.07，30 级普通怪 33 刀→约 3 刀）
+    const MC = D.MON_CURVE;
+    const hp = MC.hpBase * Math.pow(MC.hpRate, lv) * g.hp;
     return {
       id: mon.id,
       name: mon.name + (g.name ? `·${g.name}` : ''),
@@ -913,9 +913,9 @@ const D = DL.DATA;
       hp: Math.round(hp),
       maxHp: Math.round(hp),
       statuses: {},
-      atk: (10 + 4 * lv) * g.atk,
-      def: 2 * Math.pow(1.075, lv) * (isBoss ? 1.5 : gradeKey === 'rare' ? 1.4 : gradeKey === 'elite' ? 1.2 : 1),
-      exp: Math.round(10 * Math.pow(1.12, lv - 1) * g.exp),
+      atk: (MC.atkBase + MC.atkPerLv * lv) * g.atk,
+      def: MC.defBase * Math.pow(MC.defRate, lv) * (isBoss ? 1.5 : gradeKey === 'rare' ? 1.4 : gradeKey === 'elite' ? 1.2 : 1),
+      exp: Math.round(MC.expBase * Math.pow(MC.expRate, lv - 1) * g.exp),
       gold: isBoss ? randi(200, 300) : (() => {
         // 怪物表给了自己的金币区间（鸡 1–5）就用自己的，否则按等级
         const base = mon.gold ? randi(mon.gold[0], mon.gold[1]) : randi(8 + 2 * lv, 12 + 3 * lv);
@@ -1614,8 +1614,8 @@ const D = DL.DATA;
     if (!el.skillList) return;
     const rows = [
       { name: '攻杀剑术', kind: '主动', desc: '普攻，无消耗、无 CD', learned: true },
-      { name: '半月弯刀', kind: '主动', desc: '周围 5 格，MP 12，CD 3 回合', learned: !!P.skills.half },
-      { name: '烈火剑法', kind: '主动', desc: '单体 ×2.2 + 灼烧 3 回合，MP 18，CD 4 回合', learned: !!P.skills.fire },
+      { name: '旋风斩', kind: '主动', desc: '身周 360°（8 格），×1.2（只打普通/精英），MP 6，CD 5 秒', learned: !!P.skills.half },
+      { name: '烈火剑法', kind: '主动', desc: '单体 ×2.2 + 灼烧 3 回合，MP 12，CD 3 秒', learned: !!P.skills.fire },
       ...(D.PASSIVES || []).map((p) => ({
         name: p.name,
         kind: '被动',
@@ -1662,17 +1662,17 @@ const D = DL.DATA;
     const zone = spec ? spec.name : zoneName(P.x);
     const range = spec ? `Lv.${spec.lvMin}-${spec.lvMax}` : zoneRange(P.x);
     const farmTag = autoFarm ? '【挂机】' : '';
-    const tag = inCombat() ? '⚔ ' : farmTag;
+    const tag = farmTag;
     const nearBag = bagNearby() ? '　💰 脚边有袋子' : '';
     const talkHint = nearShop() ? '　💬 空格与商人交谈' : '';
 
     // 核心循环优先提示：稀有/首领在场 > 首领 CD > 经验墙 > 计数进度 > 最近怪
     const prog = currentRoom ? spawnProgressText() : '';
-    if (nearShop() && !currentRoom && !inCombat()) {
+    if (nearShop() && !currentRoom) {
       el.tips.textContent = `${tag}村口商人　按空格或点「交谈」开商店${nearBag}`;
       return;
     }
-    if (nearStash() && !currentRoom && !inCombat()) {
+    if (nearStash() && !currentRoom) {
       el.tips.textContent = `${tag}仓库　按空格或点「交谈」存取装备${nearBag}`;
       return;
     }
@@ -1775,7 +1775,7 @@ const D = DL.DATA;
     setSkillBtn(el.btnHalf, el.halfCd, 6, P.cd.half, P.skills.half);
     setSkillBtn(el.btnFire, el.fireCd, 12, P.cd.fire, P.skills.fire);
     syncFarmBtn();
-    syncInteractBtn();
+    syncAtkBtn();
     renderStatus();
     updateTips();
   }
@@ -1800,12 +1800,17 @@ const D = DL.DATA;
     return null;
   }
 
-  function syncInteractBtn() {
-    if (!el.btnInteract) return;
+  // v18.4：交谈并进攻击键。靠近 NPC 时按钮变「💬 交谈」，按 J / 点按钮 = 交谈；否则普攻。
+  let atkTalk = null;
+  function syncAtkBtn() {
+    if (!el.btnAtk) return;
     const t = interactTarget();
-    el.btnInteract.disabled = !t;
-    el.btnInteract.title = t ? `与${t.name}交谈（空格）` : '靠近 NPC 后可交谈';
-    el.btnInteract.classList.toggle('on', !!t);
+    const talk = !!t;
+    el.btnAtk.title = talk ? `与${t.name}交谈（J / 空格）` : '攻击（J）';
+    if (talk === atkTalk) return;
+    atkTalk = talk;
+    el.btnAtk.innerHTML = talk ? '💬 交谈<kbd>J</kbd>' : '⚔ 攻击<kbd>J</kbd>';
+    el.btnAtk.classList.toggle('on', talk);
   }
 
   function tryInteract() {
@@ -2271,12 +2276,12 @@ const D = DL.DATA;
     return {
       kind: 'skillbook',
       skill: half ? 'half' : 'fire',
-      name: half ? '《半月弯刀》' : '《烈火剑法》',
+      name: half ? '《旋风斩》' : '《烈火剑法》',
       rarity: 'orange', // 技能书按 S 档：挂机 ≤A 不捡，须手捡学习
     };
   }
 
-  // 仅 20 级 BOSS → 半月、30 级 BOSS → 烈火；10% 概率；已学会则不再掉
+  // 仅 20 级 BOSS → 旋风斩、30 级 BOSS → 烈火；10% 概率；已学会则不再掉
   function rollSkillBookDrop(e) {
     if (!e || !e.boss) return null;
     const map = (D.SKILL_BOOK && D.SKILL_BOOK.byBossLv) || {};
@@ -2293,10 +2298,10 @@ const D = DL.DATA;
     if (!isSkillBook(it)) return false;
     if (it.skill === 'half') {
       if (P.skills.half) {
-        log('已经学会半月弯刀了，书页化作飞灰。');
+        log('已经学会旋风斩了，书页化作飞灰。');
       } else {
         P.skills.half = true;
-        log('学会了《半月弯刀》！按 1 释放。', 'good');
+        log('学会了《旋风斩》！按 1 释放。', 'good');
       }
     } else {
       if (P.skills.fire) {
@@ -2331,7 +2336,7 @@ const D = DL.DATA;
     el.eqTipStats.innerHTML = known
       ? '已经学会，捡起会消耗掉。'
       : (book.skill === 'half'
-        ? '技能书。捡起后学会半月弯刀（按 1）。'
+        ? '技能书。捡起后学会旋风斩（按 1）。'
         : '技能书。捡起后学会烈火剑法（按 2）。');
     const acts = (src && src.kind === 'pick')
       ? `<button type="button" data-tip-pick="${src.i}">${known ? '捡起' : '学习'}</button>`
@@ -2820,26 +2825,18 @@ const D = DL.DATA;
   // 主城 + 房间制：不再按 x 分区域；保留空函数避免改动调用点
   function checkZone() { }
 
-  // 战斗锁定：仅「玩家主动打过」且仍贴身的怪；靠近≠开战，可走开
+  // v18.2：锁战机制整条去掉——任何时候都能走位，打不过直接走就行。
+  // 保留 inCombat() 这个接口给 HUD/交互调用（恒 false，等于"永远不在战斗中"），
+  // combatTargets 只留空数组，别再往里加条件；要恢复锁战就改这三行。
   function combatTargets() {
-    return enemies.filter((e) => e.hp > 0 && e.playerEngaged && dist(e, P) === 1);
+    return [];
   }
 
   function inCombat() {
-    return combatTargets().length > 0;
+    return false;
   }
 
-  function checkCombat() {
-    const now = inCombat();
-    if (now && !combatLock) {
-      combatLock = true;
-      const t = combatTargets()[0];
-      log(`战斗锁定：${t.name} Lv.${t.lv}。打倒它，或按 R 撤退。`, 'bad');
-    } else if (!now && combatLock) {
-      combatLock = false;
-      log('战斗结束，可以继续走了。', 'good');
-    }
-  }
+  function checkCombat() { }
 
   // 贴身自动出手（挂机打合格怪；手控打任意贴身）
   function autoStrikeAdjacent(target, fromFarm) {
@@ -2880,7 +2877,7 @@ const D = DL.DATA;
     const n = path[0];
     const dx = n.x - P.x, dy = n.y - P.y;
     if (move(dx, dy, true)) return true;
-    // move 被战斗锁定挡住：硬挪一步（不撞稀有/BOSS 格）
+    // move 没走成（撞墙/撞怪）：硬挪一步（不撞稀有/BOSS 格）
     if (!DL.World.canStep(map, P.x, P.y, dx, dy)) { after({ pace: 'move' }); return true; }
     const nx = P.x + dx, ny = P.y + dy;
     const block = enemyAt(nx, ny);
@@ -3032,27 +3029,27 @@ const D = DL.DATA;
     strike(t, mult, tag); return true;
   }
 
-  // 半月：朝向前方的九宫格半边 5 格（规则见 combat.js）
+  // 旋风斩：身周 8 邻（规则见 combat.js）；被围时一次扫一圈
   function halfMoonCells() {
     return DL.Combat.halfMoonCells(P.x, P.y, P.dir);
   }
 
   function halfMoonTargets() {
-    // 半月只打普通/精英：避免误伤稀有/首领，把它们非主动拉进战斗
+    // 旋风斩只打普通/精英：避免误伤稀有/首领，把它们非主动拉进战斗
     return DL.Combat.targetsAt(enemies, halfMoonCells()).filter((e) => !e.boss && !e.rare);
   }
 
   function halfMoon() {
-    if (!P.skills.half) { log('还没学会半月弯刀——击败 20 级首领山大王可获得。', 'bad'); return false; }
-    if (P.cd.half > 0) { log(`半月还在冷却（${P.cd.half} 回合）。`); return false; }
+    if (!P.skills.half) { log('还没学会旋风斩——击败 20 级首领山大王可获得。', 'bad'); return false; }
+    if (P.cd.half > 0) { log(`旋风斩还在冷却（${P.cd.half} 回合）。`); return false; }
     if (P.mp < 6) { log('MP 不足（需要 6）。', 'bad'); return false; }
     P.mp -= 6;
-    P.cd.half = Math.ceil((D.SKILL_CD_MS && D.SKILL_CD_MS.half ? D.SKILL_CD_MS.half : 2000) / playerCombatMs());
+    P.cd.half = Math.ceil((D.SKILL_CD_MS && D.SKILL_CD_MS.half ? D.SKILL_CD_MS.half : 5000) / playerCombatMs());
     halfFlash = 1;
     halfFlashCells = halfMoonCells();
     const targets = halfMoonTargets();
-    for (const e of targets) strike(e, 1.1, '半月');
-    if (!targets.length) log('半月劈在空气里。');
+    for (const e of targets) strike(e, 1.2, '旋风斩');
+    if (!targets.length) log('旋风斩扫了个空。');
     return true;
   }
 
@@ -3106,6 +3103,13 @@ const D = DL.DATA;
     addFloater(P.x, P.y - 0.7, st.stun ? '💫' : '⚡', '#ffd54a');
     after();
     return false;
+  }
+
+  // v18.4：J / 攻击键兼交谈——靠近 NPC 时等于交谈（按钮也会变「💬 交谈」），否则普攻
+  function onAttackOrTalk() {
+    if (over || uiOpen()) return;
+    if (interactTarget()) { tryInteract(); return; }
+    act('attack');
   }
 
   function act(kind) {
@@ -3212,17 +3216,6 @@ const D = DL.DATA;
       faceWalkDir(dx, dy);
       return true;
     }
-    if (inCombat()) {
-      const target = enemyAt(P.x + dx, P.y + dy);
-      if (!target) {
-        if (!fromWalk && turn - combatMsgTurn >= 2) {
-          combatMsgTurn = turn;
-          log('被缠住了，先解决眼前的敌人（R 撤退）。', 'bad');
-        }
-        return false;
-      }
-      // 朝怪移动 = 撞怪攻击，继续往下走
-    }
     faceWalkDir(dx, dy);
     if (!DL.World.canStep(map, P.x, P.y, dx, dy)) {
       if (!fromWalk) log('那边过不去。');
@@ -3285,21 +3278,14 @@ const D = DL.DATA;
     return true;
   }
 
+  // v18.2：锁战去掉后，R 从「且战且退（挨一口换一步）」改成「单纯后撤一步」——
+  // 本来就不锁走位、走路回合怪也不出手，所以撤退不再扣血，就是往离最近怪最远的方向挪一格。
   function retreat() {
     if (over || uiOpen()) return;
     if (!blockAction()) return;
-    const foes = combatTargets();
-    if (!foes.length) { log('没有交战中的敌人，不用撤（靠近未打可直接走开）。'); return; }
-    const nearest = foes.slice().sort((a, b) => dist(a, P) - dist(b, P))[0];
-    const dr = defRange(P);
-    const dmg = DL.Combat.enemyDamage(nearest.atk, dr.min, dr.max, maxHp(), nearest.boss);
-    P.hp -= dmg;
-    addFloater(P.x, P.y - 0.4, `-${dmg}`, '#ff6b6b');
-    log(`${nearest.name}趁机咬了你一口，<span class="bad">-${dmg} HP</span>。`, 'bad');
-    if (tryAutoTown()) return;
-    if (P.hp <= 0) { die(); return; }
-    const dirs = DL.World.DIRS8;
-    const away = dirs.filter(([dx, dy]) => DL.World.canStep(map, P.x, P.y, dx, dy)
+    const nearest = living().sort((a, b) => dist(a, P) - dist(b, P))[0];
+    if (!nearest || dist(nearest, P) > 8) { log('附近没有敌人，不用撤。'); return; }
+    const away = DL.World.DIRS8.filter(([dx, dy]) => DL.World.canStep(map, P.x, P.y, dx, dy)
       && !enemyAt(P.x + dx, P.y + dy)).sort((a, b) => {
       const da = dist({ x: P.x + a[0], y: P.y + a[1] }, nearest);
       const db = dist({ x: P.x + b[0], y: P.y + b[1] }, nearest);
@@ -3314,11 +3300,8 @@ const D = DL.DATA;
     beginWalkStep(P.x, P.y, P.x + dx, P.y + dy);
     P.x += dx;
     P.y += dy;
-    // 撤退成功：解除交战锁定（怪可能还在追，但不再钉死走位）
-    for (const e of foes) e.playerEngaged = false;
-    combatLock = false;
-    log('你且战且退。', 'good');
-    after();
+    log('你后撤了一步。', 'good');
+    after({ pace: 'move' });
   }
 
   /* ---------------- 寻路 ---------------- */
@@ -3462,10 +3445,6 @@ const D = DL.DATA;
     }
     const enemy = enemyAt(wx, wy);
     if (enemy) {
-      if (inCombat() && dist(enemy, P) !== 1) {
-        log('战斗中不能走远，先解决敌人（R 撤退）。', 'bad');
-        return;
-      }
       if (dist(enemy, P) === 1) { faceTo(wx, wy); act('attack'); return; }
       const goal = bestAdjacent(wx, wy);
       if (!goal) { log('没有落脚点。'); return; }
@@ -3473,10 +3452,6 @@ const D = DL.DATA;
       if (!path) { log('过不去。'); return; }
       pendingTarget = enemy;
       walk(path);
-      return;
-    }
-    if (inCombat()) {
-      log('战斗中不能走远，先解决敌人（R 撤退）。', 'bad');
       return;
     }
     if (npc && wx === npc.x && wy === npc.y) {
@@ -3722,14 +3697,13 @@ const D = DL.DATA;
       pressMoveKey(k);
       return;
     }
-    if (k === 'j') { e.preventDefault(); act('attack'); }
+    if (k === 'j') { e.preventDefault(); onAttackOrTalk(); }
     else if (k === '1') { e.preventDefault(); act('half'); }
     else if (k === '2') { e.preventDefault(); act('fire'); }
     else if (k === 'q') { e.preventDefault(); act('red'); }
     else if (k === 'f') { e.preventDefault(); act('blue'); }
     else if (k === 'e') { e.preventDefault(); toggleFarm(); }
     else if (k === ' ' || k === 'spacebar') { e.preventDefault(); tryInteract(); }
-    else if (k === 'r') { e.preventDefault(); retreat(); }
     else if (k === 'c') { e.preventDefault(); toggleChar(); }
     else if (k === 'escape') closeAll();
   }
@@ -4006,14 +3980,12 @@ const D = DL.DATA;
     }
     bindDpad();
     if (el.logToggle) el.logToggle.addEventListener('click', toggleLogFold);
-    el.btnAtk.addEventListener('click', () => act('attack'));
+    el.btnAtk.addEventListener('click', onAttackOrTalk);
     el.btnHalf.addEventListener('click', () => act('half'));
     el.btnFire.addEventListener('click', () => act('fire'));
     el.btnPotion.addEventListener('click', () => act('red'));
     if (el.btnMpPotion) el.btnMpPotion.addEventListener('click', () => act('blue'));
-    if (el.btnRetreat) el.btnRetreat.addEventListener('click', retreat);
     if (el.btnFarm) el.btnFarm.addEventListener('click', toggleFarm);
-    if (el.btnInteract) el.btnInteract.addEventListener('click', tryInteract);
     function syncMuteUi() {
       const off = Sfx.isMuted();
       if (el.btnMute) {
@@ -4077,7 +4049,6 @@ const D = DL.DATA;
       el.menu.hidden = false;
     });
     el.menuClose.addEventListener('click', () => { el.menu.hidden = true; });
-    el.menuRetreat.addEventListener('click', () => { el.menu.hidden = true; retreat(); });
     el.gear.addEventListener('click', openChar);
     el.btnChar.addEventListener('click', openChar);
     el.charTabs.addEventListener('click', (e) => {

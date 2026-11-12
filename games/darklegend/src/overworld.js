@@ -1,8 +1,8 @@
 /* 豆豆海岛幻想 · 主城（岛屿版，2026-10-29 按主人手绘分布图重做；2026-10-29 晚陆地收到 96×96）
    整图 128×128：外面一圈海 → 陆地约 96×96（草地，北面是森林）→ 中间方城主城 31×31（一格一块铺装地面，沙色砖，安全区）。
    城内：左边三个铺子（武器 / 药水 / 技能），右边按等级段排的传送门。
-   立牌全去掉（房子、摊位、树、石头），只留 NPC —— NPC 和玩家一样高（2.15）。
-   所有坐标都按 CITY / CX,CY 的比例算，别再写死绝对格数：改 N 或陆地半径时只有几何比例要跟着调。 */
+   2026-11-11：主城环境成片——铺子房子 + 少量摊位/水井/路灯回来（纯装饰，不碰撞）；
+   南岸仍留渔屋 + 椰子。坐标按 CITY / CX,CY 比例算。 */
 import { DL } from './namespace.js';
 const global = globalThis;
   const N = 128;                             // 整图边长
@@ -44,8 +44,9 @@ const global = globalThis;
         let m = 0, t = 0;
         if (d > R) { m = 1; t = 3; }                // 海：不可走
         else if (d > R - beachW) { m = 0; t = 4; }  // 沙滩：贴着海的一圈
-        else if (inCity) { m = 0; t = 1; }          // 城内：铺装地面（砖色走沙色，见 iso-art）
-        else { m = 0; t = 0; }                      // 城外：草地（北面留给森林）
+        else if (onWall) { m = 1; t = 1; }          // 城墙：挡路 + 体积墙
+        else if (inCity) { m = 0; t = 1; }          // 城内：铺装地面
+        else { m = 0; t = 0; }                      // 城外：草地
         mr.push(m); tr.push(t);
       }
       map.push(mr);
@@ -79,17 +80,82 @@ const global = globalThis;
        城界是方城边界，想改成参差边再动 build 开头 inCity 那行。
        terrain 只是画面（地形编码），不动 map（碰撞）；门格本来就是 1。 */
 
-    // 立牌仍然全去掉（房子 / 摊位 / 树 / 石头），只留一件地标：南岸沙滩上的渔屋。
-    // 纯装饰、不参与碰撞（game.js buildProps 那条注释说的 A 阶段规则没变）。
-    const props = [];
-    const hut = findBeachHut(map, terrain);
-    if (hut) props.push({ sheet: 'beachHut', index: 0, x: hut.x, y: hut.y });
-    // 椰子树：海岛只认这一种树，围着渔屋撒几棵（不是森林，别铺满）
-    for (const p of placeBeachPalms(map, terrain, hut)) props.push(p);
     // 出生点：城内南门内侧
     const spawn = { x: CX, y: CITY.y1 - 3 };
-    // 城外野怪：只放 1~5 级（鸡 / 稻草人 / 野狗），站在城墙外的草地上。
-    // 原来 mobs 是空的，城外一片空，密度确实太低。
+    // 左边三个铺子 + 右边仓库（交互格）；房子立在 NPC 北一格（相机从南看，屋在人后面）
+    const npc = { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.24) };
+    const bookNpc = { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.49) };
+    const trialNpc = { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.73) };
+    const stashNpc = { x: CITY.x1 - fy(0.12), y: CITY.y0 + fy(0.83) };
+
+    // 环境成片（2026-11-11）：房子 + 少量城装 + 南岸渔屋/椰子。纯装饰，不参与碰撞。
+    const props = [];
+    const pushHouse = function (kind, n) {
+      const hy = Math.max(CITY.y0 + 1, n.y - 1);
+      props.push({ sheet: 'house', kind: kind, x: n.x, y: hy });
+    };
+    pushHouse('shop', npc);
+    pushHouse('book', bookNpc);
+    pushHouse('chief', trialNpc);
+    pushHouse('stash', stashNpc);
+    // 摊位 / 水井 / 篝火 / 路灯——只摆几件，别把广场塞满
+    props.push({ sheet: 'town', index: 0, x: npc.x + 2, y: npc.y + 1 });
+    props.push({ sheet: 'town', index: 1, x: bookNpc.x + 2, y: bookNpc.y });
+    props.push({ sheet: 'town', index: 3, x: CX - 2, y: CY + 2 });
+    props.push({ sheet: 'town', index: 2, x: CX + 2, y: CY + 3 });
+    props.push({ sheet: 'town', index: 8, x: CX - 3, y: CITY.y1 - 2 });
+    props.push({ sheet: 'town', index: 8, x: CX + 2, y: CITY.y1 - 2 });
+    props.push({ sheet: 'town', index: 8, x: doors[0].x - 2, y: doors[0].y });
+    props.push({ sheet: 'town', index: 5, x: CITY.x0 + fy(0.28), y: CY });
+    props.push({ sheet: 'town', index: 5, x: CITY.x0 + fy(0.28), y: CY + 2 });
+    // 城缘生活感：花簇 / 陶罐 / 矮灯（克制几件，别塞满）
+    props.push({ sheet: 'town', index: 11, x: CX - 4, y: CITY.y1 - 3 });
+    props.push({ sheet: 'town', index: 11, x: CX + 3, y: CITY.y1 - 3 });
+    props.push({ sheet: 'town', index: 12, x: doors[0].x + 2, y: doors[0].y - 1 });
+    props.push({ sheet: 'town', index: 16, x: CX - 5, y: CITY.y1 - 2 });
+    props.push({ sheet: 'town', index: 16, x: CX + 4, y: CITY.y1 - 2 });
+    props.push({ sheet: 'town', index: 11, x: CITY.x0 + fy(0.35), y: CY - 2 });
+    props.push({ sheet: 'town', index: 12, x: CITY.x1 - fy(0.35), y: CY + 1 });
+
+    // 城墙体积：按边推连续段；角用 corner；门洞立拱门
+    const gateSet = {};
+    gates.forEach(function (g) { gateSet[g[0] + ',' + g[1]] = true; });
+    function pushWallEdge(x0, y0, x1, y1, dir) {
+      let run = null;
+      const flush = function () {
+        if (!run) return;
+        props.push({ sheet: 'cityWall', x: run.x, y: run.y, len: run.len, dir: dir });
+        run = null;
+      };
+      const dx = x1 === x0 ? 0 : (x1 > x0 ? 1 : -1);
+      const dy = y1 === y0 ? 0 : (y1 > y0 ? 1 : -1);
+      const n = Math.abs(x1 - x0) + Math.abs(y1 - y0);
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + dx * i, y = y0 + dy * i;
+        if (gateSet[x + ',' + y]) { flush(); continue; }
+        if (map[y][x] !== 1) { flush(); continue; }
+        if (!run) run = { x: x, y: y, len: 1 };
+        else run.len++;
+      }
+      flush();
+    }
+    // 四边不含角；角单独立塔，避免叠两层
+    pushWallEdge(CITY.x0 + 1, CITY.y0, CITY.x1 - 1, CITY.y0, 'n');
+    pushWallEdge(CITY.x0 + 1, CITY.y1, CITY.x1 - 1, CITY.y1, 's');
+    pushWallEdge(CITY.x0, CITY.y0 + 1, CITY.x0, CITY.y1 - 1, 'w');
+    pushWallEdge(CITY.x1, CITY.y0 + 1, CITY.x1, CITY.y1 - 1, 'e');
+    props.push({ sheet: 'cityWall', x: CITY.x0, y: CITY.y0, len: 1, dir: 'corner' });
+    props.push({ sheet: 'cityWall', x: CITY.x1, y: CITY.y0, len: 1, dir: 'corner' });
+    props.push({ sheet: 'cityWall', x: CITY.x0, y: CITY.y1, len: 1, dir: 'corner' });
+    props.push({ sheet: 'cityWall', x: CITY.x1, y: CITY.y1, len: 1, dir: 'corner' });
+    props.push({ sheet: 'gate', x: CX - 0.5, y: CITY.y1, dir: 's' });
+    props.push({ sheet: 'gate', x: CX - 0.5, y: CITY.y0, dir: 'n' });
+
+    const hut = findBeachHut(map, terrain);
+    if (hut) props.push({ sheet: 'beachHut', index: 0, x: hut.x, y: hut.y });
+    for (const p of placeBeachPalms(map, terrain, hut)) props.push(p);
+    for (const p of placeBeachDecor(map, terrain, hut)) props.push(p);
+
     const mobs = placeFieldMobs(map, terrain, spawn);
 
     return {
@@ -98,11 +164,10 @@ const global = globalThis;
       props: props,
       mobs: mobs,
       spawn: spawn,
-      // 左边三个铺子（图上 武器 / 药水 / 技能）
-      npc: { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.24) },        // 杂货铺：白装 + 药水
-      bookNpc: { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.49) },    // 技能书商人
-      trialNpc: { x: CITY.x0 + fy(0.12), y: CITY.y0 + fy(0.73) },   // 村长（任务 / 材料）
-      stashNpc: { x: CITY.x1 - fy(0.12), y: CITY.y0 + fy(0.83) },   // 仓库
+      npc: npc,
+      bookNpc: bookNpc,
+      trialNpc: trialNpc,
+      stashNpc: stashNpc,
       doors: doors,
       cave: doors[0],
       city: CITY,
@@ -263,6 +328,49 @@ const global = globalThis;
         if (d < PALM_GAP) { ok = false; break; }
       }
       if (ok) out.push({ sheet: 'palm', index: out.length % 3, x: c.x, y: c.y });
+    }
+    return out;
+  }
+
+  // 渔屋周边生活装饰：花 / 罐 / 贝壳 / 矮灯，8~12 件，不堵门
+  const DECOR_KINDS = [11, 12, 15, 16, 11, 12, 15, 11, 16, 12, 15, 11];
+  const DECOR_N = 10;
+  const DECOR_GAP = 2;
+  const DECOR_R = 10;
+  function placeBeachDecor(map, terrain, hut) {
+    if (!hut) return [];
+    const cells = [];
+    for (let y = hut.y - DECOR_R; y <= hut.y + DECOR_R; y++) {
+      for (let x = hut.x - DECOR_R; x <= hut.x + DECOR_R; x++) {
+        if (x < 1 || y < 1 || x >= N - 1 || y >= N - 1) continue;
+        if (map[y][x] !== 0) continue;
+        if (terrain[y][x] !== 4 && terrain[y][x] !== 0) continue;
+        const d = Math.max(Math.abs(x - hut.x), Math.abs(y - hut.y));
+        if (d < 2 || d > DECOR_R) continue;
+        // 门前正南两格留空
+        if (x === hut.x && y > hut.y && y <= hut.y + 2) continue;
+        cells.push({ x: x, y: y, d: d });
+      }
+    }
+    cells.sort(function (a, b) {
+      if (a.d !== b.d) return a.d - b.d;
+      return hash(a.x * 17 + 3, a.y * 11 + 9) - hash(b.x * 17 + 3, b.y * 11 + 9);
+    });
+    const out = [];
+    for (let i = 0; i < cells.length && out.length < DECOR_N; i++) {
+      const c = cells[i];
+      let ok = true;
+      for (let j = 0; j < out.length; j++) {
+        if (Math.max(Math.abs(out[j].x - c.x), Math.abs(out[j].y - c.y)) < DECOR_GAP) {
+          ok = false; break;
+        }
+      }
+      if (!ok) continue;
+      out.push({
+        sheet: 'town',
+        index: DECOR_KINDS[out.length % DECOR_KINDS.length],
+        x: c.x, y: c.y,
+      });
     }
     return out;
   }

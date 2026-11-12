@@ -228,93 +228,187 @@ const global = globalThis;
     return c;
   }
 
+  /* 攻击可读：短木棍玩具剑（圆润小，不是细银线） */
   function sword(g, x, y, face, pose) {
     g.save();
-    g.translate(x + (face === 'left' ? -16 : 14), y - 34);
-    let ang = face === 'left' ? Math.PI : -0.15;
-    if (pose === 'high') ang = face === 'left' ? Math.PI + 0.9 : -0.95;
-    if (pose === 'out') ang = face === 'left' ? Math.PI - 0.25 : -0.2;
+    const handX = face === 'left' ? -18 : face === 'right' ? 18 : 16;
+    g.translate(x + handX, y - 38);
+    let ang = face === 'left' ? Math.PI + 0.35 : -0.55;
+    if (pose === 'high') ang = face === 'left' ? Math.PI + 1.15 : -1.2;
+    if (pose === 'out') ang = face === 'left' ? Math.PI + 0.1 : -0.25;
     g.rotate(ang);
-    const grd = g.createLinearGradient(0, -3, 0, 3);
-    grd.addColorStop(0, '#f7f9fc');
-    grd.addColorStop(0.45, '#d5dde6');
-    grd.addColorStop(1, '#8b97a6');
-    g.fillStyle = grd;
+    g.fillStyle = '#e8c878';
     g.beginPath();
-    g.moveTo(2, -1.2);
-    g.lineTo(46, -0.4);
-    g.lineTo(46, 1.1);
-    g.lineTo(2, 2.2);
+    g.moveTo(2, -3.5);
+    g.lineTo(26, -3.5);
+    g.quadraticCurveTo(30, -3.5, 30, 0);
+    g.quadraticCurveTo(30, 3.5, 26, 3.5);
+    g.lineTo(2, 3.5);
+    g.quadraticCurveTo(-1, 3.5, -1, 0);
+    g.quadraticCurveTo(-1, -3.5, 2, -3.5);
     g.closePath();
     g.fill();
-    g.fillStyle = '#d7b25a';
-    g.fillRect(-2, -5, 8, 10);
+    g.fillStyle = '#c89850';
+    g.fillRect(-4, -5, 8, 10);
+    g.fillStyle = '#f0d090';
+    g.beginPath();
+    g.arc(28, 0, 4, 0, Math.PI * 2);
+    g.fill();
     g.restore();
   }
 
+  /* 豆豆：2 头身小女孩（角色设定唯一判据），不是红披风豆子 */
   function bean(g, x, y, o) {
     y += o.bob || 0;
     const face = o.face || 'front';
     const side = face === 'left' ? -1 : face === 'right' ? 1 : 0;
-    contact(g, x, y + 2, 24, 7);
-    const cape = o.cape || '#9a3030';
-    const tunic = o.tunic || '#7a4e30';
-    g.fillStyle = shade(cape, 0.15);
+    const tunic = o.tunic || '#2f6b4a';
+    const hair = o.hair || '#6b4228';
+    const skin = '#f3d2b0';
+    // 全高约 96px，头半径 ~24 → 头身 ≈ 2
+    const footY = y;
+    const headR = 24;
+    const headCy = footY - 72;
+    const bodyCy = footY - 30;
+    contact(g, x, footY + 2, 22, 6);
+
+    // 腿 + 鞋
+    g.fillStyle = shade(tunic, 0.15);
     g.beginPath();
-    g.ellipse(x - side * 4, y - 28, 26, 22, side * 0.2, 0, Math.PI * 2);
+    g.ellipse(x - 8 + side * 2, footY - 14, 7, 12, 0.1, 0, Math.PI * 2);
+    g.ellipse(x + 8 + side * 2, footY - 14, 7, 12, -0.1, 0, Math.PI * 2);
     g.fill();
-    const body = g.createLinearGradient(x - 22, y - 64, x + 24, y - 8);
-    body.addColorStop(0, mix(tunic, 0.22));
-    body.addColorStop(0.55, tunic);
-    body.addColorStop(1, shade(tunic, 0.28));
-    g.fillStyle = body;
+    g.fillStyle = '#f7f2ea';
     g.beginPath();
-    g.ellipse(x + side * 4, y - 36, 22, 26, 0, 0, Math.PI * 2);
+    g.ellipse(x - 8 + side * 2, footY - 3, 8, 4, 0, 0, Math.PI * 2);
+    g.ellipse(x + 8 + side * 2, footY - 3, 8, 4, 0, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = '#c6a15a';
-    g.fillRect(x - 16 + side * 4, y - 28, 32, 4);
-    sphere(g, x + side * 6, y - 78, 28, mix('#f3d7b0', 0.35), '#f0d2a8', shade('#e2b88a', 0.05));
-    if (face !== 'back') {
-      const ex = side * 6;
-      g.fillStyle = '#2a2118';
+
+    // 躯干（短袖）
+    const bodyGrd = g.createLinearGradient(x - 18, bodyCy - 22, x + 18, bodyCy + 18);
+    bodyGrd.addColorStop(0, mix(tunic, 0.18));
+    bodyGrd.addColorStop(0.55, tunic);
+    bodyGrd.addColorStop(1, shade(tunic, 0.22));
+    g.fillStyle = bodyGrd;
+    g.beginPath();
+    g.ellipse(x + side * 2, bodyCy, 18, 20, 0, 0, Math.PI * 2);
+    g.fill();
+
+    // 白袖口
+    g.fillStyle = '#fff8f0';
+    g.beginPath();
+    g.ellipse(x - 16 + side * 3, bodyCy - 4, 6, 5, 0, 0, Math.PI * 2);
+    g.ellipse(x + 16 + side * 3, bodyCy - 4, 6, 5, 0, 0, Math.PI * 2);
+    g.fill();
+
+    // 彼得潘白领
+    g.fillStyle = '#fffaf4';
+    g.beginPath();
+    g.moveTo(x + side * 2, bodyCy - 16);
+    g.quadraticCurveTo(x - 12 + side * 2, bodyCy - 6, x - 4 + side * 2, bodyCy - 2);
+    g.quadraticCurveTo(x + side * 2, bodyCy - 8, x + 4 + side * 2, bodyCy - 2);
+    g.quadraticCurveTo(x + 12 + side * 2, bodyCy - 6, x + side * 2, bodyCy - 16);
+    g.closePath();
+    g.fill();
+
+    if (o.prop === 'apron') {
+      g.fillStyle = '#f7f1e4';
       g.beginPath();
-      g.arc(x - 8 + ex, y - 80, 2.3, 0, Math.PI * 2);
-      g.arc(x + 7 + ex, y - 80, 2.3, 0, Math.PI * 2);
+      g.ellipse(x + side * 2, bodyCy + 4, 12, 14, 0, 0, Math.PI * 2);
       g.fill();
-      g.fillStyle = 'rgba(210, 96, 108, 0.55)';
+    }
+
+    // 后发（背面整团；正面/侧面垫在头下）
+    g.fillStyle = shade(hair, face === 'back' ? 0.05 : 0.12);
+    g.beginPath();
+    g.ellipse(x + side * 2, headCy + 4, headR + 6, headR + 2, 0, 0, Math.PI * 2);
+    g.fill();
+    // 发尾外翻两瓣
+    g.beginPath();
+    g.ellipse(x - 18 + side * 2, headCy + 14, 10, 12, -0.35, 0, Math.PI * 2);
+    g.ellipse(x + 18 + side * 2, headCy + 14, 10, 12, 0.35, 0, Math.PI * 2);
+    g.fill();
+
+    // 头
+    sphere(g, x + side * 3, headCy, headR, mix(skin, 0.35), skin, shade('#e2b88a', 0.05));
+
+    if (face === 'back') {
+      g.fillStyle = hair;
       g.beginPath();
-      g.ellipse(x - 14 + ex, y - 72, 4, 2.2, 0, 0, Math.PI * 2);
-      g.ellipse(x + 14 + ex, y - 72, 4, 2.2, 0, 0, Math.PI * 2);
+      g.ellipse(x + side * 2, headCy - 2, headR + 2, headR + 4, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = mix(hair, 0.12);
+      g.beginPath();
+      g.ellipse(x - 10, headCy + 10, 8, 10, -0.3, 0, Math.PI * 2);
+      g.ellipse(x + 10, headCy + 10, 8, 10, 0.3, 0, Math.PI * 2);
       g.fill();
     } else {
-      g.fillStyle = shade('#e2b88a', 0.18);
+      const ex = side * 5;
+      // 八字刘海
+      g.fillStyle = hair;
       g.beginPath();
-      g.ellipse(x, y - 70, 16, 10, 0, 0, Math.PI * 2);
+      g.ellipse(x - 10 + ex, headCy - 10, 11, 10, -0.2, 0, Math.PI * 2);
+      g.ellipse(x + 10 + ex, headCy - 10, 11, 10, 0.2, 0, Math.PI * 2);
       g.fill();
+      g.fillStyle = shade(hair, 0.15);
+      g.beginPath();
+      g.moveTo(x + ex, headCy - 22);
+      g.quadraticCurveTo(x - 2 + ex, headCy - 6, x + ex, headCy + 2);
+      g.quadraticCurveTo(x + 2 + ex, headCy - 6, x + ex, headCy - 22);
+      g.fill();
+      // 大棕瞳 + 粗上眼线
+      const eyeY = headCy - 2;
+      g.fillStyle = '#3a2418';
+      g.beginPath();
+      g.ellipse(x - 8 + ex, eyeY, 5.5, 6.5, 0, 0, Math.PI * 2);
+      g.ellipse(x + 8 + ex, eyeY, 5.5, 6.5, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#6b3a1e';
+      g.beginPath();
+      g.ellipse(x - 8 + ex, eyeY, 3.2, 3.8, 0, 0, Math.PI * 2);
+      g.ellipse(x + 8 + ex, eyeY, 3.2, 3.8, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#fff';
+      g.beginPath();
+      g.arc(x - 9.5 + ex, eyeY - 2, 1.6, 0, Math.PI * 2);
+      g.arc(x + 6.5 + ex, eyeY - 2, 1.6, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#2a1810';
+      g.lineWidth = 2.2;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(x - 13 + ex, eyeY - 5);
+      g.quadraticCurveTo(x - 8 + ex, eyeY - 8, x - 3 + ex, eyeY - 5);
+      g.moveTo(x + 3 + ex, eyeY - 5);
+      g.quadraticCurveTo(x + 8 + ex, eyeY - 8, x + 13 + ex, eyeY - 5);
+      g.stroke();
+      // 腮红 + 小笑
+      g.fillStyle = 'rgba(232, 120, 130, 0.45)';
+      g.beginPath();
+      g.ellipse(x - 14 + ex, eyeY + 10, 5, 3, 0, 0, Math.PI * 2);
+      g.ellipse(x + 14 + ex, eyeY + 10, 5, 3, 0, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = '#c87870';
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.arc(x + ex, eyeY + 12, 5, 0.15, Math.PI - 0.15);
+      g.stroke();
     }
+
     if (o.hat) {
-      g.fillStyle = shade(o.hat, 0.2);
+      g.fillStyle = shade(o.hat, 0.15);
       g.beginPath();
-      g.ellipse(x + side * 4, y - 100, 24, 7, 0, 0, Math.PI * 2);
+      g.ellipse(x + side * 2, headCy - headR + 4, 22, 6, 0, 0, Math.PI * 2);
       g.fill();
-      sphere(g, x + side * 4, y - 112, 12, mix(o.hat, 0.25), o.hat, shade(o.hat, 0.25));
-    }
-    if (o.prop === 'apron') {
-      const ap = g.createLinearGradient(x - 12, y - 58, x + 12, y - 30);
-      ap.addColorStop(0, '#f7f1e4');
-      ap.addColorStop(1, '#d9cbb4');
-      g.fillStyle = ap;
-      g.beginPath();
-      g.ellipse(x, y - 44, 14, 16, 0, 0, Math.PI * 2);
-      g.fill();
+      sphere(g, x + side * 2, headCy - headR - 6, 11, mix(o.hat, 0.2), o.hat, shade(o.hat, 0.25));
     }
     if (o.prop === 'book') {
-      g.fillStyle = '#3d5c86';
+      g.fillStyle = '#5a8ae0';
       g.beginPath();
-      g.moveTo(x + 10, y - 48);
-      g.lineTo(x + 26, y - 44);
-      g.lineTo(x + 24, y - 32);
-      g.lineTo(x + 8, y - 36);
+      g.moveTo(x + 10, bodyCy - 4);
+      g.lineTo(x + 24, bodyCy);
+      g.lineTo(x + 22, bodyCy + 12);
+      g.lineTo(x + 8, bodyCy + 8);
       g.closePath();
       g.fill();
     }
@@ -338,24 +432,24 @@ const global = globalThis;
       for (let col = 0; col < 4; col++) {
         bean(g, col * cell + cell / 2, row * cell + 146, {
           face: faces[row],
-          cape: '#9a3030',
-          tunic: '#7a4e30',
+          tunic: '#2f6b4a',
+          hair: '#6b4228',
           sword: poses[col].sword,
           bob: poses[col].bob,
         });
       }
     }
     bean(g, 2 * cell + cell / 2, 4 * cell + 150, {
-      face: 'front', cape: '#9a3030', tunic: '#7a4e30', sword: 'rest', bob: 16,
+      face: 'front', tunic: '#2f6b4a', hair: '#6b4228', sword: 'rest', bob: 16,
     });
     return c;
   }
 
   const NPC = [
-    { tunic: '#7a4e30', cape: '#9a3030', prop: 'apron' },
-    { tunic: '#3d5c86', cape: '#243044', hat: '#2c3f66' },
-    { tunic: '#6a4a86', cape: '#3a2844', prop: 'book' },
-    { tunic: '#6e5434', cape: '#4a3824', hat: '#6b5030' },
+    { tunic: '#3d8a5c', hair: '#6b4228', prop: 'apron' },
+    { tunic: '#3d5c86', hair: '#4a3428', hat: '#2c3f66' },
+    { tunic: '#6a4a86', hair: '#5a3828', prop: 'book' },
+    { tunic: '#c87840', hair: '#6b4228', hat: '#e8c878' },
   ];
 
   function npc(i) {
@@ -366,8 +460,8 @@ const global = globalThis;
     const o = NPC[i] || NPC[0];
     bean(g, 110, 206, {
       face: 'front',
-      cape: o.cape,
       tunic: o.tunic,
+      hair: o.hair,
       hat: o.hat,
       prop: o.prop,
       sword: 'none',
@@ -377,180 +471,176 @@ const global = globalThis;
 
   function mob(id, frame) {
     const c = document.createElement('canvas');
-    c.width = 192;
-    c.height = 210;
+    c.width = 200;
+    c.height = 220;
     const g = c.getContext('2d');
-    const bob = frame ? -4 : 3;
-    contact(g, 96, 188, 40, 9);
+    const bob = frame ? -5 : 2;
     if (id === 'chicken') drawChicken(g, bob);
     else if (id === 'scarecrow') drawScarecrow(g, bob);
     else if (id === 'dog') drawDog(g, bob);
     else if (id === 'boar') drawBoar(g, bob);
     else return null;
-    return c;
+    return trim(c, 20, 20, 160, 190);
   }
 
   function drawChicken(g, bob) {
-    sphere(g, 92, 128 + bob, 28, '#fff6e4', '#f0e2c4', '#c8b494');
-    sphere(g, 124, 112 + bob, 16, '#fff8ea', '#f3e6cc', '#d2c0a4');
-    g.fillStyle = '#c44838';
+    const y = bob;
+    g.strokeStyle = '#c47838';
+    g.lineWidth = 4;
+    g.lineCap = 'round';
     g.beginPath();
-    g.ellipse(128, 98 + bob, 5, 8, 0, 0, Math.PI * 2);
+    g.moveTo(78, 148 + y);
+    g.lineTo(72, 178);
+    g.moveTo(102, 150 + y);
+    g.lineTo(110, 178);
+    g.stroke();
+    g.fillStyle = '#e8a048';
+    g.beginPath();
+    g.moveTo(68, 178); g.lineTo(78, 178); g.lineTo(72, 186); g.fill();
+    g.beginPath();
+    g.moveTo(106, 178); g.lineTo(116, 178); g.lineTo(112, 186); g.fill();
+    sphere(g, 90, 128 + y, 32, '#fff8ec', '#f0dfc4', '#c8a888');
+    sphere(g, 68, 120 + y, 14, '#ffe8c8', '#e8c89a', '#b89068');
+    sphere(g, 118, 108 + y, 18, '#fffaf0', '#f4e6cc', '#d0b898');
+    g.fillStyle = '#d44838';
+    g.beginPath();
+    g.moveTo(118, 88 + y);
+    g.quadraticCurveTo(112, 78 + y, 118, 72 + y);
+    g.quadraticCurveTo(124, 78 + y, 122, 88 + y);
+    g.quadraticCurveTo(130, 80 + y, 128, 92 + y);
+    g.closePath();
     g.fill();
-    g.fillStyle = '#e0b04a';
+    g.fillStyle = '#f0b040';
     g.beginPath();
-    g.moveTo(138, 110 + bob);
-    g.lineTo(156, 114 + bob);
-    g.lineTo(138, 120 + bob);
+    g.moveTo(134, 108 + y);
+    g.lineTo(154, 112 + y);
+    g.lineTo(134, 120 + y);
     g.closePath();
     g.fill();
     g.fillStyle = '#2a2118';
     g.beginPath();
-    g.arc(130, 110 + bob, 1.8, 0, Math.PI * 2);
+    g.arc(124, 106 + y, 2.2, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = '#b06830';
-    g.lineWidth = 2;
+    g.fillStyle = 'rgba(255,255,255,0.55)';
     g.beginPath();
-    g.moveTo(80, 150 + bob);
-    g.lineTo(74, 176);
-    g.moveTo(104, 152 + bob);
-    g.lineTo(110, 176);
-    g.stroke();
+    g.arc(86, 116 + y, 6, 0, Math.PI * 2);
+    g.fill();
   }
 
   function drawScarecrow(g, bob) {
-    const wood = g.createLinearGradient(90, 40, 110, 180);
-    wood.addColorStop(0, '#a87848');
-    wood.addColorStop(1, '#5c3c22');
-    g.strokeStyle = wood;
-    g.lineWidth = 7;
+    const y = bob;
+    g.strokeStyle = '#6a4428';
+    g.lineWidth = 10;
     g.lineCap = 'round';
     g.beginPath();
-    g.moveTo(96, 70 + bob);
-    g.lineTo(96, 184);
-    g.moveTo(54, 104 + bob);
-    g.lineTo(138, 100 + bob);
+    g.moveTo(100, 78 + y);
+    g.lineTo(100, 186);
+    g.moveTo(48, 108 + y);
+    g.lineTo(152, 104 + y);
     g.stroke();
-    sphere(g, 96, 62 + bob, 20, '#f0d48a', '#d7b25a', '#a8843a');
+    g.strokeStyle = '#c4a050';
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(52, 112 + y); g.lineTo(40, 138 + y);
+    g.moveTo(58, 110 + y); g.lineTo(48, 142 + y);
+    g.moveTo(148, 108 + y); g.lineTo(160, 132 + y);
+    g.moveTo(142, 106 + y); g.lineTo(154, 136 + y);
+    g.stroke();
+    g.fillStyle = '#7a5a38';
+    g.fillRect(72, 118 + y, 56, 48);
+    g.fillStyle = '#9a7048';
+    g.fillRect(76, 122 + y, 48, 18);
+    sphere(g, 100, 68 + y, 24, '#f4e0a8', '#d8b868', '#9a7840');
     g.fillStyle = '#5c4030';
     g.beginPath();
-    g.ellipse(96, 48 + bob, 22, 6, 0, 0, Math.PI * 2);
+    g.ellipse(100, 50 + y, 28, 8, 0, 0, Math.PI * 2);
     g.fill();
     g.beginPath();
-    g.ellipse(96, 40 + bob, 12, 10, 0, 0, Math.PI * 2);
+    g.ellipse(100, 40 + y, 14, 12, 0, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = '#2a2118';
     g.beginPath();
-    g.arc(90, 62 + bob, 1.7, 0, Math.PI * 2);
-    g.arc(104, 62 + bob, 1.7, 0, Math.PI * 2);
+    g.arc(92, 68 + y, 2.2, 0, Math.PI * 2);
+    g.arc(110, 68 + y, 2.2, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = 'rgba(196, 154, 72, 0.85)';
+    g.strokeStyle = '#8a5030';
     g.lineWidth = 2;
     g.beginPath();
-    g.moveTo(58, 108 + bob);
-    g.lineTo(44, 128 + bob);
-    g.moveTo(134, 104 + bob);
-    g.lineTo(150, 122 + bob);
+    g.arc(100, 76 + y, 6, 0.15, Math.PI - 0.15);
     g.stroke();
   }
 
   function drawDog(g, bob) {
-    sphere(g, 96, 132 + bob, 36, '#c48a56', '#8d5a32', '#5c3a22');
-    sphere(g, 136, 112 + bob, 16, '#d7a06a', '#a86c40', '#6e4528');
+    const y = bob;
+    g.strokeStyle = '#6e4528';
+    g.lineWidth = 7;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(70, 150 + y); g.lineTo(62, 182);
+    g.moveTo(90, 152 + y); g.lineTo(88, 184);
+    g.moveTo(118, 152 + y); g.lineTo(122, 184);
+    g.moveTo(136, 148 + y); g.lineTo(148, 180);
+    g.stroke();
+    sphere(g, 104, 128 + y, 38, '#d4a06a', '#a86c40', '#5c3a22');
+    sphere(g, 148, 112 + y, 18, '#e0b078', '#b87848', '#6e4528');
     g.fillStyle = '#5c3a22';
     g.beginPath();
-    g.ellipse(128, 96 + bob, 6, 11, -0.4, 0, Math.PI * 2);
+    g.ellipse(138, 94 + y, 7, 14, -0.35, 0, Math.PI * 2);
+    g.fill();
+    g.beginPath();
+    g.ellipse(156, 96 + y, 6, 12, 0.25, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = '#2a2118';
     g.beginPath();
-    g.arc(142, 110 + bob, 1.8, 0, Math.PI * 2);
+    g.arc(154, 110 + y, 2.2, 0, Math.PI * 2);
     g.fill();
-    g.strokeStyle = '#6e4528';
-    g.lineWidth = 3;
-    g.lineCap = 'round';
+    g.strokeStyle = '#8d5a32';
+    g.lineWidth = 5;
     g.beginPath();
-    g.moveTo(64, 128 + bob);
-    g.quadraticCurveTo(40, 116, 34, 96);
-    g.moveTo(74, 156 + bob);
-    g.lineTo(70, 180);
-    g.moveTo(118, 158 + bob);
-    g.lineTo(124, 180);
+    g.moveTo(70, 120 + y);
+    g.quadraticCurveTo(40, 108, 32, 88);
     g.stroke();
+    g.fillStyle = 'rgba(255,230,190,0.35)';
+    g.beginPath();
+    g.ellipse(92, 116 + y, 12, 10, -0.3, 0, Math.PI * 2);
+    g.fill();
   }
 
   function drawBoar(g, bob) {
-    sphere(g, 90, 128 + bob, 40, '#a07a62', '#6e5244', '#3e2e28');
-    sphere(g, 138, 118 + bob, 16, '#b08870', '#7a5c4c', '#4a342c');
-    g.fillStyle = '#e6d0b8';
+    const y = bob;
+    g.strokeStyle = '#4a342c';
+    g.lineWidth = 8;
+    g.lineCap = 'round';
     g.beginPath();
-    g.ellipse(154, 122 + bob, 7, 5, 0, 0, Math.PI * 2);
+    g.moveTo(64, 148 + y); g.lineTo(56, 182);
+    g.moveTo(88, 152 + y); g.lineTo(84, 184);
+    g.moveTo(120, 152 + y); g.lineTo(126, 184);
+    g.moveTo(142, 148 + y); g.lineTo(152, 180);
+    g.stroke();
+    sphere(g, 96, 126 + y, 42, '#b89078', '#7a5c4c', '#3e2e28');
+    sphere(g, 148, 118 + y, 20, '#c4a088', '#8a6a58', '#4a342c');
+    g.fillStyle = '#e8d4bc';
+    g.beginPath();
+    g.ellipse(164, 124 + y, 10, 7, 0, 0, Math.PI * 2);
     g.fill();
     g.strokeStyle = '#f4efe6';
-    g.lineWidth = 2;
+    g.lineWidth = 3;
+    g.lineCap = 'round';
     g.beginPath();
-    g.moveTo(146, 128 + bob);
-    g.lineTo(158, 140 + bob);
+    g.moveTo(154, 132 + y); g.quadraticCurveTo(168, 142 + y, 172, 150 + y);
+    g.moveTo(156, 118 + y); g.quadraticCurveTo(170, 112 + y, 176, 104 + y);
     g.stroke();
     g.fillStyle = '#2a2118';
     g.beginPath();
-    g.arc(144, 112 + bob, 1.8, 0, Math.PI * 2);
+    g.arc(152, 112 + y, 2.2, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#5c4030';
+    g.beginPath();
+    g.ellipse(78, 100 + y, 8, 12, -0.4, 0, Math.PI * 2);
     g.fill();
   }
 
-  function house(kind) {
-    const c = document.createElement('canvas');
-    c.width = 420;
-    c.height = 520;
-    const g = c.getContext('2d');
-    contact(g, 200, 492, 120, 16);
-    const wall = kind === 'stash' ? '#c4aa78' : '#f0e2c8';
-    const roof = kind === 'shop' ? '#8d342c' : kind === 'chief' ? '#c4a15a' : '#6a4c30';
-    const x = 78;
-    const foot = 478;
-    const w = 168;
-    const h = 150;
-    const d = 78;
-    isoBox(g, x, foot, w, h, d, wall, shade(wall, 0.28), mix(wall, 0.2));
-    gable(g, x - 6, foot - h + 8, w + 16, 78, d, roof, shade(roof, 0.22));
-    g.fillStyle = shade('#5c3a24', 0.15);
-    g.fillRect(x + 62, foot - 92, 40, 92);
-    g.fillStyle = 'rgba(255, 214, 140, 0.55)';
-    g.fillRect(x + 22, foot - 118, 28, 24);
-    g.fillStyle = 'rgba(40, 28, 18, 0.35)';
-    g.fillRect(x + 22, foot - 118, 28, 24);
-    g.fillStyle = 'rgba(255, 196, 110, 0.35)';
-    g.fillRect(x + 26, foot - 114, 12, 10);
-    if (kind === 'shop') {
-      g.fillStyle = '#f4efe6';
-      g.beginPath();
-      g.moveTo(x - 8, foot - h + 36);
-      g.lineTo(x + w + 16, foot - h + 40);
-      g.lineTo(x + w + 4, foot - h + 78);
-      g.lineTo(x + 4, foot - h + 70);
-      g.closePath();
-      g.fill();
-      g.fillStyle = '#8d342c';
-      for (let i = 0; i < 5; i++) g.fillRect(x + 8 + i * 34, foot - h + 42, 14, 28);
-    }
-    if (kind === 'stash') {
-      isoBox(g, x - 8, foot, 36, 48, 28, '#8d6438', '#5c4024', '#c4a06a');
-      isoBox(g, x + w - 10, foot - 4, 30, 40, 24, '#a07848', '#6a4c30', '#d2b48a');
-    }
-    return c;
-  }
-
-  /* 椰子树（2026-10-30 v2）：海岛只认这一种树——弯干 + 七片棕榈叶 + 两颗椰子。
-     2026-10-30 主人指出「体积大小不对」：v1 的画布上下各留一大截空白，立牌按整张图定高，
-     实际看着只有名义高度的八成。现在画完立刻按内容外框裁一刀（`trim()`），
-     `PALM_H` 就是真正量出来的高度，和人物（2.15）用同一把尺子。 */
-  const PALM = {
-    trunk: ['#b08a58', '#7a5a34', '#5a4024'],
-    ring: 'rgba(74, 52, 30, 0.35)',
-    leaf: ['#9ed070', '#68a848', '#346828'],
-    nut: ['#9a6a34', '#5c3818'],
-  };
-
-  // 按内容外框裁画布：立牌的高度是按图像比例算的，留白会直接变成"变小"
+  // 按内容外框裁画布：立牌高度按图像比例算，留白会直接变成「变小」
   function trim(c, x, y, w, h) {
     const t = document.createElement('canvas');
     t.width = w;
@@ -559,79 +649,241 @@ const global = globalThis;
     return t;
   }
 
+  /* 主城建筑立牌成片（2026-11-11）：Q 版矮胖、左上光、无脚下影（影归引擎）。
+     kind: shop 杂货 / book 技能书 / chief 村长 / stash 仓库 */
+  function house(kind) {
+    const c = document.createElement('canvas');
+    c.width = 440;
+    c.height = 500;
+    const g = c.getContext('2d');
+    const k = kind || 'shop';
+    const wall = k === 'stash' ? '#d8c49a' : k === 'chief' ? '#f6e6c8' : '#f3e6d0';
+    const roof = k === 'shop' ? '#c45a48' : k === 'book' ? '#4a6ea4' : k === 'chief' ? '#d4a85a' : '#7a5a38';
+    const trimC = k === 'book' ? '#3a5680' : k === 'chief' ? '#b88840' : '#8d4a38';
+    // 矮胖：墙矮、面宽、屋顶大——童话店面，不是写实楼
+    const x = 88;
+    const foot = 455;
+    const w = 200;
+    const h = 128;
+    const d = 70;
+    const roofRise = 92;
+
+    // 台基：把屋身从地砖上托起来
+    g.fillStyle = shade('#c4a882', 0.12);
+    g.fillRect(x - 8, foot - 14, w + 16, 18);
+    g.fillStyle = shade('#a88860', 0.18);
+    g.fillRect(x - 8, foot - 4, w + 16, 8);
+
+    isoBox(g, x, foot - 14, w, h, d, wall, shade(wall, 0.26), mix(wall, 0.22));
+
+    // 墙面浅纹：横木筋，远看有材质
+    g.strokeStyle = 'rgba(120, 88, 52, 0.14)';
+    g.lineWidth = 2;
+    for (let i = 1; i <= 4; i++) {
+      const ly = foot - 14 - (h * i) / 5;
+      g.beginPath();
+      g.moveTo(x + 6, ly);
+      g.lineTo(x + w - 6, ly);
+      g.stroke();
+    }
+
+    // 门（偏右一点，留窗）
+    const doorW = 44;
+    const doorH = 78;
+    const doorX = x + 108;
+    g.fillStyle = shade('#6a4428', 0.1);
+    g.fillRect(doorX - 4, foot - 14 - doorH - 4, doorW + 8, doorH + 6);
+    g.fillStyle = '#5c3a22';
+    g.fillRect(doorX, foot - 14 - doorH, doorW, doorH);
+    g.fillStyle = 'rgba(255, 200, 120, 0.42)';
+    g.fillRect(doorX + 6, foot - 14 - doorH + 8, doorW - 12, doorH - 18);
+    g.fillStyle = '#e8c478';
+    g.beginPath();
+    g.arc(doorX + doorW - 10, foot - 14 - doorH / 2, 3.5, 0, Math.PI * 2);
+    g.fill();
+
+    // 窗：左上暖光 + 十字棂
+    const wx = x + 28;
+    const wy = foot - 14 - 96;
+    g.fillStyle = shade('#6a4c30', 0.05);
+    g.fillRect(wx - 4, wy - 4, 44, 40);
+    g.fillStyle = 'rgba(255, 220, 150, 0.88)';
+    g.fillRect(wx, wy, 36, 32);
+    g.strokeStyle = 'rgba(70, 48, 28, 0.55)';
+    g.lineWidth = 2.5;
+    g.beginPath();
+    g.moveTo(wx + 18, wy);
+    g.lineTo(wx + 18, wy + 32);
+    g.moveTo(wx, wy + 16);
+    g.lineTo(wx + 36, wy + 16);
+    g.stroke();
+
+    // 花箱：窗下一点绿，破开墙面单调
+    g.fillStyle = '#8d6438';
+    g.fillRect(wx - 2, wy + 32, 40, 10);
+    for (let i = 0; i < 5; i++) {
+      sphere(g, wx + 6 + i * 7, wy + 30, 5 + (i % 2), '#9ed070', '#68a848', '#346828');
+    }
+
+    gable(g, x - 14, foot - 14 - h + 10, w + 28, roofRise, d, roof, shade(roof, 0.24));
+
+    // 瓦垄：沿屋面几道弧线，别一整块三角板
+    g.strokeStyle = 'rgba(40, 20, 12, 0.22)';
+    g.lineWidth = 2;
+    const mid = x + w * 0.5;
+    const ridgeY = foot - 14 - h + 10 - roofRise;
+    for (let i = 1; i <= 5; i++) {
+      const t = i / 6;
+      const ly = (foot - 14 - h + 14) * (1 - t) + ridgeY * t + 6;
+      const half = (w * 0.5 + 18) * (1 - t * 0.9);
+      g.beginPath();
+      g.moveTo(mid - half, ly);
+      g.quadraticCurveTo(mid, ly - 3, mid + half * 0.85, ly + 1);
+      g.stroke();
+    }
+
+    // 烟囱（村长 / 仓库更像住家）
+    if (k === 'chief' || k === 'stash') {
+      const cx = x + (k === 'stash' ? 28 : w - 36);
+      isoBox(g, cx, ridgeY + 50, 28, 56, 18, shade(wall, 0.08), shade(wall, 0.32), mix(wall, 0.1));
+      g.fillStyle = shade(roof, 0.1);
+      g.fillRect(cx - 4, ridgeY - 8, 36, 12);
+    }
+
+    // 店招 / 篷布
+    if (k === 'shop' || k === 'book') {
+      const awn = k === 'book' ? '#e8eef6' : '#f7f0e4';
+      const stripe = k === 'book' ? trimC : roof;
+      g.fillStyle = awn;
+      g.beginPath();
+      g.moveTo(x - 10, foot - 14 - h + 28);
+      g.lineTo(x + w + 14, foot - 14 - h + 32);
+      g.lineTo(x + w + 6, foot - 14 - h + 78);
+      g.lineTo(x + 2, foot - 14 - h + 72);
+      g.closePath();
+      g.fill();
+      g.fillStyle = stripe;
+      for (let i = 0; i < 6; i++) {
+        g.fillRect(x + 6 + i * 34, foot - 14 - h + 36, 16, 34);
+      }
+      // 招牌木板
+      g.fillStyle = '#6a4a2c';
+      g.fillRect(x + 58, foot - 14 - h + 8, 78, 26);
+      g.fillStyle = '#f4e6c8';
+      g.font = 'bold 15px sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(k === 'book' ? '技能' : '杂货', x + 97, foot - 14 - h + 21);
+    }
+
+    if (k === 'chief') {
+      // 门楣小旗：认出村长屋
+      g.fillStyle = '#e87050';
+      g.beginPath();
+      g.moveTo(doorX + 8, foot - 14 - doorH - 28);
+      g.lineTo(doorX + 36, foot - 14 - doorH - 18);
+      g.lineTo(doorX + 8, foot - 14 - doorH - 8);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = '#5c4030';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(doorX + 8, foot - 14 - doorH - 30);
+      g.lineTo(doorX + 8, foot - 14 - doorH - 4);
+      g.stroke();
+    }
+
+    if (k === 'stash') {
+      isoBox(g, x - 14, foot - 10, 42, 52, 30, '#9a7044', '#5c4024', '#d2b48a');
+      isoBox(g, x + w - 8, foot - 8, 36, 44, 26, '#a07848', '#6a4c30', '#e0c49a');
+      g.fillStyle = '#c4a06a';
+      g.fillRect(x - 6, foot - 48, 26, 6);
+      g.fillRect(x + w, foot - 42, 22, 6);
+    }
+
+    // 屋檐描边，剪影更清楚
+    g.strokeStyle = 'rgba(60, 36, 20, 0.28)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x - 14, foot - 14 - h + 14);
+    g.lineTo(mid, ridgeY);
+    g.lineTo(x + w + 14, foot - 14 - h + 12);
+    g.stroke();
+
+    return trim(c, 60, 48, 320, 420);
+  }
+
+  /* 椰子树：弯干 + 放射棕榈叶 + 椰子。画布裁到内容外框；影归引擎。 */
+  const PALM = {
+    trunk: ['#c49a62', '#8a6238', '#5a4024'],
+    ring: 'rgba(74, 52, 30, 0.4)',
+    leaf: ['#b4e878', '#6cbc48', '#3a7a28', '#2a5820'],
+    nut: ['#b07840', '#5c3818'],
+  };
+
   function palm(variant) {
     const c = document.createElement('canvas');
-    c.width = 300;
-    c.height = 470;
+    c.width = 320;
+    c.height = 480;
     const g = c.getContext('2d');
     const v = (variant | 0) % 3;
-    const bx = 116 + v * 12;            // 树根
-    const ty = 150;                     // 树冠高度
-    const tx = bx + 44 + (v - 1) * 8;   // 树冠中心：整体往右歪
-    contact(g, bx + 10, 440, 46, 10);
-
-    // 树干：五段拼，越往上越细；相邻段换深浅，看着像有节
+    const bx = 120 + v * 10;
+    const ty = 128;
+    const tx = bx + 40 + (v - 1) * 10;
     const at = function (t) {
       return {
-        x: bx + (tx - bx) * t + Math.sin(t * Math.PI) * 12,
-        y: 440 - (440 - ty) * t,
+        x: bx + (tx - bx) * t + Math.sin(t * Math.PI) * (14 + v * 2),
+        y: 448 - (448 - ty) * t,
       };
     };
     g.lineCap = 'round';
-    for (let i = 0; i < 5; i++) {
-      const p0 = at(i / 5), p1 = at((i + 1) / 5);
-      g.lineWidth = 26 - 13 * (i / 5);
+    for (let i = 0; i < 6; i++) {
+      const p0 = at(i / 6), p1 = at((i + 1) / 6);
+      g.lineWidth = 28 - 16 * (i / 6);
       g.strokeStyle = i % 2 ? PALM.trunk[1] : PALM.trunk[0];
       g.beginPath();
       g.moveTo(p0.x, p0.y);
       g.lineTo(p1.x, p1.y);
       g.stroke();
     }
-    // 横纹：隔一段一道，远看就是椰子树干的那种节
     g.strokeStyle = PALM.ring;
-    g.lineWidth = 2;
-    for (let i = 1; i < 7; i++) {
-      const t = i / 7;
+    g.lineWidth = 2.5;
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8;
       const p = at(t);
-      const half = (26 - 13 * t) * 0.5;
+      const half = (28 - 16 * t) * 0.48;
       g.beginPath();
-      g.moveTo(p.x - half, p.y - 1);
+      g.moveTo(p.x - half, p.y);
       g.lineTo(p.x + half, p.y + 2);
       g.stroke();
     }
-
-    // 叶子：从树冠放射出去，越贴地平线越下垂
-    const fronds = 7;
+    const fronds = 9;
     for (let i = 0; i < fronds; i++) {
-      const a = -Math.PI * 0.96 + (i / (fronds - 1)) * Math.PI * 0.92;
-      const len = 92 + (i % 3) * 12;
-      const midX = tx + Math.cos(a) * len * 0.55;
-      const midY = ty + Math.sin(a) * len * 0.45 - 20;
+      const a = -Math.PI * 1.02 + (i / (fronds - 1)) * Math.PI * 1.05;
+      const len = 100 + (i % 3) * 14;
+      const midX = tx + Math.cos(a) * len * 0.52;
+      const midY = ty + Math.sin(a) * len * 0.38 - 28;
       const ex = tx + Math.cos(a) * len;
-      const ey = ty + Math.sin(a) * len * 0.5 + 28;
+      const ey = ty + Math.sin(a) * len * 0.48 + 36;
       g.beginPath();
       g.moveTo(tx, ty);
       g.quadraticCurveTo(midX, midY, ex, ey);
-      g.quadraticCurveTo(midX, midY + 24, tx, ty + 8);
+      g.quadraticCurveTo(midX + Math.sin(a) * 18, midY + 28, tx + 4, ty + 10);
       g.closePath();
-      // 朝左上的亮、朝右下的暗
-      const lit = Math.cos(a) < 0 ? 0 : 1;
-      g.fillStyle = PALM.leaf[lit ? 1 : 0];
+      const lit = Math.cos(a) < -0.1;
+      g.fillStyle = lit ? PALM.leaf[0] : (Math.cos(a) > 0.4 ? PALM.leaf[2] : PALM.leaf[1]);
       g.fill();
-      // 叶脉：从树冠到叶尖一根细线，让每片叶子不糊成一块
-      g.strokeStyle = PALM.leaf[2];
+      g.strokeStyle = PALM.leaf[3];
       g.lineWidth = 2;
       g.beginPath();
       g.moveTo(tx, ty + 2);
-      g.quadraticCurveTo(midX, midY + 8, ex, ey);
+      g.quadraticCurveTo(midX, midY + 10, ex, ey);
       g.stroke();
     }
-
-    // 椰子：两颗，挂在树冠下面一点
-    sphere(g, tx - 8, ty + 16, 11, PALM.nut[0], '#7a4c22', PALM.nut[1]);
-    sphere(g, tx + 12, ty + 22, 9, PALM.nut[0], '#7a4c22', PALM.nut[1]);
-
-    return trim(c, 56, 62, 236, 396);
+    sphere(g, tx - 10, ty + 18, 12, PALM.nut[0], '#7a4c22', PALM.nut[1]);
+    sphere(g, tx + 14, ty + 24, 10, PALM.nut[0], '#7a4c22', PALM.nut[1]);
+    sphere(g, tx + 2, ty + 28, 8, mix(PALM.nut[0], 0.15), '#7a4c22', PALM.nut[1]);
+    return trim(c, 40, 48, 250, 420);
   }
 
   /* 海边渔屋（2026-10-30 v2）：沙滩上的一栋矮脚小屋。
@@ -778,56 +1030,78 @@ const global = globalThis;
     c.width = 280;
     c.height = 360;
     const g = c.getContext('2d');
-    contact(g, 140, 336, 70, 12);
-    if ((i % 4) === 3) {
-      g.strokeStyle = '#6b4e32';
-      g.lineWidth = 8;
-      g.lineCap = 'round';
-      g.beginPath();
-      g.moveTo(140, 330);
-      g.lineTo(132, 90);
-      g.moveTo(134, 180);
-      g.lineTo(70, 120);
-      g.moveTo(136, 150);
-      g.lineTo(210, 80);
-      g.stroke();
-      return c;
-    }
-    const trunk = g.createLinearGradient(124, 160, 160, 330);
-    trunk.addColorStop(0, '#a87848');
+    const kind = i % 4;
+    const trunk = g.createLinearGradient(128, 160, 156, 330);
+    trunk.addColorStop(0, '#c49a62');
     trunk.addColorStop(1, '#5c3c22');
     g.fillStyle = trunk;
-    g.fillRect(126, 200, 28, 130);
-    if ((i % 4) === 2) {
+    g.beginPath();
+    g.moveTo(132, 200);
+    g.lineTo(156, 200);
+    g.lineTo(150, 330);
+    g.lineTo(128, 330);
+    g.closePath();
+    g.fill();
+    if (kind === 3) {
+      // 枯枝：几根弯杈
+      g.strokeStyle = '#6b4e32';
+      g.lineWidth = 7;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(140, 320);
+      g.quadraticCurveTo(136, 180, 128, 70);
+      g.moveTo(136, 190);
+      g.quadraticCurveTo(90, 140, 58, 100);
+      g.moveTo(142, 160);
+      g.quadraticCurveTo(190, 110, 228, 72);
+      g.stroke();
+      return trim(c, 40, 50, 200, 290);
+    }
+    if (kind === 2) {
+      // 尖冠：两层三角，童话松树感
       g.fillStyle = '#2f6a34';
       g.beginPath();
-      g.moveTo(140, 36);
-      g.lineTo(48, 230);
-      g.lineTo(232, 230);
+      g.moveTo(140, 40);
+      g.lineTo(48, 210);
+      g.lineTo(232, 210);
       g.closePath();
       g.fill();
-      g.fillStyle = '#3e8a44';
+      g.fillStyle = '#4a9a48';
       g.beginPath();
       g.moveTo(140, 90);
-      g.lineTo(78, 180);
-      g.lineTo(202, 180);
+      g.lineTo(78, 200);
+      g.lineTo(202, 200);
       g.closePath();
       g.fill();
-      return c;
+      g.fillStyle = '#8ed068';
+      g.beginPath();
+      g.moveTo(140, 70);
+      g.lineTo(108, 140);
+      g.lineTo(172, 140);
+      g.closePath();
+      g.fill();
+      return trim(c, 40, 30, 200, 310);
     }
-    const puffs = [
-      [132, 176, 70, '#7cbc58', '#3e7a34', '#1e401c'],
-      [78, 198, 46, '#68a848', '#3a6e30', '#1a3818'],
-      [198, 188, 52, '#5e9840', '#346828', '#163216'],
-      [150, 118, 44, '#8ec868', '#4c8c40', '#244820'],
-      [104, 132, 36, '#76b050', '#3e7434', '#1c3c1a'],
-      [176, 140, 30, '#9ed070', '#568c48', '#2a4c24'],
-    ];
-    for (let i = 0; i < puffs.length; i++) {
-      const p = puffs[i];
+    const puffs = kind === 0
+      ? [
+        [140, 150, 72, '#9ed070', '#4c8c40', '#244820'],
+        [86, 176, 48, '#7cbc58', '#3e7a34', '#1e401c'],
+        [198, 168, 52, '#68a848', '#346828', '#163216'],
+        [140, 96, 46, '#b4e878', '#68a848', '#2a5820'],
+        [108, 120, 34, '#8ec868', '#4c8c40', '#244820'],
+        [172, 124, 32, '#a6de78', '#568c48', '#2a4c24'],
+      ]
+      : [
+        [140, 160, 64, '#8ec868', '#3e7a34', '#1e401c'],
+        [96, 180, 42, '#6cbc48', '#346828', '#163216'],
+        [186, 174, 44, '#7cbc58', '#3a6e30', '#1a3818'],
+        [140, 110, 40, '#a6de78', '#4c8c40', '#244820'],
+      ];
+    for (let k = 0; k < puffs.length; k++) {
+      const p = puffs[k];
       sphere(g, p[0], p[1], p[2], p[3], p[4], p[5]);
     }
-    return c;
+    return trim(c, 40, 50, 200, 290);
   }
 
   function townProp(i) {
@@ -837,17 +1111,24 @@ const global = globalThis;
     const g = c.getContext('2d');
     contact(g, 130, 236, 70, 12);
     if (i === 0 || i === 1) {
-      isoBox(g, 40, 230, 150, 70, 54, '#8d5e36', '#5c3c22', '#c49464');
-      g.fillStyle = i === 0 ? '#f6f1e6' : '#4a6ea4';
+      // 摊位成片：木台 + 条纹篷 + 台面货（远看三个色点够认）
+      isoBox(g, 40, 230, 150, 70, 54, '#9a6840', '#5c3c22', '#d4a878');
+      g.fillStyle = i === 0 ? '#f7f2e8' : '#e8eef6';
       g.beginPath();
       g.moveTo(28, 168);
       g.lineTo(214, 176);
-      g.lineTo(196, 124);
-      g.lineTo(46, 118);
+      g.lineTo(196, 118);
+      g.lineTo(46, 112);
       g.closePath();
       g.fill();
-      g.fillStyle = i === 0 ? '#8d342c' : '#e4eef6';
-      for (let k = 0; k < 5; k++) g.fillRect(52 + k * 30, 128, 12, 36);
+      g.fillStyle = i === 0 ? '#c45a48' : '#4a6ea4';
+      for (let k = 0; k < 5; k++) g.fillRect(52 + k * 30, 124, 14, 40);
+      const goods = i === 0
+        ? [['#e87050', 70], ['#f0c46a', 100], ['#68a848', 132]]
+        : [['#f4efe6', 78], ['#7a9cc4', 110], ['#c4a15a', 140]];
+      for (let k = 0; k < goods.length; k++) {
+        sphere(g, goods[k][1], 198, 11, mix(goods[k][0], 0.25), goods[k][0], shade(goods[k][0], 0.35));
+      }
     } else if (i === 2) {
       g.strokeStyle = '#6b4e32';
       g.lineWidth = 8;

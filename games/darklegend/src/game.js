@@ -7,7 +7,7 @@
    5. 死亡回村复活，等级与装备保留；通关后可继续刷
    6. 装备稀有度/词缀/掉落对比/自动换装 + 掉落卡
    7. 怪物密度提高、按房间梯度刷怪、小地图、最近敌人提示
-   规则依据：docs/豆豆暗黑传奇-规则与任务.md（M1 范围内做了可玩性微调，见注释）
+   规则依据：games/darklegend/docs/豆豆暗黑传奇-规则与任务.md（M1 范围内做了可玩性微调，见注释）
 */
 import { DL } from './namespace.js';
 import './data.js';
@@ -4444,6 +4444,8 @@ const D = DL.DATA;
     }
     const seed = (worldSeed >>> 0) ^ hashId(currentRoom || 'hub');
     terrain = DL.World.genTerrain(map, pts, seed);
+    // 注意：主城大地图（overworld、currentRoom=null）的 props 由 Overworld.build 提供
+    //（房子/渔屋/椰子）。下面 buildProps 目前恒返回 []，若在这里无条件赋值会把成片冲掉。
     // 海岛化（2026-10-29）：野外房间（open）整图 96，陆地只占中间 48——
     // genRoom 已经把陆地画好（map=0），这里只上色：map=1 → 海；靠海两圈 → 沙滩。
     // 洞窟（cave）不碰：它的墙就是岩壁（terrain=2）。
@@ -4474,13 +4476,14 @@ const D = DL.DATA;
         }
       }
     }
-    props = buildProps(seed);
+    if (currentRoom || !useOverworld()) {
+      props = buildProps(seed);
+    }
   }
 
-  // 场景道具：主城手工摆，房间按种子撒。全部是纯装饰，不参与碰撞（A 阶段）。
+  // 场景道具：房间按种子撒；主城大地图改走 overworld.props（2026-11-11）。
   function buildProps(seed) {
-    // 2026-10-29：所有地图都改成海岛形式，立牌（树 / 房子 / 石头 / 摊位）全部不要，
-    // 边界交给海和沙滩。这里直接返回空表，房间里只剩怪和 NPC。
+    // 房间内仍不撒装饰（边界交给海/崖）。主城 props 不走这里。
     if (true) return [];
     // 3D 立牌全程序化，不再依赖 DL.Assets（2D 那条已删）
     const W = map[0].length, H = map.length;
@@ -4694,6 +4697,7 @@ const D = DL.DATA;
       rollSkillBookDrop, makeSkillBook, learnSkillBook, isSkillBook,
       rollDropSlot, slotUnlocked, slotMeta, EQUIP_SLOTS, wornOf,
       enemies: () => enemies, map: () => map, npc: () => npc, door: () => door,
+      props: () => props, terrain: () => terrain,
       genHub, enterRoom, leaveRoom, canEnterRoom, roomEnterNeedLv, bfs, save, load, spawnWild,
       currentRoom: () => currentRoom,
       doors: () => doors,

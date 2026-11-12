@@ -172,9 +172,10 @@ global.THREE = THREE;
   const COAST_REACH = (DL.IsoArt && DL.IsoArt.COAST_REACH) || 8;
   const SHALLOW_TILES = (DL.IsoArt && DL.IsoArt.SHALLOW_TILES) || 3.8;
   /* 海水的颜色/亮度全在这儿调（着色器里的数直接就是屏幕颜色）。 */
-  const SEA_SHALLOW = [0.20, 0.56, 0.64];   // 岸边浅水（原 0.30/0.78/0.74：整条海岸亮得像发光的薄荷带）
-  const SEA_DEEP = [0.16, 0.46, 0.52];      // 深水
-  const SEA_FOAM_C = [0.94, 0.97, 0.94];    // 碎沫
+  // Coral/动森海水：偏青透亮，一眼度假感
+  const SEA_SHALLOW = [0.28, 0.72, 0.78];
+  const SEA_DEEP = [0.16, 0.52, 0.62];
+  const SEA_FOAM_C = [0.98, 0.99, 0.96];
   const SEA_CAUSTIC_SHORE = 0.34;           // 岸纹强度（岸边，原 0.55）
   const SEA_CAUSTIC_DEEP = 0.10;            // 岸纹强度（深处，原 0.12）
   const SEA_FOAM_ALPHA = 0.72;              // 碎沫最大不透明度（原 0.85）
@@ -551,6 +552,10 @@ global.THREE = THREE;
       const kids = group.children;
       for (let i = 0; i < kids.length; i++) syncOneShadow(kids[i]);
     }
+    if (portalGroup) {
+      const kids = portalGroup.children;
+      for (let i = 0; i < kids.length; i++) syncOneShadow(kids[i]);
+    }
   }
 
   function clearShadows() {
@@ -565,7 +570,41 @@ global.THREE = THREE;
     }
   }
 
+  function makeFootShadow(rx, rz) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const g = c.getContext('2d');
+    // 童话软影：浅、暖、别拖墨团
+    const grd = g.createRadialGradient(64, 64, 12, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(90, 70, 45, 0.32)');
+    grd.addColorStop(0.55, 'rgba(90, 70, 45, 0.12)');
+    grd.addColorStop(1, 'rgba(90, 70, 45, 0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    const geo = new THREE.PlaneGeometry(rx * 2, rz * 2);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false, opacity: 0.7,
+    });
+    if ('toneMapped' in mat) mat.toneMapped = false;
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 15;
+    m.userData.isShadow = true;
+    return m;
+  }
+
   function own(mesh) {
+    if (mesh && mesh.userData && mesh.userData.volume) {
+      const sh = makeFootShadow(mesh.userData.shadowRx || 0.9, mesh.userData.shadowRz || 0.7);
+      mesh.userData.shadowMesh = sh;
+      if (shadowLayer) shadowLayer.add(sh);
+      else if (scene) scene.add(sh);
+      group.add(mesh);
+      return mesh;
+    }
     attachShadow(mesh);
     group.add(mesh);
     return mesh;
@@ -580,9 +619,7 @@ global.THREE = THREE;
     return 'terrain-field';
   }
 
-  // 素材库已清空（2026-10-29）：assets/ 只留 tiles + terrain。
-  // 3D 立牌（树/房/摊/人/怪/主角/袋子）全部改走 hd-draw.js 程序化画布 + paintTex 缓存；
-  // 新素材出好后按 key 逐个换回来（见 docs/立牌统一规格.md）。
+  // 角色/树/怪：hd-draw 立牌；房子/城装/渔屋：build-house 体积。
 
   const tileCanvasCache = {};
 
@@ -1172,6 +1209,8 @@ global.THREE = THREE;
 
   function depthOrder(mesh) {
     if (!mesh) return;
+    // 体积建筑走深度缓冲，不靠 renderOrder 假排序
+    if (mesh.userData && mesh.userData.volume) return;
     // 屏幕脚底 y ≈ 世界 z（相机从 +Z 俯视）；z 大的后画，盖住后面的。
     const base = 20 + (mesh.position.z + (mesh.userData.frontPad || 0)) * 4;
     mesh.renderOrder = base;
@@ -1198,29 +1237,27 @@ global.THREE = THREE;
     while (group.children.length) {
       const m = group.children.pop();
       detachShadow(m);
-      if (m.geometry && m.geometry !== shadowGeo) m.geometry.dispose();
-      const mats = Array.isArray(m.material) ? m.material : (m.material ? [m.material] : []);
-      for (let i = 0; i < mats.length; i++) {
-        if (seen.has(mats[i])) continue;
-        seen.add(mats[i]);
-        mats[i].dispose();
-      }
+      // 体积房子是 Group：必须 traverse 才能卸几何/贴图
+      m.traverse(function (o) {
+        if (o.geometry && o.geometry !== shadowGeo) o.geometry.dispose();
+        const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+        for (let i = 0; i < mats.length; i++) {
+          if (!mats[i] || seen.has(mats[i])) continue;
+          seen.add(mats[i]);
+          if (mats[i].map) mats[i].map.dispose();
+          mats[i].dispose();
+        }
+      });
     }
     scene.remove(group);
     group = null;
   }
 
-  // 立牌身高（世界单位），一把尺子量到底：豆豆 2.15 ≈ 1 个人。
-  // 数字按 hd-draw 程序化画布重新校准（画布是满幅的，没有 AI 图那种大块透明边）。
-  const HERO_H = 2.15;   // 1 个人
-  const TREE_H = 5.6;    // ≈2.6 人
-  const BORDER_TREE_H = 3.6;  // 边界树墙矮一档，不然树冠会把入口埋掉
-  const HOUSE_H = 4.8;   // ≈2.2 人，门洞才不会像狗屋
-  const STALL_H = 3.0;   // ≈1.4 人，摊子比人高半头
-  const HUT_H = 4.1;     // ≈1.9 人：门洞 57.8% 全高 ≈ 2.4 格，比人(2.15)高一头
-  const PALM_H = 7.3;    // ≈3.4 人：椰子树该比屋脊还高一倍，压到 4.9 像竹子
-  // 城里其余小物件：按 hd-draw townProp 的 index 顺序（0/1 摊位、2 篝火、3 水井、4 帐篷、5 栅栏…）
-  const TOWN_H = [STALL_H, STALL_H, 1.3, 1.6, 3.2, 0.9, 1.2, 1.0, 2.6, 1.4];
+  // 立牌身高（角色 / 树）。房子与城装不走立牌，见 BuildHouse。
+  const HERO_H = 2.15;
+  const TREE_H = 5.6;
+  const BORDER_TREE_H = 3.6;
+  const PALM_H = 7.3;
 
   function addProp(p) {
     const town = p.sheet === 'town';
@@ -1229,33 +1266,52 @@ global.THREE = THREE;
     if (!Hd) return;
     let tex;
     let h;
-    if (p.sheet === 'beachHut' || p.sheet === 'palm') {
-      // 海岛地标：渔屋 + 椰子树。落点由 overworld.js 定（findBeachHut / placeBeachPalms），
-      // 这里只管立起来。两种都纯装饰、不碰撞。
-      const isHut = p.sheet === 'beachHut';
-      h = isHut ? HUT_H : PALM_H;
-      tex = paintTex(p.sheet + ':' + idx, function () {
-        return isHut ? Hd.beachHut(idx) : Hd.palm(idx);
-      });
+    if (p.sheet === 'palm') {
+      // 抄 Cozy Isle：椰子改体积（弯干 + 圆锥叶），不再立牌
+      const BH = DL.BuildHouse;
+      if (BH && BH.palm) {
+        const root = BH.palm(THREE, idx);
+        root.position.x = p.x + 0.5;
+        root.position.z = p.y + 0.5;
+        own(root);
+        return;
+      }
+      h = PALM_H;
+      tex = paintTex('palm:' + idx, function () { return Hd.palm(idx); });
       if (!tex) return;
       const m = billboard(tex, h * (tex.image.width / tex.image.height), h, 1);
       m.position.x = p.x + 0.5;
       m.position.z = p.y + 0.5;
-      // 底座比脚点宽，遮挡按脚底再往前推一点；椰子树细，少推
-      m.userData.frontPad = isHut ? 0.7 : 0.35;
+      m.userData.frontPad = 0.35;
       own(m);
       return;
     }
-    if (town) {
-      h = TOWN_H[idx] != null ? TOWN_H[idx] : 2.0;
-      tex = paintTex('town:' + idx, function () { return Hd.townProp(idx); });
-    } else {
-      // 站在墙上（地图外圈）的是边界树墙：矮一档，不然树冠会把可玩区域和入口全盖住
-      const m0 = B && B.map && B.map();
-      const onWall = !!(m0 && m0[p.y] && m0[p.y][p.x] === 1);
-      h = onWall ? BORDER_TREE_H : TREE_H;
-      tex = paintTex('flora:' + idx, function () { return Hd.flora(idx); });
+    if (p.sheet === 'house' || p.sheet === 'beachHut' || town
+      || p.sheet === 'cityWall' || p.sheet === 'gate') {
+      const BH = DL.BuildHouse;
+      if (!BH) return;
+      let root = null;
+      if (p.sheet === 'house') root = BH.make && BH.make(THREE, p.kind || 'shop');
+      else if (p.sheet === 'beachHut') root = BH.hut && BH.hut(THREE);
+      else if (p.sheet === 'cityWall') root = BH.wall && BH.wall(THREE, p.len || 1, p.dir || 's');
+      else if (p.sheet === 'gate') root = BH.gate && BH.gate(THREE, p.dir || 's');
+      else if (BH.prop) root = BH.prop(THREE, idx);
+      if (!root) return;
+      const len = Math.max(1, p.len || 1);
+      let px = p.x + 0.5, pz = p.y + 0.5;
+      if (p.sheet === 'cityWall' && p.dir !== 'corner') {
+        if (p.dir === 'n' || p.dir === 's') px = p.x + len / 2;
+        else pz = p.y + len / 2;
+      }
+      root.position.x = px + (p.ox || 0) / CELL;
+      root.position.z = pz + (p.oy || 0) / CELL;
+      own(root);
+      return;
     }
+    const m0 = B && B.map && B.map();
+    const onWall = !!(m0 && m0[p.y] && m0[p.y][p.x] === 1);
+    h = onWall ? BORDER_TREE_H : TREE_H;
+    tex = paintTex('flora:' + idx, function () { return Hd.flora(idx); });
     if (!tex) return;
     const m = billboard(tex, h * (tex.image.width / tex.image.height), h, 1);
     m.position.x = p.x + 0.5 + (p.ox || 0) / CELL;
@@ -1279,7 +1335,6 @@ global.THREE = THREE;
   const MOB_GLYPH = {};
   ((DL.DATA && DL.DATA.MON) || []).forEach(function (m) { MOB_GLYPH[m.id] = m.glyph; });
 
-  // 新素材还没出：hd-draw 没画过的怪先用 emoji 立牌占位，保证看得见、点得到。
   function glyphCanvas(glyph) {
     const c = document.createElement('canvas');
     c.width = 160;
@@ -1377,21 +1432,27 @@ global.THREE = THREE;
   }
 
   function addPortal(p) {
+    const BH = DL.BuildHouse;
+    const label = p.label || (p.kind === 'exit' || p.kind === 'boss' ? '出口' : '传送门');
+    if (BH && BH.portal) {
+      const root = BH.portal(THREE, p.kind || 'door', label);
+      root.position.x = p.x + 0.5;
+      root.position.z = p.y + 0.5;
+      // 传送阵不进 group 排序（站立物），挂 portalGroup；仍要脚影
+      const sh = makeFootShadow(root.userData.shadowRx || 0.85, root.userData.shadowRz || 0.85);
+      root.userData.shadowMesh = sh;
+      if (shadowLayer) shadowLayer.add(sh);
+      portalGroup.add(root);
+      return;
+    }
+    // 兜底：无 BuildHouse 时仍可见
     const c = document.createElement('canvas');
     c.width = 128; c.height = 160;
     const g = c.getContext('2d');
-    const color = p.kind === 'exit' ? '#5fe0c0' : p.kind === 'boss' ? '#e04a4a' : '#f0c840';
-    const grd = g.createRadialGradient(64, 96, 4, 64, 96, 62);
-    grd.addColorStop(0, color);
-    grd.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = grd;
+    g.fillStyle = '#f0c840';
     g.beginPath();
-    g.arc(64, 96, 62, 0, Math.PI * 2);
+    g.arc(64, 96, 48, 0, Math.PI * 2);
     g.fill();
-    g.font = 'bold 20px system-ui';
-    g.textAlign = 'center';
-    g.fillStyle = color;
-    g.fillText(p.label || (p.kind === 'exit' || p.kind === 'boss' ? '出口' : '传送门'), 64, 30);
     const tex = texOfCanvas(c);
     const m = billboard(tex, 128 / CELL, 160 / CELL, 2);
     m.position.x = p.x + 0.5;
@@ -1400,8 +1461,7 @@ global.THREE = THREE;
   }
 
   function assetsReady() {
-    // 立牌全部程序化：只要 hd-draw 在，场景就能建（等新 PNG 素材回来再逐个接）
-    return !!(DL.HdDraw && DL.HdDraw.heroSheet);
+    return !!(DL.HdDraw && DL.HdDraw.heroSheet && DL.BuildHouse);
   }
 
   function dropMesh(m) {
@@ -1425,11 +1485,6 @@ global.THREE = THREE;
     return open(x - 1, y) || open(x + 1, y) || open(x, y - 1) || open(x, y + 1);
   }
 
-  function buildSolids() {
-    // 2026-10-29：立牌全去掉。城里只留 NPC，房子/摊位/石头/树都不生成。
-    return;
-  }
-
   function addRock(x, y, variant) {
     const v = variant | 0;
     const tex = paintTex('rock:' + v, function () { return DL.HdDraw.rock(v); });
@@ -1438,15 +1493,6 @@ global.THREE = THREE;
     const m = billboard(tex, h * (img.width / img.height), h, 1);
     m.position.x = x;
     m.position.z = y;
-    own(m);
-  }
-
-  function addHouse(x, z) {
-    const tex = paintTex('house:shop', function () { return DL.HdDraw.house('shop'); });
-    const m = billboard(tex, HOUSE_H * (tex.image.width / tex.image.height), HOUSE_H, 1);
-    m.position.set(x, HOUSE_H / 2, z);
-    // 占地朝相机最下一行：相机在 +Z，脚底取更靠前的 z。
-    m.userData.frontPad = 0.9;
     own(m);
   }
 
@@ -1529,8 +1575,6 @@ global.THREE = THREE;
     if (!B) return;
 
     buildGround();
-    buildSolids();
-    // buildCliffs()  // 2026-10-29：山谷先去掉，岛的边界交给海和草地
     if (!assetsReady()) {
       spritesReady = false;
       return;
@@ -1788,7 +1832,7 @@ global.THREE = THREE;
     if (gCtx) syncChunks();
     clampLook();
     placeCamera();
-    if (renderer) renderer.setClearColor(groundSheet() === 'terrain-cave' ? '#1a2430' : '#7eb6e6', 1);
+    if (renderer) renderer.setClearColor(groundSheet() === 'terrain-cave' ? '#1a2430' : '#9ed4f0', 1);
 
     // 主角位置/朝向
     if (hero) {
@@ -2042,7 +2086,7 @@ global.THREE = THREE;
       fail('这个浏览器开不了 WebGL。3D 是唯一画面，没有 2D 回退了——换 Chrome / 开硬件加速再试。');
       return;
     }
-    renderer.setClearColor('#7eb6e6', 1);
+    renderer.setClearColor('#9ed4f0', 1);
     // 2.5D 的关键：有光、有影子。不然后面所有贴图都是"平涂"，看起来像 2D。
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -2053,14 +2097,18 @@ global.THREE = THREE;
       ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600)
       : new THREE.PerspectiveCamera(FOV, Pick.VIEW_W / Pick.VIEW_H, 0.1, 400);
     scene = new THREE.Scene();
-    // 环境光压到"能看清暗部"就够；主光是左上方向光。
-    // 注意：这一版 three 的光强是物理单位，数值比老教程大（真实值 ≈ 老值 × π）。
-    scene.add(new THREE.AmbientLight(0xffffff, 1.7));
-    sun = new THREE.DirectionalLight(0xfff3dc, 2.9);
+    // 童话海岛软日光：粉蓝天 + 暖填光 + 浅影子（Coral/动森气质，不要硬对比）
+    scene.background = new THREE.Color(0x9ed4f0);
+    scene.fog = new THREE.Fog(0xb8e0f5, 34, 78);
+    scene.add(new THREE.HemisphereLight(0xfff5e6, 0xa8d878, 1.15));
+    scene.add(new THREE.AmbientLight(0xfff0dc, 0.35));
+    sun = new THREE.DirectionalLight(0xffe8c4, 1.45);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.bias = -0.0002;
-    sun.shadow.normalBias = 0.05;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0006;
+    sun.shadow.normalBias = 0.045;
+    sun.shadow.radius = 3;
+    if ('intensity' in sun.shadow) sun.shadow.intensity = 0.55;
     scene.add(sun);
     scene.add(sun.target);
     shadowLayer = new THREE.Group();

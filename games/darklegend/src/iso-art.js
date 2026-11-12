@@ -40,23 +40,24 @@ const global = globalThis;
        - 底色：几乎就是 PALETTES.field.base 的纯绿；
        - 极淡的大块明暗（让地面不是一块死色，看不出花纹）；
        - 每几十格一丛小草、偶尔一朵小花（真正意义上的"零星几颗"）。 */
-  const GRASS_CLUMP_P = 0.012; // 落簇概率：约每 80 格一丛（一屏二三十颗，不能再多了）
-  const GRASS_R = 0.18;        // 草簇半径（格）；叶长 ≈ 1.35 倍
+  const GRASS_CLUMP_P = 0.018; // 约每 55 格一丛，仍是点缀不是满屏草
+  const GRASS_R = 0.20;
 
   /* ================= 色板：明亮暖色童话，一套 ×3 主题 ================= */
 
   const PALETTES = {
     field: {
-      base: '#8CC26A', baseHi: '#A8D77E', baseLo: '#6FA24E',
-      rock: '#9C9384', rockHi: '#B4AB9A', rockLo: '#7F7768',
-      soil: '#D9B87A', soilHi: '#E7CB96', soilLo: '#BFA066',
-      path: '#D9B77E', pathLo: '#C0A168',
-      brick: ['#B5624E', '#AE5C49', '#BC6A56'], mortar: '#D4C4A6',
-      stone: '#C9BEA8', stoneLo: '#9A8F7C',
-      water: '#7FB6D9', waterLo: '#5A8FB3', waterHi: '#C6E4F2',
-      sea: '#3F6E92', seaLo: '#2E5675', seaHi: '#7FA8C4',
-      mud: '#A5814F', mudLo: '#8A6A3E',
-      ink: '#3B2F26', cream: '#F7EEDB',
+      // 动森/Coral：草绿更青翠，沙更奶油，拒绝闷灰
+      base: '#8CCE5E', baseHi: '#B4EE82', baseLo: '#68B048',
+      rock: '#B8B0A0', rockHi: '#D0C8B8', rockLo: '#989078',
+      soil: '#E8C888', soilHi: '#F4DCA0', soilLo: '#C8A868',
+      path: '#F0D49A', pathLo: '#D4B878',
+      brick: ['#E87868', '#D86858', '#F08878'], mortar: '#F0E4C8',
+      stone: '#E0D6C0', stoneLo: '#B8AE98',
+      water: '#7EC8E8', waterLo: '#5AA8C8', waterHi: '#D0F0FF',
+      sea: '#3F8AB8', seaLo: '#2E6E98', seaHi: '#8EC8E0',
+      mud: '#C89860', mudLo: '#A87848',
+      ink: '#5A4838', cream: '#FFF6E8',
     },
     cave: {
       base: '#767A8C', baseHi: '#8C90A2', baseLo: '#5E6274',
@@ -349,7 +350,7 @@ const global = globalThis;
     const pat = g.createPattern(turfTileCached(TILE, T, seed), 'repeat');
     if (!pat) return;
     g.save();
-    g.globalAlpha = 0.13;
+    g.globalAlpha = 0.18;
     // 图案按"用户空间原点"排相位。分块时把原点挪回世界原点，平铺才接得上
     // （24 格 = 1152px = 3×384 本来是对齐的，但 1 格出血 48px 会让相位差 48）
     const phx = win ? (((win.ox % TILE) + TILE) % TILE) : 0;
@@ -479,22 +480,25 @@ const global = globalThis;
     for (let gy = 0; gy < ch; gy++) {
       for (let gx = 0; gx < cw; gx++) {
         const h = hash(seed + 77, (gx0 + gx) * 613 + (gy0 + gy) * 719);
-        if (rnd(h, 0) < 0.008) {
-          // 白花：两三个小白瓣 + 一点暖黄心，1~2px 大小，不扎眼
+        if (rnd(h, 0) < 0.011) {
           const fx = (gx + 0.25 + rnd(h, 1) * 0.5) * px, fy = (gy + 0.25 + rnd(h, 2) * 0.5) * px;
+          const pr = 1.3 + rnd(h, 3) * 0.7;
           g.fillStyle = T.cream;
+          for (let p = 0; p < 4; p++) {
+            const a = (p / 4) * TAU;
+            g.beginPath();
+            g.ellipse(fx + Math.cos(a) * pr * 0.7, fy + Math.sin(a) * pr * 0.55, pr * 0.55, pr * 0.35, a, 0, TAU);
+            g.fill();
+          }
+          g.fillStyle = mix(T.path, '#F0C050', 0.45);
           g.beginPath();
-          g.arc(fx, fy, 1.1 + rnd(h, 3) * 0.6, 0, TAU);
-          g.fill();
-          g.fillStyle = hexA(T.path, 0.9);
-          g.beginPath();
-          g.arc(fx, fy, 0.5, 0, TAU);
+          g.arc(fx, fy, pr * 0.35, 0, TAU);
           g.fill();
         }
-        if (rnd(h, 4) < 0.012) {
-          g.globalAlpha = 0.35;
+        if (rnd(h, 4) < 0.014) {
+          g.globalAlpha = 0.4;
           pebble(g, (gx + 0.2 + rnd(h, 5) * 0.6) * px, (gy + 0.2 + rnd(h, 6) * 0.6) * px,
-            1.4 + rnd(h, 7) * 1.0, T.stoneLo, T.stone);
+            1.5 + rnd(h, 7) * 1.1, T.stoneLo, T.stone);
           g.globalAlpha = 1;
         }
       }
@@ -743,19 +747,24 @@ const global = globalThis;
     g.lineTo(x0 + chip * rnd(h, 22) * 0.35, y0 + chip * rnd(h, 23));
     g.closePath();
 
+    // 左上亮、右下暗（跟 mir 主光一致），砖面才读得出体积
     const grd = g.createLinearGradient(x0, y0, x1, y1);
-    grd.addColorStop(0, mix(base, T.pathLo, 0.08));
-    grd.addColorStop(0.4, base);
-    grd.addColorStop(1, mix(base, T.pathLo, 0.22));
+    grd.addColorStop(0, mix(base, T.cream, 0.22));
+    grd.addColorStop(0.35, base);
+    grd.addColorStop(1, mix(base, T.pathLo, 0.28));
     g.fillStyle = grd;
     g.fill();
 
-    // 砖面脏斑：沙色砖上只留很淡的暖土斑（原来是深褐/墨，改沙色后会把砖面弄脏）
+    g.fillStyle = hexA(T.cream, 0.16);
+    g.beginPath();
+    g.ellipse(x0 + (x1 - x0) * 0.28, y0 + (y1 - y0) * 0.26, (x1 - x0) * 0.22, (y1 - y0) * 0.14, -0.4, 0, TAU);
+    g.fill();
+
     const blot = 3 + (rnd(h, 30) * 4 | 0);
     for (let i = 0; i < blot; i++) {
       g.fillStyle = hexA(
         rnd(h, 31 + i) < 0.45 ? T.soilLo : T.pathLo,
-        0.06 + rnd(h, 33 + i) * 0.09
+        0.05 + rnd(h, 33 + i) * 0.08
       );
       g.beginPath();
       g.ellipse(
@@ -1990,6 +1999,9 @@ const global = globalThis;
         if (mask) {
           sg.globalCompositeOperation = 'destination-in';
           sg.drawImage(mask, 0, 0);
+          // 软边遮罩的 RGB 带湿沙压暗，再乘一次才看得见
+          sg.globalCompositeOperation = 'multiply';
+          sg.drawImage(mask, 0, 0);
           sg.globalCompositeOperation = 'source-over';
           g.drawImage(sandLay, 0, 0);
         } else {
@@ -2128,36 +2140,46 @@ const global = globalThis;
 
   /* 沙滩：海和草之间那圈沙。不是纯色——低频沙斑 + 沙粒 + 潮痕弧线 */
   function paintSand(g, W, H, px, T, o, win) {
-    g.fillStyle = mix(T.cream, T.soilHi, 0.45);
+    // 跟海水同语言：大斑起伏 + 细粒闪点，别一整片死沙色
+    g.fillStyle = mix(T.cream, T.soilHi, 0.38);
     g.fillRect(0, 0, W, H);
     const cells = (W * H) / (px * px);
-    // 低频沙斑（按整张图锚定）
     const S = blobSpace(W, H, px, win, 0);
-    for (let i = 0; i < Math.round(S.n * 0.5); i++) {
+    for (let i = 0; i < Math.round(S.n * 0.65); i++) {
       const h = hash(71, i);
-      const r = px * (0.4 + rnd(h, 2) * 1.1);
+      const r = px * (0.6 + rnd(h, 2) * 1.6);
       const cx = S.ox + rnd(h, 0) * S.w, cy = S.oy + rnd(h, 1) * S.h;
       if (!S.hit(cx, cy, r)) continue;
       softBlob(g, cx, cy, r,
-        rnd(h, 3) < 0.5 ? T.soilLo : T.cream, 0.10 + rnd(h, 4) * 0.10, h);
+        rnd(h, 3) < 0.45 ? mix(T.soilLo, T.pathLo, 0.3) : mix(T.cream, '#fff6e0', 0.35),
+        0.08 + rnd(h, 4) * 0.12, h);
     }
-    const dots = Math.round(cells * 26);
-    for (let i = 0; i < dots; i++) {
-      const h = hash(73, i);
-      g.fillStyle = hexA(rnd(h, 0) < 0.5 ? T.ink : T.cream, 0.10 + rnd(h, 1) * 0.18);
-      g.fillRect(rnd(h, 2) * W, rnd(h, 3) * H, 1.2, 1.2);
-    }
-    const lines = Math.round(cells * 1.2);
-    for (let i = 0; i < lines; i++) {
-      const h = hash(79, i);
-      g.strokeStyle = hexA(T.pathLo, 0.18);
-      g.lineWidth = 1.4;
+    // 潮痕：横向浅弧，像碎沫舔过
+    for (let i = 0; i < Math.round(cells * 0.9); i++) {
+      const h = hash(77, i);
+      g.strokeStyle = hexA(mix(T.waterHi || T.cream, T.pathLo, 0.35), 0.14 + rnd(h, 0) * 0.1);
+      g.lineWidth = 1.2 + rnd(h, 1);
       g.lineCap = 'round';
-      const x = rnd(h, 0) * W, y = rnd(h, 1) * H, w = px * (0.5 + rnd(h, 2) * 1.2);
+      const x = rnd(h, 2) * W, y = rnd(h, 3) * H, w = px * (0.8 + rnd(h, 4) * 1.8);
       g.beginPath();
       g.moveTo(x, y);
-      g.quadraticCurveTo(x + w * 0.5, y - 2.4, x + w, y);
+      g.quadraticCurveTo(x + w * 0.5, y - 3 - rnd(h, 5) * 4, x + w, y + 1);
       g.stroke();
+    }
+    const dots = Math.round(cells * 32);
+    for (let i = 0; i < dots; i++) {
+      const h = hash(73, i);
+      g.fillStyle = hexA(rnd(h, 0) < 0.55 ? T.cream : T.pathLo, 0.12 + rnd(h, 1) * 0.2);
+      g.fillRect(rnd(h, 2) * W, rnd(h, 3) * H, 1.1 + rnd(h, 4), 1.1);
+    }
+    // 零星贝壳亮点
+    for (let i = 0; i < Math.round(cells * 0.35); i++) {
+      const h = hash(81, i);
+      if (rnd(h, 0) > 0.35) continue;
+      g.fillStyle = hexA('#fff8ec', 0.35);
+      g.beginPath();
+      g.ellipse(rnd(h, 1) * W, rnd(h, 2) * H, 1.4, 0.9, rnd(h, 3), 0, TAU);
+      g.fill();
     }
   }
 
@@ -2262,10 +2284,23 @@ const global = globalThis;
     } catch (e) { return null; }
     if (!src || !src.data || !img || !img.data) return null;
     const s = src.data, d = img.data;
-    // 和原来那条逐像素覆盖用同一个判据：d > -SAND_TILES ⇔ R > thr
-    const thr = (COAST_REACH - SAND_TILES) / (COAST_REACH * 2) * 255;
+    const reach2 = COAST_REACH * 2;
+    // 软边沙带：靠水渐隐 + 潮湿地带略压暗，别硬切成色块
     for (let i = 0; i < s.length; i += 4) {
-      if (s[i] > thr) { d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = 255; }
+      const dist = s[i] / 255 * reach2 - COAST_REACH;
+      if (dist <= -SAND_TILES - 0.35) continue;
+      let a = (dist + SAND_TILES + 0.35) / 0.7;
+      if (a < 0) a = 0; else if (a > 1) a = 1;
+      let fade = 1 - (dist - 0.15) / 0.7;
+      if (fade < 0) fade = 0; else if (fade > 1) fade = 1;
+      a *= fade;
+      if (a < 0.02) continue;
+      // RGB 留给 destination-in 后的 multiply：干沙近白、近水略压暗
+      const wet = dist > -0.35 && dist < 0.55 ? Math.min(1, (0.55 - Math.abs(dist - 0.1)) / 0.55) : 0;
+      const r = Math.round(255 - wet * 42);
+      const g0 = Math.round(255 - wet * 50);
+      const b = Math.round(255 - wet * 58);
+      d[i] = r; d[i + 1] = g0; d[i + 2] = b; d[i + 3] = Math.round(a * 255);
     }
     g.putImageData(img, 0, 0);
     return c;

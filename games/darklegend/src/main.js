@@ -10,6 +10,7 @@ import './status.js';
 import './sfx.js';
 import './three-pick.js';
 import './hd-draw.js';
+import './build-house.js';
 import './iso-ground.js';
 import './iso-art.js';
 import './tile-plate.js';

@@ -59,6 +59,18 @@
     // 攻击卡很少出：单张抽到的权重只有 12
     weights: { dmgAdd: 48, rateMul: 25, shots: 15, dmgMul: 12 },
     noAtkBefore: 3,     // 前 3 波不出攻击卡
+
+    // 打击感（无整屏震；顿挫只冻该怪）
+    hitStunAdd: 0.04,
+    hitStunMax: 0.08,
+    hitKnock: 32,
+    hitKnockKill: 70,
+    hitSquash: 0.38,
+    // 2026-11-16 三档：普通命中只做局部；击杀 / BOSS 才给全局顿帧 + 冲击环
+    killFreeze: 0.05,
+    bossFreeze: 0.14,
+    killRing: 90,
+    bossRing: 170,
   }, (typeof globalThis !== 'undefined' && globalThis.__BALANCE) || {});
 
   // 大数字用中文单位：1.2万 / 3.45亿
@@ -119,6 +131,9 @@
     bullets: [],
     cards: [],
     particles: [],
+    floats: [],          // 伤害飘字
+    rings: [],           // 击杀冲击环
+    hitstop: 0,          // 击杀顿帧剩余（真实秒；只在渲染循环里生效，不影响模拟）
     spawnTimer: 0,
     waveGap: 0,
     round: 0,
@@ -325,9 +340,13 @@
       r: 22,
       dead: false,
       hitFlash: 0,
+      hitStun: 0,
+      knockY: 0,
+      squash: 0,
       // 相邻两列的血条错开，后期数字长，不然会糊成一片
       lift: (Math.round(col) % 2) * 34,
       wob: Math.random() * Math.PI * 2,
+      hopPhase: Math.random() * Math.PI * 2,
     });
   }
 
@@ -346,7 +365,11 @@
       r: 46,
       dead: false,
       hitFlash: 0,
+      hitStun: 0,
+      knockY: 0,
+      squash: 0,
       wob: 0,
+      hopPhase: 0,
     });
   }
 
@@ -526,7 +549,8 @@
   function shoot(dmg, originX, originY) {
     const p = G.player;
     const x0 = originX === undefined ? p.x : originX;
-    const muzzleY = (originY === undefined ? p.y : originY) - 148;
+    // 与 stick hero 枪口大致对齐（scale 1.45 × 局部 muzzleY ≈ -98）
+    const muzzleY = (originY === undefined ? p.y : originY) - 142;
 
     const n = p.shots;
     const gap = 18;   // 弹道之间的横向间距（越小越密）
@@ -559,9 +583,22 @@
     for (const e of G.enemies) {
       if (e.dead) continue;
 
-      if (e.hitFlash > 0) e.hitFlash -= dt * 4;
+      if (e.hitFlash > 0) e.hitFlash -= dt * 6;
+      if (e.squash > 0) e.squash = Math.max(0, e.squash - dt * 5.5);
+      if (e.hitStun > 0) e.hitStun = Math.max(0, e.hitStun - dt);
 
-      // 直线推进，不拐弯
+      // 受击回推（朝 -Y）
+      if (e.knockY) {
+        e.y += e.knockY * dt;
+        e.knockY *= Math.exp(-14 * dt);
+        if (Math.abs(e.knockY) < 2) e.knockY = 0;
+      }
+
+      // ③ 该怪顿挫：顿住时不推进、不弹跳（全局不冻，机枪不拖死）
+      if (e.hitStun > 0) continue;
+
+      const hopHz = e.kind === 'boss' ? 3.2 : 5.5;
+      e.hopPhase = (e.hopPhase || 0) + dt * hopHz;
       e.y += e.speed * dt;
 
       if (e.y >= BASE_Y) {
@@ -748,25 +785,40 @@
   function hitEnemy(e, b) {
     if (e.dead) return;
 
-    e.hp -= b.damage;
+    const dmg = b.damage;
+    const killed = e.hp - dmg <= 0;
+    e.hp -= dmg;
+
+    // ① 受击闪白
     e.hitFlash = 1;
+    // ③ 该怪短顿挫（封顶）
+    e.hitStun = Math.min(BAL.hitStunMax, (e.hitStun || 0) + BAL.hitStunAdd);
+    // ⑤ 压扁 + 回推
+    e.squash = Math.max(e.squash || 0, BAL.hitSquash);
+    e.knockY = -(killed ? BAL.hitKnockKill : BAL.hitKnock);
+    // ② 命中火花
+    impactSparks(b.x, b.y, killed);
+    // ⑥ 伤害飘字（抛物线）
+    spawnFloat(e.x, e.y - (e.kind === 'boss' ? 70 : 40), dmg, killed);
 
-    burst(b.x, b.y, '#ffd166', 3);
-
-    if (e.hp <= 0) {
+    if (killed) {
       e.dead = true;
       G.kills += 1;
-
-      burst(e.x, e.y, '#9be26a', e.kind === 'boss' ? 70 : 14);
-
+      burst(e.x, e.y, '#9be26a', e.kind === 'boss' ? 70 : 18);
+      // 三档：普通命中不动全局；击杀给中档顿帧 + 小环；BOSS 给大档
       if (e.kind === 'boss') {
+        G.hitstop = Math.max(G.hitstop, BAL.bossFreeze);
+        addRing(e.x, e.y, BAL.bossRing, '#ffd166');
         win();
+      } else {
+        G.hitstop = Math.max(G.hitstop, BAL.killFreeze);
+        addRing(e.x, e.y, BAL.killRing, '#ffe28a');
       }
     }
   }
 
   /* ----------------------------------------------------------
-     粒子
+     粒子 / 飘字（打击感通道）
      ---------------------------------------------------------- */
 
   function burst(x, y, color, n) {
@@ -781,19 +833,109 @@
         max: 0.6,
         color,
         size: rnd(2, 4.5),
+        streak: false,
       });
     }
+  }
+
+  // 命中火花：大颗 + 短拖尾，朝四周炸开
+  function impactSparks(x, y, heavy) {
+    const n = heavy ? 16 : 9;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rnd(-0.2, 0.2);
+      const sp = rnd(heavy ? 180 : 140, heavy ? 420 : 280);
+      G.particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - rnd(40, 120),
+        life: rnd(0.22, 0.5),
+        max: 0.5,
+        color: i % 3 === 0 ? '#ffffff' : (heavy ? '#ffe28a' : '#ffd166'),
+        size: rnd(3.5, heavy ? 7 : 5.5),
+        streak: true,
+      });
+    }
+    // 中心亮核一下
+    G.particles.push({
+      x, y,
+      vx: 0,
+      vy: 0,
+      life: 0.12,
+      max: 0.12,
+      color: '#ffffff',
+      size: heavy ? 14 : 9,
+      streak: false,
+    });
+  }
+
+  // 抛物线飘字：左右初速 + 上抛，再受重力落下
+  function spawnFloat(x, y, dmg, kill) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    G.floats.push({
+      x: x + rnd(-6, 6),
+      y,
+      vx: side * rnd(70, 140),
+      vy: kill ? -220 : -170,
+      g: kill ? 520 : 480,
+      life: kill ? 0.85 : 0.6,
+      max: kill ? 0.85 : 0.6,
+      text: fmt(dmg),
+      kill: !!kill,
+    });
   }
 
   function updateParticles(dt) {
     for (const p of G.particles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vx *= 0.92;
-      p.vy *= 0.92;
+      p.vx *= 0.9;
+      p.vy *= 0.9;
+      p.vy += 180 * dt;
       p.life -= dt;
     }
     G.particles = G.particles.filter((p) => p.life > 0);
+  }
+
+  function updateFloats(dt) {
+    for (const f of G.floats) {
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vy += f.g * dt;
+      f.vx *= 0.98;
+      f.life -= dt;
+    }
+    G.floats = G.floats.filter((f) => f.life > 0);
+  }
+
+  /* 击杀冲击环：普通命中不出，只有击杀 / BOSS 才出 */
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+  function addRing(x, y, r1, color) {
+    if (!r1) return;
+    G.rings.push({ x, y, r0: 12, r1, t: 0, life: 0.26, max: 0.26, color });
+    if (G.rings.length > 12) G.rings.shift();
+  }
+
+  function updateRings(dt) {
+    for (const r of G.rings) {
+      r.t += dt;
+      r.life -= dt;
+    }
+    G.rings = G.rings.filter((r) => r.life > 0);
+  }
+
+  function drawRings() {
+    for (const r of G.rings) {
+      const k = Math.max(0, Math.min(1, 1 - r.life / r.max));
+      const rad = r.r0 + (r.r1 - r.r0) * easeOutCubic(k);
+      ctx.globalAlpha = (1 - k) * 0.9;
+      ctx.strokeStyle = r.color;
+      ctx.lineWidth = 6 * (1 - k) + 1;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /* ----------------------------------------------------------
@@ -843,6 +985,7 @@
     G.bullets = [];
     G.cards = [];
     G.particles = [];
+    G.floats = [];
     G.spawnTimer = 0;
     G.waveGap = 0;
     G.round = 0;
@@ -895,11 +1038,14 @@
 
       updatePlayer(dt);
       updateBullets(dt);
-      updateParticles(dt);
       return;
     }
+  }
 
+  function updateJuice(dt) {
     updateParticles(dt);
+    updateFloats(dt);
+    updateRings(dt);
   }
 
   /* ----------------------------------------------------------
@@ -914,20 +1060,28 @@
     drawBridge();
     drawBarricade();
     drawEnemies();
+    drawRings();
     drawCards();
     drawBullets();
     drawPlayer();
     drawParticles();
+    drawFloats();
   }
 
   function drawGround() {
-    // 桥两侧的废墟
-    ctx.fillStyle = '#0a0d12';
+    // 桥外深渊：上亮下暗一点，别一整块死黑
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#121820');
+    sky.addColorStop(0.55, '#0a0d12');
+    sky.addColorStop(1, '#07090c');
+    ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, H);
 
     for (const d of DEBRIS) {
-      ctx.fillStyle = `rgba(40, 46, 56, ${d.a})`;
+      ctx.fillStyle = `rgba(48, 56, 68, ${d.a})`;
       ctx.fillRect(d.x, d.y, d.w, d.h);
+      ctx.fillStyle = `rgba(70, 80, 96, ${d.a * 0.45})`;
+      ctx.fillRect(d.x, d.y, d.w * 0.35, d.h * 0.4);
     }
   }
 
@@ -935,39 +1089,48 @@
     const x0 = BRIDGE.left;
     const w = BRIDGE.right - BRIDGE.left;
 
-    // 桥面底色
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#3c424e');
-    g.addColorStop(0.5, '#343a45');
-    g.addColorStop(1, '#2b303a');
+    // 桥板厚度：左亮右暗，读得出体量
+    const g = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+    g.addColorStop(0, '#4a5160');
+    g.addColorStop(0.45, '#3a404c');
+    g.addColorStop(1, '#2a3038');
     ctx.fillStyle = g;
     ctx.fillRect(x0, 0, w, H);
 
-    // 石板横缝
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.18)';
+    // 远近石板横缝（近处略密）
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
     ctx.lineWidth = 2;
-    for (let y = 60; y < H; y += 110) {
+    for (let y = 40; y < H; y += 96) {
       ctx.beginPath();
-      ctx.moveTo(x0, y);
-      ctx.lineTo(x0 + w, y);
+      ctx.moveTo(x0 + 6, y);
+      ctx.lineTo(x0 + w - 6, y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    for (let y = 42; y < H; y += 96) {
+      ctx.beginPath();
+      ctx.moveTo(x0 + 6, y);
+      ctx.lineTo(x0 + w * 0.35, y);
       ctx.stroke();
     }
 
-    // 石板竖缝
-    for (let y = 60; y < H; y += 110) {
-      const off = (y / 110) % 2 === 0 ? 0 : 150;
-      for (let x = x0 + 120 + off; x < x0 + w; x += 300) {
+    // 竖缝错落
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.16)';
+    for (let y = 40; y < H; y += 96) {
+      const off = ((y / 96) | 0) % 2 === 0 ? 0 : 140;
+      for (let x = x0 + 100 + off; x < x0 + w - 40; x += 280) {
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.lineTo(x, y + 110);
+        ctx.lineTo(x, Math.min(H, y + 96));
         ctx.stroke();
       }
     }
 
     // 裂缝
-    ctx.strokeStyle = 'rgba(10, 12, 16, 0.55)';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(8, 10, 14, 0.5)';
+    ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     for (const pts of CRACKS) {
       ctx.beginPath();
       pts.forEach(([cx, cy], i) => {
@@ -977,10 +1140,38 @@
       ctx.stroke();
     }
 
-    // 桥沿
-    ctx.fillStyle = '#20252d';
-    ctx.fillRect(x0 - 8, 0, 8, H);
-    ctx.fillRect(x0 + w, 0, 8, H);
+    // 桥沿栏杆：立柱节奏 + 上下扶手（还是线，但有结构）
+    const rail = (edgeX, inward) => {
+      ctx.strokeStyle = '#1a1e26';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(edgeX, 0);
+      ctx.lineTo(edgeX, H);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(90, 100, 118, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(edgeX + inward * 3, 0);
+      ctx.lineTo(edgeX + inward * 3, H);
+      ctx.stroke();
+      for (let y = 28; y < H; y += 72) {
+        ctx.strokeStyle = '#242a34';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(edgeX, y);
+        ctx.lineTo(edgeX + inward * 14, y - 10);
+        ctx.stroke();
+      }
+    };
+    rail(x0 - 4, 1);
+    rail(x0 + w + 4, -1);
+
+    // 桥沿压条
+    ctx.fillStyle = '#1c2129';
+    ctx.fillRect(x0 - 10, 0, 10, H);
+    ctx.fillRect(x0 + w, 0, 10, H);
+    ctx.fillStyle = 'rgba(120, 132, 150, 0.18)';
+    ctx.fillRect(x0 - 10, 0, 3, H);
   }
 
   function drawBarricade() {
@@ -988,96 +1179,304 @@
     const x0 = BRIDGE.left;
     const w = BRIDGE.right - BRIDGE.left;
 
-    // 混凝土墩
-    ctx.fillStyle = '#4a505c';
-    ctx.fillRect(x0 - 6, y, w + 12, 34);
+    // 混凝土墩有厚度：顶面亮一线
+    ctx.fillStyle = '#3e4552';
+    ctx.fillRect(x0 - 8, y + 6, w + 16, 32);
+    ctx.fillStyle = '#5a6270';
+    ctx.fillRect(x0 - 8, y, w + 16, 10);
+    ctx.fillStyle = 'rgba(200, 210, 220, 0.2)';
+    ctx.fillRect(x0 - 8, y, w + 16, 3);
 
-    // 黄黑警示条
     for (let x = x0 - 6; x < x0 + w + 6; x += 42) {
       ctx.fillStyle = '#e8c44a';
       ctx.beginPath();
-      ctx.moveTo(x, y + 34);
-      ctx.lineTo(x + 24, y);
-      ctx.lineTo(x + 42, y);
-      ctx.lineTo(x + 18, y + 34);
+      ctx.moveTo(x, y + 38);
+      ctx.lineTo(x + 22, y + 4);
+      ctx.lineTo(x + 40, y + 4);
+      ctx.lineTo(x + 18, y + 38);
       ctx.closePath();
       ctx.fill();
 
       ctx.fillStyle = '#1a1d22';
       ctx.beginPath();
-      ctx.moveTo(x + 42, y + 34);
-      ctx.lineTo(x + 66, y);
-      ctx.lineTo(x + 84, y);
-      ctx.lineTo(x + 60, y + 34);
+      ctx.moveTo(x + 40, y + 38);
+      ctx.lineTo(x + 62, y + 4);
+      ctx.lineTo(x + 80, y + 4);
+      ctx.lineTo(x + 58, y + 38);
       ctx.closePath();
       ctx.fill();
     }
   }
 
-  /* ---------- 火柴人 ---------- */
+  /* ---------- 成片火柴人：仍是线，但有线压、关节、姿态 ---------- */
 
-  function stick(x, y, scale, color, pose) {
+  function shadeHex(hex, t) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.round(((n >> 16) & 255) * (1 - t));
+    const g = Math.round(((n >> 8) & 255) * (1 - t));
+    const b = Math.round((n & 255) * (1 - t));
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  // 受击提亮：沿身体颜色往白靠，不是盖一层白圆
+  function liftHex(hex, t) {
+    const n = parseInt(hex.slice(1), 16);
+    const r0 = (n >> 16) & 255;
+    const g0 = (n >> 8) & 255;
+    const b0 = n & 255;
+    const r = Math.round(r0 + (255 - r0) * t);
+    const g = Math.round(g0 + (255 - g0) * t);
+    const b = Math.round(b0 + (255 - b0) * t);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  function limb(ax, ay, bx, by, w, hi, lo) {
+    ctx.strokeStyle = lo;
+    ctx.lineWidth = w + 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.strokeStyle = hi;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(ax - 0.6, ay - 0.8);
+    ctx.lineTo(bx - 0.6, by - 0.8);
+    ctx.stroke();
+  }
+
+  function joint(ax, ay, mx, my, bx, by, w, hi, lo) {
+    limb(ax, ay, mx, my, w, hi, lo);
+    limb(mx, my, bx, by, w * 0.9, hi, lo);
+  }
+
+  // 弯肢纯色一条，无描边双层
+  function softLimb(ax, ay, mx, my, bx, by, w, color) {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(mx, my, bx, by);
+    ctx.stroke();
+  }
+
+  function handBlob(hx, hy, r, color) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // 后脑勺：参考「cheek weld 从背后看」——整颗发圆贴枪托，无侧脸凸包（凸包=鸡嘴）
+  function stickHead(cx, cy, r, skin) {
+    const hair = '#b44e7a';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, r, r, 0, 0, Math.PI * 2);
+    ctx.fillStyle = hair;
+    ctx.fill();
+    // 颈根连身体
+    ctx.beginPath();
+    ctx.ellipse(cx + 1, cy + r * 0.78, r * 0.32, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fillStyle = skin;
+    ctx.fill();
+    // 呆毛：细软弯向左后，不是竖刺鸡冠
+    ctx.strokeStyle = hair;
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 2, cy - r * 0.72);
+    ctx.quadraticCurveTo(cx - 11, cy - r * 1.05, cx - 5, cy - r * 1.28);
+    ctx.stroke();
+  }
+
+  // MP5 类侧剪影：托→机匣→弹匣下垂→护木→枪管；握把在机匣后下
+  // 返回肩托中心 / 握把 / 护木握点 / 枪口
+  function drawSmg(ax, ay) {
+    // ay = 枪托抵肩高度；枪口朝 -Y
+    const metal = '#8e97a8';
+    const dark = '#3a404c';
+    const stock = { x: ax, y: ay };
+    const grip = { x: ax + 6, y: ay + 10 };
+    const guard = { x: ax + 1, y: ay - 42 };
+    const muzzle = { x: ax + 1, y: ay - 78 };
+
+    ctx.fillStyle = metal;
+    // 枪托（扁，塞进右肩）
+    ctx.beginPath();
+    ctx.moveTo(ax - 5, ay + 6);
+    ctx.lineTo(ax + 6, ay + 2);
+    ctx.lineTo(ax + 5, ay - 10);
+    ctx.lineTo(ax - 6, ay - 4);
+    ctx.closePath();
+    ctx.fill();
+    // 机匣（最厚）
+    ctx.beginPath();
+    ctx.moveTo(ax - 3, ay - 6);
+    ctx.lineTo(ax + 6, ay - 12);
+    ctx.lineTo(ax + 5, ay - 36);
+    ctx.lineTo(ax - 3, ay - 32);
+    ctx.closePath();
+    ctx.fill();
+    // 护木
+    ctx.beginPath();
+    ctx.moveTo(ax - 2, ay - 32);
+    ctx.lineTo(ax + 4.5, ay - 36);
+    ctx.lineTo(ax + 3.5, ay - 54);
+    ctx.lineTo(ax - 1.5, ay - 50);
+    ctx.closePath();
+    ctx.fill();
+    // 枪管（短一截，别整根细棍）
+    ctx.beginPath();
+    ctx.moveTo(ax - 1, ay - 50);
+    ctx.lineTo(ax + 3, ay - 54);
+    ctx.lineTo(ax + 2.4, muzzle.y);
+    ctx.lineTo(ax - 0.4, muzzle.y + 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = dark;
+    // 手枪握把（右下斜）
+    ctx.beginPath();
+    ctx.moveTo(ax + 1, ay - 4);
+    ctx.lineTo(ax + 12, ay + 12);
+    ctx.lineTo(ax + 7, ay + 15);
+    ctx.lineTo(ax - 1, ay + 2);
+    ctx.closePath();
+    ctx.fill();
+    // 弹匣（机匣下方垂，冲锋枪辨识关键）
+    ctx.beginPath();
+    ctx.moveTo(ax + 0, ay - 18);
+    ctx.lineTo(ax + 6, ay - 20);
+    ctx.lineTo(ax + 10, ay + 4);
+    ctx.lineTo(ax + 3, ay + 7);
+    ctx.closePath();
+    ctx.fill();
+
+    return { stock, grip, guard, muzzleX: muzzle.x, muzzleY: muzzle.y };
+  }
+
+  // 参考：左脚前、托压右肩、贴腮、右手握把、左手护木、肘贴身——上半身锁成一块
+  function stick(x, y, scale, color) {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(scale, scale);
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const hipX = 1;
+    const hipY = 10;
+    const shX = 2;
+    const shY = -22;
 
-    // 头
+    // 左脚朝目标迈半步，右脚撑
+    softLimb(hipX, hipY, -8, 22, -15, 38, 7.0, color);
+    softLimb(hipX, hipY, 10, 26, 15, 42, 7.0, color);
+    softLimb(shX, shY, hipX + 1, -6, hipX, hipY, 8.0, color);
+
+    // 层级：左臂(后) → 枪 → 右臂/手 → 后脑贴托（cheek weld）
+    const gunAx = 8;
+    const gunAy = -20;
+    // 护木/握把点与 drawSmg 内一致
+    const guard = { x: gunAx + 1, y: gunAy - 42 };
+    const grip = { x: gunAx + 6, y: gunAy + 10 };
+    softLimb(shX - 2, shY + 1, -4, -16, guard.x, guard.y, 5.6, color);
+    const gun = drawSmg(gunAx, gunAy);
+    softLimb(shX + 3, shY + 2, 14, -2, grip.x, grip.y, 5.6, color);
+    handBlob(grip.x, grip.y, 4.0, color);
+    handBlob(guard.x, guard.y, 3.6, color);
+    stickHead(2, -36, 11.5, color);
+
+    const muzzle = { x: x + gun.muzzleX * scale, y: y + gun.muzzleY * scale };
+    ctx.restore();
+    return muzzle;
+  }
+
+  /* 非人形外星球：椭圆躯干 + 刺 + 短触肢，靠弹跳不用走路 */
+  function drawAlien(e, color) {
+    const isBoss = e.kind === 'boss';
+    const scale = isBoss ? 2.35 : e.kind === 'elite' ? 1.65 : 1.15;
+    const flash = Math.min(1, e.hitFlash || 0);
+    const lit = flash > 0 ? liftHex(color, 0.55 + flash * 0.4) : color;
+    const hi = lit;
+    const lo = shadeHex(lit, flash > 0 ? 0.12 : 0.28);
+    const phase = e.hopPhase || 0;
+    const hop = Math.abs(Math.sin(phase));
+    const land = 1 - hop;
+    const lift = hop * (isBoss ? 26 : 16);
+    const sq = e.squash || 0;
+    const sx = 1 + hop * 0.1 - land * 0.1 + sq * 0.35;
+    const sy = 1 - hop * 0.14 + land * 0.1 - sq * 0.45;
+
+    // 影子贴地（弹起时缩小）
     ctx.beginPath();
-    ctx.arc(0, -54, 15, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.ellipse(e.x, e.y + (isBoss ? 36 : 28), (isBoss ? 34 : 20) * (1 - hop * 0.35), (isBoss ? 11 : 7) * (1 - hop * 0.25), 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 0, 0, ${0.28 - hop * 0.12})`;
+    ctx.fill();
 
-    // 躯干
-    ctx.beginPath();
-    ctx.moveTo(0, -39);
-    ctx.lineTo(0, 6);
-    ctx.stroke();
+    ctx.save();
+    ctx.translate(e.x, e.y - lift);
+    ctx.scale(scale * sx, scale * sy);
 
-    // 手臂
-    if (pose === 'hero') {
-      ctx.beginPath();
-      ctx.moveTo(0, -32);
-      ctx.lineTo(-16, -56);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, -32);
-      ctx.lineTo(18, -58);
-      ctx.stroke();
-    } else {
-      const swing = Math.sin(G.time * 6 + x) * 6;
-      ctx.beginPath();
-      ctx.moveTo(0, -32);
-      ctx.lineTo(-18, -8 + swing);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, -32);
-      ctx.lineTo(18, -8 - swing);
-      ctx.stroke();
+    // 触肢 / 短腿：落地压扁张开，腾空收拢
+    const footY = 22 + land * 4;
+    const footSpread = 14 + land * 8;
+    for (const s of [-1, 0, 1]) {
+      limb(s * 6, 8, s * footSpread, footY, isBoss ? 5.5 : 4.2, hi, lo);
     }
 
-    // 腿
-    const step = Math.sin(G.time * 6 + x) * 7;
+    // 躯干：扁椭圆（boss 更大更扁）
+    const bw = isBoss ? 28 : 18;
+    const bh = isBoss ? 22 : 15;
+    ctx.strokeStyle = lo;
+    ctx.lineWidth = isBoss ? 8 : 6;
     ctx.beginPath();
-    ctx.moveTo(0, 6);
-    ctx.lineTo(-13, 38 + step);
+    ctx.ellipse(0, -4, bw, bh, 0, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.strokeStyle = hi;
+    ctx.lineWidth = isBoss ? 5.5 : 4;
     ctx.beginPath();
-    ctx.moveTo(0, 6);
-    ctx.lineTo(13, 38 - step);
+    ctx.ellipse(-1, -5, bw, bh, 0, 0, Math.PI * 2);
     ctx.stroke();
 
+    // 头顶刺 / 触角
+    const spikes = isBoss ? 5 : 3;
+    for (let i = 0; i < spikes; i++) {
+      const t = spikes === 1 ? 0 : (i / (spikes - 1)) * 2 - 1;
+      const ax = t * (isBoss ? 18 : 12);
+      const ay = -bh - 2;
+      limb(ax * 0.4, ay + 4, ax, ay - (10 + (1 - Math.abs(t)) * 8), isBoss ? 4 : 3.2, shadeHex(color, 0.1), lo);
+    }
+
+    // 眼睛（boss 三只）
+    ctx.fillStyle = hi;
+    if (isBoss) {
+      ctx.beginPath();
+      ctx.arc(-10, -6, 3.2, 0, Math.PI * 2);
+      ctx.arc(10, -6, 3.2, 0, Math.PI * 2);
+      ctx.arc(0, -14, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(-6, -6, 2.6, 0, Math.PI * 2);
+      ctx.arc(6, -6, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 侧鳍一点动感
+    const fin = hop * 6;
+    limb(-bw + 2, 0, -bw - 10, -4 - fin, 3, hi, lo);
+    limb(bw - 2, 0, bw + 10, -4 - fin, 3, hi, lo);
+
     ctx.restore();
+    return scale;
   }
 
   function drawPlayer() {
     const p = G.player;
-    const kick = p.kick * 5;
+    const kick = p.kick;
 
-    // 脚下的光环跟着攻击倍率涨（对数，不然会一秒铺满全屏）
     const t = Math.min(1, Math.log10(Math.max(1, p.dmgMul)) / 6);
     ctx.beginPath();
     ctx.ellipse(p.x, p.y + 44, 42 + t * 54, 13 + t * 17, 0, 0, Math.PI * 2);
@@ -1087,29 +1486,13 @@
     ctx.lineWidth = 2 + t * 2.5;
     ctx.stroke();
 
-    stick(p.x, p.y + kick, 1.45, '#ff9ec4', 'hero');
+    // 手/枪姿态固定不抽；开火反馈只留枪口火花
+    const muzzle = stick(p.x, p.y, 1.45, '#ff9ec4');
 
-    // 枪
-    ctx.strokeStyle = '#5b6270';
-    ctx.lineWidth = 10;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(p.x + 26, p.y - 84 + kick);
-    ctx.lineTo(p.x + 26, p.y - 128 + kick);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#8d97a8';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(p.x + 26, p.y - 128 + kick);
-    ctx.lineTo(p.x + 26, p.y - 146 + kick);
-    ctx.stroke();
-
-    // 枪口火光
-    if (p.kick > 0.35) {
+    if (kick > 0.35 && muzzle) {
       ctx.beginPath();
-      ctx.arc(p.x + 26, p.y - 148 + kick, 9 * p.kick, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255, 214, 120, 0.9)';
+      ctx.arc(muzzle.x, muzzle.y, 6 + 4 * kick, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 214, 120, 0.85)';
       ctx.fill();
     }
   }
@@ -1118,49 +1501,23 @@
     for (const e of G.enemies) {
       if (e.dead) continue;
 
-      const scale = e.kind === 'boss' ? 2.8 : e.kind === 'elite' ? 1.75 : 1.2;
-      const body = e.kind === 'boss' ? '#e8695f' : e.kind === 'elite' ? '#5fa83a' : '#7ec850';
+      const isBoss = e.kind === 'boss';
+      const body = isBoss ? '#e8695f' : e.kind === 'elite' ? '#5fa83a' : '#7ec850';
+      const scale = drawAlien(e, body);
 
-      // 影子
-      ctx.beginPath();
-      ctx.ellipse(e.x, e.y + 40, 22, 8, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.fill();
-
-      stick(e.x, e.y, scale, body, 'walk');
-
-      // 头上的刺
-      ctx.strokeStyle = e.kind === 'boss' ? '#8a3a33' : '#4d7a2c';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      for (let k = -1; k <= 1; k++) {
-        ctx.beginPath();
-        ctx.moveTo(e.x + k * 13 * scale * 0.8, e.y - 68 * scale);
-        ctx.lineTo(e.x + k * 17 * scale * 0.8, e.y - 88 * scale);
-        ctx.stroke();
-      }
-
-      // 命中闪白（BOSS 体积大，压低一点，不然像糊了个白球）
-      if (e.hitFlash > 0) {
-        ctx.globalAlpha = Math.min(0.3, e.hitFlash * 0.3);
-        ctx.beginPath();
-        ctx.arc(e.x, e.y - 20 * scale, 34 * scale, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-
-      // 血量数字：后期都是万/亿
       const label = fmt(e.hp);
       const lift = e.lift || 0;
-      ctx.font = `800 ${Math.round(30 * (e.kind === 'elite' ? 1.35 : e.kind === 'boss' ? 1.3 : 1))}px "PingFang SC", system-ui, sans-serif`;
+      const hop = Math.abs(Math.sin(e.hopPhase || 0));
+      const fs = Math.round(30 * (e.kind === 'elite' ? 1.35 : isBoss ? 1.3 : 1));
+      ctx.font = '800 ' + fs + 'px "PingFang SC", system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineWidth = 6;
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.82)';
-      ctx.strokeText(label, e.x, e.y - 104 * scale - lift);
+      const ly = e.y - (isBoss ? 78 : 58) * scale - lift - hop * (isBoss ? 26 : 16);
+      ctx.strokeText(label, e.x, ly);
       ctx.fillStyle = '#ff5a4a';
-      ctx.fillText(label, e.x, e.y - 104 * scale - lift);
+      ctx.fillText(label, e.x, ly);
     }
   }
 
@@ -1253,13 +1610,43 @@
   }
 
   function drawParticles() {
+    ctx.lineCap = 'round';
     for (const p of G.particles) {
       const a = Math.max(0, p.life / p.max);
       ctx.globalAlpha = a;
+      if (p.streak) {
+        const sp = Math.hypot(p.vx, p.vy) || 1;
+        const len = p.size * 2.8;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = Math.max(2, p.size * 0.7 * a);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - (p.vx / sp) * len, p.y - (p.vy / sp) * len);
+        ctx.stroke();
+      }
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size * a * (p.streak ? 0.55 : 1), 0, Math.PI * 2);
       ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  function drawFloats() {
+    for (const f of G.floats) {
+      const t = Math.max(0, f.life / f.max);
+      const a = t < 0.2 ? t / 0.2 : 1;
+      ctx.globalAlpha = a;
+      const fs = f.kill ? 36 : 26;
+      ctx.font = '800 ' + fs + 'px "PingFang SC", system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillStyle = f.kill ? '#ffe28a' : '#fff6d0';
+      ctx.fillText(f.text, f.x, f.y);
     }
     ctx.globalAlpha = 1;
   }
@@ -1317,9 +1704,19 @@
     if (!last) last = now;
     let dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+    const rawDt = dt;
     dt *= FAST;
 
-    if (!paused) update(dt);
+    if (!paused) {
+      // 顿帧：击杀 / BOSS 时压慢游戏时间，但按真实时间倒计，不会卡住
+      let step = dt;
+      if (G.hitstop > 0) {
+        G.hitstop = Math.max(0, G.hitstop - rawDt);
+        step = dt * 0.05;
+      }
+      update(step);
+      updateJuice(step);
+    }
     syncBuffs();
     render();
 

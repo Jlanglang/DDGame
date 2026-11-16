@@ -16,7 +16,7 @@
 ## 状态机与主循环
 - 状态在 `G`（`game.js:111`）：`G.state` **实际只有** `'playing' | 'over'`，`G.result` 为 `null | 'win' | 'lose'`。注释里的 `'upgrade'`（`game.js:112`）是旧版残留，`#upgrade` 永远不会显示。
 - 启动 `reset()`（`game.js:1453`，定义在 `game.js:836`）→ `startWave()`（`game.js:288`）→ `startNextWave()`（`game.js:454`）。
-- 主循环 `frame()`（`game.js:1316`）：dt 上限 0.05s，再乘 `FAST`（`?fast=1..8`，`game.js:1314`）；未暂停才 `update(dt)`（`game.js:885`）。
+- 主循环 `frame()`：dt 上限 0.05s，再乘 `FAST`（`?fast=1..8`）；未暂停才 `update(step)`；击杀/BOSS 时 `G.hitstop` 把 `step` 压到 0.05 倍、按真实时间倒计（headless 也走 `frame()`，只是 `render()` 被剥掉，所以模拟计时会略长）。
 - 每帧顺序：`updateSpawner`（`game.js:486`）→ `updateEnemies`（`game.js:558`）→ `updateCards`（`game.js:598`）→ `updatePlayer`（`game.js:503`）→ `updateBullets`（`game.js:686`）→ `updateParticles`（`game.js:788`）。失败在 `updateEnemies` 里直接 `return` 打断；击杀 BOSS 在 `hitEnemy` 里调 `win()` 当场判胜（本帧剩余子弹仍会走完）。
 - 渲染 `render()`（`game.js:909`）：地面 → 桥 → 路障 → 敌人 → 卡 → 子弹 → 玩家 → 粒子（卡在子弹/玩家之前画）。
 
@@ -29,6 +29,7 @@
 | 出卡规则 / 权重 / 前两对固定 | `ensureCards`（`game.js:408`）、`spawnCard`（`game.js:357`）、`CARD_TYPES`（`game.js:85`） |
 | 卡片数值范围 / 吃卡效果 | `cardRange`（`game.js:400`）、`applyCard`（`game.js:645`）、一次只吃一张在 `updateCards`（`game.js:598`） |
 | 子弹命中 / 穿透 / 卡挡子弹 | `shoot`（`game.js:526`）、`updateBullets`（`game.js:686`）、`hitEnemy`（`game.js:748`） |
+| 打击感 | `hitEnemy`：闪白（`liftHex` 提亮身体）、火花 `impactSparks`、该怪顿挫 `hitStun`、压扁回推、抛物线飘字 `spawnFloat`；**击杀** → `killFreeze` 顿帧 + 冲击环，**BOSS** → `bossFreeze` + 大环（2026-11-16）；无整屏震 |
 | 画面（人 / 怪 / 卡 / 桥） | `stick`（`game.js:1019`）、`drawPlayer`（`game.js:1076`）、`drawEnemies`（`game.js:1117`）、`drawCards`（`game.js:1203`）、`drawBridge`（`game.js:934`）、`drawBarricade`（`game.js:986`） |
 | 输入（触摸 / 鼠标 / 键盘） | `startDrag` `game.js:1368`、`moveDrag` `game.js:1384`、`endDrag` `game.js:1390`、`moveToClientX` `game.js:1362`；键盘 `game.js:1338` |
 | HUD / 结算 / 存档 / 音效 | `syncHud`（`game.js:274`）、`syncBuffs`（`game.js:1270`）、`win` `game.js:808` / `lose` `game.js:822`、暂停 `game.js:170`；**存档和音效都没有**（无 localStorage、无 WebAudio） |
@@ -45,7 +46,7 @@
 
 ## 测试
 - `node games/doudou/test-input.js` → 期望 `RESULT pass=4 fail=0`（触摸 192 / 鼠标 240 逻辑 px）。
-- `node games/doudou/headless.js --runs 40 --policy feed` → 实测 wins 27/40、avgT 96.61s、avgWave 8.63（基线约 100s / 60~70%）。
+- `node games/doudou/headless.js --runs 40 --policy feed` → 实测 wins 26/40、avgT 100.08s、avgWave 8.63（顿帧会让模拟计时略长；仍落在基线约 100s / 60~70% 内）。
 - `node games/doudou/wave-time.js 16 feed`、`node games/doudou/win-time.js 40 feed`、`node games/doudou/test-squad.js`；调参先用 `--bal "{\"hpGrowth\":2.2}"` 覆盖，别改文件。
 
 ## 雷区

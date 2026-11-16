@@ -32,6 +32,8 @@
 
 ## 2. 游戏索引（改之前先打开对应的 ANCHOR.md）
 
+> **2026-11-16 范围**：只继续 `doudou` + `hero`；其余游戏**冻结**（不删、不迁、不投入，只修线上事故）。范围与分析见 [`docs/项目范围与游戏分析.md`](docs/项目范围与游戏分析.md)。
+
 | 目录 | 游戏 | 类型 | 舞台 | 地图 | 自检 |
 |---|---|---|---|---|---|
 | `doudou` | 守护豆豆 | 塔防 / 射击 | 720×1600 | [ANCHOR](games/doudou/ANCHOR.md) | `test-input.js`、`headless.js --runs 40 --policy feed` |
@@ -94,6 +96,8 @@
 | `games/<id>/docs/` | **该游戏自己的文档**（玩法、数值、进度、素材清单…），别的游戏不读 |
 | `docs/游戏原型草图模板.md` | 立项用的一页纸：想法 → 七问 → 地图格子草图 → 验收清单（跨项目） |
 | `docs/渲染规格.md` | 2.5D 画面验收（第八节十项清单），2.5D 游戏通用 |
+| `docs/游戏效果手册.md` | 手感 / juice 通用规范：trauma 震屏、顿帧、闪白、形变、粒子、三档预设，全部 Canvas 通用 |
+| `docs/项目范围与游戏分析.md` | **哪些游戏继续 / 冻结**；11 个游戏离「一局完整」的分析，后续投入只认这一份 |
 | `docs/角色设定.md` | 豆豆系列角色设定（跨项目） |
 | `docs/maps/*.json` + `tools/map-sketch.mjs` | 地图草图（画格子）：改 json → 出 ASCII 图 + 连通性/步数/死路（`node tools/map-sketch.mjs docs/maps/field1.json`） |
 | 手绘图 → 数据 | `python tools/trace-map.py 图.png out.segments.json 96`（认线）→ `node tools/map-net.mjs out.segments.json 6 8`（落格 + 补缝 + 算路口/死路/连通） |

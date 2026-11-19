@@ -47,6 +47,7 @@
 | `cardfight` | 卡牌战斗 | 养成 / 策略 | 多页自适应 | [ANCHOR](games/cardfight/ANCHOR.md) | `test-combat.js` |
 | `stickyfeet` | （three.js 实验，首页未挂） | — | — | [ANCHOR](games/stickyfeet/ANCHOR.md) | 无自动测试 |
 | `roadtest` | 路网原型（首页未挂） | 实验 | 720×1280 | [ANCHOR](games/roadtest/ANCHOR.md) | `test-logic.mjs` |
+| `whale-vs-claude` | 鲸鱼娘大战 Claude | 射击 / 塔防 | 800×600（横屏） | [ANCHOR](games/whale-vs-claude/ANCHOR.md) | `test-auto.mjs` |
 
 自检命令一律在仓库根跑：`node games/<id>/<脚本>`。
 **只跑这个游戏自己目录里的脚本**——别拿 A 游戏的测试去测 B 游戏，那种 PASS 比不测更糟。

@@ -36,11 +36,11 @@ const FRESH = process.argv.includes('--fresh');   // 每局都从零开始（模
 const DT = 1 / 60;
 
 function resetSave() {
-  SAVE_STATE.v = 3;
+  SAVE_STATE.v = 4;
   SAVE_STATE.highest = 1;
   SAVE_STATE.cleared.fill(false);
   SAVE_STATE.pts = 0;
-  SAVE_STATE.spent.fill(0);
+  SAVE_STATE.attrs.forEach((a) => { a.dmg = 0; a.hp = 0; a.def = 0; });
   SAVE_STATE.mastery.fill(0);
   SAVE_STATE.stats = { runs: 0, wins: 0, kills: 0, bestStage: 0 };
 }
@@ -66,11 +66,11 @@ const TUNE_JSON = parseTune(TUNE);
 const RESULTS = [];
 const STAGES = 5;
 const SAVE_STATE = {
-  v: 3,
+  v: 4,
   highest: 1,
   cleared: new Array(STAGES).fill(false),
   pts: 0,
-  spent: new Array(10).fill(0),
+  attrs: new Array(10).fill(0).map(() => ({ dmg: 0, hp: 0, def: 0 })),
   mastery: new Array(10).fill(0),
   stats: { runs: 0, wins: 0, kills: 0, bestStage: 0 },
 };
@@ -239,17 +239,21 @@ function aiPrepare(g, api, policy) {
   useBench(g, api);
 }
 
-/* 花强化点：按「已经上场的兵种」优先，先升等级（合星上限），再点技能节点。
-   模拟一个「不乱点」的普通玩家，用来验证点数经济够不够用。 */
+/* 花强化点：按「已经上场的兵种」优先，先点攻击、再点血量（模拟一个偏输出的普通玩家），
+   最后点技能。用来验证点数经济够不够用。 */
 function spendPoints(g, api) {
-  const cap = api.lvCap();
+  const cap = api.attrCap();
   const seen = [...new Set(g.slots.filter(Boolean).map((u) => u.kind))];
   const order = [...seen];
   for (let i = 0; i < api.KINDS.length; i++) if (!order.includes(i)) order.push(i);
   for (const k of order) {
     let guard = 0;
-    while (guard++ < 40 && api.LV[k] < cap && api.SAVE.pts >= api.lvCost(api.LV[k])) {
-      if (!api.spendPoint(k)) break;
+    while (guard++ < 40 && api.totalPointsOf(k) < cap && api.SAVE.pts >= 1) {
+      if (!api.spendAttr(k, 'dmg')) break;
+    }
+    guard = 0;
+    while (guard++ < 40 && api.totalPointsOf(k) < cap && api.SAVE.pts >= 1) {
+      if (!api.spendAttr(k, 'hp')) break;
     }
     guard = 0;
     while (guard++ < 10 && api.skillCount(k) < 4 && api.SAVE.pts >= api.SKILL_COST[api.skillCount(k)]) {
@@ -374,8 +378,8 @@ console.log(`runs=${RUNS}  policy=${POLICY}  seed=${SEED}${TUNE ? '  tune=' + TU
 console.log(`主线全通 ${wins} (${pct(wins)})   中途失败 ${losses} (${pct(losses)})   卡住 ${stuck}`);
 console.log(`平均通关关卡 ${avgStages.toFixed(1)} / 5   平均最高星 ${avgStar.toFixed(1)}   平均合成 ${avgMerges.toFixed(1)} 次   平均阵亡 ${avgDeaths.toFixed(1)} 人   平均场上 ${avgUnits.toFixed(1)} 人`);
 const clearedN = SAVE_STATE.cleared.filter(Boolean).length;
-const lvList = SAVE_STATE.spent.map((s) => 3 + s);
-console.log(`兵种等级 ${lvList.join('/')}   剩 ${SAVE_STATE.pts} 点   已通关 ${clearedN}/5   结算 ${SAVE_STATE.stats.runs} 次`);
+const attrList = SAVE_STATE.attrs.map((a, i) => `${i}:${a.dmg}/${a.hp}/${a.def}`);
+console.log(`兵种加点(攻/血/防) ${attrList.join(' ')}   剩 ${SAVE_STATE.pts} 点   已通关 ${clearedN}/5   结算 ${SAVE_STATE.stats.runs} 次`);
 
 const loseAt = new Map();
 for (const r of results) {

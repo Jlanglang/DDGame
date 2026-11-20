@@ -95,16 +95,20 @@
      - 存档：v3 JSON；v2 / v1 / 更旧 key 自动迁移。
      ---------------------------------------------------------- */
 
-  const SAVE_KEY = 'doudou.squad.save.v3';
-  const OLD_SAVE_KEYS = ['doudou.squad.save.v2', 'doudou.squad.save.v1'];
+  const SAVE_KEY = 'doudou.squad.save.v4';
+  const OLD_SAVE_KEYS = ['doudou.squad.save.v3', 'doudou.squad.save.v2', 'doudou.squad.save.v1'];
   const LV_KEY = 'doudou.squad.lv';       // 更旧，迁移用
   const STAGE_KEY = 'doudou.squad.stage'; // 更旧，迁移用
 
-  const LV_BASE = 3;          // 所有兵种起手 Lv3（能合 3 星）
-  const LV_MAX = 10;
-  const LV_CAP_TABLE = TUNE.lvCapByCleared || [3, 5, 6, 7, 9, 10];
+  // 2026-11-20 v0.16：取消角色卡固定等级，改成「1 点 = 1 级」的属性加点。
+  // 等级只是「已加点数」的展示名，底子全由玩家自己选：攻击 / 血量 / 防御。
   const PTS = TUNE.pointsPerStage || [6, 8, 10, 12, 14];
-  const lvCost = TUNE.lvCost || ((lv) => (lv <= 4 ? 1 : lv <= 6 ? 2 : lv <= 8 ? 3 : 4));
+  const ATTR_CAP_TABLE = TUNE.attrCapByCleared || [4, 8, 12, 16, 20];
+  const ATTR_PCT = TUNE.attrPct || { dmg: 0.08, hp: 0.08 };
+  const DEF_PCT = TUNE.defPct || 0.01;
+  const ATTR_CAP_EACH = TUNE.attrCapEach || { dmg: 10, hp: 10, def: 10 };
+  const ATTR_KEYS = ['dmg', 'hp', 'def'];
+  const ATTR_NAME = { dmg: '攻击', hp: '血量', def: '防御' };
   const SKILL_COST = TUNE.skillCost || [2, 3, 4, 5];
   const SKILL_MAX = 4;
   const CELL_SHAPES = DATA.CELL_SHAPES || [];
@@ -113,11 +117,11 @@
 
   const defaultStats = () => ({ runs: 0, wins: 0, kills: 0, bestStage: 0 });
   const defaultSave = () => ({
-    v: 3,
+    v: 4,
     highest: 1,
     cleared: new Array(TUNE.stages).fill(false),
     pts: 0,                                   // 没花的强化点
-    spent: new Array(KINDS.length).fill(0),   // 每个兵种已投入的等级点数
+    attrs: KINDS.map(() => ({ dmg: 0, hp: 0, def: 0 })),  // 每个兵种三项已加点数
     mastery: new Array(KINDS.length).fill(0),  // 每个兵种已解锁的技能节点数（0-4）
     stats: defaultStats(),
   });
@@ -126,8 +130,8 @@
 
   function ensureSave(s) {
     if (!s || typeof s !== 'object') s = defaultSave();
-    const isOld = Number(s.v) !== 3;
-    s.v = 3;
+    const isOld = Number(s.v) !== 4;
+    s.v = 4;
     s.highest = Math.max(1, Math.min(TUNE.stages, Number(s.highest) || 1));
     s.stats = Object.assign(defaultStats(), s.stats || {});
 
@@ -140,19 +144,33 @@
     while (cleared.length < TUNE.stages) cleared.push(false);
     s.cleared = cleared.map(Boolean);
 
-    // spent：每个兵种已投入多少点
-    s.spent = Array.isArray(s.spent) && s.spent.length === KINDS.length
-      ? s.spent.map((x) => Math.max(0, Math.min(LV_MAX - LV_BASE, Number(x) || 0)))
-      : new Array(KINDS.length).fill(0);
+    // attrs：每个兵种三项加点。v3 老档只有 spent（等级点数）→ 全折算成攻击，不吞进度。
+    const oldSpent = Array.isArray(s.spent) && s.spent.length === KINDS.length
+      ? s.spent.map((x) => Math.max(0, Number(x) || 0))
+      : null;
+    const src = Array.isArray(s.attrs) && s.attrs.length === KINDS.length ? s.attrs : null;
+    s.attrs = KINDS.map((_, i) => {
+      const a = (src && src[i]) || {};
+      const out = {
+        dmg: Math.max(0, Math.min(ATTR_CAP_EACH.dmg, Number(a.dmg) || 0)),
+        hp: Math.max(0, Math.min(ATTR_CAP_EACH.hp, Number(a.hp) || 0)),
+        def: Math.max(0, Math.min(ATTR_CAP_EACH.def, Number(a.def) || 0)),
+      };
+      if (isOld && !src && oldSpent) out.dmg = Math.max(0, Math.min(ATTR_CAP_EACH.dmg, oldSpent[i]));
+      return out;
+    });
+    delete s.spent;
 
     // mastery：每个兵种已解锁几个技能节点（老存档没有就 0）
     s.mastery = Array.isArray(s.mastery) && s.mastery.length === KINDS.length
       ? s.mastery.map((x) => Math.max(0, Math.min(SKILL_MAX, Number(x) || 0)))
       : new Array(KINDS.length).fill(0);
 
-    // 老档没有 pts：按已通关数把该发的点补上，不吞老玩家进度
+    // 老档没有 pts：按已通关数把该发的点补上，扣掉已花的属性点和技能点
     const earned = s.cleared.reduce((a, on, i) => a + (on ? (PTS[i] || 0) : 0), 0);
-    if (isOld || typeof s.pts !== 'number') s.pts = Math.max(0, earned - s.spent.reduce((a, b) => a + b, 0));
+    const spentTotal = s.attrs.reduce((a, v) => a + v.dmg + v.hp + v.def, 0)
+      + s.mastery.reduce((a, n) => a + SKILL_COST.slice(0, n).reduce((x, y) => x + y, 0), 0);
+    if (isOld || typeof s.pts !== 'number') s.pts = Math.max(0, earned - spentTotal);
     s.pts = Math.max(0, Math.floor(s.pts));
     return s;
   }
@@ -169,8 +187,8 @@
     try {
       const olds = JSON.parse(localStorage.getItem(LV_KEY) || 'null');
       if (Array.isArray(olds)) {
-        for (let i = 0; i < s.spent.length && i < olds.length; i++) {
-          s.spent[i] = Math.max(0, Math.min(LV_MAX - LV_BASE, (Number(olds[i]) || LV_BASE) - LV_BASE));
+        for (let i = 0; i < s.attrs.length && i < olds.length; i++) {
+          s.attrs[i].dmg = Math.max(0, Math.min(ATTR_CAP_EACH.dmg, (Number(olds[i]) || 3) - 3));
         }
       }
       const stage = Number(localStorage.getItem(STAGE_KEY)) || 1;
@@ -179,7 +197,8 @@
       for (let i = 0; i < s.stats.bestStage && i < s.cleared.length; i++) s.cleared[i] = true;
     } catch { /* ignore */ }
     const earned = s.cleared.reduce((a, on, i) => a + (on ? (PTS[i] || 0) : 0), 0);
-    s.pts = Math.max(0, earned - s.spent.reduce((a, b) => a + b, 0));
+    const used = s.attrs.reduce((a, v) => a + v.dmg + v.hp + v.def, 0);
+    s.pts = Math.max(0, earned - used);
     return ensureSave(s);
   }
 
@@ -192,37 +211,46 @@
   }
 
   let HIGHEST = SAVE.highest;
-  // 每个兵种独立等级：LV[i] = 3 + 已投入点数
-  const LV = KINDS.map((_, i) => LV_BASE + Math.max(0, Math.min(LV_MAX - LV_BASE, SAVE.spent[i] | 0)));
 
-  // 本世界等级上限：只跟已通关数走
-  function lvCap() {
-    return LV_CAP_TABLE[Math.max(0, Math.min(TUNE.stages, clearedCountOf(SAVE)))];
+  // 属性点：每个兵种三项加点；「等级」= 1 + 总点数，只是面板上的展示名
+  const attrsOf = (kind) => SAVE.attrs[kind] || { dmg: 0, hp: 0, def: 0 };
+  const totalPointsOf = (kind) => {
+    const a = attrsOf(kind);
+    return (a.dmg | 0) + (a.hp | 0) + (a.def | 0);
+  };
+
+  // 本世界单兵加点上限：只跟已通关数走
+  function attrCap() {
+    return ATTR_CAP_TABLE[Math.max(0, Math.min(TUNE.stages, clearedCountOf(SAVE)))];
   }
 
-  // 刷新等级数组（读存档）；不会自动把等级拉满
-  function refreshLV() {
-    for (let i = 0; i < LV.length; i++) {
-      const spent = Math.max(0, Math.min(LV_MAX - LV_BASE, SAVE.spent[i] | 0));
-      SAVE.spent[i] = spent;
-      LV[i] = Math.min(LV_MAX, LV_BASE + spent);
+  // 刷新属性点（读存档/导档后调）；不会自动把点数拉满
+  function refreshAttrs() {
+    for (let i = 0; i < SAVE.attrs.length; i++) {
+      const a = SAVE.attrs[i] || (SAVE.attrs[i] = { dmg: 0, hp: 0, def: 0 });
+      a.dmg = Math.max(0, Math.min(ATTR_CAP_EACH.dmg, a.dmg | 0));
+      a.hp = Math.max(0, Math.min(ATTR_CAP_EACH.hp, a.hp | 0));
+      a.def = Math.max(0, Math.min(ATTR_CAP_EACH.def, a.def | 0));
     }
-    return lvCap();
+    return attrCap();
   }
-  refreshLV();
+  refreshAttrs();
 
-  // 花点升 1 级：点数够 + 没到本世界等级上限才成功
-  function spendPoint(kind) {
-    const cap = lvCap();
-    if (LV[kind] >= cap || LV[kind] >= LV_MAX) { toast(`本世界等级上限 Lv.${cap}`); return false; }
-    const cost = lvCost(LV[kind]);
-    if (SAVE.pts < cost) { toast(`强化点不够（要 ${cost}）`); return false; }
-    SAVE.pts -= cost;
-    SAVE.spent[kind] += 1;
-    LV[kind] = LV_BASE + SAVE.spent[kind];
+  // 1 点 = 1 级：花 1 点给一个兵种加一项属性（攻击 / 血量 / 防御）
+  function spendAttr(kind, stat) {
+    if (!ATTR_KEYS.includes(stat)) return false;
+    const cap = attrCap();
+    const total = totalPointsOf(kind);
+    if (total >= cap) { toast(`本世界单兵加点上限 ${cap} 点`); return false; }
+    const a = attrsOf(kind);
+    const cur = a[stat] | 0;
+    if (cur >= ATTR_CAP_EACH[stat]) { toast(`${ATTR_NAME[stat]}已点满（${cur}/${ATTR_CAP_EACH[stat]}）`); return false; }
+    if (SAVE.pts < 1) { toast('强化点不够（要 1）'); return false; }
+    SAVE.pts -= 1;
+    a[stat] = cur + 1;
     for (const u of G.slots) if (u && u.kind === kind) refreshUnitHp(u);
     saveGame();
-    SFX.merge(LV[kind]);
+    SFX.merge(1 + cur);
     return true;
   }
 
@@ -241,17 +269,16 @@
     return true;
   }
 
-  // 重置：等级和技能全部退回，强化点全额返还（单机，免费）
+  // 重置：属性点和技能全部退回，强化点全额返还（单机，免费）
   function resetPoints() {
     let back = 0;
+    for (const a of SAVE.attrs) back += (a.dmg | 0) + (a.hp | 0) + (a.def | 0);
     for (let i = 0; i < KINDS.length; i++) {
-      for (let lv = LV_BASE; lv < LV[i]; lv++) back += lvCost(lv);
       for (let n = 0; n < skillCount(i); n++) back += SKILL_COST[n];
     }
     SAVE.pts += back;
-    SAVE.spent.fill(0);
+    for (const a of SAVE.attrs) { a.dmg = 0; a.hp = 0; a.def = 0; }
     SAVE.mastery.fill(0);
-    for (let i = 0; i < LV.length; i++) LV[i] = LV_BASE;
     for (const u of G.slots) if (u) refreshUnitHp(u);
     saveGame();
     toast(`已重置 · 退回 ${back} 点`);
@@ -266,8 +293,15 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch { /* ignore */ }
   }
 
-  const lvMul = (kind) => 1 + (LV[kind] - 1) * 0.12;
-  const maxStarOf = (kind) => Math.min(MAX_STAR, LV[kind]);
+  // 属性乘数：攻击 / 血量按兵种基数百分比加，防御是固定减伤（和工程师光环合计封顶 45%）
+  const dmgMul = (kind) => 1 + (attrsOf(kind).dmg | 0) * ATTR_PCT.dmg;
+  const hpMul = (kind) => 1 + (attrsOf(kind).hp | 0) * ATTR_PCT.hp;
+  const defMul = (kind) => Math.min(0.15, (attrsOf(kind).def | 0) * DEF_PCT);
+  // 合成上限跟「总加点」走：0 点 3 星、2 点 4 星、4 点 5 星
+  const maxStarOf = (kind) => {
+    const p = totalPointsOf(kind);
+    return Math.min(MAX_STAR, p >= 4 ? 5 : p >= 2 ? 4 : 3);
+  };
 
   /* 本关升级：杀怪攒经验，每关最多 TUNE.levelCap（20）次；升级才弹三选一。
      2026-11-20 主人纠正：原版不是按波数给三选一，是按等级。 */
@@ -530,7 +564,7 @@
   function unitMaxHp(kind, star) {
     const k = KINDS[kind];
     const b = G.buff[kind];
-    return Math.round(k.hp * (1 + (star - 1) * TUNE.unitHpStar) * lvMul(kind) * (b ? b.hp : 1));
+    return Math.round(k.hp * (1 + (star - 1) * TUNE.unitHpStar) * hpMul(kind) * (b ? b.hp : 1));
   }
 
   function makeUnit(kind, star) {
@@ -567,7 +601,7 @@
 
   function unitDmg(u) {
     const b = G.buff[u.kind];
-    return KINDS[u.kind].dmg * starMul(u.star) * (b ? b.dmg : 1) * lvMul(u.kind) * masteryOf(u.kind).dmg;
+    return KINDS[u.kind].dmg * starMul(u.star) * (b ? b.dmg : 1) * dmgMul(u.kind) * masteryOf(u.kind).dmg;
   }
 
   function unitRate(u) {
@@ -966,7 +1000,7 @@
       G.pointsGained = PTS[G.stage - 1] || 0;
       SAVE.pts += G.pointsGained;
     }
-    refreshLV();
+    refreshAttrs();
     saveGame();
   }
 
@@ -1229,7 +1263,9 @@
       if (G.panelDetail !== null) {
         const d = detailRects();
         if (hitRect(d.back, p)) { G.panelDetail = null; return; }
-        if (hitRect(d.up, p)) { spendPoint(G.panelDetail); return; }
+        for (const stat of ATTR_KEYS) {
+          if (hitRect(d.attrs[stat], p)) { spendAttr(G.panelDetail, stat); return; }
+        }
         for (let n = 0; n < d.skills.length; n++) {
           if (hitRect(d.skills[n], p)) { spendSkill(G.panelDetail); return; }
         }
@@ -1617,9 +1653,10 @@
   }
 
   function damageUnit(u, dmg) {
-    // 工程师光环：每个工程师 -6%，专精和词条再乘；上限 45%
-    const armor = Math.min(0.45, 0.06 * (G.aux ? G.aux.engineer : 0)
-      * masteryOf(IDX.engineer).armor * (G.buff[IDX.engineer].armor || 1));
+    // 减伤 = 工程师光环（每个 -6%，专精和词条再乘）+ 该兵种自己点的防御；合计封顶 45%
+    const aura = 0.06 * (G.aux ? G.aux.engineer : 0)
+      * masteryOf(IDX.engineer).armor * (G.buff[IDX.engineer].armor || 1);
+    const armor = Math.min(0.45, aura + defMul(u.kind));
     dmg *= (1 - armor);
     u.hp -= dmg;
     const c = unitCenter(u);
@@ -2789,8 +2826,14 @@
     }));
   }
 
-  function upBtnRect() {
-    return { x: 54, y: 1246, w: 612, h: 90 };
+  // 三条属性加点按钮（攻击 / 血量 / 防御），一排三个
+  function attrBtnRects() {
+    const w = 196, gap = 12, y = 1240, h = 116;
+    return {
+      dmg: { x: 54, y, w, h },
+      hp: { x: 54 + w + gap, y, w, h },
+      def: { x: 54 + (w + gap) * 2, y, w, h },
+    };
   }
 
   function detailBackRect() {
@@ -2800,7 +2843,7 @@
   function detailRects() {
     return {
       back: detailBackRect(),
-      up: upBtnRect(),
+      attrs: attrBtnRects(),
       skills: [0, 1, 2, 3].map((n) => ({ x: 54, y: 906 + n * 68, w: 612, h: 58 })),
     };
   }
@@ -2849,13 +2892,13 @@
     return lines.length;
   }
 
-  // 详情页属性：1 星、当前等级、当前专精下的面版值
+  // 详情页属性：1 星、当前属性点、当前专精下的面版值
   function statCells(i) {
     const k = KINDS[i];
     const m = masteryOf(i);
-    const lv = lvMul(i);
-    const atk = k.dmg > 0 ? (k.dmg * lv * m.dmg).toFixed(1) : '—';
-    const dps = k.dmg > 0 ? (k.dmg * lv * m.dmg * k.rate * m.rate).toFixed(1) : '—';
+    const atkMul = dmgMul(i);
+    const atk = k.dmg > 0 ? (k.dmg * atkMul * m.dmg).toFixed(1) : '—';
+    const dps = k.dmg > 0 ? (k.dmg * atkMul * m.dmg * k.rate * m.rate).toFixed(1) : '—';
     const rate = k.rate > 0 ? (k.rate * m.rate).toFixed(2) : '—';
     const range = k.range > 0 ? Math.round(k.range * m.range) : '—';
     const splash = k.splash ? Math.round(k.splash * m.splash) : '—';
@@ -2865,11 +2908,12 @@
     else if (k.coin) aura = `${(k.coin * m.coin).toFixed(2)}/s`;
     else if (k.haste) aura = `+${(k.haste * m.haste * 100).toFixed(0)}%/人`;
     return [
-      ['生命', Math.round(k.hp * lv)],
+      ['生命', Math.round(k.hp * hpMul(i))],
       ['攻击', atk],
       ['攻速', rate === '—' ? '—' : rate + '/s'],
       ['射程', range],
       ['DPS', dps],
+      ['防御', defMul(i) > 0 ? `+${Math.round(defMul(i) * 100)}%` : '—'],
       ['弹道', k.pellets || 1],
       ['穿透', (k.pierce || 0) + m.pierce],
       ['溅射', splash],
@@ -2906,7 +2950,7 @@
 
     c.font = '600 17px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
     c.fillStyle = 'rgba(190,210,240,0.8)';
-    c.fillText(`强化点 ${SAVE.pts} · 本世界等级上限 Lv.${lvCap()} · 每级攻击 +12% · 本关 Lv.${G.level}/${TUNE.levelCap}`, W / 2, 82);
+    c.fillText(`强化点 ${SAVE.pts} · 单兵加点上限 ${attrCap()} · 每点 +${Math.round(ATTR_PCT.dmg * 100)}% 攻击 · 本关 Lv.${G.level}/${TUNE.levelCap}`, W / 2, 82);
     c.fillStyle = 'rgba(150,180,220,0.7)';
     c.font = '600 15px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
     c.fillText('点卡片进详情花点升级 · 专精 Lv5 / 7 / 9 / 10 各解锁 1 个', W / 2, 106);
@@ -2974,7 +3018,7 @@
 
       c.font = '800 17px "PingFang SC",system-ui,sans-serif';
       c.fillStyle = k.color;
-      c.fillText(`Lv.${LV[i]}/${lvCap()}`, r.x + 136, r.y + 92);
+      c.fillText(`点 ${totalPointsOf(i)}/${attrCap()}`, r.x + 136, r.y + 92);
       c.font = '600 13px "PingFang SC",system-ui,sans-serif';
       c.fillStyle = 'rgba(170,195,230,0.7)';
       c.fillText(`可合 ${maxStarOf(i)} 星`, r.x + 224, r.y + 92);
@@ -3051,7 +3095,7 @@
     c.fillText(locked ? '？？？' : k.name, 54, 152);
     c.font = '600 17px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = 'rgba(170,195,230,0.8)';
-    c.fillText(locked ? `第 ${k.unlock} 关解锁` : `${k.role} · ${k.skill} · Lv.${LV[i]} · 可合 ${maxStarOf(i)} 星`, 54, 186);
+    c.fillText(locked ? `第 ${k.unlock} 关解锁` : `${k.role} · ${k.skill} · 点 ${totalPointsOf(i)}/${attrCap()} · 可合 ${maxStarOf(i)} 星`, 54, 186);
 
     // 立绘位
     rr(c, 54, 212, 240, 320, 18);
@@ -3078,7 +3122,7 @@
     // 属性表
     c.font = '800 20px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = 'rgba(255,224,138,0.9)';
-    c.fillText('属性（当前等级 / 1 星）', 54, 564);
+    c.fillText('属性（当前加点 / 1 星）', 54, 564);
 
     const cells = statCells(i);
     for (let n = 0; n < cells.length; n++) {
@@ -3143,46 +3187,49 @@
       }
     }
 
-    // 强化点按钮：花点升 1 级；到本世界上限就显示下一关放上限
+    // 属性加点：三条按钮，1 点 = 1 级，玩家自己选攻击 / 血量 / 防御
     const cleared = SAVE.cleared.filter(Boolean).length;
-    const cap = lvCap();
-    const cost = lvCost(LV[i]);
-    const atCap = LV[i] >= cap;
-    const canUp = !locked && !atCap && SAVE.pts >= cost;
-    const info = upBtnRect();
-    rr(c, info.x, info.y, info.w, info.h, 16);
-    c.fillStyle = canUp ? 'rgba(40,96,68,0.92)' : 'rgba(26,40,60,0.9)';
-    c.fill();
-    c.lineWidth = canUp ? 2 : 1.5;
-    c.strokeStyle = canUp ? 'rgba(143,240,176,0.8)' : 'rgba(143,216,255,0.35)';
-    c.stroke();
-    c.textAlign = 'center';
-    c.font = '900 24px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
-    c.fillStyle = canUp ? '#8ff0b0' : '#ffd166';
-    if (locked) {
-      c.fillText('未解锁', info.x + info.w / 2, info.y + 30);
-      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
-      c.fillStyle = 'rgba(190,210,240,0.8)';
-      c.fillText(`第 ${k.unlock} 关解锁`, info.x + info.w / 2, info.y + 62);
-    } else if (atCap) {
-      c.fillText(`Lv.${LV[i]} · 本世界等级上限`, info.x + info.w / 2, info.y + 30);
-      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
-      c.fillStyle = 'rgba(190,210,240,0.8)';
-      c.fillText(`已通关 ${cleared}/${TUNE.stages} 关 · 再通关 1 关，上限提升`, info.x + info.w / 2, info.y + 62);
-    } else {
-      c.fillText(`升到 Lv.${LV[i] + 1}（花 ${cost} 点）`, info.x + info.w / 2, info.y + 30);
-      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
-      c.fillStyle = 'rgba(190,210,240,0.85)';
-      c.fillText(`剩 ${SAVE.pts} 强化点 · 上限 Lv.${cap}`, info.x + info.w / 2, info.y + 62);
-      c.fillStyle = 'rgba(160,190,230,0.55)';
+    const cap = attrCap();
+    const total = totalPointsOf(i);
+    const atCap = total >= cap;
+    const btn = attrBtnRects();
+    for (const stat of ATTR_KEYS) {
+      const r = btn[stat];
+      const cur = attrsOf(i)[stat] | 0;
+      const maxEach = ATTR_CAP_EACH[stat];
+      const full = cur >= maxEach;
+      const can = !locked && !atCap && !full && SAVE.pts >= 1;
+      rr(c, r.x, r.y, r.w, r.h, 14);
+      c.fillStyle = can ? 'rgba(40,96,68,0.92)' : 'rgba(26,40,60,0.9)';
+      c.fill();
+      c.lineWidth = can ? 2 : 1.2;
+      c.strokeStyle = can ? 'rgba(143,240,176,0.8)' : 'rgba(143,216,255,0.3)';
+      c.stroke();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '800 20px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+      c.fillStyle = can ? '#8ff0b0' : 'rgba(190,210,240,0.6)';
+      c.fillText(`${ATTR_NAME[stat]} +${cur}`, r.x + r.w / 2, r.y + 32);
       c.font = '600 14px "PingFang SC",system-ui,sans-serif';
-      c.fillText(SAVE.pts >= cost ? '点一下升级' : '强化点不够了，先打下一关', info.x + info.w / 2, info.y + 80);
+      c.fillStyle = 'rgba(190,210,240,0.7)';
+      const per = stat === 'def' ? `+${Math.round(DEF_PCT * 100)}%/点` : `+${Math.round(ATTR_PCT[stat] * 100)}%/点`;
+      c.fillText(per, r.x + r.w / 2, r.y + 58);
+      c.fillStyle = can ? 'rgba(143,240,176,0.9)' : 'rgba(160,190,230,0.5)';
+      c.fillText(full ? '已满' : `已点 ${cur}/${maxEach}`, r.x + r.w / 2, r.y + 82);
+      if (!locked && !atCap && !full && SAVE.pts < 1) {
+        c.fillStyle = 'rgba(255,160,120,0.8)';
+        c.font = '700 13px "PingFang SC",system-ui,sans-serif';
+        c.fillText('强化点不够', r.x + r.w / 2, r.y + 102);
+      }
     }
 
     c.textAlign = 'center';
     c.font = '600 16px "PingFang SC",system-ui,sans-serif';
-    c.fillStyle = 'rgba(160,190,230,0.5)';
-    c.fillText('点「返回」回卡片列表', W / 2, 1378);
+    c.fillStyle = 'rgba(160,190,230,0.6)';
+    const capTip = atCap
+      ? `已通关 ${cleared}/${TUNE.stages} 关 · 再通关 1 关，单兵上限提升`
+      : `总点 ${total}/${cap} · 剩 ${SAVE.pts} 强化点 · 1 点 = 1 级`;
+    c.fillText(capTip, W / 2, 1374);
   }
 
   // 存档导出/导入：本地静态站没有服务器，换设备/清缓存前自己留一份
@@ -3206,7 +3253,7 @@
     try {
       SAVE = ensureSave(JSON.parse(raw));
       HIGHEST = SAVE.highest;
-      refreshLV();
+      refreshAttrs();
       G.stage = HIGHEST;
       saveGame();
       restart();
@@ -3372,11 +3419,12 @@
     dropToSlot, dropToBench, canPlace, occupy, vacate, fitsAnywhere,
     applyUpgrade, chooseUpgrade, gainXP, xpNeed, choiceRects, rollUpgrades,
     benchCandidateCount, maxBenchStar,
-    maxStarOf, saveGame, SAVE, refreshLV, finishRun, LV, unitMaxHp, refreshUnitHp, unitRect, makeUnit,
-    spendPoint, spendSkill, resetPoints, skillCount, lvCap, lvCost, PTS, SKILL_COST, SKILL_MAX, LV_BASE, LV_MAX,
+    maxStarOf, saveGame, SAVE, refreshAttrs, finishRun, attrsOf, totalPointsOf, unitMaxHp, refreshUnitHp, unitRect, makeUnit,
+    spendAttr, spendSkill, resetPoints, skillCount, attrCap, PTS, SKILL_COST, SKILL_MAX,
+    ATTR_CAP_EACH, ATTR_PCT, DEF_PCT, ATTR_KEYS, ATTR_NAME,
     CELL_SHAPES, makeCellCard, makeBenchItem, isCellCard, canPlaceCell: cellAnchorOk, placeCell, resetOpen,
     unitDmg, unitRate, unitRange,
-    masteryOf, MASTERY, AFFIX, panelRows, upBtnRect, detailRects,
+    masteryOf, MASTERY, AFFIX, panelRows, attrBtnRects, detailRects,
     HIGHEST, saveStage,
     GRID, BENCH, BTN, SPEED_BTN, PANEL_BTN, MUTE_BTN, COIN, CELL, KINDS, TUNE, MAX_STAR, STAR: MAX_STAR,
     STAGE: { W, H }, SPAWN_X, BASE_X,

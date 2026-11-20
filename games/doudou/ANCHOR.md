@@ -59,21 +59,24 @@
 ## 子玩法 squad
 入口 `index.html:15`（`squad.html`）。**两个文件**：`squad-data.js`（数值/兵种/稀有度/BOSS，纯数据）
 + `squad.js`（逻辑/渲染，独立 IIFE，`G.phase = prep | battle | choose | win | over`）。
-`G` 状态里 `spawnLeft/bossKind` 管出怪；**跨局存档在 `doudou.squad.save.v3`**（最高关 / 已通关 / 点数 / 已花点数 / 统计），
-v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` 只用于首次迁移。
+`G` 状态里 `spawnLeft/bossKind` 管出怪；**跨局存档在 `doudou.squad.save.v4`**（最高关 / 已通关 / 点数 / 属性点 / 技能点 / 统计），
+v3（等级点）/ v2 / v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` 只用于首次迁移。
 它和经典模式互不影响。玩法 / 占格 / 养成 / 模拟结论**详见 SQUAD.md**，本篇不重复。
 
-**强化点与存档（2026-11-20 v0.14）**：
-- `SAVE = { v:3, highest, cleared[5], pts, spent[10], stats }`；没有军功 / 商店 / 抽奖。
-- `LV[]` 是**每个兵种独立等级**：`LV[i] = 3 + SAVE.spent[i]`（`LV_BASE=3`，`LV_MAX=10`）。
-- `lvCap()`：本世界等级上限，按已通关数查 `TUNE.lvCapByCleared`（3/5/6/7/9/10）。
-- `spendPoint(kind)`：花 `TUNE.lvCost(LV[kind])` 点升 1 级；点数不够、到上限都返回 false。
+**强化点与存档（2026-11-20 v0.16：1 点 = 1 级，属性加点）**：
+- `SAVE = { v:4, highest, cleared[5], pts, attrs[10]{dmg,hp,def}, mastery[10], stats }`；没有军功 / 商店 / 抽奖。
+- `attrsOf(kind)` / `totalPointsOf(kind)`：每兵种三项已加点数；「等级」= 1 + 总点，只是展示名。
+- `attrCap()`：本世界单兵总点上限，按已通关数查 `TUNE.attrCapByCleared`（4/8/12/16/20）；
+  单项上限 `TUNE.attrCapEach`（每项 10 点）。
+- `spendAttr(kind, stat)`：花 1 点加一项（`dmg` / `hp` / `def`）；点数不够、单项满、总点满都返回 false。
+  攻击/血量每点 +`TUNE.attrPct`（20%）兵种基数；防御每点 +`TUNE.defPct`（2%）减伤，和工程师光环合计封顶 45%。
+- `dmgMul / hpMul / defMul(kind)`：战斗公式吃这三条；`maxStarOf(kind)` 按总点：0 点 3 星、2 点 4 星、4 点 5 星。
 - `finishRun(win)`：通关标记、首通发 `TUNE.pointsPerStage[stage-1]`（6/8/10/12/14）到 `SAVE.pts`、
-  写统计、`refreshLV()`、`saveGame()`；`lose()` / 最后一波 `settleWave()` 调，`G.finished` 防重复。
-- `ensureSave`：v2/v1 → v3 迁移，cleared 截到 5 关，老档按已通关数补 `pts`。
+  写统计、`refreshAttrs()`、`saveGame()`；`lose()` / 最后一波 `settleWave()` 调，`G.finished` 防重复。
+- `ensureSave`：v3（spent 等级点）/v2/v1 → v4 迁移，老档等级点全折算成攻击点；cleared 截到 5 关。
 - 面板左上 `SAVE_BTN` / `LOAD_BTN`：`exportSave()` 复制 JSON；`importSave()` →
-  `ensureSave` → 换 `SAVE/HIGHEST` → `refreshLV` → `G.stage=HIGHEST` → `saveGame` → `restart`。
-- 别混：`LV[i]` 是**兵种等级**（Lv3–10，决定属性倍率 / 合成上限 / 专精），`G.level` 是每关的升级等级（上限 20）。
+  `ensureSave` → 换 `SAVE/HIGHEST` → `refreshAttrs` → `G.stage=HIGHEST` → `saveGame` → `restart`。
+- 别混：`attrs[i]` 是**跨局属性点**（攻/血/防，总点上限 4–20），`G.level` 是每关的升级等级（上限 20）。
 
 **竖屏定版（2026-11-20，已做）**：
 - 舞台 `W=720, H=1440`（1:2），`squad.css` 覆盖 `style.css`：`width: min(100vw, 100dvh*0.5)`。
@@ -138,13 +141,13 @@ v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` 只用于首次迁移。
   `upgradeTierWeights()` 权重抽、同兵种同属性不重复；辅助位只出自己光环词条。
 - `G.buff` 扩展了 `heal/armor/coin/haste`；`update()` / `unitRate` / `damageUnit` 都乘对应 buff。
 
-**养成面板与详情页（2026-11-20 v0.11，v0.14 加升级按钮）**：
+**养成面板与详情页（2026-11-20 v0.11，v0.16 改三属性加点）**：
 - `panelRows()` 2 列 × 5 行卡片（328×236）；`drawPanel()` 画立绘位（`previewUnit` + `drawUnit(..., bare)`）、
-  名字 / 定位 / 技能 / `Lv.X/上限` / 可合星 / 生命 / 攻击 / 射程 / 攻速 / 专精进度。
+  名字 / 定位 / 技能 / `点 n/上限` / 可合星 / 生命 / 攻击 / 射程 / 攻速 / 专精进度。
 - 点卡片 → `G.panelDetail = i` → `drawDetail()`：大立绘位、说明（`k.desc`，`wrapText`）、
-  9 项属性表（`statCells`）、本体技能 + 4 个专精节点、底部**升级按钮**。
-- `detailRects()` 给 `back` + `up` 两个命中区；点 `up` → `spendPoint(G.panelDetail)`，
-  到上限 / 点数不够时按钮变灰并给提示。
+  10 项属性表（`statCells`，含防御）、本体技能 + 4 个专精节点、底部**三个加点按钮**（攻击/血量/防御）。
+- `detailRects()` 给 `back` + `attrs{dmg,hp,def}` 命中区；点属性按钮 → `spendAttr(G.panelDetail, stat)`，
+  到总上限 / 单项满 / 点数不够时按钮变灰并给提示。
 - 专精在 `squad-data.js` 的 `MASTERY`，**按兵种 id 一张表**，每张 4 个节点，等级固定 5/7/9/10：
   - 战斗位：步枪（攻速/伤害/射程/弹道）、霰弹（弹丸/伤害/射程/弹丸）、狙击（穿透/伤害/射程/穿透）、
     重炮（溅射/伤害/溅射/伤害）、激光（穿透/伤害/穿透/射程）、迫击炮（溅射/伤害/溅射/伤害）。

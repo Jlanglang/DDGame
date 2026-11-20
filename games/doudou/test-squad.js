@@ -255,48 +255,51 @@ async function main() {
   ok('Lv1 三选一只出普通词条', aff.early > 0 && aff.earlyBad === 0, aff);
   ok('Lv12 三选一会出史诗词条', aff.lateEpic > 0, aff);
 
-  /* 1.8 单机进度：强化点 + 关卡等级上限（2026-11-20 主人改） */
+  /* 1.8 单机进度：属性加点 + 单兵上限（2026-11-20 主人改：1 点 = 1 级） */
   const prog = await ev(`(() => {
     const g = window.__squad, a = window.__squadApi;
     const saved = {
-      cleared: a.SAVE.cleared.slice(), pts: a.SAVE.pts, spent: a.SAVE.spent.slice(),
+      cleared: a.SAVE.cleared.slice(), pts: a.SAVE.pts,
+      attrs: JSON.parse(JSON.stringify(a.SAVE.attrs)),
       stage: g.stage, finished: g.finished, first: g.firstClear,
       stats: JSON.parse(JSON.stringify(a.SAVE.stats)),
     };
     a.SAVE.cleared.fill(false);
     a.SAVE.pts = 0;
-    a.SAVE.spent.fill(0);
-    const cap0 = a.refreshLV();
-    const lv0 = a.LV[0];
+    a.SAVE.attrs.forEach((x) => { x.dmg = 0; x.hp = 0; x.def = 0; });
+    const cap0 = a.refreshAttrs();
     a.SAVE.cleared[0] = true;
-    const cap1 = a.refreshLV();
+    const cap1 = a.refreshAttrs();
     a.SAVE.cleared[1] = true;
-    const cap2 = a.refreshLV();
+    const cap2 = a.refreshAttrs();
 
-    // 给 10 点，把 0 号兵从 Lv3 一路点到上限 Lv6
-    const costAt3 = a.lvCost(a.LV[0]);
-    a.SAVE.pts = 10;
-    const up1 = a.spendPoint(0);        // 3 → 4，花 1
-    const up2 = a.spendPoint(0);        // 4 → 5，花 1
-    const up3 = a.spendPoint(0);        // 5 → 6，花 2
+    // 给 20 点，把 0 号兵点攻击
+    a.SAVE.pts = 20;
+    const up1 = a.spendAttr(0, 'dmg');   // 攻击 0 → 1
+    const up2 = a.spendAttr(0, 'dmg');   // 攻击 1 → 2
     const ptsLeft = a.SAVE.pts;
-    const upCap = a.spendPoint(0);      // 已到上限 6，不能再升
-    const lvAtCap = a.LV[0];
+    // 一直点到本世界上限（攻击单项满 10 点后补血量）
+    let guard = 0;
+    while (guard++ < 30 && a.totalPointsOf(0) < a.attrCap()) {
+      if (!a.spendAttr(0, 'dmg')) a.spendAttr(0, 'hp');
+    }
+    const atCap = a.totalPointsOf(0) >= a.attrCap();
+    const overCap = a.spendAttr(0, 'dmg');   // 超上限，应 false
+    const attr0 = a.attrsOf(0);
 
-    a.SAVE.cleared = saved.cleared; a.SAVE.pts = saved.pts; a.SAVE.spent = saved.spent;
-    a.refreshLV();
+    a.SAVE.cleared = saved.cleared; a.SAVE.pts = saved.pts;
+    a.SAVE.attrs = saved.attrs;
+    a.refreshAttrs();
     g.stage = saved.stage; g.finished = saved.finished; g.firstClear = saved.first;
     a.SAVE.stats = saved.stats;
-    return { cap0, cap1, cap2, lv0, costAt3, up1, up2, up3, ptsLeft, upCap, lvAtCap, back: a.LV[0] };
+    return { cap0, cap1, cap2, up1, up2, ptsLeft, atCap, overCap, dmg: attr0.dmg, back: a.totalPointsOf(0) };
   })()`);
-  ok('初始等级上限 Lv.3', prog.cap0 === 3 && prog.lv0 === 3, prog);
-  ok('通关 1 关 → 上限 Lv.5', prog.cap1 === 5, prog);
-  ok('通关 2 关 → 上限 Lv.6', prog.cap2 === 6, prog);
-  ok('升级花费按等级递增（Lv3 花 1 点）', prog.costAt3 === 1, prog);
-  ok('花点能升到新上限 Lv.6', prog.up1 && prog.up2 && prog.up3 && prog.lvAtCap === 6, prog);
-  ok('点到上限后不能再升', prog.upCap === false, prog);
-  ok('升级扣的是强化点（10 - 4 = 6）', prog.ptsLeft === 6, prog);
-  ok('进度测试后等级还原', prog.back === 3, prog);
+  ok('初始单兵加点上限 4 点', prog.cap0 === 4, prog);
+  ok('通关 1 关 → 上限 8 点', prog.cap1 === 8, prog);
+  ok('通关 2 关 → 上限 12 点', prog.cap2 === 12, prog);
+  ok('1 点 = 1 级：点 2 次攻击扣 2 点', prog.up1 === true && prog.up2 === true && prog.ptsLeft === 18, prog);
+  ok('点到上限后不能再点', prog.atCap === true && prog.overCap === false, prog);
+  ok('进度测试后属性还原', prog.back === 0, prog);
 
   /* 1.9 首通发强化点：第 1 关首通 +6，重复通关不再发 */
   const ptsTest = await ev(`(() => {

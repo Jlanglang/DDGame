@@ -11,7 +11,7 @@
 | `index.html` + `style.css` | 51 / 364 | DOM（`#game` `#pause` `#hpFill` `#buffs` `#over`）+ 720:1600 舞台、`touch-action`、HUD 样式 |
 | `headless.js` | 352 | 无渲染模拟器（假 DOM + 固定步长），`--bal` 覆盖 BAL |
 | `test-input.js` / `wave-time.js` / `win-time.js` | 123 / 57 / 35 | 真浏览器输入；每波耗时；胜负时长 |
-| `squad.js` 等子玩法文件 | 1822 起 | 编队玩法，见文末与 SQUAD.md |
+| `squad.js` 等子玩法文件 | 2450 起 | 编队玩法，见文末与 SQUAD.md |
 
 ## 状态机与主循环
 - 状态在 `G`（`game.js:111`）：`G.state` **实际只有** `'playing' | 'over'`，`G.result` 为 `null | 'win' | 'lose'`。注释里的 `'upgrade'`（`game.js:112`）是旧版残留，`#upgrade` 永远不会显示。
@@ -57,5 +57,71 @@
 - 测试脚本硬编码：`wave-time.js:20` / `win-time.js:19` 解析 headless 文本日志（改日志格式会挂）；`test-input.js:99` 的 192/240 按 450 CSS 宽算（改舞台比例或初始位置会误报）。
 
 ## 子玩法 squad
-入口 `index.html:15`（`squad.html`）。`squad.js` 独立 IIFE：`G.phase = prep | battle | win | over`（`squad.js:123`），数值全在 `TUNE`（`squad.js:69`），跨局等级存 `doudou.squad.lv`（`squad.js:97`）。
+入口 `index.html:15`（`squad.html`）。**两个文件**：`squad-data.js`（数值/兵种/稀有度/BOSS，纯数据）
++ `squad.js`（逻辑/渲染，独立 IIFE，`G.phase = prep | battle | choose | win | over`）。
+`G` 状态里 `spawnLeft/bossKind` 管出怪；跨局等级存 `doudou.squad.lv`，关卡进度存 `doudou.squad.stage`。
 它和经典模式互不影响。玩法 / 占格 / 养成 / 模拟结论**详见 SQUAD.md**，本篇不重复。
+
+**竖屏定版（2026-11-20，已做）**：
+- 舞台 `W=720, H=1440`（1:2），`squad.css` 覆盖 `style.css`：`width: min(100vw, 100dvh*0.5)`。
+- **上 2/3 战场（0..960）+ 下 1/3 准备区（960..1440）**，`SPLIT_Y = 960`；
+  上半是一整块（留给背景图），下半放金币 / 3 个待命位 / 按钮。
+- 战场上 5×5 全开：`GRID`（5×5×56，`x=16,y=340`）**占宽 280 ≈ 屏幕 40%**，街道 60%；
+  单位直径约 38、敌人 18、BOSS 16/22。**没有解锁机制**。
+- 下准备区：金币条 `COIN`（y=968）；3 个待命位 `BENCH`（190×200，y=1028，框最长边适配 `BENCH_FIT=160`）；
+  刷新 / 开战按钮 `BTN`（y=1248，110 高）。没有基地血条、没有选中单位详情卡。
+- 顶栏：倍速 `SPEED_BTN`（x=350）、养成 `PANEL_BTN`（x=470）、音效 `MUTE_BTN`（x=592）。
+- 主线 10 关 × 20 波（`TUNE.stages/waves`）；`G.stage` 当前关，`nextStage` 推进并落盘，`HIGHEST` 是已解锁最高关。
+- 10 个英雄在 `squad-data.js` 的 `KINDS`，`unlock` 字段 = 第几关起可抽；`randomKind` / `rollUpgrades` 只出已解锁的。
+- 辅助英雄光环：`countAux` 统计场上医务兵/工程师/战争顾问/鼓号手，`update` 里回血/产币，`unitRate` 吃鼓号手，`damageUnit` 吃工程师减伤。
+
+**待命位（2026-11-20，替代卡片）**：
+- `benchRects()` 返回 3 个待命位的命中区（整块可点/可拖）；`benchCenter()` 是展示中心。
+- **不是卡片**：`drawBench()` 只画很淡的底板 + 虚线；单位由 render 用 `drawUnit(..., benchUnitScale(u), false)`
+  画，**和战场完全同一套**（稀有度框 + 角标 + 枪管）；`benchUnitScale` 把框最长边适配到 160。
+- 交战中（`G.phase === 'battle'`）待命位换成一条状态带。
+
+**稀有度（2026-11-20）**：
+- `RARITY` 在 `squad-data.js`；`rarityOf(star)` 取档；单位框在 `drawUnit()` 开头（半透明底 + 稀有度色描边 + shadowBlur 发光）。
+- 角标 `drawRarityBadge()` 同时用在场上单位和待命位；星级越高框越粗、光越强。
+
+**BOSS（2026-11-20）**：
+- `squad-data.js` 的 `BOSS`：`minor.waves = [5,10,15]`（血×28）、`major.wave = 20`（血×60）。
+- `startBattle()` 设 `G.bossKind` 并把 BOSS 计入 `spawnLeft`（BOSS 不占小兵名额）；`updateSpawn()` 在 `spawnLeft === 1` 时生成 BOSS 压轴。
+- `spawnEnemy(bossKind)` 按 BOSS 参数放大血量/攻击/半径，`y` 在战场上随机（不是固定中排）；`drawEnemy()` 画外圈光环 + 头顶双角 + 加宽血条。
+- 进度条上的 BOSS 波标记在 `drawHud()`；**漏怪即输在 `updateEnemies()`**（BOSS 也一样）。
+
+**弹道、伤害数字与卡死兜底（2026-11-20）**：
+- `fire()` 的瞄准角必须从**子弹出生点**（枪口）算，不是单位中心；只有霰弹兵（`id === 'shot'`）是真扇形，其余多弹道都瞄同一目标。
+- `updateBullets()` 用**线段扫掠**（`distPointSeg`，上一帧 → 这一帧）判定命中，不是只看落点：
+  敌人 r=9 时子弹一帧就能飞过去，点判定会整发打空——这是「只有子弹没伤害」的根因。
+- 命中时 `addFloat()` 飘伤害数字（3 星金色 / 5 星更大，限流 48 条），溅射也飘。
+- `update()` 里 `G.battleT > 90` 强制结算这一波，防止「打不中 / 医护回血打不死」导致永久卡在交战中。
+- **倍速**：`frame()` 里战斗阶段按 `G.speed`（1/2/3）多跑几步固定步长，不改 dt，弹道不会穿透；
+  `SPEED_BTN` 点击循环，准备阶段只改设置。
+- `settleWave()` 开头清空 `bullets / bits / floats / rings / enemies`，回准备不留上一波的子弹和尸体。
+
+**操作与刷新（对齐原版）**：
+- 输入：`onDown/onMove/onUp` 用 10 CSS px 移动距离区分点击和拖拽。
+  点按选中后，点空地/空格走 `drop()`——和拖拽**同一条落点逻辑**（吸附 / 合成 / 最近合法位），不再只支持拖。
+- 倍速：`SPEED_BTN` 点击 `G.speed` 在 1/2/3 循环；`frame()` 只在战斗阶段多跑几步。
+- 待命区自动合成：`autoMergeBench`，刷新/拖回后触发；`dropToBench` 支持「场上拖回」和「占用槽合成」。
+- 待命区不保留：`startBattle` 里 `G.bench.fill(null)`（开战清空），`refresh` 换候选时也整批换掉。
+- 刷新：`refreshPrice` = 10 + 次数×5（每波重置）；`refresh` 直接换掉 3 个候选。
+  **每波结束自动免费刷一次**：`settleWave()` → `rollBench()`，并把 `refreshCount` 归零。
+- 反馈不用整屏抖/闪：合成是本体闪白 + 扩散环（`G.rings`）+ 粒子；漏怪是基地线红脉冲（`G.baseHit`）+ 判负；敌人受击闪白 `e.hitT`。
+- **金币只有三源**：战争顾问上场每秒 0.35（**只在 battle 阶段**，代码在 `update()` 里 gate）、清波 8+2n、三选一 +30。
+  `TUNE.coinPerSec` 已删除；初始 25。**总额画在下半区 `drawCoinChip()`**。
+
+**养成面板（2026-11-20）**：
+- `panelRows()` 全宽 10 行（w=W-80,h=108），`upBtnRect()` 在行右侧；`drawPanel()` 显示
+  当前 Lv / 可合星数 / 当前攻击（`k.dmg × lvMul × masteryOf().dmg`）/ 特性 / 已解锁专精 / 下一专精 / 升级费用。
+- 专精在 `squad-data.js` 的 `MASTERY`：Lv5 攻速 / Lv7 射程 / Lv9 伤害 / Lv10 弹道；
+  `masteryOf(kind)` 读 `LV`，`unitDmg/unitRate/unitRange/fire` 都吃。
+
+**单位生存（2026-11-20 第一步，已做）**：
+- 血：`makeUnit` 存 `hp/maxHp`；`KINDS[].hp` × `(1+(星-1)×TUNE.unitHpStar)`；合成升星后 `refreshUnitHp` 回满。
+- 敌人打人：`blockingUnit` 判断敌人是否压到单位的格子右侧；`updateEnemies` 里停下来每秒啃一口；`damageUnit` / `killUnit` 扣血、阵亡（直接 `vacate`，不回待命区）。
+- 渲染：单位血条在 `drawUnit` 末尾；敌人啃食前扑 + 抓痕在 `drawEnemy`。
+- 数值：`TUNE.unitHpStar / enemyAtk* / stageHpMul / stageAtkMul`；模拟器 `--tune` 可覆盖。
+- 医护不自奶：医生不回自己的血，否则一群医生会互相回成打不死的铁王八（模拟踩过）。

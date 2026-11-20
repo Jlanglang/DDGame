@@ -1,9 +1,21 @@
 /* 小队模式专用：只动这一页，经典模式的 style.css 一行不改 */
 
-/* 顶栏两个入口各靠一边，HUD 从 y≈100 才开始画 */
-.hub-left {
-  right: auto;
+/* 小队是竖屏：720×1440（1:2），手机竖着拿基本铺满；style.css 的 720:1600 盖掉 */
+#stage {
+  width: min(100vw, calc(100dvh * 0.5));
+  height: min(100dvh, calc(100vw * 2));
+}
+
+/* 入口放底部：顶栏留给关卡/金币/养成/音效 */
+.hub-back {
+  right: 3%;
+  left: auto;
+  top: auto;
+  bottom: 1.4%;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.hub-back.hub-left {
   left: 3%;
-  padding: 6px 11px;
-  font-size: 11px;
+  right: auto;
 }

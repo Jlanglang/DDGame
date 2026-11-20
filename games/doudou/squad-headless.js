@@ -19,6 +19,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const SRC = fs.readFileSync(path.join(__dirname, 'squad.js'), 'utf8');
+const SRC_DATA = fs.readFileSync(path.join(__dirname, 'squad-data.js'), 'utf8');
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -31,6 +32,7 @@ const MAXT = Number(arg('max', 1200));
 const TUNE = arg('tune', null);
 const SEED = Number(arg('seed', 1));
 const VERBOSE = process.argv.includes('--verbose');
+const NOLEVEL = process.argv.includes('--nolevel');   // 不养成对照：等级一直 3
 const DT = 1 / 60;
 
 /* --tune 两种写法都认：
@@ -52,7 +54,7 @@ const TUNE_JSON = parseTune(TUNE);
 /* ---------------- 假 DOM ---------------- */
 
 const RESULTS = [];
-const LV_STATE = [3, 3, 3, 3];   // 跨局共享：模拟同一个玩家一直养
+const LV_STATE = new Array(10).fill(3);   // 跨局共享：和 KINDS.length 对齐（10 个英雄）
 
 function makeSandbox(seed) {
   let s = seed >>> 0;
@@ -77,7 +79,7 @@ function makeSandbox(seed) {
   const canvas = {
     width: 0, height: 0,
     getContext: () => ctx,
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 450, height: 1000 }),
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 450 }),
     addEventListener: () => {},
     setPointerCapture: () => {},
     releasePointerCapture: () => {},
@@ -112,8 +114,11 @@ function makeSandbox(seed) {
   };
   if (TUNE_JSON) sandbox.__SQUAD_TUNE = TUNE_JSON;
   sandbox.__SQUAD_LV = LV_STATE;
+  sandbox.__SQUAD_STAGE = 1;      // 每局主线都从第 1 关开打
+  sandbox.__SQUAD_NO_RENDER = true;   // 数值模拟不画，快很多
 
   vm.createContext(sandbox);
+  vm.runInContext(SRC_DATA, sandbox, { filename: 'squad-data.js' });
   vm.runInContext(SRC, sandbox, { filename: 'squad.js' });
 
   return {
@@ -175,6 +180,7 @@ function fieldMerge(g, api) {
 }
 
 function aiLevelUp(g, api) {
+  if (NOLEVEL) return;              // --nolevel：只测「不养成能打到哪」
   // 模拟会去点「养成」的玩家：金币富余就升兵种等级
   for (let k = 0; k < api.LV.length; k++) {
     const cost = api.upgradeCost(k);
@@ -216,15 +222,24 @@ function playOne(seed, policy) {
   const api = box.api;
 
   const waveSecs = [];
+  const clearedStages = [];
   let t = 0;
   let waveStart = 0;
   let curWave = 1;
   let prevPhase = g.phase;
   let stuck = false;
+  let lostStage = 0;
 
-  for (let guard = 0; guard < 400000; guard++) {
-    if (g.phase === 'win' || g.phase === 'over') break;
+  for (let guard = 0; guard < 800000; guard++) {
     if (t > MAXT) { stuck = true; break; }
+    if (g.phase === 'over') { lostStage = g.stage; break; }
+    if (g.phase === 'win') {
+      clearedStages.push(g.stage);
+      if (g.stage >= api.TUNE.stages) break;       // 主线 10 关全通
+      api.nextStage();                              // 进下一关，继续打
+      prevPhase = 'prep';
+      continue;
+    }
 
     // 三选一：模拟玩家拿第一张（最省事，也不影响对照）
     if (g.phase === 'choose') {
@@ -257,11 +272,15 @@ function playOne(seed, policy) {
 
   const units = [...new Set(g.slots.filter(Boolean))];
   return {
-    win: g.phase === 'win',
+    win: clearedStages.length >= api.TUNE.stages,
+    stagesCleared: clearedStages.length,
+    lostStage,
+    stage: g.stage,
     stuck,
     wave: g.wave,
     merges: g.stats.merges,
     kills: g.stats.kills,
+    deaths: g.stats.deaths || 0,
     units: units.length,
     stars: units.length ? Math.max(...units.map((u) => u.star)) : 0,
     avgStar: units.length ? units.reduce((a, u) => a + u.star, 0) / units.length : 0,
@@ -279,8 +298,8 @@ for (let i = 0; i < RUNS; i++) {
   if (VERBOSE) {
     console.log(
       `#${i + 1} ${r.win ? 'WIN ' : r.stuck ? 'STUCK' : 'LOSE'} ` +
-      `wave=${r.wave} t=${r.time.toFixed(0)}s units=${r.units} maxStar=${r.stars} ` +
-      `avgStar=${r.avgStar.toFixed(1)} merges=${r.merges}`
+      `stages=${r.stagesCleared}/10 lostAt=${r.lostStage || '-'} t=${r.time.toFixed(0)}s ` +
+      `units=${r.units} maxStar=${r.stars} merges=${r.merges} deaths=${r.deaths}`
     );
   }
 }
@@ -291,9 +310,10 @@ function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0
 const wins = results.filter((r) => r.win).length;
 const stuck = results.filter((r) => r.stuck).length;
 const losses = results.length - wins - stuck;
-const avgWave = mean(results.map((r) => (r.win ? r.wave : r.wave)));
+const avgStages = mean(results.map((r) => r.stagesCleared));
 const avgStar = mean(results.map((r) => r.stars));
 const avgMerges = mean(results.map((r) => r.merges));
+const avgDeaths = mean(results.map((r) => r.deaths));
 const avgUnits = mean(results.map((r) => r.units));
 
 // 每波的耗时：把所有局里同一波的耗时收集起来
@@ -307,16 +327,16 @@ for (const r of results) {
 
 console.log('');
 console.log(`runs=${RUNS}  policy=${POLICY}  seed=${SEED}${TUNE ? '  tune=' + TUNE : ''}`);
-console.log(`通关 ${wins} (${pct(wins)})   失败 ${losses} (${pct(losses)})   卡住 ${stuck}`);
-console.log(`平均结束波 ${avgWave.toFixed(1)}   平均最高星 ${avgStar.toFixed(1)}   平均合成 ${avgMerges.toFixed(1)} 次   平均场上 ${avgUnits.toFixed(1)} 人`);
+console.log(`主线全通 ${wins} (${pct(wins)})   中途失败 ${losses} (${pct(losses)})   卡住 ${stuck}`);
+console.log(`平均通关关卡 ${avgStages.toFixed(1)} / 10   平均最高星 ${avgStar.toFixed(1)}   平均合成 ${avgMerges.toFixed(1)} 次   平均阵亡 ${avgDeaths.toFixed(1)} 人   平均场上 ${avgUnits.toFixed(1)} 人`);
 
 const loseAt = new Map();
 for (const r of results) {
   if (r.win || r.stuck) continue;
-  loseAt.set(r.wave, (loseAt.get(r.wave) || 0) + 1);
+  loseAt.set(r.lostStage, (loseAt.get(r.lostStage) || 0) + 1);
 }
 if (loseAt.size) {
-  const dist = [...loseAt.entries()].sort((a, b) => a[0] - b[0]).map(([w, n]) => `第${w}波×${n}`).join('  ');
+  const dist = [...loseAt.entries()].sort((a, b) => a[0] - b[0]).map(([w, n]) => `第${w}关×${n}`).join('  ');
   console.log(`失败分布：${dist}`);
 }
 console.log('');

@@ -59,19 +59,33 @@
 ## 子玩法 squad
 入口 `index.html:15`（`squad.html`）。**两个文件**：`squad-data.js`（数值/兵种/稀有度/BOSS，纯数据）
 + `squad.js`（逻辑/渲染，独立 IIFE，`G.phase = prep | battle | choose | win | over`）。
-`G` 状态里 `spawnLeft/bossKind` 管出怪；跨局等级存 `doudou.squad.lv`，关卡进度存 `doudou.squad.stage`。
+`G` 状态里 `spawnLeft/bossKind` 管出怪；**跨局存档在 `doudou.squad.save.v3`**（最高关 / 已通关 / 点数 / 已花点数 / 统计），
+v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` 只用于首次迁移。
 它和经典模式互不影响。玩法 / 占格 / 养成 / 模拟结论**详见 SQUAD.md**，本篇不重复。
+
+**强化点与存档（2026-11-20 v0.14）**：
+- `SAVE = { v:3, highest, cleared[5], pts, spent[10], stats }`；没有军功 / 商店 / 抽奖。
+- `LV[]` 是**每个兵种独立等级**：`LV[i] = 3 + SAVE.spent[i]`（`LV_BASE=3`，`LV_MAX=10`）。
+- `lvCap()`：本世界等级上限，按已通关数查 `TUNE.lvCapByCleared`（3/5/6/7/9/10）。
+- `spendPoint(kind)`：花 `TUNE.lvCost(LV[kind])` 点升 1 级；点数不够、到上限都返回 false。
+- `finishRun(win)`：通关标记、首通发 `TUNE.pointsPerStage[stage-1]`（6/8/10/12/14）到 `SAVE.pts`、
+  写统计、`refreshLV()`、`saveGame()`；`lose()` / 最后一波 `settleWave()` 调，`G.finished` 防重复。
+- `ensureSave`：v2/v1 → v3 迁移，cleared 截到 5 关，老档按已通关数补 `pts`。
+- 面板左上 `SAVE_BTN` / `LOAD_BTN`：`exportSave()` 复制 JSON；`importSave()` →
+  `ensureSave` → 换 `SAVE/HIGHEST` → `refreshLV` → `G.stage=HIGHEST` → `saveGame` → `restart`。
+- 别混：`LV[i]` 是**兵种等级**（Lv3–10，决定属性倍率 / 合成上限 / 专精），`G.level` 是每关的升级等级（上限 20）。
 
 **竖屏定版（2026-11-20，已做）**：
 - 舞台 `W=720, H=1440`（1:2），`squad.css` 覆盖 `style.css`：`width: min(100vw, 100dvh*0.5)`。
 - **上 2/3 战场（0..960）+ 下 1/3 准备区（960..1440）**，`SPLIT_Y = 960`；
   上半是一整块（留给背景图），下半放金币 / 3 个待命位 / 按钮。
-- 战场上 5×5 全开：`GRID`（5×5×56，`x=16,y=340`）**占宽 280 ≈ 屏幕 40%**，街道 60%；
-  单位直径约 38、敌人 18、BOSS 16/22。**没有解锁机制**。
+- 战场格子 **5 列 × 7 行**：`GRID`（`cols=5, rows=7, cell=56`，`x=16, y=284`）**占宽 280 ≈ 屏幕 40%**，街道 60%；
+  初始只开**前排 3×3**（右侧、行居中），靠刷新抽到的「格子卡」往上下/左侧解锁（`G.open[]` / `resetOpen` / `placeCell`）。
+  单位直径约 38、敌人 r18（直径 36），小 BOSS r26、大 BOSS r38。
 - 下准备区：金币条 `COIN`（y=968）；3 个待命位 `BENCH`（190×200，y=1028，框最长边适配 `BENCH_FIT=160`）；
-  刷新 / 开战按钮 `BTN`（y=1248，110 高）。没有基地血条、没有选中单位详情卡。
+  刷新 / 开战按钮 `BTN`（y=1248，110 高）。没有基地血条；单位详情在养成面板的详情页里。
 - 顶栏：倍速 `SPEED_BTN`（x=350）、养成 `PANEL_BTN`（x=470）、音效 `MUTE_BTN`（x=592）。
-- 主线 10 关 × 20 波（`TUNE.stages/waves`）；`G.stage` 当前关，`nextStage` 推进并落盘，`HIGHEST` 是已解锁最高关。
+- 第一世界 5 关 × 20 波（`TUNE.stages/waves`，`TUNE.worldName='街区'`）；`G.stage` 当前关，`nextStage` 推进并落盘，`HIGHEST` 是已解锁最高关。
 - 10 个英雄在 `squad-data.js` 的 `KINDS`，`unlock` 字段 = 第几关起可抽；`randomKind` / `rollUpgrades` 只出已解锁的。
 - 辅助英雄光环：`countAux` 统计场上医务兵/工程师/战争顾问/鼓号手，`update` 里回血/产币，`unitRate` 吃鼓号手，`damageUnit` 吃工程师减伤。
 
@@ -86,7 +100,7 @@
 - 角标 `drawRarityBadge()` 同时用在场上单位和待命位；星级越高框越粗、光越强。
 
 **BOSS（2026-11-20）**：
-- `squad-data.js` 的 `BOSS`：`minor.waves = [5,10,15]`（血×28）、`major.wave = 20`（血×60）。
+- `squad-data.js` 的 `BOSS`：`minor.waves = [5,10,15]`（血×28、r26、armor 8%）、`major.wave = 20`（血×60、r38、armor 18%）。
 - `startBattle()` 设 `G.bossKind` 并把 BOSS 计入 `spawnLeft`（BOSS 不占小兵名额）；`updateSpawn()` 在 `spawnLeft === 1` 时生成 BOSS 压轴。
 - `spawnEnemy(bossKind)` 按 BOSS 参数放大血量/攻击/半径，`y` 在战场上随机（不是固定中排）；`drawEnemy()` 画外圈光环 + 头顶双角 + 加宽血条。
 - 进度条上的 BOSS 波标记在 `drawHud()`；**漏怪即输在 `updateEnemies()`**（BOSS 也一样）。
@@ -94,7 +108,7 @@
 **弹道、伤害数字与卡死兜底（2026-11-20）**：
 - `fire()` 的瞄准角必须从**子弹出生点**（枪口）算，不是单位中心；只有霰弹兵（`id === 'shot'`）是真扇形，其余多弹道都瞄同一目标。
 - `updateBullets()` 用**线段扫掠**（`distPointSeg`，上一帧 → 这一帧）判定命中，不是只看落点：
-  敌人 r=9 时子弹一帧就能飞过去，点判定会整发打空——这是「只有子弹没伤害」的根因。
+  敌人 r=18 时子弹一帧也能飞过去，点判定会整发打空——这是「只有子弹没伤害」的根因。
 - 命中时 `addFloat()` 飘伤害数字（3 星金色 / 5 星更大，限流 48 条），溅射也飘。
 - `update()` 里 `G.battleT > 90` 强制结算这一波，防止「打不中 / 医护回血打不死」导致永久卡在交战中。
 - **倍速**：`frame()` 里战斗阶段按 `G.speed`（1/2/3）多跑几步固定步长，不改 dt，弹道不会穿透；
@@ -107,17 +121,44 @@
 - 倍速：`SPEED_BTN` 点击 `G.speed` 在 1/2/3 循环；`frame()` 只在战斗阶段多跑几步。
 - 待命区自动合成：`autoMergeBench`，刷新/拖回后触发；`dropToBench` 支持「场上拖回」和「占用槽合成」。
 - 待命区不保留：`startBattle` 里 `G.bench.fill(null)`（开战清空），`refresh` 换候选时也整批换掉。
-- 刷新：`refreshPrice` = 10 + 次数×5（每波重置）；`refresh` 直接换掉 3 个候选。
+- 刷新：`refreshPrice` = 10 + 次数×5（每波重置）；`refresh` 直接换掉整批候选（`benchCandidateCount` 给 2/3 个）。
   **每波结束自动免费刷一次**：`settleWave()` → `rollBench()`，并把 `refreshCount` 归零。
+- 候选星级：`maxBenchStar()` 前 2 关只出 1 星；第 2 关起 2 星、第 4 关起 3 星（4/5 星只能合成）。
 - 反馈不用整屏抖/闪：合成是本体闪白 + 扩散环（`G.rings`）+ 粒子；漏怪是基地线红脉冲（`G.baseHit`）+ 判负；敌人受击闪白 `e.hitT`。
-- **金币只有三源**：战争顾问上场每秒 0.35（**只在 battle 阶段**，代码在 `update()` 里 gate）、清波 8+2n、三选一 +30。
+- **金币只有三源**：战争顾问上场每秒 0.35（**只在 battle 阶段**，代码在 `update()` 里 gate）、清波 8+2n、词条里的金币。
   `TUNE.coinPerSec` 已删除；初始 25。**总额画在下半区 `drawCoinChip()`**。
 
-**养成面板（2026-11-20）**：
-- `panelRows()` 全宽 10 行（w=W-80,h=108），`upBtnRect()` 在行右侧；`drawPanel()` 显示
-  当前 Lv / 可合星数 / 当前攻击（`k.dmg × lvMul × masteryOf().dmg`）/ 特性 / 已解锁专精 / 下一专精 / 升级费用。
-- 专精在 `squad-data.js` 的 `MASTERY`：Lv5 攻速 / Lv7 射程 / Lv9 伤害 / Lv10 弹道；
-  `masteryOf(kind)` 读 `LV`，`unitDmg/unitRate/unitRange/fire` 都吃。
+**升级与词条（2026-11-20 v0.11）**：
+- `G.level / G.xp / G.pendingLevels / G.levelFrom`：**每关重置**，上限 `TUNE.levelCap=20`；
+  跨局的是兵种合成上限等级 `LV`（上限 10），两个别混。
+- `killEnemy()` → `gainXP()`（小兵 +1、BOSS +5）；`xpNeed(lv) = 18 + lv×2`；
+  升级时 `startChoice('battle')` 把 `phase` 切到 `choose`，战斗暂停；选完 `chooseUpgrade(i)` 回原阶段。
+- `settleWave()` **不再弹三选一**，清波只回准备 + 免费刷新。
+- 词条池 `AFFIX`（`squad-data.js`）：tier 1/2/3，`minLv` 1/5/10；`rollUpgrades()` 按
+  `upgradeTierWeights()` 权重抽、同兵种同属性不重复；辅助位只出自己光环词条。
+- `G.buff` 扩展了 `heal/armor/coin/haste`；`update()` / `unitRate` / `damageUnit` 都乘对应 buff。
+
+**养成面板与详情页（2026-11-20 v0.11，v0.14 加升级按钮）**：
+- `panelRows()` 2 列 × 5 行卡片（328×236）；`drawPanel()` 画立绘位（`previewUnit` + `drawUnit(..., bare)`）、
+  名字 / 定位 / 技能 / `Lv.X/上限` / 可合星 / 生命 / 攻击 / 射程 / 攻速 / 专精进度。
+- 点卡片 → `G.panelDetail = i` → `drawDetail()`：大立绘位、说明（`k.desc`，`wrapText`）、
+  9 项属性表（`statCells`）、本体技能 + 4 个专精节点、底部**升级按钮**。
+- `detailRects()` 给 `back` + `up` 两个命中区；点 `up` → `spendPoint(G.panelDetail)`，
+  到上限 / 点数不够时按钮变灰并给提示。
+- 专精在 `squad-data.js` 的 `MASTERY`，**按兵种 id 一张表**，每张 4 个节点，等级固定 5/7/9/10：
+  - 战斗位：步枪（攻速/伤害/射程/弹道）、霰弹（弹丸/伤害/射程/弹丸）、狙击（穿透/伤害/射程/穿透）、
+    重炮（溅射/伤害/溅射/伤害）、激光（穿透/伤害/穿透/射程）、迫击炮（溅射/伤害/溅射/伤害）。
+  - 辅助位：医务（治疗倍率）、工程师（减伤倍率，`damageUnit` 上限 45%）、
+    顾问（产币倍率，`update()`）、鼓号（攻速光环倍率，`unitRate`）。
+- `masteryOf(kind)` 读 `LV` 把节点汇总成统一形状（倍率 key 连乘、`pellets/pierce` 相加）；
+  `unitDmg/unitRate/unitRange/fire` 吃战斗位，`update()`/`damageUnit` 吃辅助位光环。
+
+**敌人尺寸与防御（2026-11-20 v0.11）**：
+- 小兵 `r = TUNE.enemyR = 18`（直径 36，和单位本体同量级）；BOSS 用 `BOSS[].r`（26/38）。
+- 每波数量 `12 + 波数×3.4`（第 20 波 80）；**难度不靠数量**。
+- `spawnEnemy()` 算 `armor = min(40%, 0.4%×波数 + 1.5%×关卡 + BOSS 加成)`；
+  `updateBullets()` / `splashDamage()` 扣血都乘 `(1 - armor)`，飘字显示实际伤害。
+
 
 **单位生存（2026-11-20 第一步，已做）**：
 - 血：`makeUnit` 存 `hp/maxHp`；`KINDS[].hp` × `(1+(星-1)×TUNE.unitHpStar)`；合成升星后 `refreshUnitHp` 回满。

@@ -21,14 +21,15 @@
      布局（2026-11-20：上 2/3 战场 + 下 1/3 准备区）
      ---------------------------------------------------------- */
 
-  // 5×5 = 25 格，默认全开。**格子区占宽 40%、街道 60%**（2026-11-20 主人定，好算）。
+  // 5 列 × 7 行（2026-11-20 主人定：9 行太简单改 7 行）；初始 3×3 在前排（靠敌人来的右侧）。
+  // 格子区占宽 40%、街道 60%；格子卡拖到边上解锁。
   const CELL = 56;
-  const GRID = { cols: 5, rows: 5, cell: CELL };
+  const GRID = { cols: 5, rows: 7, cell: CELL };
   GRID.w = GRID.cols * CELL;       // 280
   GRID.x = 16;
-  GRID.y = 340;                    // 战场 0..960 里垂直居中（340..620）
-  GRID.h = GRID.rows * CELL;       // 280
-  GRID.bottom = GRID.y + GRID.h;   // 620
+  GRID.y = 284;                    // 战场 0..960 里垂直居中（284..676）
+  GRID.h = GRID.rows * CELL;       // 392
+  GRID.bottom = GRID.y + GRID.h;   // 676
 
   /* 刷新区：不是卡片，是 3 个「待命位」。单位按和战场完全一样的画法站进去
      （稀有度框 + 角标 + 枪管），一眼认兵种；占格看框的形状，等级看框色/角标。 */
@@ -68,6 +69,7 @@
   const RARITY = DATA.RARITY;
   const BOSS = DATA.BOSS;
   const MASTERY = DATA.MASTERY;
+  const AFFIX = DATA.AFFIX;
   const MAX_STAR = 5;
   const rarityOf = (star) => RARITY[Math.max(1, Math.min(MAX_STAR, star | 0)) - 1];
 
@@ -81,50 +83,228 @@
   const starMul = (s) => Math.pow(TUNE.starGrowth, s - 1);
 
   /* ----------------------------------------------------------
-     养成：每个兵种的等级存在本地，跨局保留
-     - 等级提升基础攻击（每级 +12%）
-     - **合成上限 = 等级**：3 级只能合到 3 星，想合 5 星得先养到 5 级
-     - 升级花的是局内金币（每局重新赚），等级本身留着
+     存档（2026-11-20 v0.14）
+     ----------------------------------------------------------
+     单机不是手游：不搞军功 / 抽奖 / 商店。
+     - 局内金币：每局赚、当局花，不存档。
+     - 兵种等级：每个兵种独立 Lv3..Lv10，用「强化点」往上点。
+     - 强化点：每关首通发（6/8/10/12/14，共 50），花在哪个兵种自己定。
+     - 等级上限：按已通关数放（3/5/6/7/9/10），点数再多也不能越过。
+       两套门槛一起卡：点数卡「能不能全养」，上限卡「能不能攒点堆一个」。
+     - 兵种解锁：KINDS[].unlock（第几关起可抽），第一世界 5 关全解锁。
+     - 存档：v3 JSON；v2 / v1 / 更旧 key 自动迁移。
      ---------------------------------------------------------- */
 
-  const LV_KEY = 'doudou.squad.lv';
-  let LV = new Array(KINDS.length).fill(3);
-  if (typeof globalThis !== 'undefined' && Array.isArray(globalThis.__SQUAD_LV)) {
-    LV = globalThis.__SQUAD_LV;          // 模拟器跨局共享同一份
-  } else {
+  const SAVE_KEY = 'doudou.squad.save.v3';
+  const OLD_SAVE_KEYS = ['doudou.squad.save.v2', 'doudou.squad.save.v1'];
+  const LV_KEY = 'doudou.squad.lv';       // 更旧，迁移用
+  const STAGE_KEY = 'doudou.squad.stage'; // 更旧，迁移用
+
+  const LV_BASE = 3;          // 所有兵种起手 Lv3（能合 3 星）
+  const LV_MAX = 10;
+  const LV_CAP_TABLE = TUNE.lvCapByCleared || [3, 5, 6, 7, 9, 10];
+  const PTS = TUNE.pointsPerStage || [6, 8, 10, 12, 14];
+  const lvCost = TUNE.lvCost || ((lv) => (lv <= 4 ? 1 : lv <= 6 ? 2 : lv <= 8 ? 3 : 4));
+  const SKILL_COST = TUNE.skillCost || [2, 3, 4, 5];
+  const SKILL_MAX = 4;
+  const CELL_SHAPES = DATA.CELL_SHAPES || [];
+  const CELL_START = Math.max(1, TUNE.cellStart || 3);   // 开局中心 N×N
+  const openColsForStage = (stage) => (TUNE.openColsByStage || [3, 4, 5, 5, 5])[Math.max(0, Math.min(4, (stage | 0) - 1))];
+
+  const defaultStats = () => ({ runs: 0, wins: 0, kills: 0, bestStage: 0 });
+  const defaultSave = () => ({
+    v: 3,
+    highest: 1,
+    cleared: new Array(TUNE.stages).fill(false),
+    pts: 0,                                   // 没花的强化点
+    spent: new Array(KINDS.length).fill(0),   // 每个兵种已投入的等级点数
+    mastery: new Array(KINDS.length).fill(0),  // 每个兵种已解锁的技能节点数（0-4）
+    stats: defaultStats(),
+  });
+
+  const clearedCountOf = (s) => (s.cleared || []).filter(Boolean).length;
+
+  function ensureSave(s) {
+    if (!s || typeof s !== 'object') s = defaultSave();
+    const isOld = Number(s.v) !== 3;
+    s.v = 3;
+    s.highest = Math.max(1, Math.min(TUNE.stages, Number(s.highest) || 1));
+    s.stats = Object.assign(defaultStats(), s.stats || {});
+
+    // cleared 对齐到当前世界的关数；旧档靠 bestStage 补
+    let cleared = Array.isArray(s.cleared) ? s.cleared.slice(0, TUNE.stages) : [];
+    if (!cleared.length && Number(s.stats.bestStage) > 0) {
+      cleared = new Array(TUNE.stages).fill(false);
+      for (let i = 0; i < Math.min(TUNE.stages, s.stats.bestStage); i++) cleared[i] = true;
+    }
+    while (cleared.length < TUNE.stages) cleared.push(false);
+    s.cleared = cleared.map(Boolean);
+
+    // spent：每个兵种已投入多少点
+    s.spent = Array.isArray(s.spent) && s.spent.length === KINDS.length
+      ? s.spent.map((x) => Math.max(0, Math.min(LV_MAX - LV_BASE, Number(x) || 0)))
+      : new Array(KINDS.length).fill(0);
+
+    // mastery：每个兵种已解锁几个技能节点（老存档没有就 0）
+    s.mastery = Array.isArray(s.mastery) && s.mastery.length === KINDS.length
+      ? s.mastery.map((x) => Math.max(0, Math.min(SKILL_MAX, Number(x) || 0)))
+      : new Array(KINDS.length).fill(0);
+
+    // 老档没有 pts：按已通关数把该发的点补上，不吞老玩家进度
+    const earned = s.cleared.reduce((a, on, i) => a + (on ? (PTS[i] || 0) : 0), 0);
+    if (isOld || typeof s.pts !== 'number') s.pts = Math.max(0, earned - s.spent.reduce((a, b) => a + b, 0));
+    s.pts = Math.max(0, Math.floor(s.pts));
+    return s;
+  }
+
+  function readSave() {
+    for (const key of [SAVE_KEY, ...OLD_SAVE_KEYS]) {
+      try {
+        const raw = JSON.parse(localStorage.getItem(key) || 'null');
+        if (raw) return ensureSave(raw);
+      } catch { /* ignore */ }
+    }
+    // 更旧的 key：lv 数组 + stage（已解锁到第几关）
+    const s = defaultSave();
     try {
-      const saved = JSON.parse(localStorage.getItem(LV_KEY) || 'null');
-      if (Array.isArray(saved) && saved.length === KINDS.length) {
-        LV = saved.map((v) => Math.max(1, Math.min(10, Number(v) || 3)));
+      const olds = JSON.parse(localStorage.getItem(LV_KEY) || 'null');
+      if (Array.isArray(olds)) {
+        for (let i = 0; i < s.spent.length && i < olds.length; i++) {
+          s.spent[i] = Math.max(0, Math.min(LV_MAX - LV_BASE, (Number(olds[i]) || LV_BASE) - LV_BASE));
+        }
       }
-    } catch { /* 无痕模式 */ }
+      const stage = Number(localStorage.getItem(STAGE_KEY)) || 1;
+      s.highest = Math.max(1, Math.min(TUNE.stages, stage));
+      s.stats.bestStage = Math.max(0, s.highest - 1);
+      for (let i = 0; i < s.stats.bestStage && i < s.cleared.length; i++) s.cleared[i] = true;
+    } catch { /* ignore */ }
+    const earned = s.cleared.reduce((a, on, i) => a + (on ? (PTS[i] || 0) : 0), 0);
+    s.pts = Math.max(0, earned - s.spent.reduce((a, b) => a + b, 0));
+    return ensureSave(s);
+  }
+
+  let SAVE = (typeof globalThis !== 'undefined' && globalThis.__SQUAD_SAVE)
+    ? ensureSave(globalThis.__SQUAD_SAVE)
+    : readSave();
+
+  if (typeof globalThis !== 'undefined' && typeof globalThis.__SQUAD_STAGE === 'number') {
+    SAVE.highest = Math.max(1, Math.min(TUNE.stages, globalThis.__SQUAD_STAGE));
+  }
+
+  let HIGHEST = SAVE.highest;
+  // 每个兵种独立等级：LV[i] = 3 + 已投入点数
+  const LV = KINDS.map((_, i) => LV_BASE + Math.max(0, Math.min(LV_MAX - LV_BASE, SAVE.spent[i] | 0)));
+
+  // 本世界等级上限：只跟已通关数走
+  function lvCap() {
+    return LV_CAP_TABLE[Math.max(0, Math.min(TUNE.stages, clearedCountOf(SAVE)))];
+  }
+
+  // 刷新等级数组（读存档）；不会自动把等级拉满
+  function refreshLV() {
+    for (let i = 0; i < LV.length; i++) {
+      const spent = Math.max(0, Math.min(LV_MAX - LV_BASE, SAVE.spent[i] | 0));
+      SAVE.spent[i] = spent;
+      LV[i] = Math.min(LV_MAX, LV_BASE + spent);
+    }
+    return lvCap();
+  }
+  refreshLV();
+
+  // 花点升 1 级：点数够 + 没到本世界等级上限才成功
+  function spendPoint(kind) {
+    const cap = lvCap();
+    if (LV[kind] >= cap || LV[kind] >= LV_MAX) { toast(`本世界等级上限 Lv.${cap}`); return false; }
+    const cost = lvCost(LV[kind]);
+    if (SAVE.pts < cost) { toast(`强化点不够（要 ${cost}）`); return false; }
+    SAVE.pts -= cost;
+    SAVE.spent[kind] += 1;
+    LV[kind] = LV_BASE + SAVE.spent[kind];
+    for (const u of G.slots) if (u && u.kind === kind) refreshUnitHp(u);
+    saveGame();
+    SFX.merge(LV[kind]);
+    return true;
+  }
+
+  // 花点解锁下一个技能节点：技能不再绑等级，独立花钱（2026-11-20 主人：「强化强的是技能」）
+  function spendSkill(kind) {
+    const n = skillCount(kind);
+    const nodes = MASTERY[KINDS[kind].id] || [];
+    if (n >= nodes.length) { toast('技能已满'); return false; }
+    const cost = SKILL_COST[n];
+    if (SAVE.pts < cost) { toast(`强化点不够（要 ${cost}）`); return false; }
+    SAVE.pts -= cost;
+    SAVE.mastery[kind] = n + 1;
+    for (const u of G.slots) if (u && u.kind === kind) refreshUnitHp(u);
+    saveGame();
+    SFX.merge(2 + n);
+    return true;
+  }
+
+  // 重置：等级和技能全部退回，强化点全额返还（单机，免费）
+  function resetPoints() {
+    let back = 0;
+    for (let i = 0; i < KINDS.length; i++) {
+      for (let lv = LV_BASE; lv < LV[i]; lv++) back += lvCost(lv);
+      for (let n = 0; n < skillCount(i); n++) back += SKILL_COST[n];
+    }
+    SAVE.pts += back;
+    SAVE.spent.fill(0);
+    SAVE.mastery.fill(0);
+    for (let i = 0; i < LV.length; i++) LV[i] = LV_BASE;
+    for (const u of G.slots) if (u) refreshUnitHp(u);
+    saveGame();
+    toast(`已重置 · 退回 ${back} 点`);
+    return back;
+  }
+
+  const skillCount = (kind) => Math.max(0, Math.min(SKILL_MAX, SAVE.mastery[kind] | 0));
+
+  function saveGame() {
+    SAVE.highest = HIGHEST;
+    if (typeof globalThis !== 'undefined') globalThis.__SQUAD_STAGE = HIGHEST;
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch { /* ignore */ }
   }
 
   const lvMul = (kind) => 1 + (LV[kind] - 1) * 0.12;
   const maxStarOf = (kind) => Math.min(MAX_STAR, LV[kind]);
-  const upgradeCost = (kind) => 60 * LV[kind];
 
-  function saveLV() {
-    try { localStorage.setItem(LV_KEY, JSON.stringify(LV)); } catch { /* ignore */ }
+  /* 本关升级：杀怪攒经验，每关最多 TUNE.levelCap（20）次；升级才弹三选一。
+     2026-11-20 主人纠正：原版不是按波数给三选一，是按等级。 */
+  const xpNeed = (lv) => TUNE.xpBase + lv * TUNE.xpPerLevel;
+
+  function startChoice(from) {
+    G.levelFrom = from || 'battle';
+    G.choices = rollUpgrades();
+    G.phase = 'choose';
+    G.pick = null;
+    G.drag = null;
+    SFX.battle();
   }
 
-  /* ----------------------------------------------------------
-     主线进度：已解锁到第几关（1..TUNE.stages），跨局/跨会话保留
-     ---------------------------------------------------------- */
-  const STAGE_KEY = 'doudou.squad.stage';
-  let HIGHEST = 1;
-  if (typeof globalThis !== 'undefined' && typeof globalThis.__SQUAD_STAGE === 'number') {
-    HIGHEST = globalThis.__SQUAD_STAGE;
-  } else {
-    try {
-      HIGHEST = Math.max(1, Math.min(TUNE.stages, Number(localStorage.getItem(STAGE_KEY)) || 1));
-    } catch { /* 无痕模式 */ }
+  function gainXP(n) {
+    if (G.level >= TUNE.levelCap) return;
+    G.xp += n;
+    while (G.level < TUNE.levelCap && G.xp >= xpNeed(G.level)) {
+      G.xp -= xpNeed(G.level);
+      G.level++;
+      G.pendingLevels++;
+    }
+    // 战斗中升级立刻暂停弹选择；一次跨多级就排队逐个选
+    if (G.pendingLevels > 0 && G.phase === 'battle') startChoice('battle');
   }
 
-  function saveStage() {
-    if (typeof globalThis !== 'undefined') globalThis.__SQUAD_STAGE = HIGHEST;
-    try { localStorage.setItem(STAGE_KEY, String(HIGHEST)); } catch { /* ignore */ }
+  function chooseUpgrade(i) {
+    if (G.phase !== 'choose' || !G.choices || !G.choices[i]) return false;
+    applyUpgrade(G.choices[i]);
+    G.choices = null;
+    G.pendingLevels = Math.max(0, G.pendingLevels - 1);
+    if (G.pendingLevels > 0) G.choices = rollUpgrades();
+    else G.phase = G.levelFrom || 'prep';
+    return true;
   }
+
+  function saveStage() { saveGame(); }
 
   /* ----------------------------------------------------------
      状态
@@ -136,9 +316,15 @@
     wave: 1,              // 当前（或即将开始的）波数，1..TUNE.waves
     coins: TUNE.startCoins,
     slots: new Array(GRID.cols * GRID.rows).fill(null),
+    open: new Array(GRID.cols * GRID.rows).fill(false),   // 已解锁格子：开局只有中心 3×3，靠格子卡扩
     bench: new Array(BENCH_N).fill(null),
-    buff: KINDS.map(() => ({ dmg: 1, rate: 1, range: 1, pellets: 0, hp: 1 })),  // 每波三选一攒下来的加成
+    buff: KINDS.map(() => ({ dmg: 1, rate: 1, range: 1, pellets: 0, hp: 1, heal: 1, armor: 1, coin: 1, haste: 1 })),  // 升级三选一攒下来的加成
     choices: null,                                         // 当前这三张卡
+    level: 1,                                              // 本关等级：杀怪升级，每关最多 20 级
+    xp: 0,                                                 // 当前等级已攒经验
+    pendingLevels: 0,                                      // 还没选完的升级次数
+    levelFrom: 'battle',                                   // 选完强化回哪个阶段（battle / prep）
+    panelDetail: null,                                     // 养成面板里展开的兵种索引
     coinAcc: 0,
     refreshCount: 0,                                       // 本波刷新了几次（价格递增）
     panel: false,                                          // 养成面板开着没有
@@ -160,6 +346,9 @@
     toast: '',
     toastT: 0,
     stats: { kills: 0, merges: 0, best: 1, deaths: 0 },
+    finished: false,                                   // 本局是否已结算过
+    firstClear: false,                                 // 本局是不是该关首通
+    pointsGained: 0,                                   // 本局首通拿了多少强化点（结算页显示）
   };
 
   /* ----------------------------------------------------------
@@ -299,6 +488,9 @@
   const MUTE_BTN = { x: 592, y: 12, w: 104, h: 84 };
   const PANEL_BTN = { x: 470, y: 12, w: 110, h: 84 };
   const SPEED_BTN = { x: 350, y: 12, w: 104, h: 84 };   // 战斗倍速 ×1 / ×2 / ×3
+  const SAVE_BTN = { x: 24, y: 20, w: 76, h: 44 };      // 养成面板：导出存档
+  const LOAD_BTN = { x: 108, y: 20, w: 76, h: 44 };     // 养成面板：导入存档
+  const RESET_BTN = { x: 250, y: 1362, w: 220, h: 44 }; // 养成面板：重置强化点（全额退回）
 
   function slotCenter(i) {
     const c = i % GRID.cols;
@@ -353,15 +545,24 @@
     u.hp = u.maxHp;
   }
 
-  // 等级专精（面板要能看到）：Lv5 攻速 / Lv7 射程 / Lv9 伤害 / Lv10 弹道
+  /* 技能节点（面板要能看到）：每个兵种自己一张表（squad-data.js 的 MASTERY）。
+     2026-11-20 主人定：技能不再绑等级，改成花强化点独立解锁；
+     等级管底子（属性 / 合成上限），技能管质变，同一份点数抢着用。
+     同 key 的倍率连乘、加数相加；返回统一形状，战斗公式和面板都只读这一份汇总。 */
   function masteryOf(kind) {
-    const lv = LV[kind];
-    return {
-      rate: lv >= 5 ? 1.10 : 1,
-      range: lv >= 7 ? 1.10 : 1,
-      dmg: lv >= 9 ? 1.20 : 1,
-      pellets: lv >= 10 ? 1 : 0,
+    const n = skillCount(kind);
+    const out = {
+      rate: 1, range: 1, dmg: 1, hp: 1,
+      splash: 1, heal: 1, armor: 1, coin: 1, haste: 1,
+      pellets: 0, pierce: 0,
     };
+    const nodes = MASTERY[KINDS[kind].id] || [];
+    for (let i = 0; i < n && i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.add) out[node.key] += node.add;
+      else out[node.key] *= node.mul;
+    }
+    return out;
   }
 
   function unitDmg(u) {
@@ -371,7 +572,8 @@
 
   function unitRate(u) {
     const b = G.buff[u.kind];
-    const haste = 1 + (KINDS[IDX.drum].haste || 0) * (G.aux ? G.aux.drum : 0);
+    const haste = 1 + (KINDS[IDX.drum].haste || 0) * (G.aux ? G.aux.drum : 0)
+      * masteryOf(IDX.drum).haste * (G.buff[IDX.drum].haste || 1);
     return KINDS[u.kind].rate * (1 + (u.star - 1) * 0.08) * (b ? b.rate : 1) * haste * masteryOf(u.kind).rate;
   }
 
@@ -392,9 +594,50 @@
     return pool[pool.length - 1];
   }
 
+  /* 格子卡（2026-11-20 主人定，原版设计）：格子本身也是一种抽到的拼图块。
+     开局只有中心 3×3；刷新可能出 1~4 格的形状，拖到棋盘边上摆好就解锁。 */
+  function makeCellCard() {
+    let total = 0;
+    for (const s of CELL_SHAPES) total += s.weight || 1;
+    let r = Math.random() * total;
+    let shape = CELL_SHAPES[0];
+    for (const s of CELL_SHAPES) {
+      r -= s.weight || 1;
+      if (r <= 0) { shape = s; break; }
+    }
+    const w = Math.max(...shape.cells.map((p) => p[1])) + 1;
+    const h = Math.max(...shape.cells.map((p) => p[0])) + 1;
+    return { type: 'cell', shape, w, h, kind: -1, star: 0, cell: -1 };
+  }
+
+  function cellOpenRatio() {
+    let n = 0;
+    for (let i = 0; i < G.open.length; i++) if (G.open[i]) n++;
+    return n / G.open.length;
+  }
+
+  // 待命位抽的东西：格子卡 or 单位。格子越满，格子卡越少
+  function makeBenchItem() {
+    const closed = 1 - cellOpenRatio();
+    const p = Math.min(1, (TUNE.cellCardChance || 0.3) * (closed / 0.64));
+    if (Math.random() < p) return makeCellCard();
+    return makeUnit(randomKind(), maxBenchStar());
+  }
+
   /* ----------------------------------------------------------
      占格：一个大单位同时占 w×h 个格子（每个格子都指向同一个对象）
      ---------------------------------------------------------- */
+
+  function resetOpen() {
+    const n = CELL_START;
+    // 前排 = 靠敌人来的右侧（2026-11-20 主人定：初始 3×3 放前排，不居中）
+    const c0 = Math.max(0, GRID.cols - n);
+    const r0 = Math.max(0, Math.floor((GRID.rows - n) / 2));
+    for (let i = 0; i < G.open.length; i++) G.open[i] = false;
+    for (let r = r0; r < r0 + n; r++) {
+      for (let c = c0; c < c0 + n; c++) G.open[r * GRID.cols + c] = true;
+    }
+  }
 
   function canPlace(cell, w, h, except) {
     const c0 = cell % GRID.cols;
@@ -403,12 +646,59 @@
     for (let dy = 0; dy < h; dy++) {
       for (let dx = 0; dx < w; dx++) {
         const idx = (r0 + dy) * GRID.cols + c0 + dx;
+        if (!G.open[idx]) return false;          // 还没解锁的格子不能放（2026-11-20 加回格子解锁）
         const u = G.slots[idx];
         if (u && u !== except) return false;
       }
     }
     return true;
   }
+
+  /* 格子卡：形状全在盘内、全是未解锁格、且至少有一格挨着已解锁区（保证连通） */
+  function cellAnchorOk(shape, cell) {
+    const c0 = cell % GRID.cols;
+    const r0 = Math.floor(cell / GRID.cols);
+    for (const [dr, dc] of shape.cells) {
+      const r = r0 + dr, c = c0 + dc;
+      if (r < 0 || r >= GRID.rows || c < 0 || c >= GRID.cols) return false;
+      if (G.open[r * GRID.cols + c]) return false;
+    }
+    for (const [dr, dc] of shape.cells) {
+      const r = r0 + dr, c = c0 + dc;
+      for (const [nr, nc] of [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]) {
+        if (nr < 0 || nr >= GRID.rows || nc < 0 || nc >= GRID.cols) continue;
+        if (G.open[nr * GRID.cols + nc]) return true;
+      }
+    }
+    return false;
+  }
+
+  function placeCell(shape, cell) {
+    if (!cellAnchorOk(shape, cell)) return false;
+    const c0 = cell % GRID.cols;
+    const r0 = Math.floor(cell / GRID.cols);
+    for (const [dr, dc] of shape.cells) G.open[(r0 + dr) * GRID.cols + c0 + dc] = true;
+    return true;
+  }
+
+  // 拖到锁格附近：找最近的合法锚点（手感别太挑）
+  function findCellAnchor(shape, cell, radius) {
+    const c0 = cell % GRID.cols, r0 = Math.floor(cell / GRID.cols);
+    let best = -1, bestD = 1e9;
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        const r = r0 + dr, c = c0 + dc;
+        if (r < 0 || c < 0 || r >= GRID.rows || c >= GRID.cols) continue;
+        const idx = r * GRID.cols + c;
+        if (!cellAnchorOk(shape, idx)) continue;
+        const d = Math.abs(dr) + Math.abs(dc);
+        if (d < bestD) { bestD = d; best = idx; }
+      }
+    }
+    return best;
+  }
+
+  const isCellCard = (u) => !!(u && u.type === 'cell');
 
 
   function occupy(cell, u) {
@@ -537,6 +827,9 @@
   function spawnEnemy(bossKind) {
     const boss = bossKind ? BOSS[bossKind] : null;
     const hp = waveHp(G.wave) * (boss ? boss.hpMul : 1);
+    // 敌人防御：波数/关卡越高压得越硬；难度靠血+防，不靠数量（2026-11-20 主人定）
+    const armor = Math.min(TUNE.enemyArmorMax,
+      (boss ? boss.armor : 0) + TUNE.enemyArmorPerWave * (G.wave - 1) + TUNE.enemyArmorPerStage * (G.stage - 1));
     G.enemies.push({
       x: SPAWN_X - rand(0, 24),      // 从右侧街道边进来（不跑出屏幕外）
       y: boss ? ENEMY_MIN_Y + (ENEMY_MAX_Y - ENEMY_MIN_Y) * rand(0.2, 0.8)
@@ -546,7 +839,8 @@
       atk: waveEnemyAtk(G.wave) * (boss ? boss.atkMul : 1),
       atkCd: rand(0.2, 0.9),
       atkTarget: null,
-      r: boss ? boss.r : 9,
+      r: boss ? boss.r : TUNE.enemyR,
+      armor,
       boss: bossKind || null,
       t: rand(0, 6.28),
       hitT: 0,                        // 受击闪白（割草反馈）
@@ -559,30 +853,50 @@
      每波三选一：清完一波，从池子里抽三张，选一张
      ---------------------------------------------------------- */
 
+  /* 三选一：按玩家等级解锁稀有度，权重抽取且不重复（词条见 squad-data.js 的 AFFIX）。
+     Lv1 只有普通；Lv5 开稀有；Lv10 开史诗。前期不会直接刷出「伤害 +60%」这种超模卡。 */
+  function upgradeTierWeights() {
+    const w = { 1: 70, 2: 0, 3: 0 };
+    if (G.level >= 5) { w[1] = 62; w[2] = 38; }
+    if (G.level >= 10) { w[1] = 45; w[2] = 38; w[3] = 17; }
+    return w;
+  }
+
+  const affixKey = (a) => `${a.kind === undefined ? 'g' : a.kind}:${a.stat || 'flat'}`;
+
   function rollUpgrades() {
-    const pool = [];
+    const rows = [];
     for (let i = 0; i < KINDS.length; i++) {
       if (KINDS[i].unlock > G.stage) continue;      // 没解锁的英雄不会出现在三选一
-      const name = KINDS[i].name;
-      const combat = KINDS[i].dmg > 0;
-      if (combat) {
-        pool.push({ kind: i, label: name, stat: 'dmg', mul: 1.25, text: '伤害 +25%' });
-        pool.push({ kind: i, label: name, stat: 'rate', mul: 1.2, text: '射速 +20%' });
-        pool.push({ kind: i, label: name, stat: 'range', mul: 1.15, text: '射程 +15%' });
-        if (KINDS[i].pellets === 1) {
-          pool.push({ kind: i, label: name, stat: 'pellets', add: 1, text: '弹道 +1' });
-        }
+      for (const a of AFFIX) {
+        if (a.minLv > G.level) continue;
+        if (a.only && !KINDS[i][a.only]) continue;
+        if (a.stat === 'pellets' && KINDS[i].pellets !== 1) continue;
+        rows.push({ ...a, kind: i, label: `${KINDS[i].name} · ${a.name}` });
       }
-      pool.push({ kind: i, label: name, stat: 'hp', mul: 1.2, text: '生命 +20%' });
     }
-    pool.push({ label: '补给', flat: 30, text: '获得 30 金币' });
-    pool.push({ label: '补给', flat: 30, text: '获得 30 金币' });
+    // 金币是通用条目，不绑兵种
+    for (const a of AFFIX) if (a.flat && a.minLv <= G.level) rows.push({ ...a, label: a.name });
 
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+    const pool = rows.slice();
+    const picks = [];
+    const used = new Set();
+    const weights = upgradeTierWeights();
+    while (picks.length < 3 && pool.length) {
+      const tiers = [1, 2, 3].filter((t) => weights[t] > 0 && pool.some((a) => a.tier === t && !used.has(affixKey(a))));
+      if (!tiers.length) break;
+      let total = tiers.reduce((s, t) => s + weights[t], 0);
+      let r = Math.random() * total;
+      let tier = tiers[tiers.length - 1];
+      for (const t of tiers) { r -= weights[t]; if (r <= 0) { tier = t; break; } }
+
+      const bag = pool.filter((a) => a.tier === tier && !used.has(affixKey(a)));
+      if (!bag.length) break;
+      const pick = bag[Math.floor(Math.random() * bag.length)];
+      used.add(affixKey(pick));
+      picks.push(pick);
     }
-    return pool.slice(0, 3);
+    return picks;
   }
 
   function applyUpgrade(u) {
@@ -590,6 +904,7 @@
       G.coins += u.flat;
     } else {
       const b = G.buff[u.kind];
+      if (b[u.stat] === undefined) b[u.stat] = 1;
       if (u.add) b[u.stat] += u.add;
       else b[u.stat] *= u.mul;
     }
@@ -617,21 +932,42 @@
         HIGHEST = Math.max(HIGHEST, G.stage + 1);
         saveStage();
       }
+      finishRun(true);
       return;
     }
     G.wave++;
     G.refreshCount = 0;                 // 每波结束免费刷一次，付费刷新从 10 重新起价
-    rollBench();                        // 免费换 3 个候选：既是白送，也提醒玩家「可以刷新」
+    rollBenchFree();                    // 清波只白送 1 个候选（原来整批免费刷 3 个，太强）
     SFX.clear();
-    G.choices = rollUpgrades();
-    G.phase = 'choose';
-    toast(`第 ${G.wave - 1} 波清除  +${gain} 金币 · 已免费刷新`);
+    G.phase = 'prep';                   // 三选一只在升级时弹，清波直接回准备
+    toast(`第 ${G.wave - 1} 波清除  +${gain} 金币`);
   }
 
   function lose() {
     G.phase = 'over';
     G.baseHit = 0.6;
+    finishRun(false);
     SFX.lose();
+  }
+
+  /* 一局结束只记进度：通关标记 + 首通发强化点；没有货币、没有商店。 */
+  function finishRun(win) {
+    if (G.finished) return;
+    G.finished = true;
+    G.firstClear = win && !SAVE.cleared[G.stage - 1];
+    if (win) SAVE.cleared[G.stage - 1] = true;
+    SAVE.stats.runs++;
+    if (win) SAVE.stats.wins++;
+    SAVE.stats.kills += G.stats.kills;
+    if (win) SAVE.stats.bestStage = Math.max(SAVE.stats.bestStage, G.stage);
+    // 首通发强化点，重复通关不再发（单机不做刷子）
+    G.pointsGained = 0;
+    if (G.firstClear) {
+      G.pointsGained = PTS[G.stage - 1] || 0;
+      SAVE.pts += G.pointsGained;
+    }
+    refreshLV();
+    saveGame();
   }
 
   function restart() {
@@ -639,6 +975,7 @@
     G.wave = 1;
     G.coins = TUNE.startCoins;
     G.slots.fill(null);
+    resetOpen();                              // 格子摆放解锁：每关重新从中心 3×3 开始扩
     G.bench.fill(null);
     G.enemies.length = 0;
     G.bullets.length = 0;
@@ -647,8 +984,16 @@
     G.rings.length = 0;
     G.spawnLeft = 0;
     G.stats = { kills: 0, merges: 0, best: 1, deaths: 0 };
-    G.buff = KINDS.map(() => ({ dmg: 1, rate: 1, range: 1, pellets: 0, hp: 1 }));
+    G.finished = false;
+    G.firstClear = false;
+    G.pointsGained = 0;
+    G.buff = KINDS.map(() => ({ dmg: 1, rate: 1, range: 1, pellets: 0, hp: 1, heal: 1, armor: 1, coin: 1, haste: 1 }));
     G.choices = null;
+    G.level = 1;
+    G.xp = 0;
+    G.pendingLevels = 0;
+    G.levelFrom = 'battle';
+    G.panelDetail = null;
     G.coinAcc = 0;
     G.refreshCount = 0;
     G.pick = null;
@@ -668,7 +1013,7 @@
       saveStage();
     }
     restart();
-    toast(`第 ${G.stage} 关`);
+    toast(`${TUNE.worldName || '第一世界'} · 第 ${G.stage} 关`);
   }
 
   // 开局送 3 个：按已解锁英雄轮流给，尽量不重复（自动合成留给刷新和拖回）
@@ -690,10 +1035,42 @@
     return TUNE.refreshCost + G.refreshCount * TUNE.refreshStep;
   }
 
-  // 抽 3 个新候选：付费刷新、每波结束的免费刷新都走这里
+  /* 候选数量：前期 2 个，第 3 关或本关 Lv6 起 3 个。
+     星级：前 2 关只出 1 星；第 3 关起才可能出 2 星，第 7 关起才可能出 3 星。
+     这样「前期直接刷出高星」的送分局面不会出现。 */
+  function benchCandidateCount() {
+    return (G.stage >= 3 || G.level >= 6) ? 3 : 2;
+  }
+
+  function maxBenchStar() {
+    if (G.stage < TUNE.star2FromStage) return 1;
+    const s3 = G.stage - TUNE.star3FromStage;
+    if (s3 >= 0) {
+      const p3 = Math.min(0.18, 0.04 + s3 * 0.02 + (G.level >= 12 ? 0.03 : 0));
+      if (Math.random() < p3) return 3;
+    }
+    const s2 = G.stage - TUNE.star2FromStage;
+    const p2 = Math.min(0.5, 0.15 + s2 * 0.04 + (G.level >= 8 ? 0.05 : 0));
+    return Math.random() < p2 ? 2 : 1;
+  }
+
+  // 抽候选：付费刷新、开局都走这里
   function rollBench() {
-    for (let i = 0; i < BENCH_N; i++) {
-      G.bench[i] = makeUnit(randomKind(), Math.random() < 0.12 ? 2 : 1);
+    for (let i = 0; i < BENCH_N; i++) G.bench[i] = null;
+    const n = benchCandidateCount();
+    for (let i = 0; i < n; i++) G.bench[i] = makeBenchItem();
+    autoMergeBench();
+  }
+
+  // 清波白送：只补待命区的空位（默认 1 个），不覆盖已有候选。
+  // 2026-11-20 主人反馈「刷新给的太强」——原来每波整批免费刷 3 个，等于白送一波经济。
+  function rollBenchFree() {
+    let added = 0;
+    const max = TUNE.freeBenchPerClear || 1;
+    for (let i = 0; i < BENCH_N && added < max; i++) {
+      if (G.bench[i]) continue;
+      G.bench[i] = makeUnit(randomKind(), maxBenchStar());   // 白送只给单位，格子卡得自己刷新抽
+      added++;
     }
     autoMergeBench();
   }
@@ -757,10 +1134,10 @@
       let merged = false;
       for (let i = 0; i < BENCH_N && !merged; i++) {
         const a = G.bench[i];
-        if (!a || a.star >= maxStarOf(a.kind)) continue;
+        if (!a || isCellCard(a) || a.star >= maxStarOf(a.kind)) continue;
         for (let j = i + 1; j < BENCH_N; j++) {
           const b = G.bench[j];
-          if (b && b.kind === a.kind && b.star === a.star) {
+          if (b && !isCellCard(b) && b.kind === a.kind && b.star === a.star) {
             G.bench[j] = null;
             a.star++;
             refreshUnitHp(a);
@@ -848,21 +1225,22 @@
     }
 
     if (G.panel) {
-      if (hitRect(PANEL_BTN, p)) { G.panel = false; return; }
+      if (hitRect(PANEL_BTN, p)) { G.panel = false; G.panelDetail = null; return; }
+      if (G.panelDetail !== null) {
+        const d = detailRects();
+        if (hitRect(d.back, p)) { G.panelDetail = null; return; }
+        if (hitRect(d.up, p)) { spendPoint(G.panelDetail); return; }
+        for (let n = 0; n < d.skills.length; n++) {
+          if (hitRect(d.skills[n], p)) { spendSkill(G.panelDetail); return; }
+        }
+        return;                                     // 详情页里点别处不误关
+      }
+      if (hitRect(SAVE_BTN, p)) { exportSave(); return; }
+      if (hitRect(LOAD_BTN, p)) { importSave(); return; }
+      if (hitRect(RESET_BTN, p)) { resetPoints(); return; }
       const rows = panelRows();
       for (let i = 0; i < rows.length; i++) {
-        if (hitRect(upBtnRect(rows[i]), p)) {
-          if (KINDS[i].unlock > G.stage) return;      // 还没解锁，点了也不升级
-          const cost = upgradeCost(i);
-          if (LV[i] < 10 && G.coins >= cost) {
-            G.coins -= cost;
-            LV[i]++;
-            saveLV();
-            SFX.merge(3);
-            G.flash = 0.18;
-          }
-          return;
-        }
+        if (hitRect(rows[i], p)) { G.panelDetail = i; return; }
       }
       G.panel = false;
       return;
@@ -871,6 +1249,7 @@
     if (hitRect(PANEL_BTN, p)) {
       if (G.phase !== 'prep') { toast('战斗中不能看养成'); return; }   // 面板盖战场但不暂停，战斗中禁开
       G.panel = true;
+      G.panelDetail = null;
       return;
     }
 
@@ -878,9 +1257,7 @@
       const rects = choiceRects();
       for (let i = 0; i < rects.length; i++) {
         if (hitRect(rects[i], p) && G.choices && G.choices[i]) {
-          applyUpgrade(G.choices[i]);
-          G.choices = null;
-          G.phase = 'prep';
+          chooseUpgrade(i);
           return;
         }
       }
@@ -950,6 +1327,12 @@
     if (unit) {
       if (!pick) { G.pick = { unit, from: pr.from, i: pr.i }; SFX.battle(); return; }
       if (pick.unit === unit) { G.pick = null; return; }
+      if (!pick.unit || !unit || isCellCard(pick.unit) || isCellCard(unit)) {
+        // 格子卡不能合：重新选中
+        G.pick = { unit, from: pr.from, i: pr.i };
+        SFX.battle();
+        return;
+      }
       if (pick.unit.kind === unit.kind && pick.unit.star === unit.star && unit.star < maxStarOf(unit.kind)) {
         mergeInto(pick, pr);
         G.pick = null;
@@ -975,6 +1358,7 @@
     const src = a.unit;
     const tgt = b.unit;
     if (!src || !tgt || src === tgt) return;
+    if (isCellCard(src) || isCellCard(tgt)) return;   // 格子卡不合成
     if (a.from === 'slot') vacate(src); else G.bench[a.i] = null;
     tgt.star++;
     refreshUnitHp(tgt);
@@ -988,6 +1372,19 @@
     const c = Math.floor((p.x - GRID.x) / CELL);
     const r = Math.floor((p.y - GRID.y) / CELL);
     if (c >= 0 && c < GRID.cols && r >= 0 && r < GRID.rows) {
+      // 格子卡：拖到棋盘边上，按形状解锁
+      if (isCellCard(u)) {
+        const at = findCellAnchor(u.shape, r * GRID.cols + c, 2);
+        if (at < 0) return;
+        if (placeCell(u.shape, at)) {
+          if (d.from === 'bench') G.bench[d.i] = null;
+          G.pick = null;
+          SFX.merge(2);
+          toast(`解锁 ${u.shape.cells.length} 个格子`);
+          autoMergeBench();
+        }
+        return;
+      }
       const c0 = clamp(c - Math.floor((u.w - 1) / 2), 0, GRID.cols - u.w);
       const r0 = clamp(r - Math.floor((u.h - 1) / 2), 0, GRID.rows - u.h);
       const cell = r0 * GRID.cols + c0;
@@ -1009,6 +1406,21 @@
   function dropToSlot(d, cell) {
     const src = d.unit;
     if (!src) return;
+
+    // 格子卡：按形状解锁（点按放置也走这里）
+    if (isCellCard(src)) {
+      const at = findCellAnchor(src.shape, cell, 2);
+      if (at < 0) return;
+      if (placeCell(src.shape, at)) {
+        if (d.from === 'bench') G.bench[d.i] = null;
+        G.pick = null;
+        SFX.merge(2);
+        toast(`解锁 ${src.shape.cells.length} 个格子`);
+        autoMergeBench();
+      }
+      return;
+    }
+
     if (src.cell === cell) return;
 
     const tgt = G.slots[cell];
@@ -1040,8 +1452,8 @@
     if (d.from === 'bench' && d.i === bi) return;
     const tgt = G.bench[bi];
 
-    // 同兵种同星 → 待命区里直接合成
-    if (tgt && tgt !== src && tgt.kind === src.kind && tgt.star === src.star && tgt.star < maxStarOf(tgt.kind)) {
+    // 同兵种同星 → 待命区里直接合成（格子卡不参与合成）
+    if (!isCellCard(src) && !isCellCard(tgt) && tgt && tgt !== src && tgt.kind === src.kind && tgt.star === src.star && tgt.star < maxStarOf(tgt.kind)) {
       if (d.from === 'slot') vacate(src); else G.bench[d.i] = null;
       tgt.star++;
       refreshUnitHp(tgt);
@@ -1076,7 +1488,8 @@
     // 金币只有三源（2026-11-20 主人定）：①战争顾问上场后每秒产 ②清一波奖励 ③三选一的补给
     // 准备阶段时间冻结，不产金币——之前「不开始也一直加钱」就是这里没 gate 住。
     if (G.phase === 'battle') {
-      const perSec = (KINDS[IDX.advisor].coin || 0) * G.aux.advisor;
+      const perSec = (KINDS[IDX.advisor].coin || 0) * G.aux.advisor
+        * masteryOf(IDX.advisor).coin * (G.buff[IDX.advisor].coin || 1);
       if (perSec > 0) {
         G.coinAcc += dt * perSec;
         const n = Math.floor(G.coinAcc);
@@ -1085,7 +1498,8 @@
 
       // 医务兵：全队回血（医生不自奶，否则会互相回成打不死的铁王八）
       if (G.aux.medic > 0) {
-        const heal = (KINDS[IDX.medic].heal || 0) * G.aux.medic * dt;
+        const heal = (KINDS[IDX.medic].heal || 0) * G.aux.medic
+          * masteryOf(IDX.medic).heal * (G.buff[IDX.medic].heal || 1) * dt;
         const seen = new Set();
         for (const u of G.slots) {
           if (!u || seen.has(u)) continue;
@@ -1105,6 +1519,8 @@
       if (G.phase === 'battle') {
         updateUnits(dt);
         updateBullets(dt);
+        // 最后一发打死怪可能触发升级弹窗；这时先别结算波次，等选完再继续
+        if (G.phase !== 'battle') return;
         if (G.spawnLeft <= 0 && !G.enemies.some((e) => !e.dead)) {
           G.battleT = 0;
           settleWave();
@@ -1201,7 +1617,9 @@
   }
 
   function damageUnit(u, dmg) {
-    const armor = Math.min(0.3, 0.06 * (G.aux ? G.aux.engineer : 0));   // 工程师光环
+    // 工程师光环：每个工程师 -6%，专精和词条再乘；上限 45%
+    const armor = Math.min(0.45, 0.06 * (G.aux ? G.aux.engineer : 0)
+      * masteryOf(IDX.engineer).armor * (G.buff[IDX.engineer].armor || 1));
     dmg *= (1 - armor);
     u.hp -= dmg;
     const c = unitCenter(u);
@@ -1261,6 +1679,7 @@
 
   function fire(u, c, target) {
     const k = KINDS[u.kind];
+    const m = masteryOf(u.kind);
     const dmg = unitDmg(u);
     // 星级质变：3 星多一条弹道，5 星再多一条
     let n = k.pellets || 1;
@@ -1271,7 +1690,7 @@
       n += 1;                          // 霰弹 5 星也 +1 弹丸，别让 5 星反而掉队
     }
     n += (G.buff[u.kind] && G.buff[u.kind].pellets) || 0;
-    n += masteryOf(u.kind).pellets;         // Lv10 专精：弹道 +1
+    n += m.pellets;                         // 专精：该兵种的弹道/弹丸节点
     const baseSize = k.id === 'snipe' ? 5 : 4;
     const sizeScale = Math.sqrt(u.w * u.h);
     const muzzle = CELL * 0.4 * sizeScale;
@@ -1290,8 +1709,8 @@
         vy: Math.sin(ang) * sp,
         dmg,
         color: k.color,
-        pierce: k.pierce || 0,
-        splash: k.splash || 0,
+        pierce: (k.pierce || 0) + m.pierce,
+        splash: (k.splash || 0) * m.splash,
         hit: [],
         life: 1.4,
         size: (baseSize + (u.star - 1) * 0.9) * (sizeScale > 1.4 ? 1.3 : 1),
@@ -1319,12 +1738,13 @@
         // 用「上一帧 → 这一帧」的线段判定，子弹再快也不会从小怪身上穿过去
         if (distPointSeg(e.x, e.y, ox, oy, b.x, b.y) > e.r + b.size) continue;
 
-        e.hp -= b.dmg;
+        const dealt = b.dmg * (1 - (e.armor || 0));
+        e.hp -= dealt;
         e.hitT = 0.1;              // 受击闪白：割草的手感
         b.hit.push(e);
         // 伤害数字：命中就飘一下（总数限流，别刷屏）；3 星起金色、5 星更大
         if (G.floats.length < 48) {
-          addFloat(b.x + rand(-24, 24), e.y - e.r - 6 + rand(-10, 10), String(Math.round(b.dmg)),
+          addFloat(b.x + rand(-24, 24), e.y - e.r - 6 + rand(-10, 10), String(Math.round(dealt)),
             b.star >= 3 ? '#ffe08a' : '#fff6d0', b.star >= 5 ? 30 : b.star >= 3 ? 24 : 20,
             rand(-110, -55));
         }
@@ -1348,9 +1768,10 @@
     for (const o of G.enemies) {
       if (o === src || o.dead) continue;
       if (Math.hypot(o.x - src.x, o.y - src.y) > r) continue;
-      o.hp -= dmg;
+      const dealt = dmg * (1 - (o.armor || 0));
+      o.hp -= dealt;
       if (G.floats.length < 48) {
-        addFloat(o.x + rand(-16, 16), o.y - o.r - 4, String(Math.round(dmg)), '#ffb37a', 16, rand(-95, -50));
+        addFloat(o.x + rand(-16, 16), o.y - o.r - 4, String(Math.round(dealt)), '#ffb37a', 16, rand(-95, -50));
       }
       if (o.hp <= 0) killEnemy(o);
     }
@@ -1369,6 +1790,7 @@
   function killEnemy(e) {
     e.dead = true;
     G.stats.kills++;
+    gainXP(e.boss ? TUNE.xpBoss : 1);
     SFX.kill();
     // 割草：爆汁多给一点，但仍是局部粒子，不整屏闪
     for (let n = 0; n < 14; n++) {
@@ -1436,6 +1858,7 @@
       if (!u) continue;
       if (G.drag && G.drag.from === 'bench' && G.drag.i === i) continue;
       const p = benchCenter(i);
+      if (isCellCard(u)) { drawCellCard(c, p.x, p.y, u.shape, 0.85); continue; }
       drawUnit(c, p.x, p.y, u, benchUnitScale(u), false);   // 和战场同一套画法（框 + 角标 + 枪管）
     }
 
@@ -1445,13 +1868,18 @@
     drawFloats(c);
 
     if (G.drag) {
-      const pv = dragPreview();
-      if (pv) {
-        // 单位跟着吸附后的位置走，别画在手指上
-        drawUnit(c, GRID.x + (pv.c0 + pv.w / 2) * CELL,
-                    GRID.y + (pv.r0 + pv.h / 2) * CELL, G.drag.unit, 1.02);
+      const dragUnit = G.drag.unit;
+      if (isCellCard(dragUnit)) {
+        drawCellCard(c, G.drag.x, G.drag.y - 10, dragUnit.shape, 1);
       } else {
-        drawUnit(c, G.drag.x, G.drag.y - 10, G.drag.unit, 1.06);
+        const pv = dragPreview();
+        if (pv) {
+          // 单位跟着吸附后的位置走，别画在手指上
+          drawUnit(c, GRID.x + (pv.c0 + pv.w / 2) * CELL,
+                      GRID.y + (pv.r0 + pv.h / 2) * CELL, G.drag.unit, 1.02);
+        } else {
+          drawUnit(c, G.drag.x, G.drag.y - 10, G.drag.unit, 1.06);
+        }
       }
     }
 
@@ -1584,6 +2012,7 @@
     const d = G.drag;
     if (!d) return null;
     const u = d.unit;
+    if (isCellCard(u)) return null;    // 格子卡不按单格预览，拖到位置直接按形状解锁
     const c = Math.floor((d.x - GRID.x) / CELL);
     const r = Math.floor((d.y - GRID.y) / CELL);
     if (c < 0 || c >= GRID.cols || r < 0 || r >= GRID.rows) return null;   // 手指不在格子阵里
@@ -1623,6 +2052,19 @@
       const row = Math.floor(i / GRID.cols);
       const x = GRID.x + col * CELL;
       const y = GRID.y + row * CELL;
+
+      // 未解锁的格子：压暗 + 打斜线，一眼看出「这里还不能放」
+      if (!G.open[i]) {
+        c.fillStyle = 'rgba(6,10,18,0.62)';
+        c.fillRect(x, y, CELL, CELL);
+        c.strokeStyle = 'rgba(90,120,160,0.16)';
+        c.lineWidth = 1;
+        c.beginPath();
+        c.moveTo(x + 6, y + CELL - 6);
+        c.lineTo(x + CELL - 6, y + 6);
+        c.stroke();
+        continue;
+      }
 
       if (G.slots[i]) continue;      // 有单位的格子：底让给单位自己的稀有度框
 
@@ -1665,6 +2107,30 @@
   /* 待命区不是卡片，是 3 个「待命位」：
      底板只画一层很淡的格子（和战场同一种语言），单位由 render 用**和战场完全相同的
      drawUnit** 画进去（稀有度框 + 角标 + 枪管）。一眼就知道是什么兵种，不再用卡片包装。 */
+  /* 格子卡：画成绿色拼图块 + 形状名，拖到棋盘边就解锁 */
+  function drawCellCard(c, x, y, shape, scale) {
+    const s = scale || 1;
+    const cell = CELL * 0.62 * s;
+    const cells = shape.cells;
+    const w = (Math.max(...cells.map((p) => p[1])) + 1) * cell;
+    const h = (Math.max(...cells.map((p) => p[0])) + 1) * cell;
+    const x0 = x - w / 2, y0 = y - h / 2;
+    for (const [dr, dc] of cells) {
+      rr(c, x0 + dc * cell + 1, y0 + dr * cell + 1, cell - 2, cell - 2, 6);
+      c.fillStyle = 'rgba(126,232,162,0.26)';
+      c.fill();
+      c.lineWidth = 2;
+      c.strokeStyle = 'rgba(126,232,162,0.9)';
+      c.stroke();
+    }
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = `800 ${Math.round(13 * s)}px "PingFang SC",system-ui,sans-serif`;
+    c.fillStyle = 'rgba(190,255,210,0.95)';
+    c.fillText(shape.name, x, y0 + h + 15 * s);
+    c.textBaseline = 'alphabetic';
+  }
+
   function drawBench(c) {
     const rects = benchRects();
 
@@ -2090,14 +2556,19 @@
     c.textAlign = 'left';
     c.font = '900 30px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
     c.fillStyle = '#e9f1ff';
-    c.fillText(`第 ${G.stage} 关 · ${G.wave}/${TUNE.waves} 波`, 24, 38);
+    c.fillText(`${TUNE.worldName || '第一世界'} · 第 ${G.stage} 关 · ${G.wave}/${TUNE.waves} 波`, 24, 38);
 
-    c.font = '700 20px "PingFang SC",system-ui,sans-serif';
+    c.font = '700 18px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = G.phase === 'battle' ? 'rgba(255,150,120,0.9)' : 'rgba(150,180,220,0.7)';
-    c.fillText(G.phase === 'battle'
-      ? `交战中 · 剩余 ${G.spawnLeft + G.enemies.length}`
-      : G.phase === 'choose' ? '清场 · 选一张强化'
-        : '准备 · 拖人进格', 24, 82);
+    c.fillText(G.phase === 'battle' ? '交战中' : G.phase === 'choose' ? '升级中' : '准备', 24, 82);
+
+    // 本关等级 / 经验（杀怪升级，每关最多 20 次）
+    c.fillStyle = '#ffd166';
+    c.font = '800 18px "PingFang SC",system-ui,sans-serif';
+    c.fillText(`Lv.${G.level}/${TUNE.levelCap}`, 96, 82);
+    c.font = '600 15px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(170,195,230,0.7)';
+    c.fillText(G.level >= TUNE.levelCap ? '经验 已满' : `经验 ${Math.floor(G.xp)}/${xpNeed(G.level)}`, 196, 82);
 
     // 进度条
     const px = 24, py = 104, pw = W - 48, ph = 8;
@@ -2242,39 +2713,54 @@
 
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.font = '900 44px "PingFang SC",system-ui,sans-serif';
+    c.font = '900 48px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = '#ffe08a';
-    c.fillText('选择强化', W / 2, 410);
+    c.fillText('升级！', W / 2, 392);
     c.font = '600 22px "PingFang SC",system-ui,sans-serif';
-    c.fillStyle = 'rgba(190,210,240,0.75)';
-    c.fillText(`第 ${G.wave - 1} 波清除 · 三选一`, W / 2, 462);
+    c.fillStyle = 'rgba(190,210,240,0.78)';
+    c.fillText(`Lv.${Math.max(1, G.level - 1)} → Lv.${G.level} · 本关强化 ${G.level}/${TUNE.levelCap}`, W / 2, 446);
 
     const rects = choiceRects();
+    const tierColor = ['#9fb8d8', '#c79bff', '#ffcc44'];
+    const tierName = ['普通', '稀有', '史诗'];
     for (let i = 0; i < rects.length; i++) {
       const r = rects[i];
-      const u = G.choices[i];
+      const u = G.choices && G.choices[i];
       if (!u) continue;
       const tint = u.kind === undefined ? '#ffd166' : KINDS[u.kind].color;
+      const tc = tierColor[(u.tier || 1) - 1];
 
       rr(c, r.x, r.y, r.w, r.h, 18);
       c.fillStyle = 'rgba(22,32,50,0.96)';
       c.fill();
       c.lineWidth = 2.5;
-      c.strokeStyle = tint;
+      c.strokeStyle = tc || tint;
       c.stroke();
 
       rr(c, r.x + 14, r.y + 14, r.w - 28, 6, 3);
-      c.fillStyle = tint;
+      c.fillStyle = tc || tint;
       c.fill();
 
-      c.textAlign = 'center';
-      c.font = '900 26px "PingFang SC",system-ui,sans-serif';
-      c.fillStyle = tint;
-      c.fillText(u.label, r.x + r.w / 2, r.y + 84);
+      // 稀有度角标
+      rr(c, r.x + r.w - 74, r.y + 30, 58, 26, 13);
+      c.fillStyle = 'rgba(8,12,20,0.45)';
+      c.fill();
+      c.font = '800 14px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = tc || tint;
+      c.fillText(tierName[(u.tier || 1) - 1], r.x + r.w - 45, r.y + 43);
 
-      c.font = '800 22px "PingFang SC",system-ui,sans-serif';
+      // 兵种 + 词条名 + 效果
+      c.font = '900 23px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = tint;
+      c.fillText(u.kind === undefined ? '补给' : KINDS[u.kind].name, r.x + r.w / 2, r.y + 86);
+
+      c.font = '800 19px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = '#cfe0ff';
+      c.fillText(u.name || '强化', r.x + r.w / 2, r.y + 120);
+
+      c.font = '900 25px "PingFang SC",system-ui,sans-serif';
       c.fillStyle = '#e8f0ff';
-      c.fillText(u.text, r.x + r.w / 2, r.y + 158);
+      c.fillText(u.text, r.x + r.w / 2, r.y + 178);
 
       c.font = '600 15px "PingFang SC",system-ui,sans-serif';
       c.fillStyle = 'rgba(160,190,230,0.55)';
@@ -2286,18 +2772,43 @@
      养成面板：花局内金币升兵种等级
      ---------------------------------------------------------- */
 
+  /* ----------------------------------------------------------
+     养成：卡片列表 + 详情页（2026-11-20 重做）
+     ----------------------------------------------------------
+     主人反馈「养成界面太简陋」：现在每张卡有立绘位、定位、等级、核心属性、
+     专精摘要；点卡片进详情页，有属性表、技能清单、说明和升级按钮。
+     立绘位先用 drawUnit 的程序化小人；真立绘接入时只换这一处。 */
+
+  const CARD = { x: 24, y: 120, w: 328, h: 236, gapX: 16, gapY: 14 };
+
   function panelRows() {
-    // 全宽单列：10 个兵种一人一行，名字 / 等级 / 攻击 / 特性 / 专精 / 升级按钮都放得下
-    const w = W - 80, h = 108, gap = 8, x0 = 40, y0 = 132;
     return KINDS.map((_, i) => ({
-      x: x0,
-      y: y0 + i * (h + gap),
-      w, h,
+      x: CARD.x + (i % 2) * (CARD.w + CARD.gapX),
+      y: CARD.y + Math.floor(i / 2) * (CARD.h + CARD.gapY),
+      w: CARD.w, h: CARD.h,
     }));
   }
 
-  function upBtnRect(row) {
-    return { x: row.x + row.w - 132, y: row.y + 16, w: 116, h: 76 };
+  function upBtnRect() {
+    return { x: 54, y: 1246, w: 612, h: 90 };
+  }
+
+  function detailBackRect() {
+    return { x: 54, y: 60, w: 104, h: 52 };
+  }
+
+  function detailRects() {
+    return {
+      back: detailBackRect(),
+      up: upBtnRect(),
+      skills: [0, 1, 2, 3].map((n) => ({ x: 54, y: 906 + n * 68, w: 612, h: 58 })),
+    };
+  }
+
+  // 静态预览单位：不放进 G.slots，不参与战斗
+  function previewUnit(i, star) {
+    const k = KINDS[i];
+    return { kind: i, star: star || 1, w: k.w, h: k.h, cell: -1, hp: 1, maxHp: 1, cd: 0, fxT: 0 };
   }
 
   // 兵种特性（面板里显示，不占战斗 UI）
@@ -2312,27 +2823,98 @@
     return '单发';
   }
 
+  function wrapText(c, text, x, y, maxW, lineH, maxLines) {
+    const chars = Array.from(String(text));
+    const lines = [];
+    let line = '';
+    const noStart = '，。；：！？、）】》”’';
+    for (const ch of chars) {
+      if (line && c.measureText(line + ch).width > maxW) {
+        if (noStart.includes(ch)) {
+          // 标点不能顶到下一行开头：挂在上一行末尾
+          line += ch;
+          lines.push(line);
+          line = '';
+        } else {
+          lines.push(line);
+          line = ch;
+        }
+        if (lines.length >= maxLines) break;
+      } else {
+        line += ch;
+      }
+    }
+    if (lines.length < maxLines && line) lines.push(line);
+    for (let i = 0; i < lines.length; i++) c.fillText(lines[i], x, y + i * lineH);
+    return lines.length;
+  }
+
+  // 详情页属性：1 星、当前等级、当前专精下的面版值
+  function statCells(i) {
+    const k = KINDS[i];
+    const m = masteryOf(i);
+    const lv = lvMul(i);
+    const atk = k.dmg > 0 ? (k.dmg * lv * m.dmg).toFixed(1) : '—';
+    const dps = k.dmg > 0 ? (k.dmg * lv * m.dmg * k.rate * m.rate).toFixed(1) : '—';
+    const rate = k.rate > 0 ? (k.rate * m.rate).toFixed(2) : '—';
+    const range = k.range > 0 ? Math.round(k.range * m.range) : '—';
+    const splash = k.splash ? Math.round(k.splash * m.splash) : '—';
+    let aura = '—';
+    if (k.heal) aura = `${(k.heal * m.heal * 100).toFixed(2)}%/s`;
+    else if (k.armor) aura = `${(k.armor * m.armor * 100).toFixed(0)}%/人`;
+    else if (k.coin) aura = `${(k.coin * m.coin).toFixed(2)}/s`;
+    else if (k.haste) aura = `+${(k.haste * m.haste * 100).toFixed(0)}%/人`;
+    return [
+      ['生命', Math.round(k.hp * lv)],
+      ['攻击', atk],
+      ['攻速', rate === '—' ? '—' : rate + '/s'],
+      ['射程', range],
+      ['DPS', dps],
+      ['弹道', k.pellets || 1],
+      ['穿透', (k.pierce || 0) + m.pierce],
+      ['溅射', splash],
+      ['光环', aura],
+    ];
+  }
+
   function drawPanel(c) {
+    if (G.panelDetail !== null) { drawDetail(c); return; }
+
     c.fillStyle = 'rgba(5,9,16,0.995)';
     c.fillRect(0, 0, W, H);
+
+    // 存档导出/导入（顶栏左侧两个小按钮）
+    for (const [r, label] of [[SAVE_BTN, '导出'], [LOAD_BTN, '导入']]) {
+      rr(c, r.x, r.y, r.w, r.h, 12);
+      c.fillStyle = 'rgba(24,36,54,0.9)';
+      c.fill();
+      c.lineWidth = 1.5;
+      c.strokeStyle = 'rgba(143,216,255,0.35)';
+      c.stroke();
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = '700 15px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(200,225,255,0.8)';
+      c.fillText(label, r.x + r.w / 2, r.y + r.h / 2);
+    }
 
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.font = '900 46px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
     c.fillStyle = '#ffe08a';
-    c.fillText('养成', W / 2, 50);
+    c.fillText('养成', W / 2, 48);
 
-    c.font = '600 18px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+    c.font = '600 17px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
     c.fillStyle = 'rgba(190,210,240,0.8)';
-    c.fillText('等级 = 合成上限（Lv.3 只能合 3 星）· 每升 1 级基础攻击 +12%', W / 2, 86);
+    c.fillText(`强化点 ${SAVE.pts} · 本世界等级上限 Lv.${lvCap()} · 每级攻击 +12% · 本关 Lv.${G.level}/${TUNE.levelCap}`, W / 2, 82);
     c.fillStyle = 'rgba(150,180,220,0.7)';
-    c.font = '600 16px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
-    c.fillText('专精：Lv5 攻速 +10% · Lv7 射程 +10% · Lv9 伤害 +20% · Lv10 弹道 +1', W / 2, 112);
+    c.font = '600 15px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+    c.fillText('点卡片进详情花点升级 · 专精 Lv5 / 7 / 9 / 10 各解锁 1 个', W / 2, 106);
 
     c.textAlign = 'right';
     c.font = '800 20px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = '#ffd166';
-    c.fillText(`金币 ${Math.floor(G.coins)}`, W - 40, 50);
+    c.fillText(`强化点 ${SAVE.pts} · 通关 ${SAVE.cleared.filter(Boolean).length}/${TUNE.stages}`, W - 40, 48);
 
     const rows = panelRows();
     for (let i = 0; i < rows.length; i++) {
@@ -2341,87 +2923,297 @@
       const locked = k.unlock > G.stage;
       const m = masteryOf(i);
 
-      rr(c, r.x, r.y, r.w, r.h, 14);
-      c.fillStyle = locked ? 'rgba(16,22,34,0.92)' : 'rgba(22,32,50,0.94)';
+      rr(c, r.x, r.y, r.w, r.h, 18);
+      c.fillStyle = locked ? 'rgba(16,22,34,0.94)' : 'rgba(20,30,47,0.96)';
       c.fill();
       c.lineWidth = 2;
       c.strokeStyle = locked ? 'rgba(90,110,140,0.35)' : k.color;
       c.stroke();
 
-      // 兵种色块
-      c.fillStyle = locked ? 'rgba(90,110,140,0.4)' : k.color;
-      c.beginPath();
-      c.arc(r.x + 24, r.y + 30, 11, 0, Math.PI * 2);
+      // 立绘位
+      rr(c, r.x + 12, r.y + 12, 108, r.h - 24, 14);
+      c.fillStyle = 'rgba(4,8,14,0.55)';
       c.fill();
+      c.lineWidth = 1.5;
+      c.strokeStyle = locked ? 'rgba(90,110,140,0.3)' : k.color;
+      c.globalAlpha = locked ? 0.25 : 0.45;
+      c.stroke();
+      c.globalAlpha = 1;
 
-      // 第一行：名字 / 等级 / 可合星数
+      if (!locked) {
+        c.save();
+        drawUnit(c, r.x + 66, r.y + r.h / 2 + 6,
+          previewUnit(i, Math.min(5, maxStarOf(i))), 1.8 / Math.sqrt(k.w * k.h), true);
+        c.restore();
+        drawRarityBadge(c, r.x + 28, r.y + 30, Math.min(5, maxStarOf(i)), 0.9);
+      } else {
+        c.textAlign = 'center';
+        c.font = '900 32px "PingFang SC",system-ui,sans-serif';
+        c.fillStyle = 'rgba(140,165,205,0.35)';
+        c.fillText('?', r.x + 66, r.y + r.h / 2 - 6);
+        c.font = '600 13px "PingFang SC",system-ui,sans-serif';
+        c.fillText(`第 ${k.unlock} 关`, r.x + 66, r.y + r.h / 2 + 26);
+      }
+
+      // 右侧文字
       c.textAlign = 'left';
-      c.font = '800 22px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+      c.font = '900 23px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
       c.fillStyle = locked ? 'rgba(150,170,200,0.55)' : '#eef4ff';
-      c.fillText(locked ? '？？？' : k.name, r.x + 44, r.y + 28);
+      c.fillText(locked ? '？？？' : k.name, r.x + 136, r.y + 38);
 
       if (locked) {
-        c.font = '600 15px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = 'rgba(160,185,220,0.7)';
-        c.fillText(`第 ${k.unlock} 关解锁`, r.x + 150, r.y + 28);
-      } else {
-        c.font = '800 17px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = k.color;
-        c.fillText(`Lv.${LV[i]}`, r.x + 150, r.y + 28);
-        c.font = '600 15px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = 'rgba(170,195,230,0.8)';
-        c.fillText(`可合 ${maxStarOf(i)} 星`, r.x + 210, r.y + 28);
-      }
-
-      // 第二行：当前攻击力 / 特性
-      if (!locked) {
-        const atk = k.dmg > 0 ? (k.dmg * lvMul(i) * m.dmg).toFixed(1) : '—';
-        c.font = '800 18px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = '#ffd166';
-        c.fillText(k.dmg > 0 ? `攻击 ${atk}` : '辅助位', r.x + 44, r.y + 58);
-        c.font = '600 15px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = 'rgba(170,195,230,0.8)';
-        c.fillText(`特性：${kindTrait(k)}`, r.x + 150, r.y + 58);
-      }
-
-      // 第三行：已解锁专精 + 下一个专精（锁定兵种不显示）
-      if (!locked) {
-        const got = [];
-        if (m.rate > 1) got.push('攻速 +10%');
-        if (m.range > 1) got.push('射程 +10%');
-        if (m.dmg > 1) got.push('伤害 +20%');
-        if (m.pellets) got.push('弹道 +1');
-        const next = MASTERY.find((x) => x.lv > LV[i]);
-        c.textAlign = 'left';
         c.font = '600 14px "PingFang SC",system-ui,sans-serif';
-        c.fillStyle = got.length ? 'rgba(126,232,162,0.85)' : 'rgba(150,175,215,0.55)';
-        c.fillText(`专精：${got.length ? got.join(' · ') : '无'}`, r.x + 44, r.y + 88);
-        c.fillStyle = next ? 'rgba(160,190,230,0.65)' : 'rgba(126,232,162,0.85)';
-        c.fillText(next ? `下一专精 Lv.${next.lv} ${next.text}` : '专精全部解锁', r.x + 290, r.y + 88);
+        c.fillStyle = 'rgba(160,185,220,0.65)';
+        c.fillText(`第 ${k.unlock} 关解锁`, r.x + 136, r.y + 66);
+        continue;
       }
 
-      // 升级按钮
-      const b = upBtnRect(r);
-      const maxed = LV[i] >= 10;
-      const cost = upgradeCost(i);
-      const can = !locked && !maxed && G.coins >= cost;
-      rr(c, b.x, b.y, b.w, b.h, 12);
-      c.fillStyle = can ? 'rgba(90,190,120,0.95)' : 'rgba(60,75,100,0.55)';
-      c.fill();
-      c.textAlign = 'center';
-      c.font = '800 19px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
-      c.fillStyle = can ? '#ffffff' : 'rgba(200,215,240,0.5)';
-      c.fillText(locked ? '锁定' : maxed ? '满级' : `升级 ${cost}`, b.x + b.w / 2, b.y + 28);
+      c.font = '600 14px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(170,195,230,0.78)';
+      c.fillText(`${k.role} · ${k.skill}`, r.x + 136, r.y + 64);
+
+      c.font = '800 17px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = k.color;
+      c.fillText(`Lv.${LV[i]}/${lvCap()}`, r.x + 136, r.y + 92);
       c.font = '600 13px "PingFang SC",system-ui,sans-serif';
-      c.fillStyle = can ? 'rgba(230,255,240,0.75)' : 'rgba(180,200,230,0.4)';
-      c.fillText(locked ? `第 ${k.unlock} 关` : maxed ? 'Lv.10 满级' : `Lv.${LV[i] + 1} 可合 ${Math.min(MAX_STAR, LV[i] + 1)} 星`,
-        b.x + b.w / 2, b.y + 54);
+      c.fillStyle = 'rgba(170,195,230,0.7)';
+      c.fillText(`可合 ${maxStarOf(i)} 星`, r.x + 224, r.y + 92);
+
+      const cells = statCells(i);
+      c.font = '600 13px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(220,235,255,0.78)';
+      c.fillText(`生命 ${cells[0][1]} · ${k.dmg > 0 ? '攻击 ' + cells[1][1] : '光环 ' + cells[8][1]}`, r.x + 136, r.y + 120);
+      c.fillText(k.dmg > 0 ? `射程 ${cells[3][1]} · 攻速 ${cells[2][1]}` : `特性 ${kindTrait(k)} · 辅助位`, r.x + 136, r.y + 144);
+
+      const nodes = MASTERY[k.id] || [];
+      const got = nodes.slice(0, skillCount(i));
+      const next = nodes[skillCount(i)];
+      c.fillStyle = got.length ? 'rgba(126,232,162,0.9)' : 'rgba(150,175,215,0.55)';
+      c.font = '600 13px "PingFang SC",system-ui,sans-serif';
+      c.fillText(`技能 ${got.length}/4${got.length ? ' · ' + got[got.length - 1].text : ''}`, r.x + 136, r.y + 174);
+      c.fillStyle = 'rgba(160,190,230,0.62)';
+      c.fillText(next ? `下个技能：${next.text}（花 ${SKILL_COST[got.length]} 点）` : '技能全部解锁', r.x + 136, r.y + 196);
+
+      c.textAlign = 'right';
+      c.font = '800 13px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(255,224,138,0.75)';
+      c.fillText('详情 ›', r.x + r.w - 14, r.y + r.h - 18);
+    }
+
+    // 重置：等级和技能全部退回，强化点全额返还
+    rr(c, RESET_BTN.x, RESET_BTN.y, RESET_BTN.w, RESET_BTN.h, 12);
+    c.fillStyle = 'rgba(58,38,26,0.94)';
+    c.fill();
+    c.lineWidth = 1.5;
+    c.strokeStyle = 'rgba(255,180,110,0.6)';
+    c.stroke();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = '700 16px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = '#ffc98a';
+    c.fillText('重置强化点（全额退回）', RESET_BTN.x + RESET_BTN.w / 2, RESET_BTN.y + RESET_BTN.h / 2);
+    c.textBaseline = 'alphabetic';
+  }
+
+  function drawDetail(c) {
+    const i = G.panelDetail;
+    const k = KINDS[i];
+    const m = masteryOf(i);
+    const locked = k.unlock > G.stage;
+
+    c.fillStyle = 'rgba(5,9,16,0.995)';
+    c.fillRect(0, 0, W, H);
+
+    rr(c, 30, 40, 660, 1360, 24);
+    c.fillStyle = 'rgba(14,22,36,0.98)';
+    c.fill();
+    c.lineWidth = 2;
+    c.strokeStyle = k.color;
+    c.globalAlpha = 0.55;
+    c.stroke();
+    c.globalAlpha = 1;
+
+    // 返回
+    const back = detailBackRect();
+    rr(c, back.x, back.y, back.w, back.h, 14);
+    c.fillStyle = 'rgba(60,80,110,0.55)';
+    c.fill();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.font = '800 20px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = '#dbe8ff';
+    c.fillText('‹ 返回', back.x + back.w / 2, back.y + back.h / 2);
+
+    // 标题
+    c.textAlign = 'left';
+    c.font = '900 40px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+    c.fillStyle = '#eef4ff';
+    c.fillText(locked ? '？？？' : k.name, 54, 152);
+    c.font = '600 17px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(170,195,230,0.8)';
+    c.fillText(locked ? `第 ${k.unlock} 关解锁` : `${k.role} · ${k.skill} · Lv.${LV[i]} · 可合 ${maxStarOf(i)} 星`, 54, 186);
+
+    // 立绘位
+    rr(c, 54, 212, 240, 320, 18);
+    c.fillStyle = 'rgba(4,8,14,0.6)';
+    c.fill();
+    c.lineWidth = 1.5;
+    c.strokeStyle = k.color;
+    c.globalAlpha = 0.55;
+    c.stroke();
+    c.globalAlpha = 1;
+    if (!locked) {
+      c.save();
+      drawUnit(c, 174, 382, previewUnit(i, Math.min(5, maxStarOf(i))), 2.5 / Math.sqrt(k.w * k.h), true);
+      c.restore();
+      drawRarityBadge(c, 80, 238, Math.min(5, maxStarOf(i)), 1.15);
+    }
+
+    // 说明
+    c.textAlign = 'left';
+    c.font = '600 17px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+    c.fillStyle = 'rgba(220,235,255,0.9)';
+    wrapText(c, locked ? '还没解锁。' : k.desc, 318, 236, 340, 30, 5);
+
+    // 属性表
+    c.font = '800 20px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(255,224,138,0.9)';
+    c.fillText('属性（当前等级 / 1 星）', 54, 564);
+
+    const cells = statCells(i);
+    for (let n = 0; n < cells.length; n++) {
+      const col = n % 2;
+      const row = Math.floor(n / 2);
+      const x = 54 + col * 306;
+      const y = 596 + row * 40;
+      c.font = '600 15px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(160,185,220,0.75)';
+      c.fillText(cells[n][0], x, y);
+      c.font = '800 20px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = '#eef4ff';
+      c.fillText(String(cells[n][1]), x + 72, y);
+    }
+
+    // 技能 / 专精清单
+    c.font = '800 20px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(255,224,138,0.9)';
+    c.fillText('技能与专精', 54, 790);
+
+    rr(c, 54, 812, 612, 78, 14);
+    c.fillStyle = 'rgba(30,44,66,0.8)';
+    c.fill();
+    c.font = '800 19px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = k.color;
+    c.fillText(k.skill, 72, 840);
+    c.font = '600 14px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(190,210,240,0.8)';
+    c.fillText(`本体特性：${kindTrait(k)}`, 72, 868);
+
+    const nodes = MASTERY[k.id] || [];
+    const gotSkills = locked ? 0 : skillCount(i);
+    for (let n = 0; n < nodes.length; n++) {
+      const node = nodes[n];
+      const isGot = n < gotSkills;
+      const isNext = !locked && n === gotSkills;
+      const y = 906 + n * 68;
+      rr(c, 54, y, 612, 58, 12);
+      c.fillStyle = isGot ? 'rgba(46,96,72,0.55)' : isNext ? 'rgba(44,62,92,0.85)' : 'rgba(28,40,60,0.72)';
+      c.fill();
+      c.lineWidth = isNext ? 2 : 1;
+      c.strokeStyle = isNext ? 'rgba(255,224,138,0.75)' : 'rgba(90,120,160,0.25)';
+      c.stroke();
+      c.textAlign = 'left';
+      c.font = '800 18px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = isGot ? '#8ff0b0' : 'rgba(160,185,220,0.6)';
+      c.fillText(`技能 ${n + 1}`, 72, y + 30);
+      c.font = '600 17px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = isGot ? '#eef4ff' : isNext ? 'rgba(230,240,255,0.9)' : 'rgba(190,210,240,0.45)';
+      c.fillText(node.text, 162, y + 30);
+      c.textAlign = 'right';
+      c.font = '700 15px "PingFang SC",system-ui,sans-serif';
+      if (isGot) {
+        c.fillStyle = 'rgba(143,240,176,0.85)';
+        c.fillText('已解锁', 646, y + 30);
+      } else if (isNext) {
+        c.fillStyle = 'rgba(255,224,138,0.95)';
+        c.fillText(`花 ${SKILL_COST[n]} 点`, 646, y + 30);
+      } else {
+        c.fillStyle = 'rgba(150,175,215,0.4)';
+        c.fillText('先点上一个', 646, y + 30);
+      }
+    }
+
+    // 强化点按钮：花点升 1 级；到本世界上限就显示下一关放上限
+    const cleared = SAVE.cleared.filter(Boolean).length;
+    const cap = lvCap();
+    const cost = lvCost(LV[i]);
+    const atCap = LV[i] >= cap;
+    const canUp = !locked && !atCap && SAVE.pts >= cost;
+    const info = upBtnRect();
+    rr(c, info.x, info.y, info.w, info.h, 16);
+    c.fillStyle = canUp ? 'rgba(40,96,68,0.92)' : 'rgba(26,40,60,0.9)';
+    c.fill();
+    c.lineWidth = canUp ? 2 : 1.5;
+    c.strokeStyle = canUp ? 'rgba(143,240,176,0.8)' : 'rgba(143,216,255,0.35)';
+    c.stroke();
+    c.textAlign = 'center';
+    c.font = '900 24px "PingFang SC","Microsoft YaHei",system-ui,sans-serif';
+    c.fillStyle = canUp ? '#8ff0b0' : '#ffd166';
+    if (locked) {
+      c.fillText('未解锁', info.x + info.w / 2, info.y + 30);
+      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(190,210,240,0.8)';
+      c.fillText(`第 ${k.unlock} 关解锁`, info.x + info.w / 2, info.y + 62);
+    } else if (atCap) {
+      c.fillText(`Lv.${LV[i]} · 本世界等级上限`, info.x + info.w / 2, info.y + 30);
+      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(190,210,240,0.8)';
+      c.fillText(`已通关 ${cleared}/${TUNE.stages} 关 · 再通关 1 关，上限提升`, info.x + info.w / 2, info.y + 62);
+    } else {
+      c.fillText(`升到 Lv.${LV[i] + 1}（花 ${cost} 点）`, info.x + info.w / 2, info.y + 30);
+      c.font = '600 16px "PingFang SC",system-ui,sans-serif';
+      c.fillStyle = 'rgba(190,210,240,0.85)';
+      c.fillText(`剩 ${SAVE.pts} 强化点 · 上限 Lv.${cap}`, info.x + info.w / 2, info.y + 62);
+      c.fillStyle = 'rgba(160,190,230,0.55)';
+      c.font = '600 14px "PingFang SC",system-ui,sans-serif';
+      c.fillText(SAVE.pts >= cost ? '点一下升级' : '强化点不够了，先打下一关', info.x + info.w / 2, info.y + 80);
     }
 
     c.textAlign = 'center';
-    c.font = '600 18px "PingFang SC",system-ui,sans-serif';
-    c.fillStyle = 'rgba(160,190,230,0.55)';
-    c.fillText('点空白处关闭', W / 2, H - 30);
+    c.font = '600 16px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = 'rgba(160,190,230,0.5)';
+    c.fillText('点「返回」回卡片列表', W / 2, 1378);
+  }
+
+  // 存档导出/导入：本地静态站没有服务器，换设备/清缓存前自己留一份
+  function exportSave() {
+    const raw = JSON.stringify(SAVE);
+    const done = () => toast('存档已复制，粘贴保存');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(raw).then(done).catch(() => window.prompt('复制这串存档', raw));
+      } else {
+        window.prompt('复制这串存档', raw);
+      }
+    } catch {
+      window.prompt('复制这串存档', raw);
+    }
+  }
+
+  function importSave() {
+    const raw = window.prompt('粘贴存档 JSON（会覆盖当前进度）');
+    if (!raw) return;
+    try {
+      SAVE = ensureSave(JSON.parse(raw));
+      HIGHEST = SAVE.highest;
+      refreshLV();
+      G.stage = HIGHEST;
+      saveGame();
+      restart();
+      toast('存档已导入');
+    } catch {
+      toast('存档格式不对');
+    }
   }
 
   function drawEnd(c) {
@@ -2448,6 +3240,13 @@
     c.font = '600 20px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = 'rgba(170,195,230,0.85)';
     c.fillText(`击杀 ${G.stats.kills}　合成 ${G.stats.merges} 次　最高 ${RARITY[clamp(G.stats.best, 1, 5) - 1].tier}`, W / 2, 700);
+
+    c.font = '800 24px "PingFang SC",system-ui,sans-serif';
+    c.fillStyle = '#8ff0b0';
+    const cleared = SAVE.cleared.filter(Boolean).length;
+    const tag = win ? (G.firstClear ? '首通' : '再次通关') : '失败';
+    const gainTag = G.pointsGained ? ` · 强化点 +${G.pointsGained}` : '';
+    c.fillText(`${tag}${gainTag} · 已通关 ${cleared}/${TUNE.stages} · 强化点 ${SAVE.pts}`, W / 2, 750);
 
     c.font = '700 24px "PingFang SC",system-ui,sans-serif';
     c.fillStyle = 'rgba(200,215,240,0.6)';
@@ -2528,7 +3327,40 @@
      ---------------------------------------------------------- */
 
   resize();
+  resetOpen();
   seedBench();
+  // 调试/截图入口：?panel=1 直接开养成列表，?panel=1&detail=0 开详情
+  if (QS.has('panel')) {
+    G.panel = true;
+    G.panelDetail = QS.has('detail') ? clamp(Number(QS.get('detail')) || 0, 0, KINDS.length - 1) : null;
+  }
+  // 调试/截图入口：?choice=1 直接弹一次升级三选一
+  if (QS.has('choice')) {
+    G.level = 2;
+    G.pendingLevels = 1;
+    G.levelFrom = 'prep';
+    G.choices = rollUpgrades();
+    G.phase = 'choose';
+  }
+  // 调试/截图入口：?battle=1 直接摆 4 个人开打（看敌人大小/数量）
+  if (QS.has('battle')) {
+    const cells = [12, 7, 8, 13];
+    cells.forEach((cell, i) => {
+      const u = makeUnit(i, i === 3 ? 2 : 1);
+      occupy(cell, u);
+    });
+    startBattle();
+    // 截图用：?battle=1&spawn=1 直接摆一排敌人看大小和密度（速度设 0，不改变逻辑）
+    if (QS.has('spawn')) {
+      for (let i = 0; i < 12; i++) {
+        spawnEnemy();
+        const e = G.enemies[G.enemies.length - 1];
+        e.x = W - 30 - (i % 4) * 80;
+        e.y = ENEMY_MIN_Y + 24 + Math.floor(i / 4) * 80;
+        e.speed = 0;
+      }
+    }
+  }
   toast('把队员拖进格子，两个一样的合成');
   requestAnimationFrame(frame);
 
@@ -2538,9 +3370,13 @@
     startBattle, refresh, restart, spawnEnemy, nextStage, settleWave,
     slotIndexAt, benchIndexAt, slotCenter, benchCenter, unitCenter,
     dropToSlot, dropToBench, canPlace, occupy, vacate, fitsAnywhere,
-    applyUpgrade, choiceRects, rollUpgrades,
-    maxStarOf, upgradeCost, saveLV, LV, unitMaxHp, refreshUnitHp, unitRect, makeUnit,
-    masteryOf, MASTERY, panelRows, upBtnRect,
+    applyUpgrade, chooseUpgrade, gainXP, xpNeed, choiceRects, rollUpgrades,
+    benchCandidateCount, maxBenchStar,
+    maxStarOf, saveGame, SAVE, refreshLV, finishRun, LV, unitMaxHp, refreshUnitHp, unitRect, makeUnit,
+    spendPoint, spendSkill, resetPoints, skillCount, lvCap, lvCost, PTS, SKILL_COST, SKILL_MAX, LV_BASE, LV_MAX,
+    CELL_SHAPES, makeCellCard, makeBenchItem, isCellCard, canPlaceCell: cellAnchorOk, placeCell, resetOpen,
+    unitDmg, unitRate, unitRange,
+    masteryOf, MASTERY, AFFIX, panelRows, upBtnRect, detailRects,
     HIGHEST, saveStage,
     GRID, BENCH, BTN, SPEED_BTN, PANEL_BTN, MUTE_BTN, COIN, CELL, KINDS, TUNE, MAX_STAR, STAR: MAX_STAR,
     STAGE: { W, H }, SPAWN_X, BASE_X,

@@ -32,8 +32,18 @@ const MAXT = Number(arg('max', 1200));
 const TUNE = arg('tune', null);
 const SEED = Number(arg('seed', 1));
 const VERBOSE = process.argv.includes('--verbose');
-const NOLEVEL = process.argv.includes('--nolevel');   // 不养成对照：等级一直 3
+const FRESH = process.argv.includes('--fresh');   // 每局都从零开始（模拟新玩家第一周目）
 const DT = 1 / 60;
+
+function resetSave() {
+  SAVE_STATE.v = 3;
+  SAVE_STATE.highest = 1;
+  SAVE_STATE.cleared.fill(false);
+  SAVE_STATE.pts = 0;
+  SAVE_STATE.spent.fill(0);
+  SAVE_STATE.mastery.fill(0);
+  SAVE_STATE.stats = { runs: 0, wins: 0, kills: 0, bestStage: 0 };
+}
 
 /* --tune 两种写法都认：
      hpGrowth=1.4,starGrowth=2.0        （PowerShell 里引号会被吃掉，推荐这个）
@@ -54,7 +64,16 @@ const TUNE_JSON = parseTune(TUNE);
 /* ---------------- 假 DOM ---------------- */
 
 const RESULTS = [];
-const LV_STATE = new Array(10).fill(3);   // 跨局共享：和 KINDS.length 对齐（10 个英雄）
+const STAGES = 5;
+const SAVE_STATE = {
+  v: 3,
+  highest: 1,
+  cleared: new Array(STAGES).fill(false),
+  pts: 0,
+  spent: new Array(10).fill(0),
+  mastery: new Array(10).fill(0),
+  stats: { runs: 0, wins: 0, kills: 0, bestStage: 0 },
+};
 
 function makeSandbox(seed) {
   let s = seed >>> 0;
@@ -113,7 +132,7 @@ function makeSandbox(seed) {
     requestAnimationFrame(cb) { frame = cb; return 1; },
   };
   if (TUNE_JSON) sandbox.__SQUAD_TUNE = TUNE_JSON;
-  sandbox.__SQUAD_LV = LV_STATE;
+  sandbox.__SQUAD_SAVE = SAVE_STATE;
   sandbox.__SQUAD_STAGE = 1;      // 每局主线都从第 1 关开打
   sandbox.__SQUAD_NO_RENDER = true;   // 数值模拟不画，快很多
 
@@ -154,6 +173,10 @@ function useBench(g, api) {
     for (let b = 0; b < g.bench.length; b++) {
       const u = g.bench[b];
       if (!u) continue;
+      if (api.isCellCard(u)) {
+        if (placeCellCard(g, api, b)) moved = true;
+        continue;
+      }
       const si = pickSlot(g, u, api);
       if (si >= 0) {
         api.dropToSlot({ from: 'bench', i: b, unit: u }, si);
@@ -161,6 +184,21 @@ function useBench(g, api) {
       }
     }
   }
+}
+
+// 格子卡：找第一个能摆下的锚点（AI 不挑形状，能解锁就解锁）
+function placeCellCard(g, api, bi) {
+  const u = g.bench[bi];
+  const rows = Math.round(g.open.length / 5);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < 5; c++) {
+      const cell = r * 5 + c;
+      if (!api.canPlaceCell(u.shape, cell)) continue;
+      api.dropToSlot({ from: 'bench', i: bi, unit: u }, cell);
+      return true;
+    }
+  }
+  return false;
 }
 
 function fieldMerge(g, api) {
@@ -179,20 +217,7 @@ function fieldMerge(g, api) {
   return false;
 }
 
-function aiLevelUp(g, api) {
-  if (NOLEVEL) return;              // --nolevel：只测「不养成能打到哪」
-  // 模拟会去点「养成」的玩家：金币富余就升兵种等级
-  for (let k = 0; k < api.LV.length; k++) {
-    const cost = api.upgradeCost(k);
-    if (api.LV[k] < 5 && g.coins >= cost + 40) {
-      g.coins -= cost;
-      api.LV[k]++;
-    }
-  }
-}
-
 function aiPrepare(g, api, policy) {
-  aiLevelUp(g, api);
   if (policy === 'greedy') {
     let guard = 0;
     while (g.coins >= api.TUNE.refreshCost && g.bench.includes(null) && guard++ < 60) api.refresh();
@@ -212,6 +237,25 @@ function aiPrepare(g, api, policy) {
     api.refresh();
   }
   useBench(g, api);
+}
+
+/* 花强化点：按「已经上场的兵种」优先，先升等级（合星上限），再点技能节点。
+   模拟一个「不乱点」的普通玩家，用来验证点数经济够不够用。 */
+function spendPoints(g, api) {
+  const cap = api.lvCap();
+  const seen = [...new Set(g.slots.filter(Boolean).map((u) => u.kind))];
+  const order = [...seen];
+  for (let i = 0; i < api.KINDS.length; i++) if (!order.includes(i)) order.push(i);
+  for (const k of order) {
+    let guard = 0;
+    while (guard++ < 40 && api.LV[k] < cap && api.SAVE.pts >= api.lvCost(api.LV[k])) {
+      if (!api.spendPoint(k)) break;
+    }
+    guard = 0;
+    while (guard++ < 10 && api.skillCount(k) < 4 && api.SAVE.pts >= api.SKILL_COST[api.skillCount(k)]) {
+      if (!api.spendSkill(k)) break;
+    }
+  }
 }
 
 /* ---------------- 跑一局 ---------------- */
@@ -235,18 +279,17 @@ function playOne(seed, policy) {
     if (g.phase === 'over') { lostStage = g.stage; break; }
     if (g.phase === 'win') {
       clearedStages.push(g.stage);
-      if (g.stage >= api.TUNE.stages) break;       // 主线 10 关全通
+      spendPoints(g, api);                          // 通关后先把强化点花掉，再进下一关
+      if (g.stage >= api.TUNE.stages) break;       // 第一世界 5 关全通
       api.nextStage();                              // 进下一关，继续打
       prevPhase = 'prep';
       continue;
     }
 
-    // 三选一：模拟玩家拿第一张（最省事，也不影响对照）
+    // 升级三选一：模拟玩家拿第一张（最省事，也不影响对照）
     if (g.phase === 'choose') {
       if (!g.choices || !g.choices[0]) { stuck = true; break; }
-      api.applyUpgrade(g.choices[0]);
-      g.choices = null;
-      g.phase = 'prep';
+      if (!api.chooseUpgrade(0)) { stuck = true; break; }
       continue;
     }
 
@@ -293,12 +336,13 @@ function playOne(seed, policy) {
 
 const results = [];
 for (let i = 0; i < RUNS; i++) {
+  if (FRESH) resetSave();
   const r = playOne(SEED + i * 7919, POLICY);
   results.push(r);
   if (VERBOSE) {
     console.log(
       `#${i + 1} ${r.win ? 'WIN ' : r.stuck ? 'STUCK' : 'LOSE'} ` +
-      `stages=${r.stagesCleared}/10 lostAt=${r.lostStage || '-'} t=${r.time.toFixed(0)}s ` +
+      `stages=${r.stagesCleared}/5 lostAt=${r.lostStage || '-'} t=${r.time.toFixed(0)}s ` +
       `units=${r.units} maxStar=${r.stars} merges=${r.merges} deaths=${r.deaths}`
     );
   }
@@ -328,7 +372,10 @@ for (const r of results) {
 console.log('');
 console.log(`runs=${RUNS}  policy=${POLICY}  seed=${SEED}${TUNE ? '  tune=' + TUNE : ''}`);
 console.log(`主线全通 ${wins} (${pct(wins)})   中途失败 ${losses} (${pct(losses)})   卡住 ${stuck}`);
-console.log(`平均通关关卡 ${avgStages.toFixed(1)} / 10   平均最高星 ${avgStar.toFixed(1)}   平均合成 ${avgMerges.toFixed(1)} 次   平均阵亡 ${avgDeaths.toFixed(1)} 人   平均场上 ${avgUnits.toFixed(1)} 人`);
+console.log(`平均通关关卡 ${avgStages.toFixed(1)} / 5   平均最高星 ${avgStar.toFixed(1)}   平均合成 ${avgMerges.toFixed(1)} 次   平均阵亡 ${avgDeaths.toFixed(1)} 人   平均场上 ${avgUnits.toFixed(1)} 人`);
+const clearedN = SAVE_STATE.cleared.filter(Boolean).length;
+const lvList = SAVE_STATE.spent.map((s) => 3 + s);
+console.log(`兵种等级 ${lvList.join('/')}   剩 ${SAVE_STATE.pts} 点   已通关 ${clearedN}/5   结算 ${SAVE_STATE.stats.runs} 次`);
 
 const loseAt = new Map();
 for (const r of results) {

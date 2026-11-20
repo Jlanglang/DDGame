@@ -61,7 +61,7 @@
     // 世界 2 换场景/新兵种，不再靠同一套背景重复 10 遍。
     stages: 5,             // 第一世界 5 关
     worldName: '街区',      // 第一世界场景名（世界 2 换场景时改这里）
-    waves: 20,             // 每关 20 波
+    waves: 15,             // 每关 15 波（2026-11-20 从 20 波缩）
     startCoins: 25,
     refreshCost: 14,       // 2026-11-20 难度回调：14 起、每次 +8（原 10/+5 太便宜）
     refreshStep: 8,
@@ -79,10 +79,11 @@
     enemyArmorPerWave: 0.004,
     enemyArmorPerStage: 0.015,
     enemyArmorMax: 0.4,
-    // 升级：杀怪攒经验，每关最多 20 次升级，升级才弹三选一（不再按波数）
-    levelCap: 20,
-    xpBase: 18,
-    xpPerLevel: 2,
+    // 升级：杀怪攒经验，每关最多 10 次升级（2026-11-20 主人：20 级弹得太烦），升级才弹三选一
+    // 经验曲线按「一关 15 波全清 ≈ 满 10 级」配：Σ(40+4lv)=580，一关约 588 杀
+    levelCap: 10,
+    xpBase: 40,
+    xpPerLevel: 4,
     xpBoss: 5,
     // 卡片星级门槛：压成 5 关后节奏一起压：第 2 关起 2 星、第 4 关起 3 星
     star2FromStage: 2,
@@ -130,12 +131,12 @@
      没有基地血量：不管小兵还是 BOSS，漏过去就输。 */
   const BOSS = {
     minor: {
-      waves: [5, 10, 15],
+      waves: [5, 9, 13],
       hpMul: 28, speedMul: 0.75, atkMul: 1.5, r: 26, armor: 0.08,
       color: '#c05cff', deep: '#5b1f8a',
     },
     major: {
-      wave: 20,
+      wave: 15,
       hpMul: 60, speedMul: 0.6, atkMul: 2.2, r: 38, armor: 0.18,
       color: '#ff3b3b', deep: '#7a1414',
     },
@@ -237,31 +238,31 @@
     { tier: 1, minLv: 1, name: '防弹背心', stat: 'hp', mul: 1.15, text: '生命 +15%' },
     { tier: 1, minLv: 1, name: '战地补给', flat: 25, text: '金币 +25' },
 
-    { tier: 2, minLv: 5, name: '穿甲弹', stat: 'dmg', mul: 1.35, text: '伤害 +35%' },
-    { tier: 2, minLv: 5, name: '过载枪机', stat: 'rate', mul: 1.25, text: '攻速 +25%' },
-    { tier: 2, minLv: 5, name: '高倍瞄具', stat: 'range', mul: 1.20, text: '射程 +20%' },
-    { tier: 2, minLv: 5, name: '加厚护甲', stat: 'hp', mul: 1.25, text: '生命 +25%' },
-    { tier: 2, minLv: 5, name: '双联弹道', stat: 'pellets', add: 1, text: '弹道 +1' },
-    { tier: 2, minLv: 5, name: '穿甲弹芯', stat: 'pierce', add: 1, text: '穿透 +1', only: 'pierce' },
-    { tier: 2, minLv: 5, name: '高爆装药', stat: 'splash', mul: 1.20, text: '溅射 +20%', only: 'splash' },
-    { tier: 2, minLv: 5, name: '急救包', stat: 'heal', mul: 1.35, text: '治疗 +35%', only: 'heal' },
-    { tier: 2, minLv: 5, name: '加固工事', stat: 'armor', mul: 1.30, text: '减伤 +30%', only: 'armor' },
-    { tier: 2, minLv: 5, name: '战时预算', stat: 'coin', mul: 1.35, text: '产币 +35%', only: 'coin' },
-    { tier: 2, minLv: 5, name: '战鼓', stat: 'haste', mul: 1.30, text: '攻速光环 +30%', only: 'haste' },
-    { tier: 2, minLv: 5, name: '军饷', flat: 50, text: '金币 +50' },
+    { tier: 2, minLv: 4, name: '穿甲弹', stat: 'dmg', mul: 1.35, text: '伤害 +35%' },
+    { tier: 2, minLv: 4, name: '过载枪机', stat: 'rate', mul: 1.25, text: '攻速 +25%' },
+    { tier: 2, minLv: 4, name: '高倍瞄具', stat: 'range', mul: 1.20, text: '射程 +20%' },
+    { tier: 2, minLv: 4, name: '加厚护甲', stat: 'hp', mul: 1.25, text: '生命 +25%' },
+    { tier: 2, minLv: 4, name: '双联弹道', stat: 'pellets', add: 1, text: '弹道 +1' },
+    { tier: 2, minLv: 4, name: '穿甲弹芯', stat: 'pierce', add: 1, text: '穿透 +1', only: 'pierce' },
+    { tier: 2, minLv: 4, name: '高爆装药', stat: 'splash', mul: 1.20, text: '溅射 +20%', only: 'splash' },
+    { tier: 2, minLv: 4, name: '急救包', stat: 'heal', mul: 1.35, text: '治疗 +35%', only: 'heal' },
+    { tier: 2, minLv: 4, name: '加固工事', stat: 'armor', mul: 1.30, text: '减伤 +30%', only: 'armor' },
+    { tier: 2, minLv: 4, name: '战时预算', stat: 'coin', mul: 1.35, text: '产币 +35%', only: 'coin' },
+    { tier: 2, minLv: 4, name: '战鼓', stat: 'haste', mul: 1.30, text: '攻速光环 +30%', only: 'haste' },
+    { tier: 2, minLv: 4, name: '军饷', flat: 50, text: '金币 +50' },
 
-    { tier: 3, minLv: 10, name: '破甲重弹', stat: 'dmg', mul: 1.60, text: '伤害 +60%' },
-    { tier: 3, minLv: 10, name: '极限射速', stat: 'rate', mul: 1.40, text: '攻速 +40%' },
-    { tier: 3, minLv: 10, name: '狙击镜', stat: 'range', mul: 1.30, text: '射程 +30%' },
-    { tier: 3, minLv: 10, name: '重型护甲', stat: 'hp', mul: 1.35, text: '生命 +35%' },
-    { tier: 3, minLv: 10, name: '三连弹道', stat: 'pellets', add: 1, text: '弹道 +1' },
-    { tier: 3, minLv: 10, name: '钨芯穿甲', stat: 'pierce', add: 2, text: '穿透 +2', only: 'pierce' },
-    { tier: 3, minLv: 10, name: '巨型装药', stat: 'splash', mul: 1.35, text: '溅射 +35%', only: 'splash' },
-    { tier: 3, minLv: 10, name: '野战医院', stat: 'heal', mul: 1.50, text: '治疗 +50%', only: 'heal' },
-    { tier: 3, minLv: 10, name: '要塞工事', stat: 'armor', mul: 1.40, text: '减伤 +40%', only: 'armor' },
-    { tier: 3, minLv: 10, name: '战争金库', stat: 'coin', mul: 1.50, text: '产币 +50%', only: 'coin' },
-    { tier: 3, minLv: 10, name: '总攻号', stat: 'haste', mul: 1.40, text: '攻速光环 +40%', only: 'haste' },
-    { tier: 3, minLv: 10, name: '战争经费', flat: 100, text: '金币 +100' },
+    { tier: 3, minLv: 7, name: '破甲重弹', stat: 'dmg', mul: 1.60, text: '伤害 +60%' },
+    { tier: 3, minLv: 7, name: '极限射速', stat: 'rate', mul: 1.40, text: '攻速 +40%' },
+    { tier: 3, minLv: 7, name: '狙击镜', stat: 'range', mul: 1.30, text: '射程 +30%' },
+    { tier: 3, minLv: 7, name: '重型护甲', stat: 'hp', mul: 1.35, text: '生命 +35%' },
+    { tier: 3, minLv: 7, name: '三连弹道', stat: 'pellets', add: 1, text: '弹道 +1' },
+    { tier: 3, minLv: 7, name: '钨芯穿甲', stat: 'pierce', add: 2, text: '穿透 +2', only: 'pierce' },
+    { tier: 3, minLv: 7, name: '巨型装药', stat: 'splash', mul: 1.35, text: '溅射 +35%', only: 'splash' },
+    { tier: 3, minLv: 7, name: '野战医院', stat: 'heal', mul: 1.50, text: '治疗 +50%', only: 'heal' },
+    { tier: 3, minLv: 7, name: '要塞工事', stat: 'armor', mul: 1.40, text: '减伤 +40%', only: 'armor' },
+    { tier: 3, minLv: 7, name: '战争金库', stat: 'coin', mul: 1.50, text: '产币 +50%', only: 'coin' },
+    { tier: 3, minLv: 7, name: '总攻号', stat: 'haste', mul: 1.40, text: '攻速光环 +40%', only: 'haste' },
+    { tier: 3, minLv: 7, name: '战争经费', flat: 100, text: '金币 +100' },
   ];
 
   const DATA = {

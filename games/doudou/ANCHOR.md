@@ -76,7 +76,7 @@ v3（等级点）/ v2 / v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` �
 - `ensureSave`：v3（spent 等级点）/v2/v1 → v4 迁移，老档等级点全折算成攻击点；cleared 截到 5 关。
 - 面板左上 `SAVE_BTN` / `LOAD_BTN`：`exportSave()` 复制 JSON；`importSave()` →
   `ensureSave` → 换 `SAVE/HIGHEST` → `refreshAttrs` → `G.stage=HIGHEST` → `saveGame` → `restart`。
-- 别混：`attrs[i]` 是**跨局属性点**（攻/血/防，总点上限 4–20），`G.level` 是每关的升级等级（上限 20）。
+- 别混：`attrs[i]` 是**跨局属性点**（攻/血/防，总点上限 4–20），`G.level` 是每关的升级等级（上限 10）。
 
 **竖屏定版（2026-11-20，已做）**：
 - 舞台 `W=720, H=1440`（1:2），`squad.css` 覆盖 `style.css`：`width: min(100vw, 100dvh*0.5)`。
@@ -88,7 +88,7 @@ v3（等级点）/ v2 / v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` �
 - 下准备区：金币条 `COIN`（y=968）；3 个待命位 `BENCH`（190×200，y=1028，框最长边适配 `BENCH_FIT=160`）；
   刷新 / 开战按钮 `BTN`（y=1248，110 高）。没有基地血条；单位详情在养成面板的详情页里。
 - 顶栏：倍速 `SPEED_BTN`（x=350）、养成 `PANEL_BTN`（x=470）、音效 `MUTE_BTN`（x=592）。
-- 第一世界 5 关 × 20 波（`TUNE.stages/waves`，`TUNE.worldName='街区'`）；`G.stage` 当前关，`nextStage` 推进并落盘，`HIGHEST` 是已解锁最高关。
+- 第一世界 5 关 × 15 波（`TUNE.stages/waves`，`TUNE.worldName='街区'`）；`G.stage` 当前关，`nextStage` 推进并落盘，`HIGHEST` 是已解锁最高关。
 - 10 个英雄在 `squad-data.js` 的 `KINDS`，`unlock` 字段 = 第几关起可抽；`randomKind` / `rollUpgrades` 只出已解锁的。
 - 辅助英雄光环：`countAux` 统计场上医务兵/工程师/战争顾问/鼓号手，`update` 里回血/产币，`unitRate` 吃鼓号手，`damageUnit` 吃工程师减伤。
 
@@ -158,7 +158,7 @@ v3（等级点）/ v2 / v1 和旧 key `doudou.squad.lv` / `doudou.squad.stage` �
 
 **敌人尺寸与防御（2026-11-20 v0.11）**：
 - 小兵 `r = TUNE.enemyR = 18`（直径 36，和单位本体同量级）；BOSS 用 `BOSS[].r`（26/38）。
-- 每波数量 `12 + 波数×3.4`（第 20 波 80）；**难度不靠数量**。
+- 每波数量 `12 + 波数×3.4`（第 15 波 63）；**难度不靠数量**。
 - `spawnEnemy()` 算 `armor = min(40%, 0.4%×波数 + 1.5%×关卡 + BOSS 加成)`；
   `updateBullets()` / `splashDamage()` 扣血都乘 `(1 - armor)`，飘字显示实际伤害。
 

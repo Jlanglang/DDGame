@@ -15,6 +15,16 @@
   const BASE_Y = 1230;       // 敌人越过这条线就扣血
   const PLAYER_Y = 1300;
 
+  // 守桥玩家立牌（Cursor 出图，2026-11-25；规范见 docs/主线立牌方案.md 第五节）
+  const PLAYER_ART = {
+    src: 'assets/whale-back.png',
+    h: 150,          // 画布上的立牌高度（旧火柴人约 130）
+    ratio: 0.75,     // 图宽/高（576×768）
+    footRel: 0.877,  // 脚底在图高里的比例
+    muzzleRel: { x: 0.88, y: 0.174 }, // 枪口在图宽/图高里的比例
+    footY: 52,       // 脚底相对 p.y 的偏移
+  };
+
   /* ----------------------------------------------------------
      数值配置：想调平衡，只改这一块
      ----------------------------------------------------------
@@ -30,10 +40,10 @@
     baseRate: 5.5,      // 初始攻速（发/秒）
     rateStep: 0.2,      // 每档攻速 +0.2/s
     rateFloor: 0.8,     // 攻速下限（吃了 -20 档的卡也不至于停火）
-    rateMaxTier: 40,    // 攻速档位上限 → 5.5 + 8 = 13.5/s
+    rateMaxTier: 32,    // 攻速档位上限 → 5.5 + 6.4 = 11.9/s（原 13.5 偏猛，2026-11-25 调）
 
     hpBase: 36,         // 第 1 波单个小怪血量
-    hpGrowth: 2.05,     // 每过一波 ×2.05（8 波走完 ≈ 原来 10 波的难度）
+    hpGrowth: 2.3,      // 每过一波 ×2.3（2026-11-25：删击退后难度变低，补回来一点）
     waves: 8,           // 8 波杂兵，清完 BOSS 登场
     bossMul: 10,        // BOSS 血量 = 第 8 波血量 ×10
     formationRowGap: 55, // 阵型里前后排的间距（像素），压紧一点，少等后排走进来
@@ -45,13 +55,13 @@
     dmgAddMin: 4,       // 伤害卡：固定 +4 起步，每命中 +1，最多 +60
     dmgAddMax: 60,
     dmgCapBase: 65,     // 伤害天花板：前期几十
-    dmgCapGrowth: 1.45, // 每波 ×1.45 → 中期几百、后期几千
+    dmgCapGrowth: 1.9,  // 每波 ×1.9，跟得上敌人 2.05 的血量增长（原 1.45 后期乘不动）
 
     atkMin: -29,        // 攻击卡从 ÷30 开始
     atkMax: 12,         // 上限 ×13
     rateMin: -20,       // 攻速卡从 -20 档开始
     shotsMin: -24,      // 弹道卡从 -24 开始
-    shotsMax: 5,
+    shotsMax: 9,        // 弹道上限（原 5 太早封顶，2026-11-25 放开）
 
     cardCd: 14,         // 一对卡之间的冷却（秒）
     cardSpeed: 230,     // 卡片下落速度 → 5.8 秒落地
@@ -60,14 +70,9 @@
     weights: { dmgAdd: 48, rateMul: 25, shots: 15, dmgMul: 12 },
     noAtkBefore: 3,     // 前 3 波不出攻击卡
 
-    // 打击感（无整屏震；顿挫只冻该怪）
-    hitStunAdd: 0.04,
-    hitStunMax: 0.08,
-    hitKnock: 32,
-    hitKnockKill: 70,
+    // 打击感（2026-11-25：删受击顿挫/击退——每发都停怪会把难度拉低，高攻速下像卡顿）
     hitSquash: 0.38,
-    // 2026-11-16 三档：普通命中只做局部；击杀 / BOSS 才给全局顿帧 + 冲击环
-    killFreeze: 0.05,
+    // 只有 BOSS 击杀给全局顿帧 + 冲击环；普通击杀不顿帧
     bossFreeze: 0.14,
     killRing: 90,
     bossRing: 170,
@@ -157,6 +162,8 @@
       dmgMul: 1,
       cd: 0,
       kick: 0,
+      lean: 0,
+      leanT: 0,
     },
   };
 
@@ -166,6 +173,30 @@
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+
+  // 立牌异步加载；没加载完时继续画旧火柴人兜底（headless 无 Image，直接退回）
+  const playerArt = typeof Image === 'function' ? new Image() : { ready: false };
+  if (typeof Image === 'function') {
+    playerArt.onload = () => { playerArt.ready = true; };
+    playerArt.src = PLAYER_ART.src;
+  }
+
+  // 守桥背景 / 敌人贴图（Cursor 出图，2026-11-25）
+  const bgArt = typeof Image === 'function' ? new Image() : { ready: false };
+  const enemyArt = { ready: false, grunt: null, boss: null };
+  if (typeof Image === 'function') {
+    bgArt.onload = () => { bgArt.ready = true; };
+    bgArt.src = 'assets/bridge-bg.png';
+
+    let enemyLoaded = 0;
+    const enemyDone = () => { if (++enemyLoaded === 2) enemyArt.ready = true; };
+    enemyArt.grunt = new Image();
+    enemyArt.boss = new Image();
+    enemyArt.grunt.onload = enemyDone;
+    enemyArt.boss.onload = enemyDone;
+    enemyArt.grunt.src = 'assets/enemy.png';
+    enemyArt.boss.src = 'assets/boss.png';
+  }
   const hpFill = document.getElementById('hpFill');
   const stageName = document.getElementById('stageName');
   const upgradeEl = document.getElementById('upgrade');
@@ -340,8 +371,6 @@
       r: 22,
       dead: false,
       hitFlash: 0,
-      hitStun: 0,
-      knockY: 0,
       squash: 0,
       // 相邻两列的血条错开，后期数字长，不然会糊成一片
       lift: (Math.round(col) % 2) * 34,
@@ -365,8 +394,6 @@
       r: 46,
       dead: false,
       hitFlash: 0,
-      hitStun: 0,
-      knockY: 0,
       squash: 0,
       wob: 0,
       hopPhase: 0,
@@ -528,7 +555,13 @@
 
     // 左右移动：这一版唯一的操作
     const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    if (dir !== 0) p.x = clampX(p.x + dir * p.speed * dt);
+    if (dir !== 0) {
+      p.x = clampX(p.x + dir * p.speed * dt);
+      p.leanT = dir;
+    }
+    // 立牌倾斜：按最近一次移动方向平滑趋近，松手后回正
+    p.lean += ((p.leanT || 0) - p.lean) * Math.min(1, dt * 10);
+    p.leanT *= Math.max(0, 1 - dt * 2.5);
 
     if (p.kick > 0) p.kick = Math.max(0, p.kick - dt * 8);
 
@@ -546,11 +579,24 @@
     p.kick = 1;
   }
 
+  // 立牌枪口在图里的位置（子弹从这里出）
+  function playerMuzzleY() {
+    const p = G.player;
+    return p.y + PLAYER_ART.footY
+      - PLAYER_ART.footRel * PLAYER_ART.h
+      + PLAYER_ART.muzzleRel.y * PLAYER_ART.h;
+  }
+
+  function playerMuzzleX() {
+    const w = PLAYER_ART.h * PLAYER_ART.ratio;
+    return G.player.x + (PLAYER_ART.muzzleRel.x - 0.5) * w;
+  }
+
   function shoot(dmg, originX, originY) {
     const p = G.player;
-    const x0 = originX === undefined ? p.x : originX;
-    // 与 stick hero 枪口大致对齐（scale 1.45 × 局部 muzzleY ≈ -98）
-    const muzzleY = (originY === undefined ? p.y : originY) - 142;
+    const x0 = originX === undefined ? playerMuzzleX() : originX;
+    // 与立牌枪口对齐；显式传 originY 时保留旧偏移
+    const muzzleY = originY === undefined ? playerMuzzleY() : originY - 142;
 
     const n = p.shots;
     const gap = 18;   // 弹道之间的横向间距（越小越密）
@@ -585,17 +631,6 @@
 
       if (e.hitFlash > 0) e.hitFlash -= dt * 6;
       if (e.squash > 0) e.squash = Math.max(0, e.squash - dt * 5.5);
-      if (e.hitStun > 0) e.hitStun = Math.max(0, e.hitStun - dt);
-
-      // 受击回推（朝 -Y）
-      if (e.knockY) {
-        e.y += e.knockY * dt;
-        e.knockY *= Math.exp(-14 * dt);
-        if (Math.abs(e.knockY) < 2) e.knockY = 0;
-      }
-
-      // ③ 该怪顿挫：顿住时不推进、不弹跳（全局不冻，机枪不拖死）
-      if (e.hitStun > 0) continue;
 
       const hopHz = e.kind === 'boss' ? 3.2 : 5.5;
       e.hopPhase = (e.hopPhase || 0) + dt * hopHz;
@@ -695,10 +730,12 @@
         break;
 
       case 'dmgMul': {
-        // 直接乘在当前总伤害上，但不能超过当前波的天花板
+        // 乘在当前总伤害上，但不能超过当前波的天花板；
+        // dmgMul 只记实际生效的倍率，别让 UI 显示虚高
         const m = tierToMul(v);
-        p.damage = Math.min(p.damage * m, damageCap());
-        p.dmgMul *= m;
+        const before = p.damage;
+        p.damage = Math.min(before * m, damageCap());
+        p.dmgMul *= p.damage / before;
         p.dmgTier += v;
         break;
       }
@@ -791,11 +828,8 @@
 
     // ① 受击闪白
     e.hitFlash = 1;
-    // ③ 该怪短顿挫（封顶）
-    e.hitStun = Math.min(BAL.hitStunMax, (e.hitStun || 0) + BAL.hitStunAdd);
-    // ⑤ 压扁 + 回推
+    // ② 压扁（删了受击回推/顿挫：击退会让难度变低）
     e.squash = Math.max(e.squash || 0, BAL.hitSquash);
-    e.knockY = -(killed ? BAL.hitKnockKill : BAL.hitKnock);
     // ② 命中火花
     impactSparks(b.x, b.y, killed);
     // ⑥ 伤害飘字（抛物线）
@@ -811,7 +845,6 @@
         addRing(e.x, e.y, BAL.bossRing, '#ffd166');
         win();
       } else {
-        G.hitstop = Math.max(G.hitstop, BAL.killFreeze);
         addRing(e.x, e.y, BAL.killRing, '#ffe28a');
       }
     }
@@ -1069,6 +1102,11 @@
   }
 
   function drawGround() {
+    // 背景贴图（bridge-bg.png 720×1600）：桥面 + 深渊一体
+    if (bgArt.ready) {
+      ctx.drawImage(bgArt, 0, 0, W, H);
+      return;
+    }
     // 桥外深渊：上亮下暗一点，别一整块死黑
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, '#121820');
@@ -1086,6 +1124,7 @@
   }
 
   function drawBridge() {
+    if (bgArt.ready) return;   // 背景贴图自带桥面与警示条
     const x0 = BRIDGE.left;
     const w = BRIDGE.right - BRIDGE.left;
 
@@ -1415,6 +1454,18 @@
     ctx.fillStyle = `rgba(0, 0, 0, ${0.28 - hop * 0.12})`;
     ctx.fill();
 
+    // 贴图模式：立牌 + 弹跳/压扁/闪白（有图就不画旧程序化身体）
+    if (enemyArt.ready) {
+      const base = isBoss ? 124 : (e.kind === 'elite' ? 84 : 62);
+      ctx.save();
+      ctx.translate(e.x, e.y - lift);
+      ctx.scale(sx, sy);
+      if (flash > 0.02) ctx.filter = `brightness(${1 + flash * 1.2})`;
+      ctx.drawImage(isBoss ? enemyArt.boss : enemyArt.grunt, -base / 2, -base * 0.5, base, base);
+      ctx.restore();
+      return scale;
+    }
+
     ctx.save();
     ctx.translate(e.x, e.y - lift);
     ctx.scale(scale * sx, scale * sy);
@@ -1477,6 +1528,7 @@
     const p = G.player;
     const kick = p.kick;
 
+    // 地面光环（成长越高越亮）
     const t = Math.min(1, Math.log10(Math.max(1, p.dmgMul)) / 6);
     ctx.beginPath();
     ctx.ellipse(p.x, p.y + 44, 42 + t * 54, 13 + t * 17, 0, 0, Math.PI * 2);
@@ -1486,12 +1538,27 @@
     ctx.lineWidth = 2 + t * 2.5;
     ctx.stroke();
 
-    // 手/枪姿态固定不抽；开火反馈只留枪口火花
-    const muzzle = stick(p.x, p.y, 1.45, '#ff9ec4');
+    // 待机呼吸 + 左右拖倾斜 + 开火后坐（动感全在代码，图是静态立牌）
+    const bob = Math.sin(performance.now() / 520) * 1.6;
+    const press = kick * 2;
+    const Hp = PLAYER_ART.h;
+    const Wp = Hp * PLAYER_ART.ratio;
+    const footY = p.y + PLAYER_ART.footY + press;
 
-    if (kick > 0.35 && muzzle) {
+    if (playerArt.ready) {
+      ctx.save();
+      ctx.translate(p.x, footY);
+      ctx.rotate((p.lean || 0) * 0.045);   // ±约 2.6°
+      ctx.drawImage(playerArt, -Wp / 2, -PLAYER_ART.footRel * Hp + bob, Wp, Hp);
+      ctx.restore();
+    } else {
+      stick(p.x, p.y, 1.45, '#ff9ec4');
+    }
+
+    // 枪口火花：位置读立牌枪口比例，跟呼吸/后坐一起动
+    if (kick > 0.35) {
       ctx.beginPath();
-      ctx.arc(muzzle.x, muzzle.y, 6 + 4 * kick, 0, Math.PI * 2);
+      ctx.arc(playerMuzzleX(), playerMuzzleY() + press + bob, 6 + 4 * kick, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(255, 214, 120, 0.85)';
       ctx.fill();
     }
@@ -1759,7 +1826,10 @@
   function moveToClientX(clientX) {
     const r = canvas.getBoundingClientRect();
     if (r.width <= 0) return;
-    G.player.x = clampX(((clientX - r.left) / r.width) * W);
+    const nx = clampX(((clientX - r.left) / r.width) * W);
+    const dx = nx - G.player.x;
+    if (Math.abs(dx) > 0.5) G.player.leanT = Math.sign(dx);
+    G.player.x = nx;
   }
 
   function startDrag(e) {

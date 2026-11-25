@@ -7,34 +7,34 @@
 ## 文件在哪
 | 文件 | 行数 | 管什么 |
 |---|---|---|
-| `game.js` | 1460 | 全部玩法：BAL / 波次 / 卡片 / 子弹 / 渲染 / 输入 / 暂停 |
+| `game.js` | 1912 | 全部玩法：BAL / 波次 / 卡片 / 子弹 / 渲染 / 输入 / 暂停 |
 | `index.html` + `style.css` | 51 / 364 | DOM（`#game` `#pause` `#hpFill` `#buffs` `#over`）+ 720:1600 舞台、`touch-action`、HUD 样式 |
 | `headless.js` | 352 | 无渲染模拟器（假 DOM + 固定步长），`--bal` 覆盖 BAL |
 | `test-input.js` / `wave-time.js` / `win-time.js` | 123 / 57 / 35 | 真浏览器输入；每波耗时；胜负时长 |
 | `squad.js` 等子玩法文件 | 2450 起 | 编队玩法，见文末与 SQUAD.md |
 
 ## 状态机与主循环
-- 状态在 `G`（`game.js:111`）：`G.state` **实际只有** `'playing' | 'over'`，`G.result` 为 `null | 'win' | 'lose'`。注释里的 `'upgrade'`（`game.js:112`）是旧版残留，`#upgrade` 永远不会显示。
-- 启动 `reset()`（`game.js:1453`，定义在 `game.js:836`）→ `startWave()`（`game.js:288`）→ `startNextWave()`（`game.js:454`）。
+- 状态在 `G`（`game.js:133`）：`G.state` **实际只有** `'playing' | 'over'`，`G.result` 为 `null | 'win' | 'lose'`。注释里的 `'upgrade'`（`game.js:134`）是旧版残留，`#upgrade` 永远不会显示。
+- 启动 `reset()`（`game.js:1016`，定义在 `game.js:1016`）→ `startWave()`（`game.js:322`）→ `startNextWave()`（`game.js:496`）。
 - 主循环 `frame()`：dt 上限 0.05s，再乘 `FAST`（`?fast=1..8`）；未暂停才 `update(step)`；击杀/BOSS 时 `G.hitstop` 把 `step` 压到 0.05 倍、按真实时间倒计（headless 也走 `frame()`，只是 `render()` 被剥掉，所以模拟计时会略长）。
-- 每帧顺序：`updateSpawner`（`game.js:486`）→ `updateEnemies`（`game.js:558`）→ `updateCards`（`game.js:598`）→ `updatePlayer`（`game.js:503`）→ `updateBullets`（`game.js:686`）→ `updateParticles`（`game.js:788`）。失败在 `updateEnemies` 里直接 `return` 打断；击杀 BOSS 在 `hitEnemy` 里调 `win()` 当场判胜（本帧剩余子弹仍会走完）。
-- 渲染 `render()`（`game.js:909`）：地面 → 桥 → 路障 → 敌人 → 卡 → 子弹 → 玩家 → 粒子（卡在子弹/玩家之前画）。
+- 每帧顺序：`updateSpawner`（`game.js:528`）→ `updateEnemies`（`game.js:620`）→ `updateCards`（`game.js:673`）→ `updatePlayer`（`game.js:545`）→ `updateBullets`（`game.js:761`）→ `updateParticles`（`game.js:925`）。失败在 `updateEnemies` 里直接 `return` 打断；击杀 BOSS 在 `hitEnemy` 里调 `win()` 当场判胜（本帧剩余子弹仍会走完）。
+- 渲染 `render()`（`game.js:1093`）：地面 → 桥 → 路障 → 敌人 → 卡 → 子弹 → 玩家 → 粒子（卡在子弹/玩家之前画）。
 
 ## 想改什么 → 去哪
 | 想改 | 去哪 |
 |---|---|
-| 数值平衡 | `BAL`（`game.js:27`）唯一入口，模拟器可 `--bal`，真实构建认 `window.__BALANCE`（`game.js:62`）；例外：玩家移速 660 硬编码在 `game.js:133` 和 `game.js:857`，两处同改 |
-| 每波人数 / 阵型 | `WAVE_SCHEDULE`（`game.js:228`）+ `formationCells`（`game.js:239`）+ 站位 `laneX`（`game.js:263`） |
-| 波次推进 / 休息 / BOSS 登场 | `startNextWave`（`game.js:454`，`G.round > BAL.waves` 出 BOSS）、`updateSpawner`（`game.js:486`） |
-| 出卡规则 / 权重 / 前两对固定 | `ensureCards`（`game.js:408`）、`spawnCard`（`game.js:357`）、`CARD_TYPES`（`game.js:85`） |
-| 卡片数值范围 / 吃卡效果 | `cardRange`（`game.js:400`）、`applyCard`（`game.js:645`）、一次只吃一张在 `updateCards`（`game.js:598`） |
-| 子弹命中 / 穿透 / 卡挡子弹 | `shoot`（`game.js:526`）、`updateBullets`（`game.js:686`）、`hitEnemy`（`game.js:748`） |
+| 数值平衡 | `BAL`（`game.js:37`）唯一入口，模拟器可 `--bal`，真实构建认 `window.__BALANCE`（`game.js:84`）；例外：玩家移速 660 硬编码在 `game.js:158` 和 `game.js:1038`，两处同改 |
+| 每波人数 / 阵型 | `WAVE_SCHEDULE`（`game.js:262`）+ `formationCells`（`game.js:273`）+ 站位 `laneX`（`game.js:297`） |
+| 波次推进 / 休息 / BOSS 登场 | `startNextWave`（`game.js:496`，`G.round > BAL.waves` 出 BOSS）、`updateSpawner`（`game.js:528`） |
+| 出卡规则 / 权重 / 前两对固定 | `ensureCards`（`game.js:450`）、`spawnCard`（`game.js:399`）、`CARD_TYPES`（`game.js:107`） |
+| 卡片数值范围 / 吃卡效果 | `cardRange`（`game.js:442`）、`applyCard`（`game.js:720`）、一次只吃一张在 `updateCards`（`game.js:673`） |
+| 子弹命中 / 穿透 / 卡挡子弹 | `shoot`（`game.js:587`）、`updateBullets`（`game.js:761`）、`hitEnemy`（`game.js:823`） |
 | 打击感 | `hitEnemy`：闪白（`liftHex` 提亮身体）、火花 `impactSparks`、该怪顿挫 `hitStun`、压扁回推、抛物线飘字 `spawnFloat`；**击杀** → `killFreeze` 顿帧 + 冲击环，**BOSS** → `bossFreeze` + 大环（2026-11-16）；无整屏震 |
-| 画面（人 / 怪 / 卡 / 桥） | `stick`（`game.js:1019`）、`drawPlayer`（`game.js:1076`）、`drawEnemies`（`game.js:1117`）、`drawCards`（`game.js:1203`）、`drawBridge`（`game.js:934`）、`drawBarricade`（`game.js:986`） |
-| 输入（触摸 / 鼠标 / 键盘） | `startDrag` `game.js:1368`、`moveDrag` `game.js:1384`、`endDrag` `game.js:1390`、`moveToClientX` `game.js:1362`；键盘 `game.js:1338` |
-| HUD / 结算 / 存档 / 音效 | `syncHud`（`game.js:274`）、`syncBuffs`（`game.js:1270`）、`win` `game.js:808` / `lose` `game.js:822`、暂停 `game.js:170`；**存档和音效都没有**（无 localStorage、无 WebAudio） |
+| 画面（人 / 怪 / 卡 / 桥） | `stick`（`game.js:1401`）、`drawPlayer`（`game.js:1514`）、`drawEnemies`（`game.js:1554`）、`drawCards`（`game.js:1614`）、`drawBridge`（`game.js:1126`）、`drawBarricade`（`game.js:1215`） |
+| 输入（触摸 / 鼠标 / 键盘） | `startDrag` `game.js:1822`、`moveDrag` `game.js:1838`、`endDrag` `game.js:1844`、`moveToClientX` `game.js:1813`；键盘 `game.js:1791` |
+| HUD / 结算 / 存档 / 音效 | `syncHud`（`game.js:308`）、`syncBuffs`（`game.js:1711`）、`win` `game.js:988` / `lose` `game.js:1002`、暂停 `game.js:206`；**存档和音效都没有**（无 localStorage、无 WebAudio） |
 
-## 数值都在哪（BAL，`game.js:27`）
+## 数值都在哪（BAL，`game.js:37`）
 | 字段 | 值 | 字段 | 值 |
 |---|---|---|---|
 | `playerHp` 桥头血 | 9 | `waves` 杂兵波数 | 8 |

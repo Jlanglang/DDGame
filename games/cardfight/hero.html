@@ -56,6 +56,25 @@
   }
   .back:hover { color: var(--gold); border-color: rgba(255, 209, 102, 0.5); }
 
+  /* 立绘切换：左下角箭头 + 计数，触摸目标 44px */
+  .face-switch {
+    position: absolute; left: 30px; bottom: 24px; z-index: 4;
+    display: none; align-items: center; gap: 2px;
+    padding: 3px; border-radius: 999px;
+    background: rgba(14, 10, 16, 0.62);
+    border: 1px solid rgba(207, 169, 111, 0.28);
+    backdrop-filter: blur(6px);
+  }
+  .face-switch.show { display: flex; }
+  .fs-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: transparent; color: #d9c19b; font-size: 22px; line-height: 1;
+    display: grid; place-items: center; font-family: inherit;
+  }
+  .fs-btn:hover { color: var(--gold); background: rgba(255, 209, 102, 0.1); }
+  .fs-btn:active { transform: translateY(1px); }
+  .fs-count { min-width: 48px; text-align: center; font-size: 11px; letter-spacing: 0.14em; color: #b99a6d; }
+
   .panel {
     position: absolute; right: 0; top: 0; bottom: 0; width: 560px;
     padding: 74px 44px 28px 30px;
@@ -155,6 +174,12 @@
 
   <a class="back" href="heroes.html">← 英雄池</a>
 
+  <div class="face-switch" id="faceSwitch" aria-label="切换立绘">
+    <button class="fs-btn" id="fsPrev" type="button" aria-label="上一张立绘">‹</button>
+    <span class="fs-count" id="fsCount">1 / 1</span>
+    <button class="fs-btn" id="fsNext" type="button" aria-label="下一张立绘">›</button>
+  </div>
+
   <section class="panel">
     <div class="kicker">HERO DETAIL</div>
     <div class="name-row">
@@ -218,7 +243,35 @@
   document.body.classList.add('q-' + h.q);
   var unlocked = HeroPool.isUnlocked(id);
 
-  document.getElementById('app').style.setProperty('--face', 'url("' + h.face + '")');
+  /* 立绘多套切换：faces 缺省回退单张 face，保持老数据可用 */
+  var appEl = document.getElementById('app');
+  var faces = (h.faces && h.faces.length) ? h.faces : [h.face];
+  var faceIdx = 0;
+  function setFace(i) {
+    faceIdx = (i % faces.length + faces.length) % faces.length;
+    appEl.style.setProperty('--face', 'url("' + faces[faceIdx] + '")');
+    document.getElementById('fsCount').textContent = (faceIdx + 1) + ' / ' + faces.length;
+  }
+  setFace(0);
+  if (faces.length > 1) {
+    document.getElementById('faceSwitch').classList.add('show');
+    document.getElementById('fsPrev').addEventListener('click', function () { setFace(faceIdx - 1); });
+    document.getElementById('fsNext').addEventListener('click', function () { setFace(faceIdx + 1); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft') setFace(faceIdx - 1);
+      if (e.key === 'ArrowRight') setFace(faceIdx + 1);
+    });
+    var swipeX = null;
+    appEl.addEventListener('touchstart', function (e) {
+      swipeX = e.touches[0].clientX;
+    }, { passive: true });
+    appEl.addEventListener('touchend', function (e) {
+      if (swipeX === null) return;
+      var dx = e.changedTouches[0].clientX - swipeX;
+      swipeX = null;
+      if (Math.abs(dx) > 40) setFace(faceIdx + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  }
   document.getElementById('tint').className = 'tint q-' + h.q;
   document.getElementById('name').textContent = h.name;
   document.getElementById('role').textContent = h.role;

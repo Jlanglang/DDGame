@@ -8,7 +8,7 @@
 | 主页 | index.html | 584 | 20 关列表/进度/出战队伍/布阵层；内联脚本从 :301 起 |
 | 战斗 | battle.html | 887 | 舞台 SVG + HUD + 全部 CSS；DOM 在 :706-877 |
 | 名册 | heroes.html | 183 | 12 英雄卡片、解锁态与排序；内联脚本从 :143 起 |
-| 详情 | hero.html | 295 | `?id=xxx`、立绘/装备/升级按钮；内联脚本从 :203 起 |
+| 详情 | hero.html | 348 | `?id=xxx`、立绘（3 套切换：箭头/键盘/触摸滑动）/装备/升级按钮；内联脚本从 :228 起 |
 | 模块 | battle.js | 589 | 战斗页编排：读阵容/关卡、建 DOM、回合定时器、怒气队列、结算 |
 | 模块 | combat.js | 310 | 纯规则（Node 可 require）：选目标、strike、出手顺序、怒气队列 |
 | 模块 | formation.js | 197 | 站位几何 + 英雄/怪物战斗数值 + 阵容/进度存档 |
@@ -29,7 +29,7 @@
 | 队形/站位 | formation.js:14-27 常量 + `computeSlots`:75；battle.js:91-94 只取结果；布阵拖拽 index.html:491-561 |
 | 角色数值 | 战斗认 formation.js:35 `HEROES`（可上阵仅 3 人，HERO_ORDER:54）；展示认 heroes.js:8 `HERO_DB`；加人要两处都写 |
 | 关卡/敌人 | levels.js:9 `RAW`（怪物 + 号位 1–5）、:41 倍率、:7 章节名；入口 `battle.html?level=N`（battle.js:36） |
-| 经济/升级 | economy.js:9-10 初始金币/上限、:56 升级价、:79 奖励；按钮 hero.html:252；主页显示 index.html:375 |
+| 经济/升级 | economy.js:9-10 初始金币/上限、:56 升级价、:79 奖励；按钮 hero.html:209；主页显示 index.html:375 |
 | 自动/倍速 | battle.js:562 自动怒气开关、:567 倍速 1→2→3；敌方永远自动（:355），我方只在开自动时（:340） |
 | 加怒气技能 | combat.js:79 加 kind + formation.js:35-53 的 `rageSkill` + battle.js:360/370 文案 + :321 技能图 |
 | 战斗 UI/特效 | battle.html:19 `#stage`、:55 格位、:76 `.unit`、:328 按钮、:359 日志；特效 battle.js:237-305；品质色 theme.css:16-42（详见 README.md） |

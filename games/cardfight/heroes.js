@@ -8,7 +8,9 @@
   var HERO_DB = {
     dajian: {
       name: '紫垣', q: 'A', lv: 15, role: '前排 · 坦克',
-      face: 'faces/dajian.jpg', art: 'cutouts/actions/dajian-7.webp',
+      face: 'faces/dajian.jpg',
+      faces: ['faces/dajian.jpg', 'faces/dajian-set2.jpg', 'faces/dajian-set3.jpg'],
+      art: 'cutouts/actions/dajian-7.webp',
       unlockAt: 0, atk: 20, hp: 200,
       desc: '前排大剑，靠磐石架势顶住第一轮，护盾撑到自己下次普攻。',
       equip: [
@@ -20,7 +22,9 @@
     },
     aurora: {
       name: '极光', q: 'A', lv: 12, role: '后排 · 狙击',
-      face: 'faces/aurora.jpg', art: 'cutouts/actions/aurora-1.webp',
+      face: 'faces/aurora.jpg',
+      faces: ['faces/aurora.jpg', 'faces/aurora-set2.jpg', 'faces/aurora-set3.jpg'],
+      art: 'cutouts/actions/aurora-1.webp',
       unlockAt: 0, atk: 30, hp: 100,
       desc: '后排狙击，落日狙击专挑对面后排，300% 攻击，后排没人就落空。',
       equip: [
@@ -32,7 +36,9 @@
     },
     yueguang: {
       name: '银翎', q: 'A', lv: 10, role: '后排 · 爆发',
-      face: 'faces/yueguang.jpg', art: 'cutouts/actions/yueguang-3.webp',
+      face: 'faces/yueguang.jpg',
+      faces: ['faces/yueguang.jpg', 'faces/yueguang-set2.jpg', 'faces/yueguang-set3.jpg'],
+      art: 'cutouts/actions/yueguang-3.webp',
       unlockAt: 0, atk: 15, hp: 95,
       desc: '银发白羽、手持白龙杖的远程，后排斩杀位，等待技能实装。',
       equip: [
@@ -44,7 +50,9 @@
     },
     chixing: {
       name: '月光', q: 'S', lv: 10, role: '后排 · 治疗',
-      face: 'faces/chixing.jpg', art: 'cutouts/chixing.webp',
+      face: 'faces/chixing.jpg',
+      faces: ['faces/chixing.jpg', 'faces/chixing-set2.jpg', 'faces/chixing-set3.jpg'],
+      art: 'cutouts/chixing.webp',
       unlockAt: 20, atk: 8, hp: 120,
       desc: '月华治愈拉自己这一排，每人 25% 最大生命，不打输出。',
       equip: [
@@ -56,7 +64,9 @@
     },
     changhong: {
       name: '长虹', q: 'SS', lv: 9, role: '前排 · 群攻',
-      face: 'faces/changhong.jpg', art: 'cutouts/changhong.webp',
+      face: 'faces/changhong.jpg',
+      faces: ['faces/changhong.jpg', 'faces/changhong-set2.jpg', 'faces/changhong-set3.jpg'],
+      art: 'cutouts/changhong.webp',
       atk: 18, hp: 150,
       desc: '横扫一排：前排有人打前排，前排空了改打后排。',
       equip: [
@@ -68,7 +78,9 @@
     },
     kuoren: {
       name: '阔刃', q: 'S', lv: 8, role: '前排 · 横扫',
-      face: 'faces/kuoren.jpg', art: 'cutouts/kuoren.webp',
+      face: 'faces/kuoren.jpg',
+      faces: ['faces/kuoren.jpg', 'faces/kuoren-set2.jpg', 'faces/kuoren-set3.jpg'],
+      art: 'cutouts/kuoren.webp',
       atk: 17, hp: 140,
       desc: '横扫前排：只扫前排，前排没人就落空，不改打后排。',
       equip: [
@@ -80,7 +92,9 @@
     },
     yujin: {
       name: '余烬', q: 'S', lv: 7, role: '前排 · 斩杀',
-      face: 'faces/yujin.jpg', art: 'cutouts/yujin.webp',
+      face: 'faces/yujin.jpg',
+      faces: ['faces/yujin.jpg', 'faces/yujin-set2.jpg', 'faces/yujin-set3.jpg'],
+      art: 'cutouts/yujin.webp',
       atk: 16, hp: 130,
       desc: '斩杀追击：先打一下，击杀后追打剩余血最低的人。',
       equip: [
@@ -92,35 +106,45 @@
     },
     zhenjia: {
       name: '真甲', q: 'S', lv: 6, role: '前排 · 护盾',
-      face: 'faces/zhenjia.jpg', art: 'cutouts/zhenjia.webp',
+      face: 'faces/zhenjia.jpg',
+      faces: ['faces/zhenjia.jpg', 'faces/zhenjia-set2.jpg', 'faces/zhenjia-set3.jpg'],
+      art: 'cutouts/zhenjia.webp',
       atk: 14, hp: 170,
       desc: '重甲前排，靠防御吃饭，暂时没有专属怒气技能。',
       equip: []
     },
     tiezhuang: {
       name: '铁装', q: 'SS', lv: 5, role: '前排 · 防御',
-      face: 'faces/tiezhuang.jpg', art: 'cutouts/tiezhuang.webp',
+      face: 'faces/tiezhuang.jpg',
+      faces: ['faces/tiezhuang.jpg', 'faces/tiezhuang-set2.jpg', 'faces/tiezhuang-set3.jpg'],
+      art: 'cutouts/tiezhuang.webp',
       atk: 12, hp: 180,
       desc: '铁皮前排，暂时作为数值占位。',
       equip: []
     },
     gushou: {
       name: '孤守', q: 'S', lv: 4, role: '前排 · 反击',
-      face: 'faces/gushou.jpg', art: 'cutouts/gushou.webp',
+      face: 'faces/gushou.jpg',
+      faces: ['faces/gushou.jpg', 'faces/gushou-set2.jpg', 'faces/gushou-set3.jpg'],
+      art: 'cutouts/gushou.webp',
       atk: 13, hp: 150,
       desc: '独守一线，等待技能实装。',
       equip: []
     },
     candeng: {
       name: '残灯', q: 'S', lv: 3, role: '后排 · 辅助',
-      face: 'faces/candeng.jpg', art: 'cutouts/candeng.webp',
+      face: 'faces/candeng.jpg',
+      faces: ['faces/candeng.jpg', 'faces/candeng-set2.jpg', 'faces/candeng-set3.jpg'],
+      art: 'cutouts/candeng.webp',
       atk: 10, hp: 110,
       desc: '后排辅助，等待技能实装。',
       equip: []
     },
     zaochao: {
       name: '早朝', q: 'SS', lv: 3, role: '后排 · 群攻',
-      face: 'faces/zaochao.jpg', art: 'cutouts/zaochao.webp',
+      face: 'faces/zaochao.jpg',
+      faces: ['faces/zaochao.jpg', 'faces/zaochao-set2.jpg', 'faces/zaochao-set3.jpg'],
+      art: 'cutouts/zaochao.webp',
       atk: 11, hp: 100,
       desc: '后排群攻，等待技能实装。',
       equip: []
